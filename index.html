@@ -1,0 +1,846 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#171713">
+<title>Ролльня — лист → спираль → срез</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #171713; overflow: hidden; overscroll-behavior: none; }
+  canvas { display: block; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+'use strict';
+// =====================================================================
+//  Ролльня — стенд «лист → спираль → срез».
+//  Одна модель на всё: плоский лист в координатах (u, v, z).
+//    u — направление скрутки: 0 — ближний край (окажется в центре ролла), 1 — дальний (снаружи).
+//    v — вдоль оси ролла: какой ломтик.
+//    z — слой по толщине намазки: 0 — на обёртке, 1 — верх намазки (внутренняя сторона витка).
+//  Начинка — прямоугольный патч на листе с интервалом по z. Стопка вдавливается в намазку сверху:
+//  первая положенная начинка — ближе к центру ролла, положенная поверх неё — дальше от центра.
+//  Переполнение (стопка выше намазки) утолщает весь ролл. Скрутка — спираль Архимеда.
+//  Срез — попиксельная развёртка: пиксель (r, φ) → виток k → (u, z) → материал.
+// =====================================================================
+
+const TAU = Math.PI * 2;
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const remap = (t, a, b) => clamp((t - a) / (b - a));
+const fract = x => x - Math.floor(x);
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const easeOutCubic = x => 1 - Math.pow(1 - x, 3);
+const easeInOutCubic = x => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const easeOutBack = x => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const hexRgb = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const rgbCss = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const shade = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
+function hash(x, y) {
+  let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+// ---------------------------------------------------------------- данные
+const BASES = {
+  sushi: { name: 'Суши-ролл', emoji: '🍣', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+    T: 1.0, w: 0.12, turns: 3.1, ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo'] },
+  cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
+    T: 0.8, w: 0.42, turns: 2.7, ingredients: ['strawberry', 'kiwi', 'banana', 'mango', 'choco', 'jam', 'nut'] },
+};
+// du, dv — размер патча в долях листа; h — высота в долях толщины намазки; round — круглое сечение (палочка).
+const ING = {
+  salmon:     { name: 'Лосось',   color: '#ef8a66', du: 0.10, dv: 1.00, h: 0.55, tex: 'salmon' },
+  cucumber:   { name: 'Огурец',   color: '#79b55c', du: 0.06, dv: 1.00, h: 0.42, tex: 'cucumber', round: true },
+  tamago:     { name: 'Тамаго',   color: '#f3c94f', du: 0.12, dv: 1.00, h: 0.50, tex: 'tamago' },
+  avocado:    { name: 'Авокадо',  color: '#a7c455', du: 0.09, dv: 1.00, h: 0.45, tex: 'avocado', round: true },
+  shrimp:     { name: 'Креветка', color: '#f4a48c', du: 0.08, dv: 0.30, h: 0.50, tex: 'shrimp', round: true },
+  nori:       { name: 'Нори',     color: '#22342b', du: 0.10, dv: 1.00, h: 0.08, tex: 'flat' },
+  mayo:       { name: 'Майо',     color: '#f2883f', du: 0.035, dv: 1.00, h: 0.14, tex: 'gloss', round: true, wave: { amp: 0.05, freq: 3 } },
+  strawberry: { name: 'Клубника', color: '#e0364a', du: 0.09, dv: 0.22, h: 0.60, tex: 'strawberry', round: true },
+  kiwi:       { name: 'Киви',     color: '#8dbf4c', du: 0.10, dv: 0.20, h: 0.55, tex: 'kiwi', round: true },
+  banana:     { name: 'Банан',    color: '#f3e3a0', du: 0.09, dv: 1.00, h: 0.50, tex: 'banana', round: true },
+  mango:      { name: 'Манго',    color: '#f6b02f', du: 0.09, dv: 1.00, h: 0.45, tex: 'mango', round: true },
+  choco:      { name: 'Шоколад',  color: '#47291b', du: 0.04, dv: 1.00, h: 0.12, tex: 'gloss', round: true, wave: { amp: 0.05, freq: 2.5 } },
+  jam:        { name: 'Джем',     color: '#b0203e', du: 0.14, dv: 1.00, h: 0.10, tex: 'gloss' },
+  nut:        { name: 'Орех',     color: '#b5793f', du: 0.05, dv: 0.12, h: 0.35, tex: 'nut', round: true },
+};
+for (const k in ING) ING[k].rgb = hexRgb(ING[k].color);
+for (const k in BASES) { BASES[k].wrapperRgb = hexRgb(BASES[k].wrapper); BASES[k].spreadRgb = hexRgb(BASES[k].spread); }
+
+// ---------------------------------------------------------------- состояние
+const S = {
+  mode: 'lay',                 // lay | rolled | cut | revealed | slicing | plate
+  base: 'sushi',
+  lists: { sushi: [], cake: [] },
+  sel: 'salmon',
+  preview: false,
+  mute: false,
+  cuts: 0,                     // срезов за сессию — замер 1
+  cutsTotal: 0,
+  rollP: 0,                    // прогресс скрутки 0..1 (в режиме lay)
+  bigPiece: -1,
+  selPatch: null,              // выделенная начинка на листе
+};
+const patches = () => S.lists[S.base];
+const B = () => BASES[S.base];
+const NPIECES = 6;
+
+function load() {
+  try {
+    const m = JSON.parse(localStorage.getItem('rollery.model') || 'null');
+    if (m && m.lists) { S.base = m.base in BASES ? m.base : 'sushi'; S.lists = m.lists; }
+    S.preview = localStorage.getItem('rollery.preview') === '1';
+    S.mute = localStorage.getItem('rollery.mute') === '1';
+    S.cutsTotal = +(localStorage.getItem('rollery.cuts') || 0);
+  } catch (e) {}
+  S.sel = B().ingredients[0];
+  for (const b in S.lists) S.lists[b] = S.lists[b].filter(p => ING[p.kind]);
+}
+function save() {
+  try {
+    localStorage.setItem('rollery.model', JSON.stringify({ base: S.base, lists: S.lists }));
+    localStorage.setItem('rollery.preview', S.preview ? '1' : '0');
+    localStorage.setItem('rollery.mute', S.mute ? '1' : '0');
+    localStorage.setItem('rollery.cuts', String(S.cutsTotal));
+  } catch (e) {}
+}
+
+// ---------------------------------------------------------------- модель листа
+// Размеры патча: у обёрточных нори-патчей размеры и высота переопределены под начинку.
+function dims(p) { const d = ING[p.kind]; return { du: p.du ?? d.du, dv: p.dv ?? d.dv, h: p.h ?? d.h }; }
+function bounds(p) {
+  const d = ING[p.kind], m = dims(p), amp = d.wave ? d.wave.amp : 0;
+  return { u0: p.u - m.du / 2 - amp, u1: p.u + m.du / 2 + amp, v0: p.v - m.dv / 2, v1: p.v + m.dv / 2 };
+}
+function overlap(a, b) {
+  const A = bounds(a), Bb = bounds(b);
+  return A.u0 < Bb.u1 && Bb.u0 < A.u1 && A.v0 < Bb.v1 && Bb.v0 < A.v1;
+}
+// Стопка: что положено позже, лежит выше. Стопка вдавлена в намазку сверху: её верх — на поверхности
+// намазки (z=1), пока стопка не выше намазки; выше — торчит и утолщает ролл.
+// Возвращает верх намазки в долях её толщины (≥1).
+function restack(list) {
+  const n = list.length, adj = list.map(() => []);
+  for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) if (overlap(list[i], list[j])) { adj[i].push(j); adj[j].push(i); }
+  for (let i = 0; i < n; i++) {
+    const p = list[i]; let base = 0;
+    for (const j of adj[i]) if (j < i) base = Math.max(base, list[j].z1);
+    p.z0 = base; p.z1 = base + dims(p).h;
+  }
+  const seen = new Array(n).fill(false); let top = 1;
+  for (let i = 0; i < n; i++) {
+    if (seen[i]) continue;
+    const comp = [i]; seen[i] = true;
+    for (let k = 0; k < comp.length; k++) for (const j of adj[comp[k]]) if (!seen[j]) { seen[j] = true; comp.push(j); }
+    let ctop = 0; for (const k of comp) ctop = Math.max(ctop, list[k].z1);
+    const shift = Math.max(0, 1 - ctop);
+    for (const k of comp) { list[k].z0 += shift; list[k].z1 += shift; top = Math.max(top, list[k].z1); }
+  }
+  return top;
+}
+// Какой материал лежит в точке листа (u, v, z). null — намазка.
+function matAt(u, v, z, list) {
+  for (let i = list.length - 1; i >= 0; i--) {
+    const p = list[i], d = ING[p.kind], m = dims(p);
+    if (z < p.z0 || z > p.z1) continue;
+    if (v < p.v - m.dv / 2 || v > p.v + m.dv / 2) continue;
+    let uc = p.u;
+    if (d.wave) uc += d.wave.amp * Math.sin(TAU * d.wave.freq * v + p.phase);
+    const lu = (u - uc) / m.du;
+    if (lu < -0.5 || lu > 0.5) continue;
+    const lz = (z - p.z0) / (p.z1 - p.z0);
+    if (d.round) { const a = lu * 2, b = lz * 2 - 1; if (a * a + b * b > 1) continue; }
+    return { p, d, lu, lz, lv: (v - p.v) / m.dv };
+  }
+  return null;
+}
+// Геометрия спирали: единица длины — толщина намазки при Tn=1.
+function geometry() {
+  const b = B(), Tn = restack(patches());
+  const T = b.T, w = b.w, r0 = 0.3, P0 = T + w;
+  const thNom = TAU * b.turns;
+  const L = r0 * thNom + P0 * thNom * thNom / (2 * TAU);   // длина листа — константа базы
+  const P = T * Tn + w;                                    // шаг спирали: намазка (с переполнением) + обёртка
+  const a = P / (2 * TAU), c = -L;
+  const thetaEnd = (-r0 + Math.sqrt(r0 * r0 - 4 * a * c)) / (2 * a);
+  const Rout = r0 + P * thetaEnd / TAU + P;
+  return { T, w, P, r0, L, Tn, thetaEnd, Rout, turns: thetaEnd / TAU };
+}
+const thetaAt = (s, g) => { const a = g.P / (2 * TAU); return (-g.r0 + Math.sqrt(g.r0 * g.r0 + 4 * a * s)) / (2 * a); };
+const radiusAt = (p, g) => (p <= 0 ? 0 : g.r0 + g.P * thetaAt(p * g.L, g) / TAU + g.P);
+
+// ---------------------------------------------------------------- цвета материалов на срезе
+function spreadColor(px, py, b) {
+  const c = b.spreadRgb;
+  if (S.base === 'sushi') {
+    const n1 = hash(px >> 1, py >> 1), n2 = hash(px >> 2, (py >> 2) + 77);
+    let t = (n1 - 0.5) * 10 + (n2 - 0.5) * 16; if (n1 > 0.965) t -= 24;
+    return [c[0] + t, c[1] + t, c[2] + t * 0.6];
+  }
+  const t = (hash(px, py) - 0.5) * 4;
+  return [c[0] + t, c[1] + t, c[2] + t];
+}
+function wrapperColor(px, py, b) {
+  const c = b.wrapperRgb, n = hash(px, py + 999);
+  let t = (n - 0.5) * 8; if (S.base === 'cake' && n > 0.9) t -= 20;
+  return [c[0] + t, c[1] + t, c[2] + t];
+}
+function patchColor(m, px, py) {
+  const { d, lu, lz, lv } = m, c = d.rgb;
+  const dd = Math.hypot(lu * 2, lz * 2 - 1);
+  switch (d.tex) {
+    case 'salmon': { const s = fract(lu * 5.5 + lz * 0.7 + m.p.phase * 0.3); return mix(c, [255, 246, 236], s < 0.13 ? 0.55 : 0); }
+    case 'cucumber': { if (dd > 0.84) return [86, 138, 60]; if (dd < 0.35 && hash(px, py) > 0.93) return [196, 200, 146]; return mix([214, 232, 178], c, smooth(0.2, 0.84, dd)); }
+    case 'tamago': return mix(c, [200, 150, 50], fract(lz * 3.5) < 0.12 ? 0.18 : 0);
+    case 'avocado': return mix([226, 224, 140], [104, 150, 60], smooth(0.15, 1, dd));
+    case 'shrimp': return fract(lu * 3 + lv * 2 + 0.2) < 0.45 ? [250, 236, 224] : c;
+    case 'gloss': return mix(c, [255, 255, 255], lz > 0.72 ? 0.25 : 0);
+    case 'strawberry': { if (dd > 0.5 && hash(px, py) > 0.92) return [248, 230, 120]; return mix([255, 236, 236], c, smooth(0.15, 0.75, dd)); }
+    case 'kiwi': { if (dd > 0.92) return [110, 90, 60]; if (dd > 0.38 && dd < 0.56 && hash(px, py) > 0.85) return [30, 25, 20]; return mix([236, 240, 190], c, smooth(0.1, 0.7, dd)); }
+    case 'banana': { if (dd < 0.25 && hash(px, py) > 0.9) return [150, 120, 80]; return mix([250, 240, 200], c, dd); }
+    case 'mango': return mix(c, [255, 214, 120], fract(lu * 4 + lz) < 0.2 ? 0.25 : 0);
+    case 'nut': return mix([220, 180, 120], c, dd);
+    default: return c;
+  }
+}
+
+// ---------------------------------------------------------------- рендер среза
+// size — в пикселях устройства; vSlice — где режем. Возвращает canvas с прозрачным фоном.
+function renderSection(size, vSlice) {
+  const g = geometry(), b = B(), list = patches();
+  const off = document.createElement('canvas'); off.width = off.height = size;
+  const c = off.getContext('2d'); const img = c.createImageData(size, size); const d = img.data;
+  const half = size / 2, scale = (half - 1.5) / g.Rout;
+  const K = g.P / (2 * TAU);
+  for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
+    const i = (py * size + px) * 4;
+    const dx = (px + 0.5 - half) / scale, dy = (py + 0.5 - half) / scale;
+    const r = Math.hypot(dx, dy);
+    if (r > g.Rout + 1 / scale) { d[i + 3] = 0; continue; }
+    let phi = Math.atan2(dy, dx); if (phi < 0) phi += TAU;
+    const q = (r - g.r0 - g.P * phi / TAU) / g.P;
+    const k = Math.floor(q), zr = (q - k) * g.P;           // zr: от внутренней кромки витка наружу
+    const theta = phi + TAU * k;
+    const u = theta < 0 ? 0 : (g.r0 * theta + K * theta * theta) / g.L;
+    let alpha = 1, rgb;
+    if (u > 1) {                                           // над последним витком: сглаживание кромки
+      const t2 = theta - TAU;
+      const u2 = t2 < 0 ? 0 : (g.r0 * t2 + K * t2 * t2) / g.L;
+      if (u2 > 1) { d[i + 3] = 0; continue; }
+      alpha = clamp(0.5 - zr * scale);
+      if (alpha <= 0) { d[i + 3] = 0; continue; }
+      rgb = wrapperColor(px, py, b);
+    } else {
+      const zn = (g.Tn * g.T - zr) / g.T;
+      if (zn < 0) rgb = wrapperColor(px, py, b);
+      else { const m = matAt(u, vSlice, zn, list); rgb = m ? patchColor(m, px, py) : spreadColor(px, py, b); }
+      const tN = theta + TAU, uN = (g.r0 * tN + K * tN * tN) / g.L;
+      if (uN > 1) alpha = clamp(0.5 + (g.P - zr) * scale);
+    }
+    const rr = r / g.Rout;
+    const vig = 1 - 0.10 * rr * rr - 0.035 * (dx + dy) / g.Rout;
+    d[i] = clamp(rgb[0] * vig, 0, 255); d[i + 1] = clamp(rgb[1] * vig, 0, 255); d[i + 2] = clamp(rgb[2] * vig, 0, 255); d[i + 3] = alpha * 255;
+  }
+  c.putImageData(img, 0, 0);
+  return off;
+}
+const faceCache = new Map();
+let modelKey = '';
+function touchModel() { modelKey = S.base + JSON.stringify(patches()); faceCache.clear(); save(); dirty = true; }
+function face(vSlice, cssSize) {
+  const size = Math.round(cssSize * DPR);
+  const key = modelKey + '|' + vSlice.toFixed(3) + '|' + size;
+  let img = faceCache.get(key);
+  if (!img) { img = renderSection(size, vSlice); faceCache.set(key, img); }
+  return img;
+}
+const pieceV = i => (i === 0 ? 1 / NPIECES : i / NPIECES) + (i === 0 ? -0.002 : 0.002);
+
+// ---------------------------------------------------------------- звук (процедурный, минимальный)
+const sfx = {
+  ac: null, master: null, noise: null, rustleGain: null,
+  ensure() {
+    if (this.ac) { if (this.ac.state === 'suspended') this.ac.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    this.ac = new AC(); this.master = this.ac.createGain(); this.master.gain.value = S.mute ? 0 : 1; this.master.connect(this.ac.destination);
+    const n = this.ac.sampleRate; const buf = this.ac.createBuffer(1, n, n); const ch = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) ch[i] = Math.random() * 2 - 1;
+    this.noise = buf;
+  },
+  setMute(m) { if (this.master) this.master.gain.value = m ? 0 : 1; },
+  burst(freq, q, dur, vol, t0 = 0) {
+    if (!this.ac) return; const t = this.ac.currentTime + t0;
+    const src = this.ac.createBufferSource(); src.buffer = this.noise;
+    const f = this.ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    const g = this.ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(this.master); src.start(t); src.stop(t + dur + 0.05);
+  },
+  tone(f0, f1, dur, vol, t0 = 0) {
+    if (!this.ac) return; const t = this.ac.currentTime + t0;
+    const o = this.ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = this.ac.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.02);
+  },
+  place() { this.ensure(); this.tone(170, 90, 0.09, 0.22); this.burst(1200, 0.7, 0.03, 0.12); },
+  cut() { this.ensure(); this.burst(2200, 0.6, 0.18, 0.5); this.burst(600, 1.2, 0.12, 0.25, 0.05); this.tone(80, 50, 0.09, 0.35, 0.09); },
+  chop() { this.ensure(); this.burst(2000, 0.7, 0.09, 0.4); this.tone(90, 55, 0.06, 0.28, 0.04); },
+  rustleStart() {
+    this.ensure(); if (!this.ac || this.rustleGain) return;
+    const src = this.ac.createBufferSource(); src.buffer = this.noise; src.loop = true;
+    const f = this.ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 0.5;
+    const g = this.ac.createGain(); g.gain.value = 0;
+    src.connect(f); f.connect(g); g.connect(this.master); src.start();
+    this.rustleGain = g; this.rustleSrc = src;
+  },
+  rustle(v) { if (this.rustleGain) this.rustleGain.gain.setTargetAtTime(clamp(v) * 0.25, this.ac.currentTime, 0.03); },
+  rustleStop() { if (!this.rustleGain) return; const g = this.rustleGain, s = this.rustleSrc; g.gain.setTargetAtTime(0, this.ac.currentTime, 0.05); setTimeout(() => { try { s.stop(); } catch (e) {} }, 300); this.rustleGain = null; },
+};
+
+// ---------------------------------------------------------------- холст и раскладка экрана
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1, dirty = true;
+const L = {};   // раскладка: sheet, handle, chips, buttons, roll, face, grid
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  layout(); dirty = true;
+}
+function layout() {
+  const safeB = 18, top = 78, chipsH = 74, btnH = 44, handleH = 40, previewH = S.preview ? 136 : 0;
+  const availH = H - top - chipsH - btnH - handleH - 46 - safeB - previewH;
+  let sw = Math.min(W - 48, 520), sh = Math.min(availH, sw * 1.15);
+  if (sh < sw * 0.75) sw = sh / 0.75;
+  const sx = (W - sw) / 2, sy = top + 12 + previewH + (availH - sh) / 2;
+  L.top = top; L.sheet = { x: sx, y: sy, w: sw, h: sh }; L.previewY = sy - 18 - 62;
+  L.handle = { x: sx - 18, y: sy + sh + 12, w: sw + 36, h: handleH };
+  L.btnY = L.handle.y + handleH + 12; L.btnH = btnH;
+  L.chipsY = L.btnY + btnH + 10; L.chipsH = chipsH;
+  // ролл в режиме реза
+  const len = Math.min(W * 0.86, 640);
+  L.roll = { x: W / 2, y: top + (L.btnY - top) * 0.5, len };
+  // большой срез
+  L.faceSize = Math.min(W * 0.78, (L.btnY - top) * 0.72);
+  L.faceY = top + (L.btnY - top) * 0.5;
+  // тарелка
+  const cols = W > H ? 6 : 2, rows = NPIECES / cols;
+  const cell = Math.min((W - 40) / cols - 10, (L.btnY - top - 30) / rows - 10);
+  const gx = (W - cols * (cell + 10)) / 2 + 5, gy = top + (L.btnY - top - rows * (cell + 10)) / 2 + 5;
+  L.grid = []; for (let i = 0; i < NPIECES; i++) L.grid.push({ x: gx + (i % cols) * (cell + 10) + cell / 2, y: gy + Math.floor(i / cols) * (cell + 10) + cell / 2, size: cell });
+}
+function rr(x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+const font = (px, w = 500) => `${w} ${px}px -apple-system, system-ui, Segoe UI, Roboto, sans-serif`;
+
+// ---------------------------------------------------------------- UI: кнопки и чипы
+let buttons = [];
+function button(id, label, x, y, w, primary) { buttons.push({ id, label, x, y, w, h: L.btnH, primary }); }
+function drawButtons() {
+  for (const b of buttons) {
+    rr(b.x, b.y, b.w, b.h, 12);
+    ctx.fillStyle = b.primary ? '#e0b25a' : '#2a2a25'; ctx.fill();
+    ctx.strokeStyle = b.primary ? '#f0cb7d' : '#4d4838'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = b.primary ? '#171713' : '#efe4cd'; ctx.font = font(15, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1);
+  }
+}
+function buttonRow(list) {
+  const gap = 10, total = Math.min(W - 32, 520);
+  const wsum = list.reduce((a, b) => a + (b[3] || 1), 0), unit = (total - gap * (list.length - 1)) / wsum;
+  let x = (W - total) / 2;
+  for (const [id, label, primary, wt] of list) { const w = unit * (wt || 1); button(id, label, x, L.btnY, w, primary); x += w + gap; }
+}
+let chips = [];
+function drawChips() {
+  chips = []; const ings = B().ingredients, n = ings.length;
+  const size = Math.min(52, (Math.min(W, 560) - 24) / n - 6), gap = 6;
+  let x = (W - (n * (size + gap) - gap)) / 2;
+  for (const kind of ings) {
+    const d = ING[kind], y = L.chipsY, selected = kind === S.sel;
+    chips.push({ kind, x, y, w: size, h: size + 18 });
+    rr(x, y, size, size, 12); ctx.fillStyle = '#26261f'; ctx.fill();
+    if (selected) { ctx.strokeStyle = '#f3e7ca'; ctx.lineWidth = 2.5; ctx.stroke(); }
+    // глиф: маленькая версия начинки
+    ctx.save(); rr(x + 4, y + 4, size - 8, size - 8, 9); ctx.clip();
+    const gw = Math.max(8, (d.du / 0.12) * (size - 16)), gh = d.dv >= 1 ? size - 16 : (size - 16) * 0.5;
+    ctx.translate(x + size / 2, y + size / 2);
+    drawPatchShape(d, -gh / 2, -gw / 2, gh, gw, true);
+    ctx.restore();
+    ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(d.name, x + size / 2, y + size + 4);
+    x += size + gap;
+  }
+}
+let icons = [];
+function drawTopBar(hint) {
+  icons = [];
+  ctx.fillStyle = '#f3e7ca'; ctx.font = font(17, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('Ролльня', 16, 26);
+  ctx.fillStyle = '#8d846f'; ctx.font = font(12); ctx.fillText('стенд · лист → спираль → срез', 92, 27);
+  const items = [['base', B().emoji], ['preview', S.preview ? '👁' : '👁‍🗨'], ['mute', S.mute ? '🔇' : '🔊']];
+  let x = W - 16;
+  for (const [id, glyph] of items) {
+    const w = 38; x -= w; icons.push({ id, x, y: 8, w, h: 36 });
+    rr(x, 8, w, 36, 10); ctx.fillStyle = (id === 'preview' && S.preview) ? '#4a4331' : '#26261f'; ctx.fill();
+    ctx.font = '18px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#f3e7ca'; ctx.fillText(glyph, x + w / 2, 27);
+    x -= 6;
+  }
+  if (hint) {
+    ctx.fillStyle = '#b8ad95'; ctx.font = font(12.5); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const parts = hint.split(' · '), lines = []; let cur = '';
+    for (const pt of parts) { const t = cur ? cur + ' · ' + pt : pt; if (cur && ctx.measureText(t).width > W - 24) { lines.push(cur); cur = pt; } else cur = t; }
+    if (cur) lines.push(cur);
+    lines.slice(0, 2).forEach((ln, i) => ctx.fillText(ln, W / 2, 54 + i * 16));
+  }
+  ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  ctx.fillText(`срезов: ${S.cuts} (всего ${S.cutsTotal})`, W - 12, H - 6);
+}
+
+// ---------------------------------------------------------------- рисование листа (вид сверху)
+let spreadTex = null, spreadTexKey = '';
+function getSpreadTex(w, h) {
+  const cw = Math.round(w * DPR), ch = Math.round(h * DPR), key = S.base + '|' + cw + 'x' + ch;
+  if (spreadTex && spreadTexKey === key) return spreadTex;
+  const b = B(), base = b.spreadRgb, c = document.createElement('canvas'); c.width = cw; c.height = ch;
+  const x = c.getContext('2d'); const img = x.createImageData(cw, ch); const d = img.data;
+  for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
+    const col = spreadColor(i, j, b), k = (j * cw + i) * 4;
+    d[k] = base[0] + (col[0] - base[0]) * 0.7; d[k + 1] = base[1] + (col[1] - base[1]) * 0.7; d[k + 2] = base[2] + (col[2] - base[2]) * 0.7; d[k + 3] = 255;
+  }
+  x.putImageData(img, 0, 0); spreadTex = c; spreadTexKey = key;
+  return c;
+}
+// Фигура патча в экранных координатах: x, y — верхний левый угол; w — вдоль v, h — вдоль u.
+function drawPatchShape(d, x, y, w, h, flat) {
+  const c = d.color, rgb = d.rgb;
+  const r = d.round ? h / 2 : 3;
+  if (d.round) {
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, rgbCss(shade(rgb, 0.75))); g.addColorStop(0.35, rgbCss(mix(rgb, [255, 255, 255], 0.25))); g.addColorStop(0.7, c); g.addColorStop(1, rgbCss(shade(rgb, 0.6)));
+    ctx.fillStyle = g;
+  } else ctx.fillStyle = c;
+  rr(x, y, w, h, r); ctx.fill();
+  ctx.save(); rr(x, y, w, h, r); ctx.clip();
+  switch (d.tex) {
+    case 'salmon': ctx.strokeStyle = 'rgba(255,246,236,0.6)'; ctx.lineWidth = Math.max(1.5, h * 0.12);
+      for (let i = -h; i < w + h; i += Math.max(7, w * 0.11)) { ctx.beginPath(); ctx.moveTo(x + i, y + h); ctx.lineTo(x + i + h * 0.9, y); ctx.stroke(); } break;
+    case 'shrimp': ctx.fillStyle = 'rgba(250,236,224,0.85)';
+      for (let i = 0; i < w; i += Math.max(6, w * 0.2)) ctx.fillRect(x + i, y, Math.max(3, w * 0.09), h); break;
+    case 'tamago': ctx.strokeStyle = 'rgba(200,150,50,0.5)'; ctx.lineWidth = 1;
+      for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(x, y + h * k / 4); ctx.lineTo(x + w, y + h * k / 4); ctx.stroke(); } break;
+    case 'strawberry': ctx.fillStyle = 'rgba(248,230,120,0.9)';
+      for (let k = 0; k < 7; k++) ctx.fillRect(x + w * hash(k, 3) * 0.9 + 1, y + h * hash(k, 9) * 0.8 + 1, 2, 2); break;
+    case 'kiwi': ctx.fillStyle = 'rgba(236,240,190,0.9)'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * 0.22, h * 0.3, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#1e1914'; for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; ctx.fillRect(x + w / 2 + Math.cos(a) * w * 0.28 - 1, y + h / 2 + Math.sin(a) * h * 0.36 - 1, 2, 2); } break;
+    case 'cucumber': ctx.fillStyle = 'rgba(214,232,178,0.55)'; ctx.fillRect(x, y + h * 0.35, w, h * 0.25); break;
+    case 'gloss': ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x, y + h * 0.2, w, h * 0.2); break;
+    case 'flat': if (!flat) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; for (let i = 0; i < w; i += 5) ctx.fillRect(x + i, y, 2, h); } break;
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; rr(x, y, w, h, r); ctx.stroke();
+}
+function patchRect(p) {
+  const m = dims(p), s = L.sheet;
+  return { x: s.x + (p.v - m.dv / 2) * s.w, y: s.y + (1 - p.u - m.du / 2) * s.h, w: m.dv * s.w, h: m.du * s.h };
+}
+function drawPatchTop(p, alpha = 1) {
+  const d = ING[p.kind], m = dims(p), s = L.sheet;
+  ctx.save(); ctx.globalAlpha = alpha * (p.kind === 'nori' ? 0.82 : 1);
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 4 + p.z0 * 6; ctx.shadowOffsetY = 2 + p.z0 * 3;
+  if (d.wave) {
+    const lw = m.du * s.h, x0 = s.x + (p.v - m.dv / 2) * s.w, x1 = s.x + (p.v + m.dv / 2) * s.w;
+    ctx.beginPath();
+    for (let i = 0; i <= 40; i++) { const v = lerp(p.v - m.dv / 2, p.v + m.dv / 2, i / 40); const uc = p.u + d.wave.amp * Math.sin(TAU * d.wave.freq * v + p.phase); const x = lerp(x0, x1, i / 40), y = s.y + (1 - uc) * s.h; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = lw; ctx.strokeStyle = d.color; ctx.stroke();
+    ctx.shadowColor = 'transparent'; ctx.lineWidth = lw * 0.3; ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.save(); ctx.translate(0, -lw * 0.22); ctx.stroke(); ctx.restore();
+  } else {
+    const r = patchRect(p); drawPatchShape(d, r.x, r.y, r.w, r.h, false);
+  }
+  ctx.restore();
+}
+function drawMat(x, y, w, h) {
+  const b = B(); rr(x, y, w, h, 14); ctx.fillStyle = b.mat; ctx.fill();
+  ctx.save(); rr(x, y, w, h, 14); ctx.clip();
+  ctx.strokeStyle = b.matLine; ctx.lineWidth = 1.2;
+  for (let yy = y + 3; yy < y + h; yy += 7) { ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + w, yy); ctx.stroke(); }
+  ctx.restore();
+}
+// Цилиндр ролла (вид сверху). pieces: [{a, b, off}] в долях длины, off — сдвиг по x; squash — сплющивание.
+function drawRollBody(xc, yc, R, len, pieces, squash = 1, alpha = 1) {
+  const b = B(), wr = b.wrapperRgb;
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.translate(xc, yc); ctx.scale(1, squash);
+  // тень
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(0, R + 8, len / 2 + 6, R * 0.35, 0, 0, TAU); ctx.fill();
+  const g = ctx.createLinearGradient(0, -R, 0, R);
+  g.addColorStop(0, rgbCss(shade(wr, 0.55))); g.addColorStop(0.28, rgbCss(mix(wr, [255, 255, 255], S.base === 'cake' ? 0.35 : 0.22)));
+  g.addColorStop(0.55, rgbCss(wr)); g.addColorStop(1, rgbCss(shade(wr, 0.4)));
+  for (const pc of pieces) {
+    const x0 = -len / 2 + pc.a * len + pc.off, w = (pc.b - pc.a) * len;
+    ctx.fillStyle = g; rr(x0, -R, w, 2 * R, 6); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+    // блик и фактура
+    ctx.fillStyle = 'rgba(255,255,255,0.10)'; rr(x0 + 4, -R * 0.62, w - 8, R * 0.22, 4); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawKnife(x, y, angle, press, R) {
+  const bl = R * 3.2, bw = R * 0.34;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 4; ctx.shadowOffsetY = 4;
+  ctx.fillStyle = '#d9e5e8'; ctx.beginPath(); ctx.moveTo(-bw / 2, -bl); ctx.lineTo(bw / 2, -bl); ctx.lineTo(bw / 2, 0); ctx.lineTo(-bw / 2, -bw * 0.9); ctx.closePath(); ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.fillRect(-bw * 0.3, -bl + 6, bw * 0.16, bl - 14);
+  ctx.fillStyle = '#2c2420'; rr(-bw * 0.7, -bl - R * 0.9, bw * 1.4, R * 0.95, 5); ctx.fill();
+  ctx.fillStyle = '#4a3a30'; ctx.fillRect(-bw * 0.7, -bl - 2, bw * 1.4, 5);
+  if (press > 0) { ctx.globalAlpha = press * 0.4; ctx.fillStyle = '#fff'; ctx.fillRect(-1.5, -bl + 8, 3, bl - 12); }
+  ctx.restore();
+}
+function drawFaceImg(img, x, y, size, scaleX = 1, alpha = 1) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.scale(Math.max(0.01, scaleX), 1);
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 8;
+  ctx.drawImage(img, -size / 2, -size / 2, size, size);
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- экраны
+let particles = [], shakeUntil = 0;
+function spawnParticles(x, y, n) {
+  const c = B().spreadRgb;
+  for (let i = 0; i < n; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 160, vy: -Math.random() * 140 - 30, life: 0.5 + Math.random() * 0.3, t: 0, c, s: 2 + Math.random() * 2.5 });
+}
+function drawParticles(dt) {
+  particles = particles.filter(p => (p.t += dt) < p.life);
+  for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; ctx.globalAlpha = 1 - p.t / p.life; ctx.fillStyle = rgbCss(p.c); ctx.fillRect(p.x, p.y, p.s, p.s); }
+  ctx.globalAlpha = 1;
+}
+const hints = {
+  lay: 'Выбери начинку и тапни по листу · потяни циновку вверх, чтобы скрутить',
+  layMove: 'Тащи, чтобы подвинуть · вытащи за лист, чтобы убрать',
+  laySel: 'Обернуть нори — замкнутый контур на срезе · тап по пустому — положить новое',
+  rolled: 'Тапни по роллу там, где резать',
+  revealed: 'Вот что ты положил. Хочется ещё?',
+  plate: 'Шесть кусочков — тапни, чтобы рассмотреть',
+};
+function drawLay() {
+  const s = L.sheet, g = geometry(), p = S.rollP;
+  drawMat(s.x - 18, s.y - 18, s.w + 36, s.h + 18 + 12 + L.handle.h + 8);
+  const yb = s.y + s.h * (1 - p);
+  // лист: остаток, ещё не скрученный
+  ctx.save(); ctx.beginPath(); ctx.rect(s.x - 8, s.y - 8, s.w + 16, Math.max(0, yb - s.y + 8)); ctx.clip();
+  rr(s.x - 5, s.y - 5, s.w + 10, s.h + 10, 6); ctx.fillStyle = B().wrapper; ctx.fill();
+  ctx.save(); rr(s.x, s.y, s.w, s.h, 4); ctx.clip(); ctx.drawImage(getSpreadTex(s.w, s.h), s.x, s.y, s.w, s.h); ctx.restore();
+  for (const pt of patches()) if (pt !== drag.patch) drawPatchTop(pt);
+  if (drag.patch) drawPatchTop(drag.patch, 0.85);
+  const sel = S.selPatch && patches().includes(S.selPatch) ? S.selPatch : (S.selPatch = null);
+  if (sel && p === 0) {
+    const r = patchRect(sel), d = ING[sel.kind]; if (d.wave) { r.y -= d.wave.amp * s.h; r.h += 2 * d.wave.amp * s.h; }
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; rr(r.x - 5, r.y - 5, r.w + 10, r.h + 10, 8); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (S.preview && p === 0) { ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(40,30,20,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x + s.w / 2, s.y); ctx.lineTo(s.x + s.w / 2, s.y + s.h); ctx.stroke(); ctx.setLineDash([]); }
+  ctx.restore();
+  // ролл в процессе скрутки
+  if (p > 0) { const R = radiusAt(p, g) * s.h / g.L; drawRollBody(s.x + s.w / 2, yb, R, s.w + 10, [{ a: 0, b: 1, off: 0 }]); }
+  // циновка-ручка
+  const h = L.handle; rr(h.x, h.y, h.w, h.h, 10); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
+  ctx.fillStyle = 'rgba(40,30,20,0.55)'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(p > 0 ? 'ещё… ↑' : '↑ потяни циновку вверх — скрутить', h.x + h.w / 2, h.y + h.h / 2);
+  // предпросмотр среза (инструмент владельца) — над листом
+  if (S.preview) {
+    const size = 116, img = face(0.5, size), x = W / 2 - 30, y = L.previewY;
+    drawFaceImg(img, x, y, size);
+    ctx.fillStyle = '#b8ad95'; ctx.font = font(11); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('живой срез', x + size / 2 + 14, y - 8); ctx.fillText(`${g.turns.toFixed(1).replace('.', ',')} витка`, x + size / 2 + 14, y + 8);
+  }
+  buttons = [];
+  if (sel && p === 0) {
+    const canWrap = sel.kind !== 'nori' && !ING[sel.kind].wave;
+    buttonRow(canWrap ? [['wrap', 'Обернуть нори', true, 1.6], ['remove', 'Убрать'], ['deselect', '✕', false, 0.5]] : [['remove', 'Убрать'], ['deselect', '✕', false, 0.5]]);
+  } else buttonRow([['undo', '↶ Отменить'], ['clear', 'Очистить']]);
+  drawButtons(); drawChips();
+  drawTopBar(drag.patch ? hints.layMove : sel ? hints.laySel : hints.lay);
+}
+function rollDims() { const g = geometry(), s = L.sheet; const k = L.roll.len / s.w; return { g, R: radiusAt(1, g) * s.h / g.L * k, len: L.roll.len }; }
+function drawBoard(R, len, alpha = 1) {
+  ctx.save(); ctx.globalAlpha = alpha; drawMat(L.roll.x - len / 2 - 26, L.roll.y - R - 36, len + 52, 2 * R + 72); ctx.restore();
+}
+function drawRolled() {
+  const { R, len } = rollDims();
+  drawBoard(R, len);
+  drawRollBody(L.roll.x, L.roll.y, R, len, [{ a: 0, b: 1, off: 0 }]);
+  // риски: где будут резы
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.setLineDash([3, 5]); ctx.lineWidth = 1;
+  for (let i = 1; i < NPIECES; i++) { const x = L.roll.x - len / 2 + len * i / NPIECES; ctx.beginPath(); ctx.moveTo(x, L.roll.y - R - 14); ctx.lineTo(x, L.roll.y + R + 14); ctx.stroke(); }
+  ctx.setLineDash([]);
+  buttons = []; buttonRow([['back', '← Ещё начинки']]);
+  drawButtons(); drawTopBar(hints.rolled);
+}
+// Ритуал реза: t — прогресс 0..1 (850 мс), потом zoom (0..1, 500 мс).
+let cut = null;
+function startCut(v) {
+  const { R, len } = rollDims();
+  const img = face(v, Math.max(L.faceSize, 2 * R));   // считаем срез заранее, до начала анимации
+  cut = { v, x: L.roll.x - len / 2 + v * len, t0: performance.now(), dur: 850, zoom: 0, img, R, len, sounded: false, particled: false };
+  S.mode = 'cut'; S.cuts++; S.cutsTotal++; save();
+}
+function drawCut(now) {
+  const c = cut, t = clamp((now - c.t0) / c.dur);
+  const press = easeOutCubic(remap(t, 0.18, 0.48)), cutP = easeInOutCubic(remap(t, 0.48, 0.68)), open = easeOutBack(remap(t, 0.68, 1));
+  const gap = 18 * open, squash = 1 - 0.07 * press * (1 - cutP) - 0.03 * Math.sin(cutP * Math.PI);
+  if (t >= 0.55 && !c.sounded) { c.sounded = true; sfx.cut(); shakeUntil = now + 70; }
+  if (t >= 0.58 && !c.particled) { c.particled = true; spawnParticles(c.x, L.roll.y, 14); }
+  if (shakeUntil > now) ctx.translate((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
+  let zoom = 0;
+  if (t >= 1) { zoom = clamp((now - c.t0 - c.dur) / 500); c.zoom = zoom; }
+  const rollAlpha = 1 - 0.7 * easeOutCubic(zoom);
+  drawBoard(c.R, c.len, 1 - easeOutCubic(zoom));
+  drawRollBody(L.roll.x, L.roll.y, c.R, c.len, cutP > 0 ? [{ a: 0, b: c.v, off: -gap }, { a: c.v, b: 1, off: gap }] : [{ a: 0, b: 1, off: 0 }], squash, rollAlpha);
+  // срез правой половины «поворачивается» к камере, потом наезжает
+  if (open > 0) {
+    const reveal = clamp(open), z = easeInOutCubic(zoom);
+    const size = lerp(2 * c.R, L.faceSize, z), x = lerp(c.x + gap, W / 2, z), y = lerp(L.roll.y, L.faceY, z);
+    drawFaceImg(c.img, x, y, size, reveal);
+  }
+  if (t < 0.9) {
+    const kt = easeInOutCubic(remap(t, 0, 0.68)), yTop = L.roll.y - c.R - c.R * 2.6, yCut = L.roll.y + c.R * 0.95;
+    const y = lerp(yTop, yCut, kt) + (t > 0.68 ? -(t - 0.68) / 0.22 * c.R * 2 : 0);
+    drawKnife(c.x, y, -0.04 + 0.03 * Math.sin(t * Math.PI), press * (1 - cutP), c.R);
+  }
+  drawParticles(1 / 60);
+  buttons = [];
+  drawTopBar('');
+  if (t >= 1 && zoom >= 1) { S.mode = 'revealed'; dirty = true; }
+}
+function drawRevealed() {
+  const c = cut;
+  drawRollBody(L.roll.x, L.roll.y, c.R, c.len, [{ a: 0, b: c.v, off: -18 }, { a: c.v, b: 1, off: 18 }], 1, 0.3);
+  drawFaceImg(c.img, W / 2, L.faceY, L.faceSize);
+  ctx.fillStyle = '#8d846f'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины`, W / 2, L.faceY + L.faceSize / 2 + 14);
+  buttons = []; buttonRow([['slice', `Нарезать на ${NPIECES}`, true], ['back', 'Ещё начинки'], ['new', 'Новый лист']]);
+  drawButtons(); drawTopBar(hints.revealed);
+}
+// Нарезка: быстрые удары, потом кусочки встают срезом и разъезжаются по тарелке.
+let slicing = null;
+function startSlicing() {
+  const { R, len } = rollDims();
+  const cutsV = []; for (let i = 1; i < NPIECES; i++) if (Math.abs(i / NPIECES - cut.v) > 1e-3) cutsV.push(i / NPIECES);
+  const imgs = []; for (let i = 0; i < NPIECES; i++) imgs.push(face(pieceV(i), L.grid[0].size));
+  slicing = { t0: performance.now(), cutsV, chop: 190, done: new Set([cut.v]), R, len, imgs, sounded: new Set() };
+  S.mode = 'slicing';
+}
+function drawSlicing(now) {
+  const s = slicing, el = now - s.t0, chopsEnd = s.cutsV.length * s.chop;
+  const reveal = remap(el, chopsEnd + 60, chopsEnd + 460), move = easeInOutCubic(remap(el, chopsEnd + 420, chopsEnd + 980));
+  // куски: позиции на ролле с зазорами
+  const idx = Math.min(s.cutsV.length, Math.floor(el / s.chop));
+  for (let i = 0; i < idx; i++) if (!s.sounded.has(i)) { s.sounded.add(i); sfx.chop(); spawnParticles(L.roll.x - s.len / 2 + s.cutsV[i] * s.len, L.roll.y, 6); }
+  const doneCuts = new Set([cut.v, ...s.cutsV.slice(0, idx)]);
+  const pieces = [];
+  for (let i = 0; i < NPIECES; i++) {
+    const a = i / NPIECES, b = (i + 1) / NPIECES;
+    let gapsLeft = 0; for (const cv of doneCuts) if (cv <= a + 1e-6) gapsLeft++;
+    const total = doneCuts.size; pieces.push({ a, b, off: (gapsLeft - total / 2) * 14 });
+  }
+  if (shakeUntil > now) ctx.translate((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4);
+  if (move < 1) drawBoard(s.R, s.len, 1 - reveal);
+  if (move < 1) drawRollBody(L.roll.x, L.roll.y, s.R, s.len, pieces, 1, 1 - reveal * 0.85);
+  if (idx < s.cutsV.length) {
+    const ph = (el % s.chop) / s.chop, x = L.roll.x - s.len / 2 + s.cutsV[idx] * s.len;
+    const y = L.roll.y + s.R * 0.95 - Math.abs(Math.sin(ph * Math.PI)) * s.R * 2.6;
+    drawKnife(x, y, -0.03, 0, s.R);
+  }
+  if (reveal > 0) for (let i = 0; i < NPIECES; i++) {
+    const pc = pieces[i], gx = L.grid[i];
+    const x0 = L.roll.x - s.len / 2 + (pc.a + pc.b) / 2 * s.len + pc.off, y0 = L.roll.y;
+    const x = lerp(x0, gx.x, move), y = lerp(y0, gx.y, move), size = lerp(2 * s.R, gx.size, move);
+    drawFaceImg(s.imgs[i], x, y, size, easeOutBack(reveal) * 0.999 + 0.001);
+  }
+  drawParticles(1 / 60);
+  buttons = []; drawTopBar('');
+  if (el > chopsEnd + 1000) { S.mode = 'plate'; dirty = true; }
+}
+function drawPlate() {
+  const s = slicing;
+  for (let i = 0; i < NPIECES; i++) {
+    const gx = L.grid[i]; drawFaceImg(s.imgs[i], gx.x, gx.y, gx.size);
+    ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(String(i + 1), gx.x, gx.y + gx.size / 2 + 4);
+  }
+  buttons = []; buttonRow([['back', 'Ещё начинки', true], ['new', 'Новый лист']]);
+  drawButtons(); drawTopBar(hints.plate);
+  if (S.bigPiece >= 0) {
+    ctx.fillStyle = 'rgba(23,23,19,0.85)'; ctx.fillRect(0, 0, W, H);
+    const img = face(pieceV(S.bigPiece), L.faceSize);
+    drawFaceImg(img, W / 2, L.faceY, L.faceSize);
+    ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(`кусочек ${S.bigPiece + 1} из ${NPIECES} · тапни, чтобы закрыть`, W / 2, L.faceY + L.faceSize / 2 + 16);
+  }
+}
+
+// ---------------------------------------------------------------- цикл отрисовки
+let rafId = 0, lastNow = 0;
+function frame(now) {
+  rafId = 0; lastNow = now; dirty = false;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#171713'; ctx.fillRect(0, 0, W, H);
+  let animating = false;
+  switch (S.mode) {
+    case 'lay': drawLay(); animating = !!anim; break;
+    case 'rolled': drawRolled(); break;
+    case 'cut': drawCut(now); animating = S.mode === 'cut'; break;
+    case 'revealed': drawRevealed(); break;
+    case 'slicing': drawSlicing(now); animating = S.mode === 'slicing'; break;
+    case 'plate': drawPlate(); break;
+  }
+  if (anim) { animating = true; anim(now); }
+  if (particles.length || shakeUntil > now) animating = true;
+  if (animating || dirty) requestFrame();
+}
+function requestFrame() { if (!rafId) rafId = requestAnimationFrame(frame); }
+let anim = null;   // одноразовая анимация (доскрутка / откат циновки)
+function tween(from, to, dur, apply, done) {
+  const t0 = performance.now();
+  anim = now => { const t = easeOutCubic(clamp((now - t0) / dur)); apply(lerp(from, to, t)); if (t >= 1) { anim = null; if (done) done(); } dirty = true; };
+  requestFrame();
+}
+
+// ---------------------------------------------------------------- ввод
+const drag = { id: null, kind: null, x0: 0, y0: 0, patch: null, ou: 0, ov: 0, moved: false, p0: 0, lastY: 0, lastT: 0 };
+const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+function sheetUV(x, y) { const s = L.sheet; return { u: 1 - (y - s.y) / s.h, v: (x - s.x) / s.w }; }
+function hitPatch(x, y) {
+  const list = patches();
+  for (let i = list.length - 1; i >= 0; i--) {
+    const p = list[i], d = ING[p.kind], r = patchRect(p);
+    if (d.wave) { r.y -= d.wave.amp * L.sheet.h; r.h += 2 * d.wave.amp * L.sheet.h; }
+    const pad = 6; if (x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad) return p;
+  }
+  return null;
+}
+function placeAt(u, v) {
+  const d = ING[S.sel];
+  const p = { kind: S.sel, u: clamp(u, d.du / 2 + (d.wave ? d.wave.amp : 0), 1 - d.du / 2 - (d.wave ? d.wave.amp : 0)), v: clamp(v, d.dv / 2, 1 - d.dv / 2), z0: 0, z1: d.h, phase: Math.random() * TAU };
+  patches().push(p); S.selPatch = null; touchModel(); sfx.place();
+}
+// «Обернуть нори»: четыре настоящих патча вокруг начинки — под, над и два торца.
+function wrapInNori(F) {
+  const list = patches(), i = list.indexOf(F); if (i < 0) return;
+  const m = dims(F), hN = ING.nori.h, capW = 0.018;
+  const mk = (u, du, h) => ({ kind: 'nori', u, v: F.v, du, dv: m.dv, h, z0: 0, z1: h, phase: Math.random() * TAU });
+  list.splice(i, 0, mk(F.u, m.du, hN));          // под начинкой (раньше в стопке — ниже)
+  list.splice(i + 2, 0, mk(F.u, m.du, hN));      // над начинкой
+  list.push(mk(F.u - m.du / 2 - capW / 2, capW, m.h + 2 * hN), mk(F.u + m.du / 2 + capW / 2, capW, m.h + 2 * hN)); // торцы
+  S.selPatch = null; touchModel(); sfx.place();
+}
+function action(id) {
+  switch (id) {
+    case 'undo': if (S.mode === 'lay' && patches().length) { patches().pop(); S.selPatch = null; touchModel(); } break;
+    case 'clear': if (S.mode === 'lay') { S.lists[S.base] = []; S.selPatch = null; touchModel(); } break;
+    case 'wrap': if (S.mode === 'lay' && S.selPatch) wrapInNori(S.selPatch); break;
+    case 'remove': if (S.mode === 'lay' && S.selPatch) { const l = patches(), i = l.indexOf(S.selPatch); if (i >= 0) l.splice(i, 1); S.selPatch = null; touchModel(); } break;
+    case 'deselect': S.selPatch = null; dirty = true; break;
+    case 'back': S.mode = 'lay'; S.rollP = 0; S.bigPiece = -1; cut = null; slicing = null; dirty = true; break;
+    case 'new': S.lists[S.base] = []; touchModel(); action('back'); break;
+    case 'slice': if (S.mode === 'revealed') startSlicing(); break;
+    case 'preview': S.preview = !S.preview; save(); layout(); dirty = true; break;
+    case 'mute': S.mute = !S.mute; sfx.ensure(); sfx.setMute(S.mute); save(); dirty = true; break;
+    case 'base': { const keys = Object.keys(BASES); S.base = keys[(keys.indexOf(S.base) + 1) % keys.length]; S.sel = B().ingredients[0]; S.selPatch = null; touchModel(); if (S.mode !== 'lay') action('back'); break; }
+  }
+  requestFrame();
+}
+function onDown(x, y, id) {
+  sfx.ensure();
+  for (const ic of icons) if (inRect(x, y, ic)) { action(ic.id); return; }
+  for (const b of buttons) if (inRect(x, y, b)) { action(b.id); return; }
+  if (S.mode === 'lay') {
+    if (anim) return;
+    for (const c of chips) if (inRect(x, y, c)) { S.sel = c.kind; dirty = true; requestFrame(); return; }
+    const s = L.sheet;
+    if (inRect(x, y, L.handle) || (S.rollP > 0 && inRect(x, y, s))) { drag.id = id; drag.kind = 'roll'; drag.y0 = y; drag.p0 = S.rollP; drag.lastY = y; drag.lastT = performance.now(); sfx.rustleStart(); return; }
+    if (inRect(x, y, s)) {
+      const p = hitPatch(x, y);
+      drag.id = id; drag.x0 = x; drag.y0 = y; drag.moved = false;
+      if (p) { drag.kind = 'move'; drag.patch = p; const uv = sheetUV(x, y); drag.ou = p.u - uv.u; drag.ov = p.v - uv.v; }
+      else drag.kind = 'place';
+      dirty = true; requestFrame();
+    }
+    return;
+  }
+  if (S.mode === 'rolled') {
+    const { R, len } = rollDims();
+    if (Math.abs(y - L.roll.y) < R + 30 && Math.abs(x - L.roll.x) < len / 2 + 20) {
+      const v = clamp((x - (L.roll.x - len / 2)) / len);
+      const snapped = clamp(Math.round(v * NPIECES), 1, NPIECES - 1) / NPIECES;
+      startCut(snapped); requestFrame();
+    }
+    return;
+  }
+  if (S.mode === 'plate') {
+    if (S.bigPiece >= 0) { S.bigPiece = -1; dirty = true; requestFrame(); return; }
+    for (let i = 0; i < NPIECES; i++) { const g = L.grid[i]; if (Math.hypot(x - g.x, y - g.y) < g.size / 2) { S.bigPiece = i; dirty = true; requestFrame(); return; } }
+  }
+}
+function onMove(x, y, id) {
+  if (drag.id !== id || !drag.kind) return;
+  if (drag.kind === 'roll') {
+    const now = performance.now();
+    S.rollP = clamp(drag.p0 + (drag.y0 - y) / (L.sheet.h * 0.85));
+    const speed = Math.abs(y - drag.lastY) / Math.max(1, now - drag.lastT); drag.lastY = y; drag.lastT = now;
+    sfx.rustle(speed * 1.5);
+  } else if (drag.kind === 'move') {
+    const d = ING[drag.patch.kind], m = dims(drag.patch), uv = sheetUV(x, y);
+    drag.moved = drag.moved || Math.hypot(x - drag.x0, y - drag.y0) > 6;
+    if (!drag.moved) return;
+    drag.patch.u = clamp(uv.u + drag.ou, m.du / 2 + (d.wave ? d.wave.amp : 0), 1 - m.du / 2 - (d.wave ? d.wave.amp : 0));
+    drag.patch.v = clamp(uv.v + drag.ov, m.dv / 2, 1 - m.dv / 2);
+    drag.outside = !inRect(x, y, { x: L.sheet.x - 24, y: L.sheet.y - 24, w: L.sheet.w + 48, h: L.sheet.h + 48 });
+  } else if (drag.kind === 'place') {
+    drag.moved = drag.moved || Math.hypot(x - drag.x0, y - drag.y0) > 10;
+  }
+  dirty = true; requestFrame();
+}
+function onUp(x, y, id) {
+  if (drag.id !== id) return;
+  const kind = drag.kind; drag.id = null; drag.kind = null;
+  if (kind === 'roll') {
+    sfx.rustleStop();
+    if (S.rollP >= 0.5) tween(S.rollP, 1, 380, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; dirty = true; });
+    else tween(S.rollP, 0, 260, v => { S.rollP = v; });
+  } else if (kind === 'move') {
+    const p = drag.patch; drag.patch = null;
+    if (!drag.moved) { S.selPatch = S.selPatch === p ? null : p; }
+    else { if (drag.outside) { const l = patches(); l.splice(l.indexOf(p), 1); S.selPatch = null; } touchModel(); }
+    drag.outside = false;
+  } else if (kind === 'place') {
+    if (!drag.moved) { const uv = sheetUV(x, y); placeAt(uv.u, uv.v); }
+  }
+  dirty = true; requestFrame();
+}
+canvas.addEventListener('pointerdown', e => { e.preventDefault(); if (drag.id !== null && drag.id !== e.pointerId) return; canvas.setPointerCapture(e.pointerId); onDown(e.clientX, e.clientY, e.pointerId); });
+canvas.addEventListener('pointermove', e => { e.preventDefault(); onMove(e.clientX, e.clientY, e.pointerId); });
+canvas.addEventListener('pointerup', e => { e.preventDefault(); onUp(e.clientX, e.clientY, e.pointerId); });
+canvas.addEventListener('pointercancel', e => { onUp(e.clientX, e.clientY, e.pointerId); });
+window.addEventListener('keydown', e => {
+  if (e.key === 'Backspace') action('undo');
+  else if (e.key === 'Escape') action('back');
+  else if (e.key === 'Enter') { if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 500, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; dirty = true; }); else if (S.mode === 'rolled') { startCut(0.5); requestFrame(); } else if (S.mode === 'revealed') action('slice'); }
+});
+window.addEventListener('resize', () => { resize(); requestFrame(); });
+window.addEventListener('orientationchange', () => setTimeout(() => { resize(); requestFrame(); }, 120));
+
+load(); resize(); touchModel(); requestFrame();
+</script>
+</body>
+</html>
