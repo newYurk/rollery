@@ -54,7 +54,7 @@ function hash(x, y) {
 // ---------------------------------------------------------------- данные
 const BASES = {
   sushi: { name: 'Суши-ролл', emoji: '🍣', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
-    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 0.92, beta: 0.55,
+    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 0.84, beta: 0.55,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
     T: 0.8, w: 0.42, turns: 2.7, kappa: 0.5, spreadEnd: 0.95, beta: 0.7,
@@ -197,7 +197,7 @@ function covers(p, u, v) {
 // Толщина «намазка + стопка» в точке листа (без обёртки), в единицах: рис под начинкой выдавлен, когда стопка выше намазки.
 function stackTopAt(u, v, list) { let H = 0; for (const p of list) if (!ING[p.kind].paint && covers(p, u, v)) H = Math.max(H, p.z1); return H; }
 // Начинка толще намазки при надавливании циновкой сжимается: слой растёт только на β от избытка.
-const TAPER = 0.12;   // рис сходит на нет перед голой кромкой (доля листа, ≈ 2,3 см)
+const TAPER = 0.10;   // рис сходит на нет перед голой кромкой (доля листа, ≈ 2 см)
 function spreadAt(u) { const se = B().spreadEnd; return u >= se ? 0 : u > se - TAPER ? (se - u) / TAPER : 1; }
 function bandAt(u, v, g, list) { const r = spreadAt(u), H = stackTopAt(u, v, list); return (r + B().beta * Math.max(0, H - r)) * g.T; }
 // Намотка листа переменной толщины: по угловым бинам, виток за витком. sMax — сколько листа съедено (для анимации скрутки).
@@ -490,26 +490,65 @@ function resize() {
   canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
   layout(); dirty = true;
 }
+// Раскладка экрана. Режимы: P — телефон портрет, L — телефон альбом, T — планшет, D — широкий десктоп.
+// Всё считается в рамке cw × ch внутри safe-area; лист — в приоритете, предпросмотр/цель — полосой, накладкой или в боковой колонке.
 function layout() {
-  const safeB = 18 + SAFE.bottom, top = 78 + SAFE.top, chipsH = B().ingredients.length > 8 ? 122 : 74, btnH = 44, handleH = 40, previewH = S.puzzle ? (S.puzzle.lv.pieces === 1 ? 150 : 118) : S.preview ? 136 : 0;
-  const availH = H - top - chipsH - btnH - handleH - 46 - safeB - previewH;
-  let sw = Math.min(W - 48, 520), sh = Math.min(availH, sw * 1.15);
-  if (sh < sw * 0.75) sw = sh / 0.75;
-  const sx = (W - sw) / 2, sy = top + 12 + previewH + (availH - sh) / 2;
-  L.top = top; L.sheet = { x: sx, y: sy, w: sw, h: sh }; L.previewY = sy - 18 - 62;
-  L.handle = { x: sx - 18, y: sy + sh + 12, w: sw + 36, h: handleH };
-  L.btnY = L.handle.y + handleH + 12; L.btnH = btnH;
-  L.chipsY = L.btnY + btnH + 10; L.chipsH = chipsH;
-  // ролл в режиме реза
-  const len = Math.min(W * 0.86, 640);
-  L.roll = { x: W / 2, y: top + (L.btnY - top) * 0.5, len };
-  // большой срез
-  L.faceSize = Math.min(W * 0.78, (L.btnY - top) * 0.72);
-  L.faceY = top + (L.btnY - top) * 0.5;
-  // тарелка
-  const cols = W > H ? 6 : 2, rows = NPIECES / cols;
-  const cell = Math.min((W - 40) / cols - 10, (L.btnY - top - 30) / rows - 10);
-  const gx = (W - cols * (cell + 10)) / 2 + 5, gy = top + (L.btnY - top - rows * (cell + 10)) / 2 + 5;
+  const cw = W - SAFE.left - SAFE.right, ch = H - SAFE.top - SAFE.bottom, ox = SAFE.left, oy = SAFE.top;
+  const n = B().ingredients.length, pz = S.puzzle, k = pz ? pz.vs.length : 1, showPrev = !!(pz || S.preview);
+  const mode = ch < 500 ? 'L' : cw >= 1100 ? 'D' : cw >= 600 ? 'T' : 'P';
+  const hint2 = mode === 'P' && cw < 420, panelH = hint2 ? 78 : 62, btnH = 44;
+  Object.assign(L, { mode, cw, ch, ox, oy, hint2, top: oy + panelH, side: null, previewMode: 'none', previewSize: 116, chipScroll: false, btnH });
+  L.rowBtn = { x: ox + (cw - Math.min(cw - 32, 560)) / 2, y: oy + ch - 12 - btnH, w: Math.min(cw - 32, 560), h: btnH, max: 3 };
+  if (mode === 'L') {
+    const handleH = 32, sh = Math.max(90, ch - panelH - 22 - handleH - 8 - 8), sw = Math.max(120, Math.min(1.3 * sh, 0.55 * cw));
+    L.sheet = { x: ox + 16, y: L.top + 22, w: sw, h: sh };
+    L.handle = { x: L.sheet.x - 12, y: L.sheet.y + sh + 8, w: sw + 24, h: handleH };
+    const sx = L.sheet.x + sw + 28, swid = Math.max(200, cw - sw - 60);
+    L.side = { x: sx, y: L.top + 8, w: swid, h: ch - panelH - 16 };
+    L.previewMode = showPrev ? 'side' : 'none'; L.previewSize = 96; L.targetCell = Math.min(72, (swid - 8 * (Math.min(k, 3) - 1)) / Math.min(k, 3));
+    let y = L.side.y + (showPrev ? (k > 1 ? Math.ceil(k / 3) * (L.targetCell + 8) : 96 + 8) + 24 : 0);
+    L.layBtn = { x: sx, y, w: swid, h: 40, max: 2 };
+    y += 2 * 40 + 8 + 12;
+    L.chips = { x: sx, y, w: swid, size: 36, rows: 2, labels: false, perRow: Math.ceil(n / 2) };
+  } else if (mode === 'P') {
+    const handleH = 40; let chipsH = 64, band = showPrev && ch >= 800 ? (k > 1 ? 118 : 136) : 0;
+    let sw = Math.min(cw - 32, 560);
+    const fixed = panelH + 26 + handleH + 12 + btnH + 12 + chipsH + 12;
+    let rem = ch - fixed - band;
+    if (rem < 0.8 * sw && band) { band = 0; rem = ch - fixed; }
+    if (rem < 0.8 * sw) sw = Math.max(120, rem / 0.8);
+    const sh = Math.max(90, clamp(rem, 0.8 * sw, 1.15 * sw));
+    let left = Math.max(0, rem - sh), rows = 1;
+    if (left >= 60 && n > 7) { rows = 2; left -= 60; }
+    L.previewMode = showPrev ? (band ? 'band' : 'overlay') : 'none';
+    L.sheet = { x: ox + (cw - sw) / 2, y: L.top + 26 + band + left / 2, w: sw, h: sh };
+    L.handle = { x: L.sheet.x - 18, y: L.sheet.y + sh + 8, w: sw + 36, h: handleH };
+    L.layBtn = { x: L.rowBtn.x, y: L.handle.y + handleH + 12, w: L.rowBtn.w, h: btnH, max: 3 };
+    L.chips = { x: ox + 12, y: L.layBtn.y + btnH + 12, w: cw - 24, size: 44, rows, labels: true, perRow: rows === 2 ? Math.ceil(n / 2) : n };
+    L.chipScroll = rows === 1 && n * 52 - 8 > cw - 24;
+    L.previewY = L.top + 12 + band / 2; L.previewSize = k > 1 ? Math.min(84, (cw - 32 - 8 * (k - 1)) / k) : 116;
+  } else {
+    const handleH = 40, scol = mode === 'D' ? 320 : 260, block = Math.min(cw - 32, mode === 'D' ? 1040 : cw - 32);
+    let sw = Math.min(560, block - scol - 24);
+    const oneRow = n * 60 <= sw + 36, chipsH = oneRow ? 68 : 68 * 2 - 8;
+    const avail = ch - panelH - 26 - handleH - 8 - 12 - btnH - 12 - chipsH - 12;
+    let sh = Math.min(1.15 * sw, Math.max(0.9 * sw, avail));
+    if (0.9 * sw > avail) { sw = Math.max(120, avail / 0.9); sh = Math.max(90, avail); }
+    const bx = Math.max(ox + 22, ox + (cw - (sw + 24 + scol)) / 2);
+    L.sheet = { x: bx, y: L.top + 26, w: sw, h: sh };
+    L.handle = { x: bx - 18, y: L.sheet.y + sh + 8, w: sw + 36, h: handleH };
+    L.layBtn = { x: bx - 18, y: L.handle.y + handleH + 12, w: sw + 36, h: btnH, max: 3 };
+    L.chips = { x: bx - 18, y: L.layBtn.y + btnH + 12, w: sw + 36, size: 52, rows: oneRow ? 1 : 2, labels: true, perRow: oneRow ? n : Math.ceil(n / 2) };
+    L.side = { x: bx + sw + 24, y: L.top + 16, w: scol, h: ch - panelH - 32 };
+    L.previewMode = showPrev ? 'side' : 'none'; L.previewSize = mode === 'D' ? 260 : 200; L.targetCell = mode === 'D' ? 100 : 84;
+  }
+  // общие экраны: ролл, срез, тарелка — в области между панелью и нижним рядом кнопок
+  const areaTop = L.top, ah = Math.max(120, L.rowBtn.y - 12 - areaTop);
+  L.roll = { x: ox + cw / 2, y: areaTop + ah * 0.5, len: Math.min(cw - 80, 640) };
+  L.faceSize = Math.min(0.78 * cw, ah * 0.72, 520); L.faceY = areaTop + ah * 0.5;
+  const cols = (mode === 'L' || cw >= 900) ? 6 : (mode === 'P' ? 2 : 3), rows = NPIECES / cols;
+  const cell = Math.max(40, Math.min((cw - 40) / cols - 10, (ah - 30) / rows - 10));
+  const gx = ox + (cw - cols * (cell + 10)) / 2 + 5, gy = areaTop + (ah - rows * (cell + 10)) / 2 + 5;
   L.grid = []; for (let i = 0; i < NPIECES; i++) L.grid.push({ x: gx + (i % cols) * (cell + 10) + cell / 2, y: gy + Math.floor(i / cols) * (cell + 10) + cell / 2, size: cell });
 }
 function rr(x, y, w, h, r) {
@@ -520,71 +559,87 @@ const font = (px, w = 500) => `${w} ${px}px -apple-system, system-ui, Segoe UI, 
 
 // ---------------------------------------------------------------- UI: кнопки и чипы
 let buttons = [];
-function button(id, label, x, y, w, primary) { buttons.push({ id, label, x, y, w, h: L.btnH, primary }); }
+function fitText(label, w) {
+  for (const px of [15, 13, 12]) { ctx.font = font(px, 600); if (ctx.measureText(label).width <= w) return label; }
+  let t = label; while (t.length > 1 && ctx.measureText(t + '…').width > w) t = t.slice(0, -1); return t + '…';
+}
 function drawButtons() {
   for (const b of buttons) {
     rr(b.x, b.y, b.w, b.h, 12);
     ctx.fillStyle = b.primary ? '#e0b25a' : '#2a2a25'; ctx.fill();
     ctx.strokeStyle = b.primary ? '#f0cb7d' : '#4d4838'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = b.primary ? '#171713' : '#efe4cd'; ctx.font = font(15, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1);
+    ctx.fillStyle = b.primary ? '#171713' : '#efe4cd'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const t = fitText(b.label, b.w - 20);   // fitText выставляет шрифт
+    ctx.fillText(t, b.x + b.w / 2, b.y + b.h / 2 + 1);
   }
 }
-function buttonRow(list) {
-  const gap = 10, total = Math.min(W - 32, 520);
-  const wsum = list.reduce((a, b) => a + (b[3] || 1), 0), unit = (total - gap * (list.length - 1)) / wsum;
-  let x = (W - total) / 2;
-  for (const [id, label, primary, wt] of list) { const w = unit * (wt || 1); button(id, label, x, L.btnY, w, primary); x += w + gap; }
+// Ряд кнопок: не больше max в ряд (по умолчанию 3), лишние переносятся; area — где рисовать (по умолчанию нижний ряд).
+function buttonRow(list, area) {
+  const a = area || L.rowBtn, gap = 10, max = a.max || 3, h = a.h || L.btnH;
+  const rows = []; for (let i = 0; i < list.length; i += max) rows.push(list.slice(i, i + max));
+  rows.forEach((row, ri) => {
+    const wsum = row.reduce((sum, b) => sum + (b[3] || 1), 0), unit = (a.w - gap * (row.length - 1)) / wsum;
+    let x = a.x; const y = a.y + ri * (h + 8);
+    for (const [id, label, primary, wt] of row) { const w = unit * (wt || 1); buttons.push({ id, label, x, y, w, h, primary }); x += w + gap; }
+  });
 }
-let chips = [];
+let chips = [], chipScrollX = 0;
 function drawChips() {
-  chips = []; const ings = B().ingredients, n = ings.length;
-  const perRow = n > 8 ? Math.ceil(n / 2) : n, rows = Math.ceil(n / perRow);
-  const size = Math.min(rows > 1 ? 40 : 52, (Math.min(W, 560) - 24) / perRow - 6), gap = 6;
-  let x = (W - (perRow * (size + gap) - gap)) / 2, row = 0, col = 0;
-  for (const kind of ings) {
-    if (col === perRow) { col = 0; row++; x = (W - (perRow * (size + gap) - gap)) / 2; }
-    col++;
-    const d = ING[kind], y = L.chipsY + row * (size + 20), selected = kind === S.sel;
-    chips.push({ kind, x, y, w: size, h: size + 18 });
+  chips = []; const c = L.chips, ings = B().ingredients, n = ings.length, gap = 8, size = c.size;
+  const perRow = c.perRow || n, rowH = size + (c.labels ? 18 : 6), rowW = perRow * (size + gap) - gap;
+  const maxScroll = Math.max(0, rowW - c.w); chipScrollX = clamp(chipScrollX, 0, L.chipScroll ? maxScroll : 0);
+  ctx.save(); ctx.beginPath(); ctx.rect(c.x - 2, c.y - 4, c.w + 4, c.rows * rowH + 8); ctx.clip();
+  const x0 = L.chipScroll ? c.x - chipScrollX : c.x + Math.max(0, (c.w - rowW) / 2);
+  ings.forEach((kind, i) => {
+    const row = Math.floor(i / perRow), col = i % perRow, x = x0 + col * (size + gap), y = c.y + row * rowH, d = ING[kind], selected = kind === S.sel;
+    chips.push({ kind, x, y, w: size, h: rowH });
     rr(x, y, size, size, 12); ctx.fillStyle = '#26261f'; ctx.fill();
     if (selected) { ctx.strokeStyle = '#f3e7ca'; ctx.lineWidth = 2.5; ctx.stroke(); }
-    // глиф: маленькая версия начинки
     ctx.save(); rr(x + 4, y + 4, size - 8, size - 8, 9); ctx.clip();
     const gw = Math.max(8, (d.wU / 2.6) * (size - 16)), gh = d.dv >= 1 ? size - 16 : (size - 16) * 0.5;
     ctx.translate(x + size / 2, y + size / 2);
     if (d.paint) { ctx.fillStyle = d.color; rr(-gh / 2, -gw / 2, gh, gw, 6); ctx.fill(); } else drawPatchShape(d, -gh / 2, -gw / 2, gh, gw, true);
     ctx.restore();
-    ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(size < 48 ? 9.5 : 11); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText(d.name, x + size / 2, y + size + 3);
-    x += size + gap;
+    if (c.labels) { ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(d.name, x + size / 2, y + size + 3); }
+  });
+  ctx.restore();
+  if (L.chipScroll) {   // затухание по краям — намёк на прокрутку
+    for (const [xx, dir] of [[c.x, 1], [c.x + c.w, -1]]) { const gr = ctx.createLinearGradient(xx, 0, xx + dir * 18, 0); gr.addColorStop(0, '#171713'); gr.addColorStop(1, 'rgba(23,23,19,0)'); ctx.fillStyle = gr; ctx.fillRect(Math.min(xx, xx + dir * 18), c.y - 4, 18, c.rows * rowH + 8); }
   }
+  if (!c.labels) { ctx.fillStyle = '#f3e7ca'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(ING[S.sel].name, c.x + c.w / 2, c.y + c.rows * rowH + 2); }
 }
 let icons = [];
 function drawTopBar(hint) {
-  icons = icons.filter(ic => ic.id === 'lvprev' || ic.id === 'lvnext' || ic.id === 'share');
-  const T0 = SAFE.top;
+  const T0 = SAFE.top, ox = L.ox, cw = L.cw, narrow = cw < 480;
   ctx.fillStyle = '#f3e7ca'; ctx.font = font(17, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText('Ролльня', 16 + SAFE.left, 26 + T0);
-  ctx.fillStyle = '#8d846f'; ctx.font = font(12); ctx.fillText(W < 480 ? 'стенд' : 'стенд · лист → спираль → срез', 92 + SAFE.left, 27 + T0);
+  ctx.fillText('Ролльня', ox + 16, 24 + T0);
+  ctx.fillStyle = '#8d846f'; ctx.font = font(12); ctx.fillText(narrow ? 'стенд' : 'стенд · лист → спираль → срез', ox + 92, 25 + T0);
   const items = [['base', B().emoji], ['shape', SHAPES[S.shape].glyph], ['puzzle', '🧩'], ['preview', S.preview ? '👁' : '👁‍🗨'], ['mute', S.mute ? '🔇' : '🔊']];
-  let x = W - 16 - SAFE.right;
+  if (S.puzzle || S.mode === 'revealed' || S.mode === 'plate') items.splice(3, 0, ['share', '🔗']);
+  let x = ox + cw - 12;
   for (const [id, glyph] of items) {
-    const w = W < 480 ? 34 : 38; x -= w; icons.push({ id, x, y: 8 + T0, w, h: 36 });
-    rr(x, 8 + T0, w, 36, 10); ctx.fillStyle = ((id === 'preview' && S.preview) || (id === 'puzzle' && S.puzzle)) ? '#4a4331' : '#26261f'; ctx.fill();
-    ctx.font = '18px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#f3e7ca'; ctx.fillText(glyph, x + w / 2, 27 + T0);
-    x -= W < 480 ? 4 : 6;
+    const w = narrow ? 34 : 40; x -= w; icons.push({ id, x, y: 4 + T0, w, h: 40 });
+    rr(x, 6 + T0, w, 36, 10); ctx.fillStyle = ((id === 'preview' && S.preview) || (id === 'puzzle' && S.puzzle)) ? '#4a4331' : '#26261f'; ctx.fill();
+    ctx.font = id === 'share' ? '16px system-ui' : '18px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#f3e7ca'; ctx.fillText(glyph, x + w / 2, 25 + T0);
+    x -= narrow ? 4 : 6;
   }
+  const arrows = S.puzzle && S.mode === 'lay';
   if (hint) {
-    ctx.fillStyle = '#b8ad95'; ctx.font = font(12.5); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const parts = hint.split(' · '), lines = []; let cur = '';
-    for (const pt of parts) { const t = cur ? cur + ' · ' + pt : pt; if (cur && ctx.measureText(t).width > W - 24) { lines.push(cur); cur = pt; } else cur = t; }
+    ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const maxW = cw - 24 - (arrows ? 88 : 0), parts = hint.split(' · '), lines = []; let cur = '';
+    for (const pt of parts) { const t = cur ? cur + ' · ' + pt : pt; if (cur && ctx.measureText(t).width > maxW) { lines.push(cur); cur = pt; } else cur = t; }
     if (cur) lines.push(cur);
-    lines.slice(0, 2).forEach((ln, i) => ctx.fillText(ln, W / 2, 54 + T0 + i * 16));
+    const shown = lines.slice(0, L.hint2 ? 2 : 1);
+    shown.forEach((ln, i) => { let t = ln; while (t.length > 4 && ctx.measureText(t).width > maxW) t = t.slice(0, -2) + '…'; ctx.fillText(t, ox + cw / 2, 49 + T0 + i * 16); });
   }
-  ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
-  ctx.fillText(`срезов: ${S.cuts} (всего ${S.cutsTotal})`, W - 12 - SAFE.right, H - 6 - SAFE.bottom);
-  if (shareNote > performance.now()) { ctx.fillStyle = '#e0b25a'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; rr(W / 2 - 120, H - 60, 240, 34, 12); ctx.fillStyle = '#2a2a25'; ctx.fill(); ctx.fillStyle = '#e0b25a'; ctx.fillText('Ссылка на пазл скопирована', W / 2, H - 43); dirty = true; }
+  if (arrows) {
+    const y = 49 + T0;
+    icons.push({ id: 'lvprev', x: ox + 4, y: y - 22, w: 44, h: 44 }, { id: 'lvnext', x: ox + cw - 48, y: y - 22, w: 44, h: 44 });
+    ctx.fillStyle = '#efe4cd'; ctx.font = font(22, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('‹', ox + 26, y); ctx.fillText('›', ox + cw - 26, y);
+  }
+  if (L.ch >= 700) { ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText(`срезов: ${S.cuts} (всего ${S.cutsTotal})`, ox + cw - 12, L.oy + L.ch - 6); }
+  if (shareNote > performance.now()) { ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; rr(ox + cw / 2 - 120, L.oy + L.ch - 60, 240, 34, 12); ctx.fillStyle = '#2a2a25'; ctx.fill(); ctx.fillStyle = '#e0b25a'; ctx.fillText('Ссылка на пазл скопирована', ox + cw / 2, L.oy + L.ch - 43); dirty = true; }
 }
 
 // ---------------------------------------------------------------- рисование листа (вид сверху)
@@ -715,14 +770,46 @@ const hints = {
   lay: 'Выбери начинку и тапни по листу · потяни циновку вверх, чтобы скрутить',
   layMove: 'Тащи, чтобы подвинуть · вытащи за лист, чтобы убрать',
   laySel: 'Обернуть нори — замкнутый контур на срезе · тап по пустому — положить новое',
-  puzzle: 'Повтори срез сверху · ‹ › — уровни, 🔗 — ссылка на пазл',
+  puzzle: 'Повтори срез: разложи, скрути, разрежь',
   rolled: 'Тапни по роллу там, где резать',
   revealed: 'Вот что ты положил. Хочется ещё?',
   plate: 'Шесть кусочков — тапни, чтобы рассмотреть',
 };
+// Цель пазла / живой предпросмотр: полосой над листом, накладкой на листе или в боковой колонке.
+function drawPreviewArea(p) {
+  const pm = L.previewMode; if (pm === 'none' || p > 0) return;
+  const pz = S.puzzle, k = pz ? pz.vs.length : 1, tm = pz ? targetModel() : null;
+  const label = (x, y, lines, align = 'center') => { ctx.fillStyle = '#b8ad95'; ctx.font = font(12); ctx.textAlign = align; ctx.textBaseline = 'middle'; lines.forEach((t, i) => ctx.fillText(t, x, y + i * 16)); };
+  const turnsTxt = () => `${windFor(getModel(), 0.5).turns.toFixed(1).replace('.', ',')} витка`;
+  if (pm === 'band') {
+    const cx = L.ox + L.cw / 2, y = L.previewY;
+    if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs); }
+    else { drawFaceImg(face(0.5, 116), cx - 30, y, 116); label(cx + 30 + 14, y - 8, ['живой срез', turnsTxt()], 'left'); }
+  } else if (pm === 'overlay') {
+    const s = L.sheet;
+    if (pz) {
+      const fs = Math.min(56, (s.w - 16 - 6 * (k - 1)) / k), x0 = s.x + s.w / 2 - ((k - 1) * (fs + 6)) / 2, y = s.y + fs / 2 + 8;
+      rr(s.x + 4, s.y + 4, s.w - 8, fs + 8, 10); ctx.fillStyle = 'rgba(23,23,19,0.55)'; ctx.fill();
+      for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 6), y, fs);
+    } else {
+      const fs = 88, x = s.x + s.w - fs / 2 - 8, y = s.y + fs / 2 + 8;
+      ctx.beginPath(); ctx.arc(x, y, fs / 2 + 6, 0, TAU); ctx.fillStyle = 'rgba(23,23,19,0.55)'; ctx.fill();
+      drawFaceImg(face(0.5, fs), x, y, fs);
+    }
+  } else if (pm === 'side') {
+    const sd = L.side, cx = sd.x + sd.w / 2; let y = sd.y;
+    if (pz) {
+      if (k === 1) { const fs = L.previewSize; drawFaceImg(face(pz.vs[0], fs, tm), cx, y + fs / 2, fs); y += fs + 16; }
+      else { const cell = L.targetCell, per = Math.min(k, 3), rows = Math.ceil(k / per), x0 = cx - ((per - 1) * (cell + 8)) / 2; for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], cell, tm), x0 + (i % per) * (cell + 8), y + cell / 2 + Math.floor(i / per) * (cell + 8), cell); y += rows * (cell + 8) + 8; }
+      if (L.mode !== 'L') { ctx.fillStyle = '#e0b25a'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const t = levelTitle(pz.lv, pz.level); ctx.fillText(t.length > 34 ? t.slice(0, 33) + '…' : t, cx, y + 8); label(cx, y + 28, ['повтори срез: разложи, скрути, разрежь']); }
+    } else {
+      const fs = L.previewSize; drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); label(cx, y + fs + 16, ['живой срез · ' + turnsTxt()]);
+    }
+  }
+}
 function drawLay() {
-  const s = L.sheet, g = geometry(), p = S.rollP;
-  drawMat(s.x - 18, s.y - 18, s.w + 36, s.h + 18 + 12 + L.handle.h + 8);
+  const s = L.sheet, p = S.rollP, hd = L.handle;
+  drawMat(hd.x, s.y - 18, hd.w, hd.y + hd.h + 8 - (s.y - 18));
   const yb = s.y + s.h * (1 - p);
   // лист: остаток, ещё не скрученный
   ctx.save(); ctx.beginPath(); ctx.rect(s.x - 8, s.y - 8, s.w + 16, Math.max(0, yb - s.y + 8)); ctx.clip();
@@ -744,31 +831,20 @@ function drawLay() {
   // ролл в процессе скрутки
   if (p > 0) { const mm = getModel(); const R = wind(0.5, p * mm.g.L, mm.g, mm.list).Rout * s.h / mm.g.L; drawRollBody(s.x + s.w / 2, yb, R, s.w + 10, [{ a: 0, b: 1, off: 0 }]); }
   // циновка-ручка
-  const h = L.handle; rr(h.x, h.y, h.w, h.h, 10); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
+  rr(hd.x, hd.y, hd.w, hd.h, 10); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
   ctx.fillStyle = 'rgba(40,30,20,0.55)'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(p > 0 ? 'ещё… ↑' : '↑ потяни циновку вверх — скрутить', h.x + h.w / 2, h.y + h.h / 2);
-  // пазл: цель над листом
-  if (S.puzzle) {
-    const pz = S.puzzle, tm = targetModel(), k = pz.vs.length;
-    const fs = k === 1 ? 118 : Math.min(84, (W - 40) / k - 8), y = L.sheet.y - 18 - (k === 1 ? 62 : 46);
-    const x0 = W / 2 - ((k - 1) * (fs + 8)) / 2;
-    for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs);
-    icons.push({ id: 'lvprev', x: 12, y: y - 18, w: 36, h: 36 }, { id: 'lvnext', x: W - 48, y: y - 18, w: 36, h: 36 }, { id: 'share', x: W - 48, y: y + 24, w: 36, h: 36 });
-    for (const ic of icons.slice(-3)) { rr(ic.x, ic.y, ic.w, ic.h, 10); ctx.fillStyle = '#26261f'; ctx.fill(); ctx.fillStyle = '#efe4cd'; ctx.font = ic.id === 'share' ? '16px system-ui' : font(18, 600); ctx.fillText(ic.id === 'lvprev' ? '‹' : ic.id === 'lvnext' ? '›' : '🔗', ic.x + ic.w / 2, ic.y + ic.h / 2); }
-  } else if (S.preview) {
-    const size = 116, img = face(0.5, size), x = W / 2 - 30, y = L.previewY;
-    drawFaceImg(img, x, y, size);
-    ctx.fillStyle = '#b8ad95'; ctx.font = font(11); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText('живой срез', x + size / 2 + 14, y - 8); ctx.fillText(`${windFor(getModel(), 0.5).turns.toFixed(1).replace('.', ',')} витка`, x + size / 2 + 14, y + 8);
-  }
+  let ht = p > 0 ? 'ещё… ↑' : '↑ потяни циновку вверх — скрутить'; if (ctx.measureText(ht).width > hd.w - 24) ht = '↑ скрутить';
+  ctx.fillText(ht, hd.x + hd.w / 2, hd.y + hd.h / 2);
+  drawPreviewArea(p);
   buttons = [];
+  const area = L.layBtn;
   if (sel && p === 0) {
-    const canWrap = sel.kind !== 'nori' && !ING[sel.kind].wave;
-    buttonRow(canWrap ? [['wrap', 'Обернуть нори', true, 1.6], ['remove', 'Убрать'], ['deselect', '✕', false, 0.5]] : [['remove', 'Убрать'], ['deselect', '✕', false, 0.5]]);
-  } else if (S.puzzle) buttonRow([['undo', '↶ Отменить'], ['clear', 'Очистить'], ['newpuzzle', '⟳ Другой', false, 0.8]]);
-  else buttonRow([['undo', '↶ Отменить'], ['clear', 'Очистить']]);
+    const canWrap = sel.kind !== 'nori' && !ING[sel.kind].wave && !ING[sel.kind].paint;
+    buttonRow(canWrap ? [['wrap', 'Обернуть нори', true, 1.5], ['remove', 'Убрать'], ['deselect', '✕', false, 0.5]] : [['remove', 'Убрать'], ['deselect', '✕', false, 0.5]], area);
+  } else if (S.puzzle) buttonRow([['undo', '↶ Отменить'], ['clear', 'Очистить'], ['newpuzzle', '⟳ Другой', false, 0.85]], area);
+  else buttonRow([['undo', '↶ Отменить'], ['clear', 'Очистить']], area);
   drawButtons(); drawChips();
-  drawTopBar(drag.patch ? hints.layMove : sel ? hints.laySel : S.puzzle ? levelTitle(S.puzzle.lv, S.puzzle.level) + ' · ' + hints.puzzle : hints.lay);
+  drawTopBar(drag.patch ? hints.layMove : sel ? hints.laySel : S.puzzle ? (L.previewMode === 'side' ? hints.puzzle : levelTitle(S.puzzle.lv, S.puzzle.level)) : hints.lay);
 }
 function rollDims() { const m = getModel(), s = L.sheet; const k = L.roll.len / s.w; return { g: m.g, R: m.Rmax * s.h / m.g.L * k, len: L.roll.len }; }
 function drawBoard(R, len, alpha = 1) {
@@ -808,7 +884,7 @@ function drawCut(now) {
   // срез правой половины «поворачивается» к камере, потом наезжает
   if (open > 0) {
     const reveal = clamp(open), z = easeInOutCubic(zoom);
-    const size = lerp(2 * c.R, L.faceSize, z), x = lerp(c.x + gap, W / 2, z), y = lerp(L.roll.y, L.faceY, z);
+    const size = lerp(2 * c.R, L.faceSize, z), x = lerp(c.x + gap, L.ox + L.cw / 2, z), y = lerp(L.roll.y, L.faceY, z);
     drawFaceImg(c.img, x, y, size, reveal);
   }
   if (t < 0.9) {
@@ -823,34 +899,41 @@ function drawCut(now) {
 }
 function drawCompare() {
   const pz = S.puzzle, res = pz.result || puzzleEvaluate(), tm = targetModel(), pm = getModel(), k = pz.vs.length, Rref = Math.max(tm.Rmax, pm.Rmax);
-  const rowW = W - 32, fs = k === 1 ? Math.min(150, rowW / 2 - 12) : Math.min(64, rowW / k - 6);
-  const cy0 = L.top + 40, gap = k === 1 ? 24 : 12;
-  ctx.fillStyle = '#8d846f'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const cw = L.cw, ch = L.ch, cx = L.ox + cw / 2, top = L.top + 12, wide = L.mode !== 'P';
+  ctx.fillStyle = '#8d846f'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  let yv;
   if (k === 1) {
-    drawFaceImg(face(pz.vs[0], fs, tm, Rref), W / 2 - fs / 2 - gap / 2, cy0 + fs / 2, fs); drawFaceImg(face(pz.vs[0], fs, pm, Rref), W / 2 + fs / 2 + gap / 2, cy0 + fs / 2, fs);
-    ctx.fillText('цель', W / 2 - fs / 2 - gap / 2, cy0 + fs + 16); ctx.fillText('твой', W / 2 + fs / 2 + gap / 2, cy0 + fs + 16);
+    const fs = Math.max(80, Math.min(wide ? 0.3 * cw : (cw - 56) / 2, 0.45 * (L.rowBtn.y - top - 120), 400)), gap = wide ? 40 : 20;
+    drawFaceImg(face(pz.vs[0], fs, tm, Rref), cx - fs / 2 - gap / 2, top + fs / 2, fs); drawFaceImg(face(pz.vs[0], fs, pm, Rref), cx + fs / 2 + gap / 2, top + fs / 2, fs);
+    ctx.fillText('цель', cx - fs / 2 - gap / 2, top + fs + 18); ctx.fillText('твой', cx + fs / 2 + gap / 2, top + fs + 18);
+    yv = top + fs + 52;
   } else {
-    const x0 = W / 2 - ((k - 1) * (fs + 6)) / 2;
-    for (let i = 0; i < k; i++) { drawFaceImg(face(pz.vs[i], fs, tm, Rref), x0 + i * (fs + 6), cy0 + fs / 2, fs); drawFaceImg(face(pz.vs[i], fs, pm, Rref), x0 + i * (fs + 6), cy0 + fs * 1.5 + gap + 10, fs); }
-    ctx.textAlign = 'left'; ctx.fillText('цель', 16, cy0 + fs / 2); ctx.fillText('твой', 16, cy0 + fs * 1.5 + gap + 10); ctx.textAlign = 'center';
+    const fs = Math.max(40, Math.min(wide ? (cw - 160) / k : (cw - 32 - 6 * (k - 1)) / k, 0.26 * ch, 213)), gap = 6;
+    const sideLabels = cw - k * (fs + gap) >= 100, x0 = cx - ((k - 1) * (fs + gap)) / 2 + (sideLabels ? 20 : 0);
+    const y1 = top + (sideLabels ? 0 : 18) + fs / 2, y2 = y1 + fs + 26;
+    for (let i = 0; i < k; i++) { drawFaceImg(face(pz.vs[i], fs, tm, Rref), x0 + i * (fs + gap), y1, fs); drawFaceImg(face(pz.vs[i], fs, pm, Rref), x0 + i * (fs + gap), y2, fs); }
+    if (sideLabels) { ctx.textAlign = 'right'; ctx.fillText('цель', x0 - fs / 2 - 16, y1); ctx.fillText('твой', x0 - fs / 2 - 16, y2); ctx.textAlign = 'center'; }
+    else { ctx.fillText('цель', cx, top + 6); ctx.fillText('твой', cx, y2 - fs / 2 - 10); }
+    yv = y2 + fs / 2 + 34;
   }
-  const yv = cy0 + (k === 1 ? fs + 44 : fs * 2 + gap + 40);
-  ctx.fillStyle = res.pass ? '#8fd18a' : '#e0b25a'; ctx.font = font(22, 700); ctx.fillText(res.pass ? `Совпало · ${Math.round(res.sim * 100)} %` : `Похоже на ${Math.round(res.sim * 100)} %`, W / 2, yv);
+  ctx.fillStyle = res.pass ? '#8fd18a' : '#e0b25a'; ctx.font = font(22, 700); ctx.fillText(res.pass ? `Совпало · ${Math.round(res.sim * 100)} %` : `Похоже на ${Math.round(res.sim * 100)} %`, cx, yv);
   ctx.fillStyle = '#b8ad95'; ctx.font = font(13);
-  res.hints.forEach((h, i) => ctx.fillText(h, W / 2, yv + 26 + i * 18));
-  if (res.pass) ctx.fillText(pz.level + 1 < LEVELS.length ? 'Дальше — следующий уровень' : 'Это был последний уровень', W / 2, yv + 26 + res.hints.length * 18);
-  buttons = []; buttonRow(res.pass ? [['next', 'Дальше →', true], ['back', 'Ещё раз'], ['newpuzzle', '⟳ Другой'], ['share', '🔗', false, 0.5]] : [['back', 'Ещё раз', true], ['newpuzzle', '⟳ Другой'], ['slice', 'Кусочки'], ['share', '🔗', false, 0.5]]);
+  res.hints.forEach((h, i) => ctx.fillText(h, cx, yv + 26 + i * 18));
+  let ye = yv + 26 + res.hints.length * 18;
+  if (res.pass) { ctx.fillText(pz.level + 1 < LEVELS.length ? 'Дальше — следующий уровень' : 'Это был последний уровень', cx, ye); ye += 18; }
+  const area = L.rowBtn.y - ye > 120 ? { x: L.rowBtn.x, y: ye + 20, w: L.rowBtn.w, h: L.btnH, max: 3 } : L.rowBtn;
+  buttons = []; buttonRow(res.pass ? [['next', 'Дальше →', true], ['back', 'Ещё раз'], ['newpuzzle', '⟳ Другой']] : [['back', 'Ещё раз', true], ['newpuzzle', '⟳ Другой'], ['slice', 'Кусочки']], area);
   drawButtons(); drawTopBar(levelTitle(pz.lv, pz.level));
 }
 function drawRevealed() {
   if (S.puzzle && performance.now() - (cut.revealedAt || 0) > 900) { drawCompare(); return; }
   if (S.puzzle) dirty = true;
-  const c = cut;
+  const c = cut, cx = L.ox + L.cw / 2;
   drawRollBody(L.roll.x, L.roll.y, c.R, c.len, [{ a: 0, b: c.v, off: -18 }, { a: c.v, b: 1, off: 18 }], 1, 0.3);
-  drawFaceImg(c.img, W / 2, L.faceY, L.faceSize);
-  ctx.fillStyle = '#8d846f'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины`, W / 2, L.faceY + L.faceSize / 2 + 14);
-  buttons = []; buttonRow([['slice', `Нарезать на ${NPIECES}`, true], ['back', 'Ещё начинки'], ['new', 'Новый лист'], ['share', '🔗', false, 0.5]]);
+  drawFaceImg(c.img, cx, L.faceY, L.faceSize);
+  ctx.fillStyle = '#8d846f'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины`, cx, L.faceY + L.faceSize / 2 + 14);
+  buttons = []; buttonRow([['slice', `Нарезать на ${NPIECES}`, true], ['back', 'Ещё начинки'], ['new', 'Новый лист']]);
   drawButtons(); drawTopBar(hints.revealed);
 }
 // Нарезка: быстрые удары, потом кусочки встают срезом и разъезжаются по тарелке.
@@ -894,7 +977,7 @@ function drawSlicing(now) {
   if (el > chopsEnd + 1000) { S.mode = 'plate'; dirty = true; }
 }
 function drawPlate() {
-  const s = slicing;
+  const s = slicing, cx = L.ox + L.cw / 2;
   for (let i = 0; i < NPIECES; i++) {
     const gx = L.grid[i]; drawFaceImg(s.imgs[i], gx.x, gx.y, gx.size);
     ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(String(i + 1), gx.x, gx.y + gx.size / 2 + 4);
@@ -902,11 +985,11 @@ function drawPlate() {
   buttons = []; buttonRow([['back', 'Ещё начинки', true], ['new', 'Новый лист']]);
   drawButtons(); drawTopBar(hints.plate);
   if (S.bigPiece >= 0) {
-    ctx.fillStyle = 'rgba(23,23,19,0.85)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(23,23,19,0.92)'; ctx.fillRect(0, 0, W, H);
     const img = face(pieceV(S.bigPiece), L.faceSize);
-    drawFaceImg(img, W / 2, L.faceY, L.faceSize);
-    ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText(`кусочек ${S.bigPiece + 1} из ${NPIECES} · тапни, чтобы закрыть`, W / 2, L.faceY + L.faceSize / 2 + 16);
+    ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(`кусочек ${S.bigPiece + 1} из ${NPIECES} · тапни, чтобы закрыть`, cx, L.faceY - L.faceSize / 2 - 14);
+    drawFaceImg(img, cx, L.faceY, L.faceSize);
   }
 }
 
@@ -1103,17 +1186,22 @@ function action(id) {
     case 'lvprev': if (S.puzzle && S.puzzle.level > 0) puzzleStart(S.puzzle.level - 1, S.puzzle.seed); else if (S.puzzle && S.puzzle.level < 0) puzzleStart(0, 1); break;
     case 'lvnext': if (S.puzzle && S.puzzle.level + 1 < LEVELS.length && S.puzzle.level + 1 <= puzzleMax()) puzzleStart(S.puzzle.level + 1, S.puzzle.seed); break;
     case 'mute': S.mute = !S.mute; sfx.ensure(); sfx.setMute(S.mute); save(); dirty = true; break;
-    case 'base': { const keys = Object.keys(BASES); S.base = keys[(keys.indexOf(S.base) + 1) % keys.length]; S.sel = B().ingredients[0]; S.selPatch = null; touchModel(); if (S.puzzle) puzzleStart(S.puzzle.level, S.puzzle.seed); else if (S.mode !== 'lay') action('back'); break; }
+    case 'base': { const keys = Object.keys(BASES); S.base = keys[(keys.indexOf(S.base) + 1) % keys.length]; S.sel = B().ingredients[0]; S.selPatch = null; touchModel(); layout(); if (S.puzzle) puzzleStart(S.puzzle.level, S.puzzle.seed); else if (S.mode !== 'lay') action('back'); break; }
   }
   requestFrame();
 }
+function chipsRect() { const c = L.chips; return { x: c.x - 4, y: c.y - 4, w: c.w + 8, h: c.rows * (c.size + (c.labels ? 18 : 6)) + 8 }; }
 function onDown(x, y, id) {
   sfx.ensure();
   for (const ic of icons) if (inRect(x, y, ic)) { action(ic.id); return; }
   for (const b of buttons) if (inRect(x, y, b)) { action(b.id); return; }
   if (S.mode === 'lay') {
     if (anim) return;
-    for (const c of chips) if (inRect(x, y, c)) { S.sel = c.kind; dirty = true; requestFrame(); return; }
+    if (inRect(x, y, chipsRect())) {
+      if (L.chipScroll) { drag.id = id; drag.kind = 'chips'; drag.x0 = x; drag.s0 = chipScrollX; drag.moved = false; return; }
+      for (const c of chips) if (inRect(x, y, c)) { S.sel = c.kind; dirty = true; requestFrame(); return; }
+      return;
+    }
     const s = L.sheet;
     if (inRect(x, y, L.handle) || (S.rollP > 0 && inRect(x, y, s))) { drag.id = id; drag.kind = 'roll'; drag.y0 = y; drag.p0 = S.rollP; drag.lastY = y; drag.lastT = performance.now(); sfx.rustleStart(); return; }
     if (inRect(x, y, s)) {
@@ -1141,7 +1229,10 @@ function onDown(x, y, id) {
 }
 function onMove(x, y, id) {
   if (drag.id !== id || !drag.kind) return;
-  if (drag.kind === 'roll') {
+  if (drag.kind === 'chips') {
+    drag.moved = drag.moved || Math.abs(x - drag.x0) > 6;
+    chipScrollX = drag.s0 - (x - drag.x0);
+  } else if (drag.kind === 'roll') {
     const now = performance.now();
     S.rollP = clamp(drag.p0 + (drag.y0 - y) / (L.sheet.h * 0.85));
     const speed = Math.abs(y - drag.lastY) / Math.max(1, now - drag.lastT); drag.lastY = y; drag.lastT = now;
@@ -1161,7 +1252,9 @@ function onMove(x, y, id) {
 function onUp(x, y, id) {
   if (drag.id !== id) return;
   const kind = drag.kind; drag.id = null; drag.kind = null;
-  if (kind === 'roll') {
+  if (kind === 'chips') {
+    if (!drag.moved) for (const c of chips) if (inRect(x, y, c)) { S.sel = c.kind; break; }
+  } else if (kind === 'roll') {
     sfx.rustleStop();
     if (S.rollP >= 0.5) tween(S.rollP, 1, 380, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; dirty = true; });
     else tween(S.rollP, 0, 260, v => { S.rollP = v; });

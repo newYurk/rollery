@@ -12,8 +12,10 @@ No soft-body physics. The sheet is a `(u, v, z)` canvas of patches (`u` along th
 `v` along the roll, `z` through the spread). Rolling is a **variable-thickness winding**: the sheet is
 sliced into 1440 angular bins and wound turn by turn; where a filling is thicker than the spread it
 displaces it (rice compressibility κ), the excess is squeezed by the mat (β), the thickness profile is
-smoothed, the last 8 % of the sheet is bare wrapper for the seam. The cut face is rendered pixel by pixel by
-mapping `(r, φ)` back onto the sheet; the cross-section can be pressed round, square or triangular.
+smoothed, rice tapers off before the bare sealing flap. Fillings laid close to the near edge are **tucked**
+into a solid core (the bed folds in half; the near half's nori becomes the inner hook) and the rest of the sheet
+winds around it — about 1.4 turns, like a real futomaki (`docs/reality-check.md`). The cut face is rendered pixel
+by pixel by mapping `(r, φ)` back onto the sheet; the cross-section can be pressed round, square or triangular.
 Ingredient sizes are in real units (rice layer ≈ 5 mm). See `docs/design-core.md` and `docs/geometry-audit.md`.
 
 ## What's in the stand
@@ -39,7 +41,8 @@ Ingredient sizes are in real units (rice layer ≈ 5 mm). See `docs/design-core.
 - `docs/geometry-audit.md` — independent numeric audit of the spiral/winding math (Russian).
 - `docs/mechanics.md`, `docs/core-v0.md` — core-mechanic candidates and the puzzle-reproduce spec (Russian).
 - `docs/ideas.md` — idea bank (coloured rice as paint, mini-rolls as elements).
-- `docs/ui-review.md` — UI/UX and responsive-layout review across viewports (Russian).
+- `docs/ui-review.md` — UI/UX and responsive-layout review across viewports (Russian); the layout follows it.
+- `docs/reality-check.md` — comparison with real maki/kazarimaki construction, with numbers and sources (Russian).
 - `STATE.md` — project entry point: where we are and what's next (Russian).
 
 This is a measurement rig, not a game and not a stack decision.
