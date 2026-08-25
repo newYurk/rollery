@@ -54,7 +54,7 @@ function hash(x, y) {
 // ---------------------------------------------------------------- данные
 const BASES = {
   sushi: { name: 'Суши-ролл', emoji: '🍣', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
-    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 0.84, beta: 0.55,
+    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 0.87, beta: 0.55,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
     T: 0.8, w: 0.42, turns: 2.7, kappa: 0.5, spreadEnd: 0.95, beta: 0.7,
@@ -197,7 +197,7 @@ function covers(p, u, v) {
 // Толщина «намазка + стопка» в точке листа (без обёртки), в единицах: рис под начинкой выдавлен, когда стопка выше намазки.
 function stackTopAt(u, v, list) { let H = 0; for (const p of list) if (!ING[p.kind].paint && covers(p, u, v)) H = Math.max(H, p.z1); return H; }
 // Начинка толще намазки при надавливании циновкой сжимается: слой растёт только на β от избытка.
-const TAPER = 0.10;   // рис сходит на нет перед голой кромкой (доля листа, ≈ 2 см)
+const TAPER = 0.08;   // рис сходит на нет перед голой кромкой (доля листа, ≈ 1,5 см)
 function spreadAt(u) { const se = B().spreadEnd; return u >= se ? 0 : u > se - TAPER ? (se - u) / TAPER : 1; }
 function bandAt(u, v, g, list) { const r = spreadAt(u), H = stackTopAt(u, v, list); return (r + B().beta * Math.max(0, H - r)) * g.T; }
 // Намотка листа переменной толщины: по угловым бинам, виток за витком. sMax — сколько листа съедено (для анимации скрутки).
@@ -496,7 +496,7 @@ function layout() {
   const cw = W - SAFE.left - SAFE.right, ch = H - SAFE.top - SAFE.bottom, ox = SAFE.left, oy = SAFE.top;
   const n = B().ingredients.length, pz = S.puzzle, k = pz ? pz.vs.length : 1, showPrev = !!(pz || S.preview);
   const mode = ch < 500 ? 'L' : cw >= 1100 ? 'D' : cw >= 600 ? 'T' : 'P';
-  const hint2 = mode === 'P' && cw < 420, panelH = hint2 ? 78 : 62, btnH = 44;
+  const hint2 = mode === 'P' && cw < 480, panelH = hint2 ? 78 : 62, btnH = 44;
   Object.assign(L, { mode, cw, ch, ox, oy, hint2, top: oy + panelH, side: null, previewMode: 'none', previewSize: 116, chipScroll: false, btnH });
   L.rowBtn = { x: ox + (cw - Math.min(cw - 32, 560)) / 2, y: oy + ch - 12 - btnH, w: Math.min(cw - 32, 560), h: btnH, max: 3 };
   if (mode === 'L') {
@@ -613,14 +613,18 @@ function drawTopBar(hint) {
   const T0 = SAFE.top, ox = L.ox, cw = L.cw, narrow = cw < 480;
   ctx.fillStyle = '#f3e7ca'; ctx.font = font(17, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText('Ролльня', ox + 16, 24 + T0);
-  ctx.fillStyle = '#8d846f'; ctx.font = font(12); ctx.fillText(narrow ? 'стенд' : 'стенд · лист → спираль → срез', ox + 92, 25 + T0);
-  const items = [['base', B().emoji], ['shape', SHAPES[S.shape].glyph], ['puzzle', '🧩'], ['preview', S.preview ? '👁' : '👁‍🗨'], ['mute', S.mute ? '🔇' : '🔊']];
+  const items = [['base', B().emoji], ['shape', SHAPES[S.shape].glyph], ['puzzle', '🧩'], ['preview', '👁'], ['mute', S.mute ? '🔇' : '🔊']];
   if (S.puzzle || S.mode === 'revealed' || S.mode === 'plate') items.splice(3, 0, ['share', '🔗']);
+  const iconsW = items.length * ((narrow ? 34 : 40) + (narrow ? 4 : 6));
+  ctx.save(); ctx.beginPath(); ctx.rect(ox, T0, cw - iconsW - 20, 50); ctx.clip();
+  ctx.fillStyle = '#8d846f'; ctx.font = font(12); ctx.textAlign = 'left'; ctx.fillText((narrow ? 'стенд' : 'стенд · лист → спираль → срез') + ` · срезов: ${S.cuts}`, ox + 92, 25 + T0);
+  ctx.restore();
   let x = ox + cw - 12;
   for (const [id, glyph] of items) {
     const w = narrow ? 34 : 40; x -= w; icons.push({ id, x, y: 4 + T0, w, h: 40 });
     rr(x, 6 + T0, w, 36, 10); ctx.fillStyle = ((id === 'preview' && S.preview) || (id === 'puzzle' && S.puzzle)) ? '#4a4331' : '#26261f'; ctx.fill();
-    ctx.font = id === 'share' ? '16px system-ui' : '18px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#f3e7ca'; ctx.fillText(glyph, x + w / 2, 25 + T0);
+    ctx.font = id === 'share' ? '16px system-ui' : '18px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#f3e7ca';
+    ctx.globalAlpha = (id === 'preview' && !S.preview) ? 0.45 : 1; ctx.fillText(glyph, x + w / 2, 25 + T0); ctx.globalAlpha = 1;
     x -= narrow ? 4 : 6;
   }
   const arrows = S.puzzle && S.mode === 'lay';
@@ -638,7 +642,6 @@ function drawTopBar(hint) {
     ctx.fillStyle = '#efe4cd'; ctx.font = font(22, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('‹', ox + 26, y); ctx.fillText('›', ox + cw - 26, y);
   }
-  if (L.ch >= 700) { ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText(`срезов: ${S.cuts} (всего ${S.cutsTotal})`, ox + cw - 12, L.oy + L.ch - 6); }
   if (shareNote > performance.now()) { ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; rr(ox + cw / 2 - 120, L.oy + L.ch - 60, 240, 34, 12); ctx.fillStyle = '#2a2a25'; ctx.fill(); ctx.fillStyle = '#e0b25a'; ctx.fillText('Ссылка на пазл скопирована', ox + cw / 2, L.oy + L.ch - 43); dirty = true; }
 }
 
@@ -1278,6 +1281,9 @@ window.addEventListener('keydown', e => {
   else if (e.key === 'Enter') { if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 500, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; dirty = true; }); else if (S.mode === 'rolled') { startCut(0.5); requestFrame(); } else if (S.mode === 'revealed') action('slice'); }
 });
 window.addEventListener('resize', () => { resize(); requestFrame(); });
+if (window.visualViewport) window.visualViewport.addEventListener('resize', () => { resize(); requestFrame(); });
+window.addEventListener('pageshow', () => { resize(); requestFrame(); });
+setTimeout(() => { resize(); requestFrame(); }, 300); setTimeout(() => { resize(); requestFrame(); }, 1200);
 window.addEventListener('orientationchange', () => setTimeout(() => { resize(); requestFrame(); }, 120));
 
 load(); resize(); touchModel();
