@@ -454,23 +454,30 @@ function materialAt(m, wd, vSlice, r, phi) {
 // шум по двухпиксельным клеткам, то есть зерно зависело от зума и выходило ~0,25 мм вместо 2,5 мм,
 // в десять раз мельче настоящего. Тот же файл при этом уже знал верный размер: GRAIN = 0,5 ед. = 2,5 мм
 // (им скругляются углы квадратного ролла, см. shapeInfo). Аргументы gx, gy — координаты В ЗЁРНАХ.
-function spreadColor(gx, gy, b) {
+function spreadColor(gx, gy, b, ct, st) {
   const c = b.spreadRgb;
   if (S.base === 'sushi' || (S.base !== 'cake' && b.T >= 1)) {
-    // Клеточный шум: у каждой клетки свой сдвинутый центр — зерно, ближайшее к точке. Отсюда
-    // округлые зёрна разной формы вместо клетчатой сетки, а разность до двух ближайших центров
-    // даёт границу между зёрнами. Зерно чуть вытянуто (реальное ~6x3 мм), поэтому gx сжат.
-    const ex = gx * 0.62, ey = gy;
-    const ci = Math.floor(ex), cj = Math.floor(ey);
+    // Клеточный шум: у каждой клетки свой сдвинутый центр, зерно — ближайший к точке, а разность
+    // расстояний до двух ближайших даёт границу между зёрнами. Расстояние меряется АНИЗОТРОПНО:
+    // вдоль зерна оно сжато в GRAIN_ASPECT раз, поэтому зёрна выходят вытянутыми. Направление
+    // (ct, st) — касательная к витку: в ролле зёрна ложатся вдоль намотки, а не по осям экрана.
+    const cx = ct === undefined ? 1 : ct, sy = st === undefined ? 0 : st;
+    const ci = Math.floor(gx), cj = Math.floor(gy);
     let d1 = 9, d2 = 9, hit = 0;
-    for (let oj = -1; oj <= 1; oj++) for (let oi = -1; oi <= 1; oi++) {
+    // Метрика сжимает расстояние вдоль зерна, поэтому соседей вдоль надо перебрать больше, чем поперёк.
+    // На срезе направление витка своё в каждой точке — ищем во все стороны; на плоском листе зерно
+    // всегда вдоль оси x, и хватает узкой полосы: 5x3 вместо 5x5.
+    const RJ = ct === undefined ? 1 : 2;
+    for (let oj = -RJ; oj <= RJ; oj++) for (let oi = -2; oi <= 2; oi++) {
       const i2 = ci + oi, j2 = cj + oj, h = hash(i2, j2);
-      const px2 = i2 + 0.15 + 0.7 * h, py2 = j2 + 0.15 + 0.7 * hash(i2, j2 + 313);
-      const ddx = px2 - ex, ddy = py2 - ey, dd = ddx * ddx + ddy * ddy;
+      const cxp = i2 + 0.15 + 0.7 * h, cyp = j2 + 0.15 + 0.7 * hash(i2, j2 + 313);
+      const ddx = cxp - gx, ddy = cyp - gy;
+      const along = (ddx * cx + ddy * sy) / GRAIN_ASPECT, across = -ddx * sy + ddy * cx;
+      const dd = along * along + across * across;
       if (dd < d1) { d2 = d1; d1 = dd; hit = h; } else if (dd < d2) { d2 = dd; }
     }
     const edge = Math.sqrt(d2) - Math.sqrt(d1);              // 0 на границе зёрен
-    let t = (hit - 0.5) * 13 - 15 * Math.max(0, 0.16 - edge);
+    let t = (hit - 0.5) * 13 - 16 * Math.max(0, 0.14 - edge);
     if (hit > 0.955) t -= 12;                                 // редкое зерно потемнее
     return [c[0] + t, c[1] + t, c[2] + t * 0.6];
   }
@@ -541,10 +548,13 @@ function patchColor(m, px, py) {
 //   · треугольник в маки — капля с «горкой» сзади, а не равносторонний.
 const SHAPES = { round: { k: 0, p: 0, glyph: '⭕' }, square: { k: 4, p: 0.62, glyph: '◻' }, triangle: { k: 3, p: 0.58, glyph: '△', drop: 0.22 } };
 const R_THIN = 3.2, R_THICK = 5.0;   // тоньше — квадратится целиком, толще — только бока
-// Угол не может быть острее зерна. Рисинка ≈ 2,5 мм в поперечнике, то есть половина слоя риса (T ≈ 5 мм):
-// сколько ни дави, кромка скругляется на этот размер — «углы нельзя добрать нажимом, зёрна давятся»
-// (docs/shapes.md). Отсюда скругление берётся не на глаз, а из зерна: чем меньше ролл, тем мягче углы.
-const GRAIN = 0.5;
+// Угол не может быть острее зерна: сколько ни дави, кромка скругляется на его размер — «углы нельзя
+// добрать нажимом, зёрна давятся» (docs/shapes.md). Отсюда скругление берётся не на глаз, а из зерна.
+// Варёное зерно косихикари — 7,7 x 3,5 мм (Matsui T., Hokuriku Crop Science 36:21-23, 2001: сырое
+// 4,7 x 2,8 мм, при варке длина x1,64, ширина x1,25). Поперечник = 3,5 мм = 0,7 ед. Прежние 2,5 мм
+// были толщиной зерна, а не шириной. Слой риса 7 мм — это ровно ДВА зерна поперёк.
+const GRAIN = 0.7;
+const GRAIN_ASPECT = 2.2;   // 7,7 / 3,5 — варёное зерно вытянуто СИЛЬНЕЕ сырого (L/W 2,18 против 1,67)
 const shapeCache = {};
 function shapeInfo(name, Rout, press) {
   const sh = SHAPES[name] || SHAPES.round;
@@ -604,7 +614,12 @@ function renderSection(size, vSlice, m, Rref) {
       if (alpha <= 0) { d[i + 3] = 0; continue; }
       rgb = wrapperColor(px, py, b);
     } else {
-      rgb = mat.cls === 'wrap' ? wrapperColor(px, py, b) : mat.cls === 'patch' ? patchColor(mat.mt, px, py) : spreadColor(dx / GRAIN, dy / GRAIN, b);
+      // Крупа разворачивается ПО ВИТКУ: зёрна в ролле ложатся вдоль намотки. Решётка клеток остаётся
+      // ровной (в полярных координатах клетка размазывается в дугу), а по касательной разворачивается
+      // только вытянутость зерна — через (-sin, cos) от угла точки.
+      const gr = 1 / Math.max(1e-6, Math.hypot(dx, dy));
+      rgb = mat.cls === 'wrap' ? wrapperColor(px, py, b) : mat.cls === 'patch' ? patchColor(mat.mt, px, py)
+          : spreadColor(dx / GRAIN, dy / GRAIN, b, -dy * gr, dx * gr);
       if (mat.sm && mat.sm.rOut >= topAt(wd, phi) - 1e-4) alpha = clamp(0.5 + (mat.sm.rOut - r) * scale);   // внешняя кромка
     }
     const rr = r / R, vig = 1 - 0.10 * rr * rr - 0.035 * (dx + dy) / R;

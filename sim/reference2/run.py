@@ -8,6 +8,17 @@ from the loser ../mat-chain and one metric asked for by the owner. Deltas agains
   * when the cap bites, tuck_eff carries the near end further in proportion to the shrinkage.
   * wrinkles_mat: the wrinkle count with the threshold the BAMBOO sets (1/R_MAT_MIN = 2 1/T) rather
     than the bed (1/(T+w) = 0.89 1/T) -- from mat-chain.
+  * mat_bend_violations (26.08.2026): every stretch of the band bent tighter than the mat itself can
+    bend, over the WHOLE band. Reversal-based counters can be dodged; this one cannot.
+
+Corrections of 26.08.2026 (evening), all from adversarial re-measurement -- see README sec.4:
+  * the "fold nose" window is no longer excluded from any wrinkle count or from the amplitude fit.
+    It was placed by argmax of accumulated turning, so it sat on the tightest bend by construction.
+  * nori_turns bridges rasterisation holes (BG_HOLE_T), as the rice-under-filling walk already did.
+  * crossings_predicted lost its "+1 for the tuck": with the bridged count the offset is zero.
+  * nori_particle_gap_T / nori_mat_gap_*: the tear test and the contact test are now two metrics.
+  * pressed_ok: a run whose mat never reached the roll is no longer reported as stable.
+  * --threads: one thread makes the run bit-reproducible (atomic float adds are order-dependent).
   * crossings_predicted_actual / _best: the layer formula fed the fold length the run actually spent
     on the first turn -- from mat-chain.
   * rice_J_min_run: the smallest rice compaction reached at ANY moment (KINEMATICS.md 13:25 -- the
@@ -30,7 +41,13 @@ Rolling without slipping ties the two together: d(xc)/dt = d(s_c)/dt = v, so the
 arclength s sits at th = (s_c - s)/R and Phi = s_c/R. Two consequences, and they are the whole point:
     * the near end of the mat traces a CYCLOID, and the sheet's fold radius is R everywhere -- no
       crease tighter than R can exist, so an accordion is impossible by construction (the mat's own
-      minimum bend radius, R_MAT_MIN = 0.5 T, is far below R and is never the binding constraint);
+      minimum bend radius, R_MAT_MIN = 0.5 T, is far below R and is never the binding constraint).
+      CAVEAT, measured 26.08.2026: this holds for the mat, NOT yet for the sheet. The mat contact is
+      one-sided ("stay inside", only when vn < 0) and nothing gives the nori a bending stiffness of
+      its own, so in the CORE the sheet can and does fold tighter than the mat could -- 0.229 T on
+      layout 4 and 0.164 T on layout 5, against a limit of 0.56 T. `mat_bend_violations` records it.
+      Until the sheet gets an explicit curvature limit, "impossible by construction" is a claim about
+      the boundary, not a property of the model;
     * there is no free span of sheet at any moment: the nori is either flat on the table or bonded to
       the mat (MAT_BOND, high friction / next to no slip), which is what the old grab got wrong.
 
@@ -175,7 +192,11 @@ P_PRESS_REF = 0.04       # ... and during the final squeeze. Not comparable with
 P_HOLD_FRAC = 1.6        # the pause after the closing presses harder than plain rolling
 L_FLOOR = 0.06           # the pressure is charged over at least this fraction of the span, so that
                          # "nothing is touching yet" reads as "press harder" and not as a 0/0
-HUG_FRAC = 0.40          # the final press is not finished until the ring touches this much of its span
+HUG_FRAC = 0.25          # the final press is not finished until the ring touches this much of its span.
+                         # Was 0.40, which is unreachable: measured ceiling of L_contact/L_arc over 21
+                         # runs is 0.274 (defaults) and 0.352 (--press 2), so `conv` never accumulated
+                         # and the press ALWAYS left by t_press_max (duration 46.00-46.01 in all 21).
+                         # The "force equilibrium" the README described never fired once.
 BAND_W = 3.5             # width of the contact band of the circular mat, in grid cells (-0.5 .. 3)
 BAND_W_SQ = 3.0          # ... and of the square press (-0.5 .. 2.5)
 V_RADIAL = 0.075         # max radial speed of the mat controller
@@ -198,6 +219,7 @@ C_EXIT_FRAC = 0.55       # rolling ends when nothing outside the mat is further 
 TAIL_TOL = 0.3           # a particle further than this outside the fitted contour counts as "tail outside"
 TAIL_FRAC = 0.002        # fraction of particles above which tail_outside becomes True
 BG_HOLE_T = 0.35         # a background run shorter than this along a ray is a hole between particles
+MAT_GAP_BINS = 180       # angular sectors the nori-to-mat distance is measured in
 GRAVITY = 0.01
 MU_TABLE = 0.4
 MU_MAT = 2.0             # effectively sticky while pressed against the mat
@@ -300,7 +322,13 @@ def predict_layers(info, s_fold, a_fold=0.0):
           Rcore_hollow = sqrt( Rcore_core^2 + h^2 )
           layers_core  = (Rout - Rcore_hollow) / h
 
-    The ray metric `nori_turns` counts the tuck nori as well, hence crossings = layers + 1.
+    Crossings vs layers (corrected 26.08.2026). There used to be a "+1 for the tuck" here: the ray
+    was assumed to cut the tucked-in near edge on top of every turn. It does not. Once `nori_turns`
+    stops counting rasterisation holes as layer boundaries (see `runs_bridged`), the number of nori
+    runs a ray meets equals the number of TURNS, with no offset: measured against the turn count read
+    straight off the sheet (angle unwrapped by `nori_col`, a source the raster never touches) the
+    bridged ray count lands within 0.009..0.102 on all five layouts, while the raw count overshot by
+    0.269..0.713. The old +1 offset was cancelling that overshoot, so the two errors hid each other.
     """
     h = T + W_NORI
     area = info['area_rice'] + info['area_nori'] + info['area_fill']
@@ -311,15 +339,22 @@ def predict_layers(info, s_fold, a_fold=0.0):
     r_hollow = math.sqrt(r_core2 * r_core2 + h * h)
     layers2 = (r_out - r_hollow) / h
     return dict(area_T2=round(area, 3), Rout_pred_T=round(r_out, 3), Rcore_pred_T=round(r_core, 3),
-                layers_predicted=round(layers, 3), crossings_predicted=round(layers + 1.0, 3),
+                layers_predicted=round(layers, 3), crossings_predicted=round(layers, 3),
                 a_fold_T2=round(a_fold, 3),
                 Rcore_core_T=round(r_core2, 3), Rcore_hollow_T=round(r_hollow, 3),
-                layers_predicted_core=round(layers2, 3), crossings_predicted_core=round(layers2 + 1.0, 3))
+                layers_predicted_core=round(layers2, 3), crossings_predicted_core=round(layers2, 3))
 
 # ----------------------------------------------------------------------------- simulation
-def build(nx, ny, n_part):
+def build(nx, ny, n_part, threads=0):
     import gstaichi as ti
-    ti.init(arch=ti.cpu, default_fp=ti.f32, random_seed=1)
+    # --- determinism. P2G (scatter) and the two force accumulators fn/fl are ATOMIC float adds, so a
+    #     multi-threaded run sums them in a different order every time and the run is not bit-exact.
+    #     Measured (26.08.2026, layout 4 --press 2): two identical multi-threaded runs give roll-IoU
+    #     0.878 and rice_under_filling differing by 30-45 %; with one thread the class maps are
+    #     bit-identical (IoU 1.000000) at the cost of +51 % wall time. Default stays all cores so the
+    #     lab keeps its speed; calibration runs should pass --threads 1.
+    kw = dict(cpu_max_num_threads=threads) if threads and threads > 0 else {}
+    ti.init(arch=ti.cpu, default_fp=ti.f32, random_seed=1, **kw)
     S = dict()
     S['x'] = ti.Vector.field(2, float, n_part)
     S['v'] = ti.Vector.field(2, float, n_part)
@@ -615,6 +650,31 @@ def runs(seq, c):
         return 0
     return int(np.sum(m[1:] & ~m[:-1]) + (1 if m[0] else 0))
 
+def runs_bridged(d, seq, c, tol=None):
+    """Runs of class c along a ray, with rasterisation holes bridged.
+
+    The class map is a rasterised point cloud: a single physical ribbon of nori is regularly cut into
+    two runs by one background pixel between particle stamps. run.py already knows this -- BG_HOLE_T,
+    "a background run shorter than this along a ray is a hole between particles" -- and bridges such
+    holes when it measures the rice under a filling; it did NOT bridge them when it counted nori runs,
+    and the raw count therefore over-reported the turns by 0.27..0.71 (15-29 %) on all five layouts.
+    Measured 26.08.2026: 108 of 297 inter-run gaps were shorter than 0.35 T, median 0.025 T = 1.2 px,
+    while a real gap between turns is ~1.14 T; the map is one connected nori component in all five.
+    The answer is flat for a bridging tolerance anywhere in 0.05..0.30 T -- the gaps are bimodal.
+    """
+    tol = BG_HOLE_T if tol is None else tol
+    m = seq == c
+    if not m.any():
+        return 0
+    idx = np.nonzero(m)[0]
+    brk = np.nonzero(np.diff(idx) > 1)[0]
+    grp = np.split(idx, brk + 1)
+    n = 1
+    for k in range(1, len(grp)):
+        if float(d[grp[k][0]]) - float(d[grp[k - 1][-1]]) > tol:
+            n += 1
+    return n
+
 def nori_components(img):
     m = img == CLASS_NORI
     lab = np.zeros(img.shape, np.int32)
@@ -726,7 +786,9 @@ def wrinkle_metric(xs, nori_row, nori_col, nrows, x0=None, s_fold=None):
     """
     out = dict(wrinkles=0, wrinkles_nonose=0, wrinkles_mat=0, wrinkle_amp_T=0.0, wrinkle_kappa_max=0.0,
                wrinkle_reversals=0, wrinkle_nose_s_T=0.0, wrinkle_len_T=0.0, fold_radius_T=0.0,
-               bed_drag_T=0.0)
+               bed_drag_T=0.0, mat_bend_violations=0, mat_bend_violation_len_T=0.0,
+               mat_bend_min_R_T=99.0, mat_bend_dist_to_end_T=0.0, mat_bend_limit_R_T=0.0,
+               mat_bend_spots=[])
     if x0 is not None and s_fold is not None:
         flat = (x0 > s_fold + 2.0) & (xs[:, 1] < 0.6) & (nori_row == 0)
         if flat.sum() > 10:
@@ -755,17 +817,23 @@ def wrinkle_metric(xs, nori_row, nori_col, nrows, x0=None, s_fold=None):
     inner = (sv >= WR_EDGE_T) & (sv <= s0[-1] - WR_EDGE_T)
     kmax = float(np.max(np.abs(kap[inner]))) if inner.any() else float(np.max(np.abs(kap)))
     out['fold_radius_T'] = round(1.0 / kmax, 4) if kmax > 1e-6 else 99.0
-    # --- fold nose: the WR_NOSE_T window of arc length that accumulates the most turning. That is the
-    #     crease itself (or, once the roll is wound, its tightest turn); wrinkles are counted OUTSIDE it.
+    # --- fold nose: the WR_NOSE_T window of arc length that accumulates the most turning. Kept as a
+    #     DIAGNOSTIC only (where the tightest turn of the band sits), no longer excluded from any
+    #     count. It used to be cut out of `wrinkles`, `wrinkles_mat` and the amplitude fit, and that
+    #     was wrong twice over: under the corrected kinematics the sheet is on the mat at every
+    #     instant, so there is no hairpin to hide a wrinkle in; and the window is PLACED by argmax of
+    #     accumulated |turning|, i.e. it lands by construction on the most bent stretch of the band.
+    #     Measured 26.08.2026: opening the window turned the published "zero wrinkles in the final
+    #     frame on all five layouts" into 3 / 2 / 1 reversals on layouts 2 / 4 / 5, two of them bent
+    #     tighter than the mat's own minimum radius (0.229 T and 0.164 T against R_MAT_MIN = 0.5 T).
     cum = np.concatenate([[0.0], np.cumsum(np.abs(ang))])
     j = np.minimum(np.searchsorted(sv, sv + WR_NOSE_T), len(sv))
     i0 = int(np.argmax(cum[j] - cum[np.arange(len(sv))]))
     nose_lo, nose_hi = sv[i0], sv[i0] + WR_NOSE_T
     out['wrinkle_nose_s_T'] = round(float(nose_lo), 3)
-    ok = ~((sv >= nose_lo) & (sv <= nose_hi)) & (sv >= WR_EDGE_T) & (sv <= s0[-1] - WR_EDGE_T)
-    # ... and the same count WITHOUT the nose exclusion: with a real mat there is no hairpin to hide
-    #     a wrinkle in, so this stricter variant should be zero too.
-    ok_n = (sv >= WR_EDGE_T) & (sv <= s0[-1] - WR_EDGE_T) & (np.abs(kap) >= WR_KAPPA_MIN)
+    ok = (sv >= WR_EDGE_T) & (sv <= s0[-1] - WR_EDGE_T)
+    # `wrinkles_nonose` is now the same quantity as `wrinkles`; kept so old comparisons still parse.
+    ok_n = ok & (np.abs(kap) >= WR_KAPPA_MIN)
     sgn_n = np.sign(kap[ok_n])
     if len(sgn_n) > 1:
         out['wrinkles_nonose'] = int(np.sum(sgn_n[1:] != sgn_n[:-1]))
@@ -777,6 +845,25 @@ def wrinkle_metric(xs, nori_row, nori_col, nrows, x0=None, s_fold=None):
     sgm = np.sign(kap[ok & (np.abs(kap) >= 1.0 / R_MAT_MIN)])
     if len(sgm) > 1:
         out['wrinkles_mat'] = int(np.sum(sgm[1:] != sgm[:-1]))
+    # --- the physics of the mat written down directly, and in a form no window can hide: ANY stretch
+    #     of the band bent tighter than the bamboo can bend is a violation, reversal or not. The sheet
+    #     rides on the mat, the mat is slats of radius R_MAT_MIN, and the sheet sits half its own
+    #     thickness outside them, so the tightest legal midline radius is R_MAT_MIN + w/2 = 0.56 T.
+    #     Only the WR_EDGE_T ends are excused (the two free ends of the band are genuinely unsupported).
+    r_lim = R_MAT_MIN + 0.5 * W_NORI
+    viol = ok & (np.abs(kap) > 1.0 / r_lim)
+    out['mat_bend_limit_R_T'] = round(r_lim, 4)
+    if viol.any():
+        idx = np.nonzero(viol)[0]
+        grp = np.split(idx, np.nonzero(np.diff(idx) > 1)[0] + 1)
+        L_band = float(s0[-1])
+        out['mat_bend_violations'] = len(grp)
+        out['mat_bend_violation_len_T'] = round(float(sum(sv[g[-1]] - sv[g[0]] + WR_DS for g in grp)), 3)
+        out['mat_bend_min_R_T'] = round(float(1.0 / np.max(np.abs(kap[viol]))), 4)
+        out['mat_bend_dist_to_end_T'] = round(float(min(min(sv[g[0]], L_band - sv[g[-1]]) for g in grp)), 2)
+        out['mat_bend_spots'] = [[round(float(sv[g[0]]), 2), round(float(sv[g[-1]]), 2),
+                                  round(float(1.0 / np.max(np.abs(kap[g]))), 3),
+                                  round(float(min(sv[g[0]], L_band - sv[g[-1]])), 2)] for g in grp]
     strong = ok & (np.abs(kap) >= WR_KAPPA_MIN)
     sgn = np.sign(kap[strong])
     if len(sgn) > 1:
@@ -798,7 +885,9 @@ def wrinkle_metric(xs, nori_row, nori_col, nrows, x0=None, s_fold=None):
         okv = np.zeros(len(Q), bool)
         okv[m:len(Q) - m] = True
         okv &= (sq >= WR_EDGE_T) & (sq <= s0[-1] - WR_EDGE_T)
-        okv &= ~((sq >= nose_lo - WR_FIT_T) & (sq <= nose_hi + WR_FIT_T))
+        # (the nose window is no longer cut out here either -- see the note above. Measured effect on
+        #  the final frame: amplitude 0.0337 -> 0.1295 T on layout 4 and 0.0352 -> 0.1313 T on layout
+        #  5, still under the 0.3 T bar, so the amplitude half of the claim survives the correction.)
         if okv.any():
             out['wrinkle_amp_T'] = round(float(dev[okv].max()), 4)
     return out
@@ -811,12 +900,13 @@ def compute_metrics(xs, vs, cls, Jp, nori_row, nori_col, info, layout, img, px, 
     c_row, c_col = rows.mean(), cols.mean()
     cen_world = (center[0] + (c_col - npx / 2) * px, center[1] + (npx / 2 - c_row) * px)
     angs = np.deg2rad(np.arange(0, 360, 10))
-    rout, turns, r_nori_out = [], [], []
+    rout, turns, turns_raw, r_nori_out = [], [], [], []
     for a in angs:
         d, seq = ray_classes(img, c_row, c_col, a, px)
         nz = np.nonzero(seq != CLASS_BG)[0]
         rout.append(d[nz[-1]] if len(nz) else 0.0)
-        turns.append(runs(seq, CLASS_NORI))
+        turns.append(runs_bridged(d, seq, CLASS_NORI))
+        turns_raw.append(runs(seq, CLASS_NORI))
         nn = np.nonzero(seq == CLASS_NORI)[0]
         r_nori_out.append(d[nn[-1]] if len(nn) else 0.0)
     rout = np.array(rout)
@@ -918,6 +1008,49 @@ def compute_metrics(xs, vs, cls, Jp, nori_row, nori_col, info, layout, img, px, 
         p = xs[m][order]
         gaps = np.linalg.norm(np.diff(p, axis=0), axis=1)
         max_gap = max(max_gap, float(gaps.max()))
+    # --- does the nori actually stay ON the mat? The metric that was missing entirely: `nori_max_gap_T`
+    #     above is the gap between CONSECUTIVE NORI PARTICLES (a tear test) and says nothing about the
+    #     distance from the sheet to the mat, yet the README used to quote it as proof of contact.
+    #     The mat here is analytic (a circle of radius R about (xc, y_cen), or a rounded square at the
+    #     press), so the honest measure is its signed distance field: for each of MAT_GAP_BINS angular
+    #     sectors, how far the nearest nori particle sits inside the mat surface, minus the half
+    #     thickness of the outer nori row that contact geometrically requires.
+    mat_i = extra.get('mat', {})
+    nori_mat = dict(nori_mat_gap_median_T=None, nori_mat_gap_p90_T=None, nori_mat_gap_max_T=None,
+                    nori_mat_off_frac=None, nori_mat_off_0p3T_frac=None, nori_mat_contact_ok=None,
+                    nori_mat_tol_T=None)
+    if mat_i and nori_m.any():
+        _xc, _yc = float(mat_i['xc_final']), float(mat_i['y_cen_press'])
+        _R, _shape = float(mat_i['R_final']), mat_i.get('press_shape', 'circle')
+        dd = xs[nori_m] - np.array([_xc, _yc])
+        if _shape == 'circle':
+            sd = np.hypot(dd[:, 0], dd[:, 1]) - _R
+        else:
+            _hs = _R - CORNER_R
+            q = np.abs(dd) - _hs
+            mq = np.maximum(q, 0.0)
+            sd = np.hypot(mq[:, 0], mq[:, 1]) + np.minimum(np.maximum(q[:, 0], q[:, 1]), 0.0) - CORNER_R
+        depth = -sd                                            # how far inside the mat surface
+        th_b = np.arctan2(dd[:, 1], dd[:, 0])
+        bi = np.clip(((th_b + math.pi) / (2 * math.pi) * MAT_GAP_BINS).astype(int), 0, MAT_GAP_BINS - 1)
+        per = np.full(MAT_GAP_BINS, np.nan)
+        for b in range(MAT_GAP_BINS):
+            mb = bi == b
+            if mb.any():
+                per[b] = depth[mb].min()                       # nearest nori to the mat in this sector
+        okb = ~np.isnan(per)
+        if okb.any():
+            expect = 0.5 * (W_NORI / max(info['nori_rows'], 1))     # centre of the outer row when touching
+            free = per[okb] - expect
+            tol = 0.5 * info['nori_dx']
+            nori_mat = dict(
+                nori_mat_gap_median_T=round(float(np.median(free)), 4),
+                nori_mat_gap_p90_T=round(float(np.percentile(free, 90.0)), 4),
+                nori_mat_gap_max_T=round(float(free.max()), 4),
+                nori_mat_off_frac=round(float((free > tol).mean()), 4),
+                nori_mat_off_0p3T_frac=round(float((free > 0.3).mean()), 4),
+                nori_mat_contact_ok=bool(float((free > 0.3).mean()) == 0.0),
+                nori_mat_tol_T=round(float(tol), 4))
     ncomp, sizes = nori_components(img)
     big = int(np.sum(sizes >= 20)) if len(sizes) else 0
     vmax = float(np.max(np.linalg.norm(vs, axis=1)))
@@ -953,6 +1086,7 @@ def compute_metrics(xs, vs, cls, Jp, nori_row, nori_col, info, layout, img, px, 
         Rout_median_T=round(float(np.median(rout)), 3), shape=shape_met,
         R_mat_T=round(extra['R'], 3), R_nori_outer_mean_T=round(float(np.mean(r_nori_out)), 3),
         nori_turns=round(float(np.mean(turns)), 3), nori_turns_min=int(np.min(turns)), nori_turns_max=int(np.max(turns)),
+        nori_turns_raw=round(float(np.mean(turns_raw)), 3),   # unbridged, i.e. the old (hole-inflated) value
         nori_turns_geom=round(turns_geom(info), 3),
         turns_minus_predicted=round(float(np.mean(turns)) - extra['pred']['crossings_predicted'], 3),
         turns_match_formula=bool(abs(float(np.mean(turns)) - extra['pred']['crossings_predicted']) <= 0.25),
@@ -985,7 +1119,12 @@ def compute_metrics(xs, vs, cls, Jp, nori_row, nori_col, info, layout, img, px, 
         rice_area_map_initial_T2=round(extra['rice_map0'], 3),
         rice_area_ratio_ref=round(rice_area_map / max(extra['rice_map0'], 1e-9), 3),
         rice_particles=int(rice_m.sum()), particles=int(len(cls)), escaped=int(esc),
+        # `nori_particle_gap_T` is the largest gap between CONSECUTIVE NORI PARTICLES -- a tear test,
+        # nothing to do with the mat. `nori_max_gap_T` is the same number under its old (misleading)
+        # name, kept because ../judge.py and ../reference/table.py read it across every variant.
+        nori_particle_gap_T=round(max_gap, 4),
         nori_max_gap_T=round(max_gap, 4), nori_particle_spacing_T=round(info['nori_dx'], 4), nori_torn=bool(torn),
+        **nori_mat,
         nori_components_map=int(ncomp), nori_components_map_ge20px=big,
         v_max_final=round(vmax, 4), finite=finite, stable=bool(stable),
         window_T=extra['window_T'], px_T=round(px, 5), window_center_xy=[round(center[0], 3), round(center[1], 3)],
@@ -1040,6 +1179,8 @@ def main():
     ap.add_argument('--bond', type=float, default=MAT_BOND,
                     help='how tightly the nori is carried by the mat (1 = no slip at all)')
     ap.add_argument('--seed', type=int, default=1, help='RNG seed of the particle jitter')
+    ap.add_argument('--threads', type=int, default=0,
+                    help='CPU threads for the solver (0 = all cores; 1 = bit-reproducible, ~+50%% time)')
     ap.add_argument('--grid', type=int, default=240, help='total grid nodes ~ grid^2 (aspect follows the domain)')
     ap.add_argument('--particles', type=int, default=16000)
     ap.add_argument('--out', type=str, default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'out'))
@@ -1116,7 +1257,7 @@ def main():
     pred = predict_layers(info, s_fold, a_fold)
     layers_close = (pred['Rout_pred_T'] - R_fold) / h_sheet
 
-    S = build(nx, ny, n)
+    S = build(nx, ny, n, threads=getattr(args, 'threads', 0))
     dx = S['dx']
     rho = np.zeros(N_CLASS, np.float32); mu = np.zeros(N_CLASS, np.float32)
     la = np.zeros(N_CLASS, np.float32); ty = np.zeros(N_CLASS, np.float32)
@@ -1423,6 +1564,11 @@ def main():
               wrinkles_max_t=wr_max['t'],
               wrinkles_nonose_max=int(max(w['wrinkles_nonose'] for w in wr_hist)),
               wrinkles_mat_max=int(max(w['wrinkles_mat'] for w in wr_hist)),
+              mat_bend_violations_max=int(max(w['mat_bend_violations'] for w in wr_hist)),
+              mat_bend_violations_max_phase=max(wr_hist, key=lambda w: w['mat_bend_violations'])['phase'],
+              mat_bend_min_R_run_T=round(float(min(w['mat_bend_min_R_T'] for w in wr_hist)), 4),
+              mat_bend_violation_len_max_T=round(float(max(w['mat_bend_violation_len_T'] for w in wr_hist)), 3),
+              mat_bend_samples_with_violation=int(sum(1 for w in wr_hist if w['mat_bend_violations'])),
               wrinkle_amp_max_T=float(wr_amp_max['wrinkle_amp_T']), wrinkle_amp_max_phase=wr_amp_max['phase'],
               fold_radius_min_T=round(min(w['fold_radius_T'] for w in wr_hist if w['fold_radius_T'] > 0), 4),
               bed_drag_max_T=round(max(w['bed_drag_T'] for w in wr_hist), 3),
@@ -1444,7 +1590,10 @@ def main():
           f"amp max {wr['wrinkle_amp_max_T']:.3f} T "
           f"({wr['wrinkle_amp_max_phase']}), final {wr_final['wrinkles']}; "
           f"r_fold min {wr['fold_radius_min_T']:.3f} T, bed drag max {wr['bed_drag_max_T']:.2f} T; "
-          f"rice J min {wr['rice_J_min_run']:.3f} ({wr['rice_J_min_run_phase']})", flush=True)
+          f"rice J min {wr['rice_J_min_run']:.3f} ({wr['rice_J_min_run_phase']}); "
+          f"mat-bend violations max {wr['mat_bend_violations_max']} "
+          f"({wr['mat_bend_violations_max_phase']}, {wr['mat_bend_samples_with_violation']}/{len(wr_hist)} samples), "
+          f"tightest R {wr['mat_bend_min_R_run_T']:.3f} T", flush=True)
 
     # ---- outputs
     center = (xs_f[:, 0].mean(), xs_f[:, 1].mean())
@@ -1489,15 +1638,15 @@ def main():
                              particles=n, hp=round(info['hp'], 5), t_end=round(t, 2)))
     met = compute_metrics(xs_f, vs_f, cls, Jp, nori_row, nori_col, info, layout, img, px, center, esc_total, extra)
     # --- the first turn is a hand-set radius, so the layer count implied by area conservation has a
-    #     third form: everything outside R_fold is wrapper. crossings = layers + 1 (the first turn).
+    #     third form: everything outside R_fold is wrapper. crossings = layers (no tuck offset).
     met['R_fold_T'] = round(R_fold, 3)
     met['R_fold_want_T'] = round(R_fold_want, 3)
     met['R_fold_area_cap_T'] = round(R_cap, 3)
     met['R_fold_capped'] = bool(R_fold_want > R_cap + 1e-6)
     met['tuck_effective'] = round(tuck_eff, 3)
     met['layers_predicted_close'] = round(layers_close, 3)
-    met['crossings_predicted_close'] = round(layers_close + 1.0, 3)
-    met['turns_minus_predicted_close'] = round(met['nori_turns'] - (layers_close + 1.0), 3)
+    met['crossings_predicted_close'] = round(layers_close, 3)      # no "+1 for the tuck" -- see predict_layers
+    met['turns_minus_predicted_close'] = round(met['nori_turns'] - layers_close, 3)
     met['turns_match_formula_close'] = bool(abs(met['turns_minus_predicted_close']) <= 0.25)
     # --- grafted from ../mat-chain: the area formula is fed the fold length the run ACTUALLY spent on
     #     the first turn (arc consumed when rice met rice), not the nominal s_fold read off the flat
@@ -1523,11 +1672,35 @@ def main():
         met['turns_match_formula_best'] = bool(abs(met['turns_minus_predicted_best']) <= 0.25)
     met['wrinkles_nonose'] = int(wr_final['wrinkles_nonose'])
     met['wrinkles_nonose_max'] = int(wr['wrinkles_nonose_max'])
+    # --- did the press actually reach the roll? A trap for the silently invalid run: at --speed 2 the
+    #     ring opens out to R_MAX and the press cannot close it inside t_press_max, so the mat finishes
+    #     0.93 T (4.7 mm) away from the roll with ZERO contact -- and every existing flag passes it
+    #     (stable, wrinkles 0, nori_torn false, core order preserved, 0 escaped). These two numbers,
+    #     both already in the controller log, catch it.
+    _arc_end = R * max(th_hi - th_lo, 0.0) if shp == 0 else 8 * R
+    met['mat_gap_end_T'] = round(float(R - met['Rout_T']), 3)
+    met['press_contact_frac_end'] = round(float(L_f / max(_arc_end, 1e-9)), 3)
+    met['pressed_ok'] = bool(met['mat_gap_end_T'] <= 0.10 and met['press_contact_frac_end'] >= 0.20)
+    met['stable'] = bool(met['stable'] and met['pressed_ok'])
     met['mat_min_radius_T'] = R_MAT_MIN
     met['mat_radius_min_run_T'] = round(min(l['R'] for l in log), 3) if log else round(R, 3)
     met['wrinkle_ok'] = bool(wr['wrinkles_max'] == 0 and wr['wrinkle_amp_max_T'] < 0.3)
     met['wrinkle_ok_final'] = bool(wr_final['wrinkles'] == 0 and wr_final['wrinkle_amp_T'] < 0.3)
-    met['wrinkle_ok_mat'] = bool(wr['wrinkles_mat_max'] == 0)
+    # --- "the accordion is impossible by construction" as a test that cannot be dodged by a window:
+    #     no stretch of the band, at any phase, bent tighter than the mat itself can bend.
+    met['mat_bend_limit_R_T'] = round(R_MAT_MIN + 0.5 * W_NORI, 4)
+    met['mat_bend_violations'] = int(wr_final['mat_bend_violations'])
+    met['mat_bend_violation_len_T'] = float(wr_final['mat_bend_violation_len_T'])
+    met['mat_bend_min_R_T'] = float(wr_final['mat_bend_min_R_T'])
+    met['mat_bend_dist_to_end_T'] = float(wr_final['mat_bend_dist_to_end_T'])
+    met['mat_bend_spots'] = wr_final['mat_bend_spots']
+    met['mat_bend_violations_max'] = int(wr['mat_bend_violations_max'])
+    met['mat_bend_violations_max_phase'] = wr['mat_bend_violations_max_phase']
+    met['mat_bend_min_R_run_T'] = wr['mat_bend_min_R_run_T']
+    met['mat_bend_violation_len_max_T'] = wr['mat_bend_violation_len_max_T']
+    met['mat_bend_samples_with_violation'] = int(wr['mat_bend_samples_with_violation'])
+    met['wrinkle_ok_mat'] = bool(wr['mat_bend_violations_max'] == 0)
+    met['wrinkle_ok_mat_final'] = bool(wr_final['mat_bend_violations'] == 0)
     met['rice_J_min_run'] = wr['rice_J_min_run']
     met['rice_J_min_run_phase'] = wr['rice_J_min_run_phase']
     met['rice_J_p05_min_run'] = wr['rice_J_p05_min_run']
@@ -1539,7 +1712,27 @@ def main():
     def _rot(a, b):
         return len(a) == len(b) and (not a or any(b[k:] + b[:k] == a for k in range(len(b))))
     met['core_order_initial'] = init_order
-    met['core_order_preserved'] = bool(_rot(init_order, got))
+    # The angular test "correct up to a cyclic shift" is weak: a random permutation of four fillings
+    # passes it with probability 1/6, and the radial order is not monotone either. The strong test is
+    # the MATERIAL coordinate of the sheet: take the nori particle nearest each filling and read its
+    # arclength s (= nori_col * nori_dx). The sheet is one strictly monotone ribbon, so the order of s
+    # must equal the order of the fillings' initial u along the flat sheet -- no shift allowed.
+    nori_all = cls == CLASS_NORI
+    if nori_all.any() and met['fillings']:
+        _P = xs_f[nori_all]
+        _s = nori_col[nori_all].astype(np.float64) * info['nori_dx']
+        arcs = []
+        for f in met['fillings']:
+            cxy = np.array(f['centroid_xy'], np.float64)
+            k = int(np.argmin(np.sum((_P - cxy) ** 2, axis=1)))
+            arcs.append((float(_s[k]), f['kind']))
+        met['core_arc_s_T'] = {k: round(s, 2) for s, k in arcs}
+        met['core_order_by_arc'] = [k for s, k in sorted(arcs)]
+    else:
+        met['core_arc_s_T'] = {}
+        met['core_order_by_arc'] = []
+    met['core_order_preserved_by_phi'] = bool(_rot(init_order, got))       # the old, weak test
+    met['core_order_preserved'] = bool(met['core_order_by_arc'] == init_order)
     met['core_order_preserved_mirrored'] = bool(_rot(init_order, list(reversed(got))))
     met['conservation_ok'] = bool(met['conservation'] >= 0.95)
     met['controller_log'] = log[-40:]

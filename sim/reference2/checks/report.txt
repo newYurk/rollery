@@ -1,0 +1,246 @@
+=== PER-RUN METRICS ===
+tag	Rout	Rout_mean	layers	turns_geom	cross_best	cons	riceJ	wr_max	wr_mat_max	r_cucumber	phi_cucumber	u_cucumber	r_tamago	phi_tamago	u_tamago	r_salmon	phi_salmon	u_salmon	r_avocado	phi_avocado	u_avocado	cx	cy	Rfold
+_rep_a	4.065	3.97	1.764	2.032	2.351	0.9707	0.8735	4	3	2.597	-18.8	0.384	0.588	-3.4	0.28	1.614	-163.5	0.24	1.576	-87.5	1.2	38.206	4.006	3.095
+_rep_b	4.065	3.971	1.764	2.032	2.351	0.9707	0.8734	4	3	2.597	-18.8	0.384	0.588	-3.4	0.28	1.614	-163.5	0.24	1.576	-87.5	1.2	38.206	4.006	3.095
+_rep_c	4.065	3.97	1.764	2.032	2.351	0.9707	0.8735	4	3	2.597	-18.8	0.384	0.588	-3.4	0.28	1.614	-163.5	0.24	1.575	-87.5	1.2	38.207	4.005	3.095
+_rep_d	4.065	3.97	1.764	2.032	2.351	0.9707	0.8735	4	3	2.597	-18.8	0.384	0.588	-3.4	0.28	1.614	-163.5	0.24	1.576	-87.5	1.2	38.207	4.006	3.095
+_rep_a	4.065	3.97	1.764	2.032	2.351	0.9707	0.8735	4	3	2.597	-18.8	0.384	0.588	-3.4	0.28	1.614	-163.5	0.24	1.576	-87.5	1.2	38.206	4.006	3.095
+_seed2	4.09	3.981	1.764	2.032	2.351	0.9718	0.8737	5	3	2.582	-18.5	0.384	0.575	-1.1	0.76	1.624	-162.4	0.176	1.572	-85.9	1.164	38.204	4.028	3.095
+_seed3	4.09	3.975	1.764	2.032	2.351	0.9719	0.8733	4	3	2.598	-18.5	0.432	0.586	-2.9	0.3	1.618	-162.6	0.192	1.584	-86.5	1.172	38.203	4.015	3.095
+_seed4	4.065	3.967	1.764	2.032	2.351	0.9712	0.8742	5	3	2.597	-18.6	0.388	0.587	-3.2	0.32	1.617	-163.2	0.188	1.578	-87.3	1.22	38.207	4.016	3.095
+_sp05_a	4.065	3.979	1.764	2.032	2.359	0.9747	0.9334	1	0	2.633	-6.8	0.408	0.649	1.4	0.0	1.574	-155.2	0.224	1.631	-82.4	1.144	38.341	4.002	3.095
+_sp05_b	4.065	3.981	1.764	2.032	2.359	0.9747	0.9334	1	0	2.632	-6.8	0.392	0.649	1.3	0.0	1.575	-155.2	0.224	1.63	-82.4	1.14	38.341	4.002	3.095
+_sp20_a	5.14	3.99	1.764	2.032	2.334	0.9914	0.8798	5	3	2.746	-110.3	0.284	0.161	-83.5	0.792	1.399	129.3	0.436	2.154	-155.8	1.22	39.477	4.224	3.095
+_sp20_b	5.145	3.993	1.764	2.032	2.334	0.9914	0.8798	5	3	2.743	-110.4	0.296	0.158	-83.2	0.768	1.402	129.1	0.448	2.152	-156.0	1.288	39.479	4.22	3.095
+_pr05_a	4.065	3.97	1.764	2.032	2.351	0.9711	0.8734	4	3	2.598	-18.4	0.372	0.59	-3.3	0.24	1.615	-163.1	0.232	1.577	-87.1	1.224	38.201	4.012	3.095
+_pr05_b	4.065	3.969	1.764	2.032	2.351	0.9711	0.8734	4	3	2.599	-18.4	0.368	0.59	-3.3	0.24	1.615	-163.1	0.232	1.578	-87.1	1.224	38.201	4.012	3.095
+_pr20_a	4.16	3.93	1.764	2.032	2.351	0.9561	0.8703	4	3	2.534	-21.4	0.412	0.545	0.9	0.88	1.656	-171.5	0.152	1.46	-96.2	1.048	38.211	3.979	3.095
+_pr20_b	4.155	3.928	1.764	2.032	2.351	0.955	0.873	3	2	2.531	-21.3	0.288	0.542	2.1	0.876	1.654	-171.4	0.22	1.454	-96.1	1.048	38.205	3.984	3.095
+_ho0_a	4.08	3.975	1.764	2.032	2.368	0.9707	0.8728	4	2	2.617	-27.9	0.312	0.615	-12.8	0.192	1.598	-172.4	0.12	1.571	-96.3	1.232	38.288	4.051	3.095
+_ho0_b	4.08	3.976	1.764	2.032	2.368	0.9707	0.8728	4	2	2.616	-27.9	0.308	0.614	-12.8	0.188	1.598	-172.4	0.124	1.571	-96.3	1.232	38.288	4.051	3.095
+_ho4_a	4.11	3.971	1.764	2.032	2.35	0.9726	0.8698	5	3	2.584	-25.0	0.34	0.573	-4.7	0.788	1.6	-169.8	0.144	1.541	-93.0	1.164	38.32	4.024	3.095
+_ho4_b	4.11	3.971	1.764	2.032	2.35	0.9726	0.8698	5	3	2.583	-25.0	0.332	0.573	-4.7	0.776	1.601	-169.8	0.14	1.541	-93.1	1.164	38.321	4.024	3.095
+_ho8_a	4.125	3.971	1.764	2.032	2.35	0.9736	0.8709	4	3	2.591	-24.1	0.34	0.58	-4.6	0.884	1.6	-169.4	0.164	1.54	-92.7	1.04	38.377	4.026	3.095
+_ho8_b	4.125	3.971	1.764	2.032	2.35	0.9736	0.8709	4	3	2.591	-24.1	0.336	0.58	-4.6	0.864	1.6	-169.3	0.164	1.54	-92.7	1.04	38.377	4.027	3.095
+
+=== IoU WITHIN GROUP (all pairs) ===
+base       _rep_a vs _rep_b: roll_IoU=0.9984 exact_px=0.9995 per_class={'rice': np.float64(0.9983), 'nori': np.float64(0.9966), 'salmon': np.float64(0.999), 'cucumber': np.float64(0.9981), 'tamago': np.float64(1.0), 'avocado': np.float64(0.9986)}
+base       _rep_a vs _rep_c: roll_IoU=0.998 exact_px=0.9994 per_class={'rice': np.float64(0.9977), 'nori': np.float64(0.9971), 'salmon': np.float64(0.9986), 'cucumber': np.float64(0.9973), 'tamago': np.float64(1.0), 'avocado': np.float64(0.9991)}
+base       _rep_a vs _rep_d: roll_IoU=0.9975 exact_px=0.9993 per_class={'rice': np.float64(0.9969), 'nori': np.float64(0.9968), 'salmon': np.float64(0.9989), 'cucumber': np.float64(0.9967), 'tamago': np.float64(1.0), 'avocado': np.float64(0.9991)}
+base       _rep_b vs _rep_c: roll_IoU=0.9976 exact_px=0.9993 per_class={'rice': np.float64(0.9971), 'nori': np.float64(0.9961), 'salmon': np.float64(0.9985), 'cucumber': np.float64(0.9975), 'tamago': np.float64(1.0), 'avocado': np.float64(0.9995)}
+base       _rep_b vs _rep_d: roll_IoU=0.9971 exact_px=0.9992 per_class={'rice': np.float64(0.9965), 'nori': np.float64(0.9953), 'salmon': np.float64(0.9985), 'cucumber': np.float64(0.997), 'tamago': np.float64(1.0), 'avocado': np.float64(0.9995)}
+base       _rep_c vs _rep_d: roll_IoU=0.9986 exact_px=0.9996 per_class={'rice': np.float64(0.9982), 'nori': np.float64(0.9987), 'salmon': np.float64(0.9994), 'cucumber': np.float64(0.9978), 'tamago': np.float64(1.0), 'avocado': np.float64(1.0)}
+seed       _rep_a vs _seed2: roll_IoU=0.7755 exact_px=0.9225 per_class={'rice': np.float64(0.7156), 'nori': np.float64(0.6703), 'salmon': np.float64(0.7982), 'cucumber': np.float64(0.8476), 'tamago': np.float64(0.9431), 'avocado': np.float64(0.9157)}
+seed       _rep_a vs _seed3: roll_IoU=0.7895 exact_px=0.9294 per_class={'rice': np.float64(0.7347), 'nori': np.float64(0.734), 'salmon': np.float64(0.7979), 'cucumber': np.float64(0.8566), 'tamago': np.float64(0.9648), 'avocado': np.float64(0.9348)}
+seed       _rep_a vs _seed4: roll_IoU=0.7972 exact_px=0.9312 per_class={'rice': np.float64(0.7384), 'nori': np.float64(0.6942), 'salmon': np.float64(0.8189), 'cucumber': np.float64(0.8998), 'tamago': np.float64(0.9707), 'avocado': np.float64(0.974)}
+seed       _seed2 vs _seed3: roll_IoU=0.792 exact_px=0.9301 per_class={'rice': np.float64(0.7323), 'nori': np.float64(0.7645), 'salmon': np.float64(0.7981), 'cucumber': np.float64(0.8627), 'tamago': np.float64(0.9566), 'avocado': np.float64(0.9321)}
+seed       _seed2 vs _seed4: roll_IoU=0.7827 exact_px=0.926 per_class={'rice': np.float64(0.7221), 'nori': np.float64(0.7213), 'salmon': np.float64(0.8003), 'cucumber': np.float64(0.8623), 'tamago': np.float64(0.9502), 'avocado': np.float64(0.9133)}
+seed       _seed3 vs _seed4: roll_IoU=0.7947 exact_px=0.931 per_class={'rice': np.float64(0.7369), 'nori': np.float64(0.7279), 'salmon': np.float64(0.8232), 'cucumber': np.float64(0.8725), 'tamago': np.float64(0.9737), 'avocado': np.float64(0.9349)}
+speed0.5   _sp05_a vs _sp05_b: roll_IoU=0.9903 exact_px=0.9971 per_class={'rice': np.float64(0.9885), 'nori': np.float64(0.9871), 'salmon': np.float64(0.9888), 'cucumber': np.float64(0.9925), 'tamago': np.float64(0.9982), 'avocado': np.float64(0.9961)}
+speed2.0   _sp20_a vs _sp20_b: roll_IoU=0.9447 exact_px=0.984 per_class={'rice': np.float64(0.9339), 'nori': np.float64(0.9321), 'salmon': np.float64(0.9535), 'cucumber': np.float64(0.9458), 'tamago': np.float64(0.9782), 'avocado': np.float64(0.9718)}
+press0.5   _pr05_a vs _pr05_b: roll_IoU=0.9977 exact_px=0.9993 per_class={'rice': np.float64(0.9971), 'nori': np.float64(0.9976), 'salmon': np.float64(0.9989), 'cucumber': np.float64(0.9967), 'tamago': np.float64(0.9997), 'avocado': np.float64(0.9991)}
+press2.0   _pr20_a vs _pr20_b: roll_IoU=0.8778 exact_px=0.9614 per_class={'rice': np.float64(0.8457), 'nori': np.float64(0.8196), 'salmon': np.float64(0.8879), 'cucumber': np.float64(0.9564), 'tamago': np.float64(0.967), 'avocado': np.float64(0.9624)}
+hold0      _ho0_a vs _ho0_b: roll_IoU=0.9943 exact_px=0.9983 per_class={'rice': np.float64(0.993), 'nori': np.float64(0.989), 'salmon': np.float64(0.9968), 'cucumber': np.float64(0.9968), 'tamago': np.float64(0.9988), 'avocado': np.float64(0.9988)}
+hold4      _ho4_a vs _ho4_b: roll_IoU=0.9979 exact_px=0.9994 per_class={'rice': np.float64(0.9974), 'nori': np.float64(0.9967), 'salmon': np.float64(0.9985), 'cucumber': np.float64(0.9989), 'tamago': np.float64(0.9994), 'avocado': np.float64(0.9993)}
+hold8      _ho8_a vs _ho8_b: roll_IoU=0.9955 exact_px=0.9987 per_class={'rice': np.float64(0.9941), 'nori': np.float64(0.9955), 'salmon': np.float64(0.9959), 'cucumber': np.float64(0.9984), 'tamago': np.float64(0.9993), 'avocado': np.float64(0.9984)}
+
+=== GROUP STATS ===
+group	key	mean	sd	min	max	n
+base	Rout	4.065	0.0	4.065	4.065	4
+base	Rout_mean	3.9703	0.0005	3.97	3.971	4
+base	layers	1.764	0.0	1.764	1.764	4
+base	turns_geom	2.032	0.0	2.032	2.032	4
+base	cross_best	2.351	0.0	2.351	2.351	4
+base	cons	0.9707	0.0	0.9707	0.9707	4
+base	riceJ	0.8735	0.0001	0.8734	0.8735	4
+base	wr_max	4.0	0.0	4.0	4.0	4
+base	wr_mat_max	3.0	0.0	3.0	3.0	4
+base	Rfold	3.095	0.0	3.095	3.095	4
+base	r_cucumber	2.597	0.0	2.597	2.597	4
+base	phi_cucumber	-18.8	0.0	-18.8	-18.8	4
+base	u_cucumber	0.384	0.0	0.384	0.384	4
+base	r_tamago	0.588	0.0	0.588	0.588	4
+base	phi_tamago	-3.4	0.0	-3.4	-3.4	4
+base	u_tamago	0.28	0.0	0.28	0.28	4
+base	r_salmon	1.614	0.0	1.614	1.614	4
+base	phi_salmon	-163.5	0.0	-163.5	-163.5	4
+base	u_salmon	0.24	0.0	0.24	0.24	4
+base	r_avocado	1.5758	0.0005	1.575	1.576	4
+base	phi_avocado	-87.5	0.0	-87.5	-87.5	4
+base	u_avocado	1.2	0.0	1.2	1.2	4
+seed	Rout	4.0775	0.0144	4.065	4.09	4
+seed	Rout_mean	3.9733	0.0061	3.967	3.981	4
+seed	layers	1.764	0.0	1.764	1.764	4
+seed	turns_geom	2.032	0.0	2.032	2.032	4
+seed	cross_best	2.351	0.0	2.351	2.351	4
+seed	cons	0.9714	0.0006	0.9707	0.9719	4
+seed	riceJ	0.8737	0.0004	0.8733	0.8742	4
+seed	wr_max	4.5	0.5774	4.0	5.0	4
+seed	wr_mat_max	3.0	0.0	3.0	3.0	4
+seed	Rfold	3.095	0.0	3.095	3.095	4
+seed	r_cucumber	2.5935	0.0077	2.582	2.598	4
+seed	phi_cucumber	-18.6	0.1414	-18.8	-18.5	4
+seed	u_cucumber	0.397	0.0234	0.384	0.432	4
+seed	r_tamago	0.584	0.0061	0.575	0.588	4
+seed	phi_tamago	-2.65	1.0536	-3.4	-1.1	4
+seed	u_tamago	0.415	0.2306	0.28	0.76	4
+seed	r_salmon	1.6183	0.0042	1.614	1.624	4
+seed	phi_salmon	-162.925	0.5123	-163.5	-162.4	4
+seed	u_salmon	0.199	0.0282	0.176	0.24	4
+seed	r_avocado	1.5775	0.005	1.572	1.584	4
+seed	phi_avocado	-86.8	0.7394	-87.5	-85.9	4
+seed	u_avocado	1.189	0.0258	1.164	1.22	4
+speed0.5	Rout	4.065	0.0	4.065	4.065	2
+speed0.5	Rout_mean	3.98	0.0014	3.979	3.981	2
+speed0.5	layers	1.764	0.0	1.764	1.764	2
+speed0.5	turns_geom	2.032	0.0	2.032	2.032	2
+speed0.5	cross_best	2.359	0.0	2.359	2.359	2
+speed0.5	cons	0.9747	0.0	0.9747	0.9747	2
+speed0.5	riceJ	0.9334	0.0	0.9334	0.9334	2
+speed0.5	wr_max	1.0	0.0	1.0	1.0	2
+speed0.5	wr_mat_max	0.0	0.0	0.0	0.0	2
+speed0.5	Rfold	3.095	0.0	3.095	3.095	2
+speed0.5	r_cucumber	2.6325	0.0007	2.632	2.633	2
+speed0.5	phi_cucumber	-6.8	0.0	-6.8	-6.8	2
+speed0.5	u_cucumber	0.4	0.0113	0.392	0.408	2
+speed0.5	r_tamago	0.649	0.0	0.649	0.649	2
+speed0.5	phi_tamago	1.35	0.0707	1.3	1.4	2
+speed0.5	u_tamago	0.0	0.0	0.0	0.0	2
+speed0.5	r_salmon	1.5745	0.0007	1.574	1.575	2
+speed0.5	phi_salmon	-155.2	0.0	-155.2	-155.2	2
+speed0.5	u_salmon	0.224	0.0	0.224	0.224	2
+speed0.5	r_avocado	1.6305	0.0007	1.63	1.631	2
+speed0.5	phi_avocado	-82.4	0.0	-82.4	-82.4	2
+speed0.5	u_avocado	1.142	0.0028	1.14	1.144	2
+speed2.0	Rout	5.1425	0.0035	5.14	5.145	2
+speed2.0	Rout_mean	3.9915	0.0021	3.99	3.993	2
+speed2.0	layers	1.764	0.0	1.764	1.764	2
+speed2.0	turns_geom	2.032	0.0	2.032	2.032	2
+speed2.0	cross_best	2.334	0.0	2.334	2.334	2
+speed2.0	cons	0.9914	0.0	0.9914	0.9914	2
+speed2.0	riceJ	0.8798	0.0	0.8798	0.8798	2
+speed2.0	wr_max	5.0	0.0	5.0	5.0	2
+speed2.0	wr_mat_max	3.0	0.0	3.0	3.0	2
+speed2.0	Rfold	3.095	0.0	3.095	3.095	2
+speed2.0	r_cucumber	2.7445	0.0021	2.743	2.746	2
+speed2.0	phi_cucumber	-110.35	0.0707	-110.4	-110.3	2
+speed2.0	u_cucumber	0.29	0.0085	0.284	0.296	2
+speed2.0	r_tamago	0.1595	0.0021	0.158	0.161	2
+speed2.0	phi_tamago	-83.35	0.2121	-83.5	-83.2	2
+speed2.0	u_tamago	0.78	0.017	0.768	0.792	2
+speed2.0	r_salmon	1.4005	0.0021	1.399	1.402	2
+speed2.0	phi_salmon	129.2	0.1414	129.1	129.3	2
+speed2.0	u_salmon	0.442	0.0085	0.436	0.448	2
+speed2.0	r_avocado	2.153	0.0014	2.152	2.154	2
+speed2.0	phi_avocado	-155.9	0.1414	-156.0	-155.8	2
+speed2.0	u_avocado	1.254	0.0481	1.22	1.288	2
+press0.5	Rout	4.065	0.0	4.065	4.065	2
+press0.5	Rout_mean	3.9695	0.0007	3.969	3.97	2
+press0.5	layers	1.764	0.0	1.764	1.764	2
+press0.5	turns_geom	2.032	0.0	2.032	2.032	2
+press0.5	cross_best	2.351	0.0	2.351	2.351	2
+press0.5	cons	0.9711	0.0	0.9711	0.9711	2
+press0.5	riceJ	0.8734	0.0	0.8734	0.8734	2
+press0.5	wr_max	4.0	0.0	4.0	4.0	2
+press0.5	wr_mat_max	3.0	0.0	3.0	3.0	2
+press0.5	Rfold	3.095	0.0	3.095	3.095	2
+press0.5	r_cucumber	2.5985	0.0007	2.598	2.599	2
+press0.5	phi_cucumber	-18.4	0.0	-18.4	-18.4	2
+press0.5	u_cucumber	0.37	0.0028	0.368	0.372	2
+press0.5	r_tamago	0.59	0.0	0.59	0.59	2
+press0.5	phi_tamago	-3.3	0.0	-3.3	-3.3	2
+press0.5	u_tamago	0.24	0.0	0.24	0.24	2
+press0.5	r_salmon	1.615	0.0	1.615	1.615	2
+press0.5	phi_salmon	-163.1	0.0	-163.1	-163.1	2
+press0.5	u_salmon	0.232	0.0	0.232	0.232	2
+press0.5	r_avocado	1.5775	0.0007	1.577	1.578	2
+press0.5	phi_avocado	-87.1	0.0	-87.1	-87.1	2
+press0.5	u_avocado	1.224	0.0	1.224	1.224	2
+press2.0	Rout	4.1575	0.0035	4.155	4.16	2
+press2.0	Rout_mean	3.929	0.0014	3.928	3.93	2
+press2.0	layers	1.764	0.0	1.764	1.764	2
+press2.0	turns_geom	2.032	0.0	2.032	2.032	2
+press2.0	cross_best	2.351	0.0	2.351	2.351	2
+press2.0	cons	0.9555	0.0008	0.955	0.9561	2
+press2.0	riceJ	0.8717	0.0019	0.8703	0.873	2
+press2.0	wr_max	3.5	0.7071	3.0	4.0	2
+press2.0	wr_mat_max	2.5	0.7071	2.0	3.0	2
+press2.0	Rfold	3.095	0.0	3.095	3.095	2
+press2.0	r_cucumber	2.5325	0.0021	2.531	2.534	2
+press2.0	phi_cucumber	-21.35	0.0707	-21.4	-21.3	2
+press2.0	u_cucumber	0.35	0.0877	0.288	0.412	2
+press2.0	r_tamago	0.5435	0.0021	0.542	0.545	2
+press2.0	phi_tamago	1.5	0.8485	0.9	2.1	2
+press2.0	u_tamago	0.878	0.0028	0.876	0.88	2
+press2.0	r_salmon	1.655	0.0014	1.654	1.656	2
+press2.0	phi_salmon	-171.45	0.0707	-171.5	-171.4	2
+press2.0	u_salmon	0.186	0.0481	0.152	0.22	2
+press2.0	r_avocado	1.457	0.0042	1.454	1.46	2
+press2.0	phi_avocado	-96.15	0.0707	-96.2	-96.1	2
+press2.0	u_avocado	1.048	0.0	1.048	1.048	2
+hold0	Rout	4.08	0.0	4.08	4.08	2
+hold0	Rout_mean	3.9755	0.0007	3.975	3.976	2
+hold0	layers	1.764	0.0	1.764	1.764	2
+hold0	turns_geom	2.032	0.0	2.032	2.032	2
+hold0	cross_best	2.368	0.0	2.368	2.368	2
+hold0	cons	0.9707	0.0	0.9707	0.9707	2
+hold0	riceJ	0.8728	0.0	0.8728	0.8728	2
+hold0	wr_max	4.0	0.0	4.0	4.0	2
+hold0	wr_mat_max	2.0	0.0	2.0	2.0	2
+hold0	Rfold	3.095	0.0	3.095	3.095	2
+hold0	r_cucumber	2.6165	0.0007	2.616	2.617	2
+hold0	phi_cucumber	-27.9	0.0	-27.9	-27.9	2
+hold0	u_cucumber	0.31	0.0028	0.308	0.312	2
+hold0	r_tamago	0.6145	0.0007	0.614	0.615	2
+hold0	phi_tamago	-12.8	0.0	-12.8	-12.8	2
+hold0	u_tamago	0.19	0.0028	0.188	0.192	2
+hold0	r_salmon	1.598	0.0	1.598	1.598	2
+hold0	phi_salmon	-172.4	0.0	-172.4	-172.4	2
+hold0	u_salmon	0.122	0.0028	0.12	0.124	2
+hold0	r_avocado	1.571	0.0	1.571	1.571	2
+hold0	phi_avocado	-96.3	0.0	-96.3	-96.3	2
+hold0	u_avocado	1.232	0.0	1.232	1.232	2
+hold4	Rout	4.11	0.0	4.11	4.11	2
+hold4	Rout_mean	3.971	0.0	3.971	3.971	2
+hold4	layers	1.764	0.0	1.764	1.764	2
+hold4	turns_geom	2.032	0.0	2.032	2.032	2
+hold4	cross_best	2.35	0.0	2.35	2.35	2
+hold4	cons	0.9726	0.0	0.9726	0.9726	2
+hold4	riceJ	0.8698	0.0	0.8698	0.8698	2
+hold4	wr_max	5.0	0.0	5.0	5.0	2
+hold4	wr_mat_max	3.0	0.0	3.0	3.0	2
+hold4	Rfold	3.095	0.0	3.095	3.095	2
+hold4	r_cucumber	2.5835	0.0007	2.583	2.584	2
+hold4	phi_cucumber	-25.0	0.0	-25.0	-25.0	2
+hold4	u_cucumber	0.336	0.0057	0.332	0.34	2
+hold4	r_tamago	0.573	0.0	0.573	0.573	2
+hold4	phi_tamago	-4.7	0.0	-4.7	-4.7	2
+hold4	u_tamago	0.782	0.0085	0.776	0.788	2
+hold4	r_salmon	1.6005	0.0007	1.6	1.601	2
+hold4	phi_salmon	-169.8	0.0	-169.8	-169.8	2
+hold4	u_salmon	0.142	0.0028	0.14	0.144	2
+hold4	r_avocado	1.541	0.0	1.541	1.541	2
+hold4	phi_avocado	-93.05	0.0707	-93.1	-93.0	2
+hold4	u_avocado	1.164	0.0	1.164	1.164	2
+hold8	Rout	4.125	0.0	4.125	4.125	2
+hold8	Rout_mean	3.971	0.0	3.971	3.971	2
+hold8	layers	1.764	0.0	1.764	1.764	2
+hold8	turns_geom	2.032	0.0	2.032	2.032	2
+hold8	cross_best	2.35	0.0	2.35	2.35	2
+hold8	cons	0.9736	0.0	0.9736	0.9736	2
+hold8	riceJ	0.8709	0.0	0.8709	0.8709	2
+hold8	wr_max	4.0	0.0	4.0	4.0	2
+hold8	wr_mat_max	3.0	0.0	3.0	3.0	2
+hold8	Rfold	3.095	0.0	3.095	3.095	2
+hold8	r_cucumber	2.591	0.0	2.591	2.591	2
+hold8	phi_cucumber	-24.1	0.0	-24.1	-24.1	2
+hold8	u_cucumber	0.338	0.0028	0.336	0.34	2
+hold8	r_tamago	0.58	0.0	0.58	0.58	2
+hold8	phi_tamago	-4.6	0.0	-4.6	-4.6	2
+hold8	u_tamago	0.874	0.0141	0.864	0.884	2
+hold8	r_salmon	1.6	0.0	1.6	1.6	2
+hold8	phi_salmon	-169.35	0.0707	-169.4	-169.3	2
+hold8	u_salmon	0.164	0.0	0.164	0.164	2
+hold8	r_avocado	1.54	0.0	1.54	1.54	2
+hold8	phi_avocado	-92.7	0.0	-92.7	-92.7	2
+hold8	u_avocado	1.04	0.0	1.04	1.04	2

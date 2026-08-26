@@ -1,20 +1,26 @@
 [
  {
+  "tag": "_rep_a",
+  "ok": true,
+  "sec": 27.7,
+  "cmd": "--seed 1"
+ },
+ {
   "tag": "_rep_b",
   "ok": true,
-  "sec": 22.8,
+  "sec": 23.5,
   "cmd": "--seed 1"
  },
  {
   "tag": "_rep_c",
   "ok": true,
-  "sec": 23.0,
+  "sec": 23.1,
   "cmd": "--seed 1"
  },
  {
   "tag": "_rep_d",
   "ok": true,
-  "sec": 23.0,
+  "sec": 23.2,
   "cmd": "--seed 1"
  },
  {
@@ -26,97 +32,97 @@
  {
   "tag": "_seed3",
   "ok": true,
-  "sec": 23.1,
+  "sec": 23.0,
   "cmd": "--seed 3"
  },
  {
   "tag": "_seed4",
   "ok": true,
-  "sec": 23.2,
+  "sec": 22.8,
   "cmd": "--seed 4"
  },
  {
   "tag": "_sp05_a",
   "ok": true,
-  "sec": 48.5,
+  "sec": 39.8,
   "cmd": "--speed 0.5 --seed 1"
  },
  {
   "tag": "_sp05_b",
   "ok": true,
-  "sec": 52.5,
+  "sec": 40.2,
   "cmd": "--speed 0.5 --seed 1"
  },
  {
   "tag": "_sp20_a",
   "ok": true,
-  "sec": 22.1,
+  "sec": 14.6,
   "cmd": "--speed 2 --seed 1"
  },
  {
   "tag": "_sp20_b",
   "ok": true,
-  "sec": 22.9,
+  "sec": 14.6,
   "cmd": "--speed 2 --seed 1"
  },
  {
   "tag": "_pr05_a",
   "ok": true,
-  "sec": 40.3,
+  "sec": 23.5,
   "cmd": "--press 0.5 --seed 1"
  },
  {
   "tag": "_pr05_b",
   "ok": true,
-  "sec": 40.6,
+  "sec": 23.7,
   "cmd": "--press 0.5 --seed 1"
  },
  {
   "tag": "_pr20_a",
   "ok": true,
-  "sec": 37.2,
+  "sec": 23.3,
   "cmd": "--press 2 --seed 1"
  },
  {
   "tag": "_pr20_b",
   "ok": true,
-  "sec": 39.7,
+  "sec": 23.4,
   "cmd": "--press 2 --seed 1"
  },
  {
   "tag": "_ho0_a",
   "ok": true,
-  "sec": 40.4,
+  "sec": 23.1,
   "cmd": "--hold 0 --seed 1"
  },
  {
   "tag": "_ho0_b",
   "ok": true,
-  "sec": 33.4,
+  "sec": 23.1,
   "cmd": "--hold 0 --seed 1"
  },
  {
   "tag": "_ho4_a",
   "ok": true,
-  "sec": 32.4,
+  "sec": 25.3,
   "cmd": "--hold 4 --seed 1"
  },
  {
   "tag": "_ho4_b",
   "ok": true,
-  "sec": 25.9,
+  "sec": 25.3,
   "cmd": "--hold 4 --seed 1"
  },
  {
   "tag": "_ho8_a",
   "ok": true,
-  "sec": 27.4,
+  "sec": 27.7,
   "cmd": "--hold 8 --seed 1"
  },
  {
   "tag": "_ho8_b",
   "ok": true,
-  "sec": 33.5,
+  "sec": 27.4,
   "cmd": "--hold 8 --seed 1"
  }
 ]
