@@ -54,10 +54,10 @@ function hash(x, y) {
 // ---------------------------------------------------------------- данные
 const BASES = {
   sushi: { name: 'Суши-ролл', emoji: '🍣', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
-    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 1.0, beta: 0.55, oneTurn: true, flap: 5, tuckMin: 5,
+    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 1.0, beta: 0.55, oneTurn: true, flap: 5, tuckMin: 5, Wv: 38,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
-    T: 0.8, w: 0.42, turns: 2.7, kappa: 0.5, spreadEnd: 0.95, beta: 0.7,
+    T: 0.8, w: 0.42, turns: 2.7, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,
     ingredients: ['strawberry', 'kiwi', 'banana', 'mango', 'choco', 'jam', 'nut', 'pinkcream'] },
 };
 const R0 = 0.25;   // радиус сердцевины
@@ -136,9 +136,25 @@ function save() {
 // Размеры патча: у обёрточных нори-патчей размеры и высота переопределены под начинку.
 function sheetLen(b) { if (!S.turns) return b.L; const P0 = b.T + b.w, th = TAU * S.turns; return R0 * th + P0 * th * th / (2 * TAU); }
 function dims(p) { const d = ING[p.kind], b = B(); return { du: (p.wU ?? d.wU) / sheetLen(b), dv: p.dv ?? d.dv, h: (p.hU ?? d.hU) / b.T }; }
+// Патч может лежать под углом rot к оси ролла: 0 — вдоль, 90° — поперёк, 45° — по диагонали.
+// Тогда в каждом ломтике он оказывается на другом месте листа — рисунок меняется от кусочка к кусочку.
 function bounds(p) {
-  const d = ING[p.kind], m = dims(p), amp = d.wave ? d.wave.amp : 0;
-  return { u0: p.u - m.du / 2 - amp, u1: p.u + m.du / 2 + amp, v0: p.v - m.dv / 2, v1: p.v + m.dv / 2 };
+  const d = ING[p.kind], m = dims(p), b = B(), amp = d.wave ? d.wave.amp : 0, rot = p.rot || 0, c = Math.abs(Math.cos(rot)), sn = Math.abs(Math.sin(rot));
+  const w = m.du * sheetLen(b), len = m.dv * b.Wv, hu = (w * c + len * sn) / 2 / sheetLen(b), hv = (w * sn + len * c) / 2 / b.Wv;
+  return { u0: p.u - hu - amp, u1: p.u + hu + amp, v0: p.v - hv, v1: p.v + hv };
+}
+// Отрезок листа (в единицах длины, вдоль u), который патч занимает в ломтике v; null — патча в этом ломтике нет.
+function patchSRange(p, v) {
+  const d = ING[p.kind], m = dims(p), b = B(), L = sheetLen(b), rot = p.rot || 0, c = Math.cos(rot), sn = Math.sin(rot);
+  const w = m.du * L, len = m.dv * b.Wv, dv_ = (v - p.v) * b.Wv;
+  let lo = -1e9, hi = 1e9;
+  if (Math.abs(c) > 1e-6) { const a = (-w / 2 - dv_ * sn) / c, e = (w / 2 - dv_ * sn) / c; lo = Math.max(lo, Math.min(a, e)); hi = Math.min(hi, Math.max(a, e)); }
+  else if (Math.abs(dv_) > w / 2) return null;
+  if (Math.abs(sn) > 1e-6) { const a = (dv_ * c - len / 2) / sn, e = (dv_ * c + len / 2) / sn; lo = Math.max(lo, Math.min(a, e)); hi = Math.min(hi, Math.max(a, e)); }
+  else if (Math.abs(dv_) > len / 2) return null;
+  if (hi <= lo) return null;
+  let uc = p.u; if (d.wave) uc += d.wave.amp * Math.sin(TAU * d.wave.freq * v + p.phase);
+  return [uc * L + lo, uc * L + hi, uc, w, len, c, sn, dv_];
 }
 function overlap(a, b) {
   const A = bounds(a), Bb = bounds(b);
@@ -169,18 +185,18 @@ function restack(list) {
 }
 // Какой материал лежит в точке листа (u, v, z). null — намазка.
 function matAt(u, v, z, list) {
+  const L = sheetLen(B());
   for (let pass = 0; pass < 2; pass++) for (let i = list.length - 1; i >= 0; i--) {
-    const p = list[i], d = ING[p.kind], m = dims(p);
+    const p = list[i], d = ING[p.kind];
     if (p.inCore || !!d.paint !== (pass === 1)) continue;
     if (!d.paint && (z < p.z0 || z > p.z1)) continue;
-    if (v < p.v - m.dv / 2 || v > p.v + m.dv / 2) continue;
-    let uc = p.u;
-    if (d.wave) uc += d.wave.amp * Math.sin(TAU * d.wave.freq * v + p.phase);
-    const lu = (u - uc) / m.du;
-    if (lu < -0.5 || lu > 0.5) continue;
-    const lz = (z - p.z0) / (p.z1 - p.z0);
-    if (d.round) { const a = lu * 2, b = lz * 2 - 1; if (a * a + b * b > 1) continue; }
-    return { p, d, lu, lz, lv: (v - p.v) / m.dv };
+    const rg = patchSRange(p, v); if (!rg) continue;
+    const sU = u * L; if (sU < rg[0] || sU > rg[1]) continue;
+    const du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
+    const lu = across / rg[3];
+    const lz = d.paint ? 0.5 : (z - p.z0) / (p.z1 - p.z0);
+    if (d.round) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue; }
+    return { p, d, lu, lz, lv: along / rg[4] };
   }
   return null;
 }
@@ -189,10 +205,8 @@ function geometry() { const b = B(); restack(patches()); return { T: b.T, w: b.w
 const NB = 1440, DPHI = TAU / NB, KMAX = 9;
 function covers(p, u, v) {
   if (p.inCore) return false;
-  const d = ING[p.kind], m = dims(p);
-  if (v < p.v - m.dv / 2 || v > p.v + m.dv / 2) return false;
-  let uc = p.u; if (d.wave) uc += d.wave.amp * Math.sin(TAU * d.wave.freq * v + p.phase);
-  return Math.abs(u - uc) <= m.du / 2;
+  const rg = patchSRange(p, v); if (!rg) return false;
+  const sU = u * sheetLen(B()); return sU >= rg[0] && sU <= rg[1];
 }
 // Толщина «намазка + стопка» в точке листа (без обёртки), в единицах: рис под начинкой выдавлен, когда стопка выше намазки.
 function stackTopAt(u, v, list) { let H = 0; for (const p of list) if (!ING[p.kind].paint && covers(p, u, v)) H = Math.max(H, p.z1); return H; }
@@ -257,7 +271,8 @@ const modelCaches = new Map();
 // Площадь ядра = рис + начинки; ядро — диск той же площади; остаток листа наматывается вокруг него.
 function computeCore(list, g) {
   const base = B(); if (!base.oneTurn) return null;   // рулет — спираль без подворота
-  const L = g.L, T = g.T, items = list.filter(p => !ING[p.kind].paint).map(p => ({ p, s0: bounds(p).u0 * L, s1: bounds(p).u1 * L })).sort((a, b) => a.s0 - b.s0);
+  // кластер у края — по центру и ширине начинки (повёрнутый габарит не считается: диагональная полоска не «затягивает» полстола в ядро)
+  const L = g.L, T = g.T, items = list.filter(p => !ING[p.kind].paint).map(p => { const w = dims(p).du * L; return { p, s0: p.u * L - w / 2, s1: p.u * L + w / 2 }; }).sort((a, b) => a.s0 - b.s0);
   let end = 0;
   if (items.length && items[0].s0 <= 5) { end = items[0].s1; for (let i = 1; i < items.length; i++) { if (items[i].s0 - end > 2.5) break; end = Math.max(end, items[i].s1); } }
   const sFold = Math.min(0.45 * L, Math.max(base.tuckMin || 0, end + 1.0)), half = sFold / 2;
@@ -265,13 +280,12 @@ function computeCore(list, g) {
   const inside = list.filter(p => p.u * L < sFold);
   for (const p of inside) { const far = p.u * L >= half; if (!ING[p.kind].paint) { if (far) core.HB = Math.max(core.HB, p.z1 * T); else core.HA = Math.max(core.HA, p.z1 * T); } }
   for (const p of inside) {
-    p.inCore = true; const d = ING[p.kind], m = dims(p), far = p.u * L >= half, sc = p.u * L, w = m.du * L;
-    const x = far ? sc - half : half - sc;
+    p.inCore = true; const d = ING[p.kind], far = p.u * L >= half;
     let y0, y1;
     if (d.paint) { y0 = far ? 0 : core.HB; y1 = far ? core.HB : core.HB + core.HA; }
     else if (far) { y0 = p.z0 * T; y1 = p.z1 * T; }
     else { y0 = core.HB + core.HA - p.z1 * T; y1 = core.HB + core.HA - p.z0 * T; }
-    core.items.push({ p, d, x0: x - w / 2, x1: x + w / 2, y0, y1, far, dv: m.dv, paint: !!d.paint, round: !!d.round });
+    core.items.push({ p, d, y0, y1, far, paint: !!d.paint, round: !!d.round });
   }
   core.hook = { y0: core.HB + core.HA, y1: core.HB + core.HA + g.w };   // нори ближней половины, подвёрнутая внутрь
   core.Hc = core.HA + core.HB + g.w;
@@ -290,14 +304,18 @@ function coreMaterial(m, r, phi, vSlice) {
   const [us, vs] = diskToSquare(xd, yd);
   const x = (us + 1) / 2 * c.Wc, y = (vs + 1) / 2 * c.Hc;
   if (y >= c.hook.y0) return { cls: 'wrap' };
+  const L = m.g.L, half = c.Wc;
   for (let pass = 0; pass < 2; pass++) for (let i = c.items.length - 1; i >= 0; i--) {
     const it = c.items[i]; if (it.paint !== (pass === 1)) continue;
-    if (x < it.x0 || x > it.x1 || y < it.y0 || y > it.y1) continue;
-    if (vSlice < it.p.v - it.dv / 2 || vSlice > it.p.v + it.dv / 2) continue;
-    let lu = (x - (it.x0 + it.x1) / 2) / (it.x1 - it.x0), lz = (y - it.y0) / (it.y1 - it.y0);
-    if (!it.far) { lu = -lu; lz = 1 - lz; }
+    if (y < it.y0 || y > it.y1) continue;
+    const rg = patchSRange(it.p, vSlice); if (!rg) continue;
+    const x0 = it.far ? rg[0] - half : half - rg[1], x1 = it.far ? rg[1] - half : half - rg[0];
+    if (x < x0 || x > x1) continue;
+    const sU = it.far ? half + x : half - x, du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
+    let lu = across / rg[3], lz = (y - it.y0) / (it.y1 - it.y0);
+    if (!it.far) { lz = 1 - lz; }
     if (it.round) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue; }
-    return { cls: 'patch', mt: { p: it.p, d: it.d, lu, lz, lv: (vSlice - it.p.v) / it.dv } };
+    return { cls: 'patch', mt: { p: it.p, d: it.d, lu, lz, lv: along / rg[4] } };
   }
   return { cls: 'core' };
 }
@@ -699,8 +717,26 @@ function patchRect(p) {
   const m = dims(p), s = L.sheet;
   return { x: s.x + (p.v - m.dv / 2) * s.w, y: s.y + (1 - p.u - m.du / 2) * s.h, w: m.dv * s.w, h: m.du * s.h };
 }
+// Экранная трансформация повёрнутого патча: центр, угол и размеры в пикселях (лист анизотропен: px/единица разные по осям).
+function patchScreen(p) {
+  const m = dims(p), b = B(), s = L.sheet, Lu = sheetLen(b), rot = p.rot || 0, c = Math.cos(rot), sn = Math.sin(rot);
+  const pxV = s.w / b.Wv, pxU = s.h / Lu, w = m.du * Lu, len = m.dv * b.Wv;
+  const cx = s.x + p.v * s.w, cy = s.y + (1 - p.u) * s.h;
+  const ang = Math.atan2(sn * pxU, c * pxV);   // ось длины патча: (dv, du) = (cos, -sin) → экран (x вправо, y вниз = -u)
+  const lenPx = len * Math.hypot(c * pxV, sn * pxU), wPx = w * Math.hypot(sn * pxV, c * pxU);
+  return { cx, cy, ang, lenPx, wPx };
+}
 function drawPatchTop(p, alpha = 1) {
   const d = ING[p.kind], m = dims(p), s = L.sheet;
+  if (p.rot) {
+    const t = patchScreen(p);
+    ctx.save(); ctx.globalAlpha = alpha * (p.kind === 'nori' ? 0.82 : d.paint ? 0.92 : 1);
+    ctx.shadowColor = d.paint ? 'transparent' : 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 4 + p.z0 * 6; ctx.shadowOffsetY = 2 + p.z0 * 3;
+    ctx.translate(t.cx, t.cy); ctx.rotate(t.ang);
+    if (d.paint) { ctx.fillStyle = d.color; rr(-t.lenPx / 2, -t.wPx / 2, t.lenPx, t.wPx, 3); ctx.fill(); }
+    else drawPatchShape(d, -t.lenPx / 2, -t.wPx / 2, t.lenPx, t.wPx, false);
+    ctx.restore(); return;
+  }
   if (d.paint) {
     const r = patchRect(p); ctx.save(); ctx.globalAlpha = alpha * 0.92; ctx.fillStyle = d.color; rr(r.x, r.y, r.w, r.h, 3); ctx.fill();
     ctx.globalAlpha = alpha * 0.25; ctx.fillStyle = '#fff'; for (let k = 0; k < r.w * r.h / 60; k++) ctx.fillRect(r.x + hash(k, 1) * r.w, r.y + hash(k, 2) * r.h, 2, 1.5);
@@ -779,7 +815,7 @@ function drawParticles(dt) {
 const hints = {
   lay: 'Выбери начинку и тапни по листу · потяни циновку вверх, чтобы скрутить',
   layMove: 'Тащи, чтобы подвинуть · вытащи за лист, чтобы убрать',
-  laySel: 'Обернуть нори — замкнутый контур на срезе · тап по пустому — положить новое',
+  laySel: 'В нори — контур на срезе · поворот — поперёк или по диагонали: рисунок разный в кусочках',
   puzzle: 'Повтори срез: разложи, скрути, разрежь',
   rolled: 'Тапни по роллу там, где резать',
   revealed: 'Вот что ты положил. Хочется ещё?',
@@ -839,8 +875,10 @@ function drawLay() {
   if (drag.patch) drawPatchTop(drag.patch, 0.85);
   const sel = S.selPatch && patches().includes(S.selPatch) ? S.selPatch : (S.selPatch = null);
   if (sel && p === 0) {
-    const r = patchRect(sel), d = ING[sel.kind]; if (d.wave) { r.y -= d.wave.amp * s.h; r.h += 2 * d.wave.amp * s.h; }
-    ctx.setLineDash([5, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; rr(r.x - 5, r.y - 5, r.w + 10, r.h + 10, 8); ctx.stroke(); ctx.setLineDash([]);
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    if (sel.rot) { const t = patchScreen(sel); ctx.save(); ctx.translate(t.cx, t.cy); ctx.rotate(t.ang); rr(-t.lenPx / 2 - 5, -t.wPx / 2 - 5, t.lenPx + 10, t.wPx + 10, 8); ctx.stroke(); ctx.restore(); }
+    else { const r = patchRect(sel), d = ING[sel.kind]; if (d.wave) { r.y -= d.wave.amp * s.h; r.h += 2 * d.wave.amp * s.h; } rr(r.x - 5, r.y - 5, r.w + 10, r.h + 10, 8); ctx.stroke(); }
+    ctx.setLineDash([]);
   }
   if (S.preview && p === 0) { ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(40,30,20,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x + s.w / 2, s.y); ctx.lineTo(s.x + s.w / 2, s.y + s.h); ctx.stroke(); ctx.setLineDash([]); }
   const core = p === 0 && !drag.patch ? getModel().core : null;   // линия подворота: что ниже неё, сомнётся в ядро
@@ -857,8 +895,9 @@ function drawLay() {
   buttons = [];
   const area = L.layBtn;
   if (sel && p === 0) {
-    const canWrap = sel.kind !== 'nori' && !ING[sel.kind].wave && !ING[sel.kind].paint;
-    buttonRow(canWrap ? [['wrap', 'Обернуть нори', true, 1.5], ['remove', 'Убрать'], ['deselect', '✕', false, 0.5]] : [['remove', 'Убрать'], ['deselect', '✕', false, 0.5]], area);
+    const canWrap = sel.kind !== 'nori' && !ING[sel.kind].wave && !ING[sel.kind].paint, canRot = !ING[sel.kind].wave;
+    const rotLabel = `⟳ ${Math.round(((sel.rot || 0) * 180 / Math.PI + 45) % 180)}°`;
+    buttonRow([...(canWrap ? [['wrap', 'В нори', true]] : []), ...(canRot ? [['rotate', rotLabel]] : []), ['remove', 'Убрать']], area);
   } else if (S.puzzle) buttonRow([['undo', '↶ Отменить'], ['clear', 'Очистить'], ['newpuzzle', '⟳ Другой', false, 0.85]], area);
   else buttonRow([['undo', '↶ Отменить'], ['clear', 'Очистить']], area);
   drawButtons(); drawChips();
@@ -1045,7 +1084,9 @@ function sheetUV(x, y) { const s = L.sheet; return { u: 1 - (y - s.y) / s.h, v: 
 function hitPatch(x, y) {
   const list = patches();
   for (let i = list.length - 1; i >= 0; i--) {
-    const p = list[i], d = ING[p.kind], r = patchRect(p);
+    const p = list[i], d = ING[p.kind];
+    if (p.rot) { const t = patchScreen(p), dx = x - t.cx, dy = y - t.cy, c = Math.cos(t.ang), sn = Math.sin(t.ang); const ax = dx * c + dy * sn, ay = -dx * sn + dy * c; if (Math.abs(ax) <= t.lenPx / 2 + 10 && Math.abs(ay) <= t.wPx / 2 + 10) return p; continue; }
+    const r = patchRect(p);
     if (d.wave) { r.y -= d.wave.amp * L.sheet.h; r.h += 2 * d.wave.amp * L.sheet.h; }
     const pad = 10; if (x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad) return p;
   }
@@ -1060,10 +1101,12 @@ function placeAt(u, v) {
 function wrapInNoriList(F, list, rnd = Math.random) {
   const i = list.indexOf(F); if (i < 0) return;
   const m = dims(F), b = B(), L = sheetLen(b), dF = ING[F.kind], wF = F.wU ?? dF.wU, hF = F.hU ?? dF.hU, hN = ING.nori.hU, capW = 0.3;
-  const mk = (u, wU, hU) => ({ kind: 'nori', u, v: F.v, wU, dv: m.dv, hU, z0: 0, z1: 0, phase: rnd() * TAU });
-  list.splice(i, 0, mk(F.u, wF, hN));            // под начинкой (раньше в стопке — ниже)
-  list.splice(i + 2, 0, mk(F.u, wF, hN));        // над начинкой
-  list.push(mk(F.u - m.du / 2 - capW / (2 * L), capW, hF + 2 * hN), mk(F.u + m.du / 2 + capW / (2 * L), capW, hF + 2 * hN)); // торцы
+  const rot = F.rot || 0, cs = Math.cos(rot), sn = Math.sin(rot);
+  const mk = (u, v, wU, hU) => { const q = { kind: 'nori', u, v, wU, dv: m.dv, hU, z0: 0, z1: 0, phase: rnd() * TAU }; if (rot) q.rot = rot; return q; };
+  list.splice(i, 0, mk(F.u, F.v, wF, hN));            // под начинкой (раньше в стопке — ниже)
+  list.splice(i + 2, 0, mk(F.u, F.v, wF, hN));        // над начинкой
+  const off = (wF + capW) / 2;                          // торцы — вдоль поперечной оси патча
+  list.push(mk(F.u - off * cs / L, F.v - off * sn / b.Wv, capW, hF + 2 * hN), mk(F.u + off * cs / L, F.v + off * sn / b.Wv, capW, hF + 2 * hN));
 }
 function wrapInNori(F) { wrapInNoriList(F, patches()); S.selPatch = null; touchModel(); sfx.place(); }
 
@@ -1079,11 +1122,13 @@ const LEVELS = [
   { n: 3, turns: 3, pieces: 3, local: 1 },
   { n: 4, turns: 4, pieces: 1, shape: 'triangle' },
   { n: 3, turns: 3, pieces: 6, local: 2 },
+  { n: 3, turns: 3, pieces: 6, rot: 1 },
   { n: 3, turns: 3, pieces: 3, local: 1, wrap: 1 },
   { n: 4, turns: 4, pieces: 6, local: 2, wrap: 1 },
   { n: 4, turns: 2, pieces: 3, local: 1, wrap: 1, sheet: 1, shape: 'square' },
   { n: 3, turns: 3, pieces: 1, paint: 1, shape: 'triangle' },
   { n: 4, turns: 3, pieces: 1, paint: 2, wrap: 1 },
+  { n: 4, turns: 3, pieces: 6, rot: 2, paint: 1 },
   { n: 5, turns: 4, pieces: 6, local: 2, wrap: 2, sheet: 1, paint: 1 },
 ];
 const PASS = 0.72;   // порог «совпало» по похожести
@@ -1112,6 +1157,7 @@ function genTarget(lv, seed) {
   }
   if (!us) { let u = 0.03; us = items.map(it => { const x = u + it.half; u += 2 * it.half + 0.02; return x; }); }
   const list = items.map((it, i) => { const d = ING[it.kind]; const p = { kind: it.kind, u: clamp(us[i], it.half, 1 - it.half), v: 0.5, z0: 0, z1: 0, phase: rnd() * TAU }; if (d.dv < 1) p.v = d.dv / 2 + rnd() * (1 - d.dv); return p; });
+  if (lv.rot) for (let r = 0, n0 = 0; r < list.length && n0 < lv.rot; r++) { const p = list[r]; if (ING[p.kind].wave || isLong(p.kind)) continue; p.rot = rnd() < 0.5 ? Math.PI / 4 : Math.PI / 2; p.dv = 0.22; p.v = 0.25 + rnd() * 0.5; n0++; }
   for (let w = 0; w < (lv.wrap || 0); w++) {
     const cands = list.filter(p => p.kind !== 'nori' && !isLong(p.kind) && !p.wrapped); if (!cands.length) break;
     const F = cands[Math.floor(rnd() * cands.length)]; F.wrapped = true; wrapInNoriList(F, list, rnd);
@@ -1142,6 +1188,7 @@ function puzzleEvaluate() {
     if (!mine.length) { hints.push(`нет: ${ING[t.kind].name.toLowerCase()}`); continue; }
     let best = mine[0], bd = 9; for (const p of mine) { const dd = Math.abs(p.u - t.u); if (dd < bd) { bd = dd; best = p; } }
     if (bd > 0.04) hints.push(`${ING[t.kind].name.toLowerCase()}: ${best.u < t.u ? 'дальше от края' : 'ближе к краю'} на ${Math.round(bd * L * 5)} мм`);
+    else if (Math.abs((best.rot || 0) - (t.rot || 0)) > 0.1) hints.push(`${ING[t.kind].name.toLowerCase()}: другой поворот`);
     else if (ING[t.kind].dv < 1 && Math.abs(best.v - t.v) > 0.12) hints.push(`${ING[t.kind].name.toLowerCase()}: не в тех кусочках`);
   }
   for (const p of pm.list) if (p.kind !== 'nori' && !pz.target.some(t => t.kind === p.kind)) hints.push(`лишнее: ${ING[p.kind].name.toLowerCase()}`);
@@ -1153,7 +1200,7 @@ function puzzleEvaluate() {
 }
 // Ссылка на пазл: раскладка (цель) в хэше адреса; друг видит только срез.
 function encodePuzzle(list, turns) {
-  const data = { b: S.base, t: turns || null, s: S.shape, l: list.map(p => [p.kind, +p.u.toFixed(4), +p.v.toFixed(3), p.wU ?? null, p.hU ?? null, p.dv ?? null, +p.phase.toFixed(3)]) };
+  const data = { b: S.base, t: turns || null, s: S.shape, l: list.map(p => [p.kind, +p.u.toFixed(4), +p.v.toFixed(3), p.wU ?? null, p.hU ?? null, p.dv ?? null, +p.phase.toFixed(3), p.rot ? +p.rot.toFixed(4) : null]) };
   return location.origin + location.pathname + '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(data)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 function decodePuzzle(hash) {
@@ -1161,7 +1208,7 @@ function decodePuzzle(hash) {
     const mm = /#p=([A-Za-z0-9_-]+)/.exec(hash); if (!mm) return null;
     const json = decodeURIComponent(escape(atob(mm[1].replace(/-/g, '+').replace(/_/g, '/'))));
     const data = JSON.parse(json); if (!data.l || !BASES[data.b]) return null;
-    const list = data.l.map(a => { const p = { kind: a[0], u: a[1], v: a[2], z0: 0, z1: 0, phase: a[6] || 0 }; if (a[3] != null) p.wU = a[3]; if (a[4] != null) p.hU = a[4]; if (a[5] != null) p.dv = a[5]; return p; }).filter(p => ING[p.kind]);
+    const list = data.l.map(a => { const p = { kind: a[0], u: a[1], v: a[2], z0: 0, z1: 0, phase: a[6] || 0 }; if (a[3] != null) p.wU = a[3]; if (a[4] != null) p.hU = a[4]; if (a[5] != null) p.dv = a[5]; if (a[7]) p.rot = a[7]; return p; }).filter(p => ING[p.kind]);
     return { base: data.b, turns: data.t, shape: SHAPES[data.s] ? data.s : 'round', list };
   } catch (e) { return null; }
 }
@@ -1183,7 +1230,7 @@ function sharePuzzle() {
 function levelTitle(lv, i) {
   if (lv.custom) return `Пазл по ссылке · ${lv.n} нач. · ${lv.pieces > 1 ? lv.pieces + ' кус.' : '1 срез'}`;
   const parts = [`Уровень ${i + 1}`, `${lv.n} нач.`, `${lv.turns} вит.`, lv.pieces > 1 ? `${lv.pieces} кус.` : '1 срез'];
-  if (lv.wrap) parts.push('нори'); if (lv.local) parts.push('короткие'); if (lv.paint) parts.push('цв. рис'); if (lv.shape && lv.shape !== 'round') parts.push(SHAPES[lv.shape].glyph);
+  if (lv.wrap) parts.push('нори'); if (lv.local) parts.push('короткие'); if (lv.paint) parts.push('цв. рис'); if (lv.rot) parts.push('поворот'); if (lv.shape && lv.shape !== 'round') parts.push(SHAPES[lv.shape].glyph);
   return parts.join(' · ');
 }
 function action(id) {
@@ -1191,6 +1238,7 @@ function action(id) {
     case 'undo': if (S.mode === 'lay' && patches().length) { patches().pop(); S.selPatch = null; touchModel(); } break;
     case 'clear': if (S.mode === 'lay') { S.lists[S.base] = []; S.selPatch = null; touchModel(); } break;
     case 'wrap': if (S.mode === 'lay' && S.selPatch) wrapInNori(S.selPatch); break;
+    case 'rotate': if (S.mode === 'lay' && S.selPatch) { const p = S.selPatch; p.rot = ((p.rot || 0) + Math.PI / 4) % Math.PI; if (p.rot < 1e-6) delete p.rot; const bb = bounds(p), hu = (bb.u1 - bb.u0) / 2, hv = (bb.v1 - bb.v0) / 2; p.u = clamp(p.u, Math.min(0.5, hu), Math.max(0.5, 1 - hu)); p.v = clamp(p.v, Math.min(0.5, hv), Math.max(0.5, 1 - hv)); touchModel(); sfx.place(); } break;
     case 'remove': if (S.mode === 'lay' && S.selPatch) { const l = patches(), i = l.indexOf(S.selPatch); if (i >= 0) l.splice(i, 1); S.selPatch = null; touchModel(); } break;
     case 'deselect': S.selPatch = null; dirty = true; break;
     case 'back': S.mode = 'lay'; S.rollP = 0; S.bigPiece = -1; cut = null; slicing = null; if (S.puzzle) S.puzzle.result = null; dirty = true; break;
@@ -1257,11 +1305,11 @@ function onMove(x, y, id) {
     const speed = Math.abs(y - drag.lastY) / Math.max(1, now - drag.lastT); drag.lastY = y; drag.lastT = now;
     sfx.rustle(speed * 1.5);
   } else if (drag.kind === 'move') {
-    const d = ING[drag.patch.kind], m = dims(drag.patch), uv = sheetUV(x, y);
+    const uv = sheetUV(x, y), bb = bounds(drag.patch), hu = (bb.u1 - bb.u0) / 2, hv = (bb.v1 - bb.v0) / 2;
     drag.moved = drag.moved || Math.hypot(x - drag.x0, y - drag.y0) > 6;
     if (!drag.moved) return;
-    drag.patch.u = clamp(uv.u + drag.ou, m.du / 2 + (d.wave ? d.wave.amp : 0), 1 - m.du / 2 - (d.wave ? d.wave.amp : 0));
-    drag.patch.v = clamp(uv.v + drag.ov, m.dv / 2, 1 - m.dv / 2);
+    drag.patch.u = clamp(uv.u + drag.ou, Math.min(0.5, hu), Math.max(0.5, 1 - hu));
+    drag.patch.v = clamp(uv.v + drag.ov, Math.min(0.5, hv), Math.max(0.5, 1 - hv));
     drag.outside = !inRect(x, y, { x: L.sheet.x - 24, y: L.sheet.y - 24, w: L.sheet.w + 48, h: L.sheet.h + 48 });
   } else if (drag.kind === 'place') {
     drag.moved = drag.moved || Math.hypot(x - drag.x0, y - drag.y0) > 10;
