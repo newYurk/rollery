@@ -65,6 +65,15 @@ LAYOUTS = {
     6: dict(name='futomaki-full-core', fillings=[fill('tamago', 1.5, 5.0, 4.4), fill('salmon', 7.0, 4.6, 4.0),
                                                  fill('avocado', 12.1, 4.4, 4.2, True)],
             press_shape='circle'),
+    # 7 is the realistic futomaki that layout 6 is NOT. Layout 6 packs 58.8 T2 of filling against
+    # 33.7 T2 of rice (64 % of the cross-section) and the nori tears: it has no rice cushion to lie on.
+    # A real futomaki carries ~30 % filling with rice all around it. This is the layout the one-turn
+    # model of the stand must be checked against -- see ../KINEMATICS.md, "Open discrepancy".
+    7: dict(name='futomaki-real', fillings=[fill('tamago', 1.5, 2.4, 2.0), fill('salmon', 3.9, 2.0, 1.6),
+                                            fill('cucumber', 5.5, 1.4, 1.4, True),
+                                            fill('avocado', 6.8, 2.0, 1.1, True),
+                                            fill('shrimp', 8.5, 2.0, 1.6)],
+            press_shape='circle'),
 }
 
 # ----------------------------------------------------------------------------- materials  (unchanged)
