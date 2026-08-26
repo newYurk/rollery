@@ -119,6 +119,10 @@ const S = {
   turns: null,                 // число витков (пазл задаёт длину листа); null — по базе
   shape: 'round',              // форма прессовки: round | square | triangle
   puzzle: null,                // режим «Пазл»: { level, seed, target, vs, result }
+  album: [],                   // сохранённые роллы: рецепт + почерк, картинки пересчитываются
+  albumOpen: -1,               // раскрытая запись альбома
+  albumScroll: 0,
+  saved: 0,                    // время подсветки «сохранено»
 };
 const patches = () => S.lists[S.base];
 const B = () => BASES[S.base];
@@ -133,6 +137,8 @@ function load() {
     S.mute = localStorage.getItem('rollery.mute') === '1';
     S.shape = localStorage.getItem('rollery.shape') || 'round';
     S.cutsTotal = +(localStorage.getItem('rollery.cuts') || 0);
+    S.album = JSON.parse(localStorage.getItem('rollery.album') || '[]');
+    if (!Array.isArray(S.album)) S.album = [];
   } catch (e) {}
   S.sel = B().ingredients[0];
   for (const b in S.lists) S.lists[b] = S.lists[b].filter(p => ING[p.kind]);
@@ -693,7 +699,7 @@ function drawTopBar(hint) {
   const T0 = SAFE.top, ox = L.ox, cw = L.cw, narrow = cw < 480;
   ctx.fillStyle = '#f3e7ca'; ctx.font = font(17, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText('Ролльня', ox + 16, 24 + T0);
-  const items = [['base', B().emoji], ['shape', SHAPES[S.shape].glyph], ['puzzle', '🧩'], ['preview', '👁'], ['mute', S.mute ? '🔇' : '🔊']];
+  const items = [['base', B().emoji], ['shape', SHAPES[S.shape].glyph], ['album', '★'], ['puzzle', '🧩'], ['preview', '👁'], ['mute', S.mute ? '🔇' : '🔊']];
   if (S.puzzle || S.mode === 'revealed' || S.mode === 'plate') items.splice(3, 0, ['share', '🔗']);
   const iconsW = items.length * ((narrow ? 34 : 40) + (narrow ? 4 : 6));
   ctx.save(); ctx.beginPath(); ctx.rect(ox, T0, cw - iconsW - 20, 50); ctx.clip();
@@ -702,8 +708,8 @@ function drawTopBar(hint) {
   let x = ox + cw - 12;
   for (const [id, glyph] of items) {
     const w = narrow ? 34 : 40; x -= w; icons.push({ id, x, y: 4 + T0, w, h: 40 });
-    rr(x, 6 + T0, w, 36, 10); ctx.fillStyle = ((id === 'preview' && S.preview) || (id === 'puzzle' && S.puzzle)) ? '#4a4331' : '#26261f'; ctx.fill();
-    ctx.font = id === 'share' ? '16px system-ui' : '18px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#f3e7ca';
+    rr(x, 6 + T0, w, 36, 10); ctx.fillStyle = ((id === 'preview' && S.preview) || (id === 'puzzle' && S.puzzle) || (id === 'album' && S.mode === 'album')) ? '#4a4331' : '#26261f'; ctx.fill();
+    ctx.font = id === 'share' ? '16px system-ui' : id === 'album' ? font(19, 600) : '18px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = id === 'album' ? '#e0b25a' : '#f3e7ca';
     ctx.globalAlpha = (id === 'preview' && !S.preview) ? 0.45 : 1; ctx.fillText(glyph, x + w / 2, 25 + T0); ctx.globalAlpha = 1;
     x -= narrow ? 4 : 6;
   }
@@ -1046,7 +1052,8 @@ function drawRevealed() {
   ctx.fillStyle = '#8d846f'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины`, cx, L.faceY + L.faceSize / 2 + 14);
   const hl = handLabel(); if (hl) { ctx.fillStyle = '#6f6754'; ctx.font = font(12); ctx.fillText(hl, cx, L.faceY + L.faceSize / 2 + 32); }
-  buttons = []; buttonRow([['slice', `Нарезать на ${NPIECES}`, true], ['back', 'Ещё начинки'], ['new', 'Новый лист']]);
+  buttons = []; buttonRow([['slice', `Нарезать на ${NPIECES}`, true], ['albumsave', S.saved > performance.now() ? '✓ В альбоме' : '★ В альбом'], ['back', 'Ещё начинки']]);
+  if (S.saved > performance.now()) dirty = true;
   drawButtons(); drawTopBar(hints.revealed);
 }
 // Нарезка: быстрые удары, потом кусочки встают срезом и разъезжаются по тарелке.
@@ -1095,7 +1102,8 @@ function drawPlate() {
     const gx = L.grid[i]; drawFaceImg(s.imgs[i], gx.x, gx.y, gx.size);
     ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(String(i + 1), gx.x, gx.y + gx.size / 2 + 4);
   }
-  buttons = []; buttonRow([['back', 'Ещё начинки', true], ['new', 'Новый лист']]);
+  buttons = []; buttonRow([['albumsave', S.saved > performance.now() ? '✓ В альбоме' : '★ В альбом', true], ['back', 'Ещё начинки'], ['new', 'Новый лист']]);
+  if (S.saved > performance.now()) dirty = true;
   drawButtons(); drawTopBar(hints.plate);
   if (S.bigPiece >= 0) {
     ctx.fillStyle = 'rgba(23,23,19,0.92)'; ctx.fillRect(0, 0, W, H);
@@ -1105,6 +1113,116 @@ function drawPlate() {
     drawFaceImg(img, cx, L.faceY, L.faceSize);
   }
 }
+
+// ---------------------------------------------------------------- альбом
+// Храним не картинки, а рецепт: база, лист, почерк, форма. Срезы пересчитываются — это дёшево
+// и позволяет открыть свой старый ролл, доложить начинку и скрутить заново.
+const ALBUM_MAX = 60;
+function albumSave() {
+  const list = patches(); if (!list.length) return;
+  const h = S.hand || {};
+  const e = { id: 'a' + Date.now().toString(36), base: S.base, turns: S.turns || null, shape: S.shape,
+              hand: { air: +(h.air || 0).toFixed(3), wobble: +(h.wobble || 0).toFixed(3), phase: +(h.phase || 0).toFixed(2), press: +(h.press || 1).toFixed(2) },
+              list: JSON.parse(JSON.stringify(list)), at: Date.now(),
+              level: S.puzzle ? S.puzzle.level : null, sim: S.puzzle && S.puzzle.result ? Math.round(S.puzzle.result.sim * 100) : null };
+  S.album.unshift(e); if (S.album.length > ALBUM_MAX) S.album.length = ALBUM_MAX;
+  try { localStorage.setItem('rollery.album', JSON.stringify(S.album)); } catch (err) { S.album.length = Math.min(S.album.length, 30); }
+  S.saved = performance.now() + 1600; dirty = true; sfx.place();
+}
+function albumRemove(i) {
+  S.album.splice(i, 1); S.albumOpen = -1;
+  try { localStorage.setItem('rollery.album', JSON.stringify(S.album)); } catch (err) {}
+  dirty = true;
+}
+// Отрисовать чужой рецепт: временно подменяем состояние, считаем модель, возвращаем всё назад.
+function withRecipe(e, fn) {
+  const keep = { base: S.base, turns: S.turns, shape: S.shape, hand: S.hand, list: S.lists[e.base] };
+  S.base = e.base; S.turns = e.turns || null; S.shape = SHAPES[e.shape] ? e.shape : 'round';
+  S.hand = Object.assign({ air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 }, e.hand || {});
+  let out;
+  try { out = fn(buildModel(JSON.parse(JSON.stringify(e.list)))); }
+  finally { S.base = keep.base; S.turns = keep.turns; S.shape = keep.shape; S.hand = keep.hand; S.lists[e.base] = keep.list; }
+  return out;
+}
+function albumFace(e, size, v) { return withRecipe(e, m => face(v == null ? 0.5 : v, size, m)); }
+function albumLoad(i) {
+  const e = S.album[i]; if (!e) return;
+  if (S.puzzle) puzzleStop();
+  S.base = e.base; S.turns = e.turns || null; S.shape = SHAPES[e.shape] ? e.shape : 'round';
+  S.hand = Object.assign({ air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 }, e.hand || {});
+  S.sel = B().ingredients[0]; S.selPatch = null;
+  S.lists[e.base] = JSON.parse(JSON.stringify(e.list));
+  S.albumOpen = -1; S.mode = 'lay'; S.rollP = 0; anim = null; cut = null; slicing = null;
+  touchModel(); layout(); dirty = true; requestFrame();
+}
+function albumShare(i) {
+  const e = S.album[i]; if (!e) return;
+  withRecipe(e, () => { const url = encodePuzzle(e.list, e.turns); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).catch(() => { location.hash = url.slice(url.indexOf('#')); }); else location.hash = url.slice(url.indexOf('#')); });
+  shareNote = performance.now() + 2200; dirty = true; requestFrame();
+}
+function albumDate(t) {
+  const d = new Date(t), n = new Date();
+  const sameDay = d.toDateString() === n.toDateString();
+  const hh = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  return sameDay ? hh : String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + ' ' + hh;
+}
+function drawAlbum() {
+  const cw = L.cw, ox = L.ox, top = L.top + 8;
+  if (!S.album.length) {
+    ctx.fillStyle = '#8d846f'; ctx.font = font(15); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Альбом пуст', ox + cw / 2, top + 90);
+    ctx.font = font(13); ctx.fillStyle = '#6f6754';
+    ctx.fillText('Скрути ролл, разрежь — и нажми «В альбом».', ox + cw / 2, top + 118);
+    ctx.fillText('Роллы хранятся рецептом: можно открыть, доложить начинку и скрутить заново.', ox + cw / 2, top + 138);
+    buttons = []; buttonRow([['back', '← К листу', true]]);
+    drawButtons(); drawTopBar('Альбом');
+    return;
+  }
+  const per = Math.max(2, Math.min(5, Math.floor((cw - 24) / 150)));
+  const cell = Math.floor((cw - 24 - (per - 1) * 12) / per), rowH = cell + 26;
+  const rows = Math.ceil(S.album.length / per);
+  const viewH = L.rowBtn.y - 12 - top;
+  const maxScroll = Math.max(0, rows * rowH - viewH);
+  S.albumScroll = clamp(S.albumScroll, 0, maxScroll);
+  albumCells = [];
+  ctx.save(); ctx.beginPath(); ctx.rect(ox, top - 4, cw, viewH + 8); ctx.clip();
+  S.album.forEach((e, i) => {
+    const r = Math.floor(i / per), c = i % per;
+    const x = ox + 12 + c * (cell + 12), y = top + r * rowH - S.albumScroll;
+    if (y > top + viewH || y + rowH < top - rowH) return;
+    albumCells.push({ i, x, y, w: cell, h: cell });
+    try { drawFaceImg(albumFace(e, cell), x + cell / 2, y + cell / 2, cell); } catch (err) {}
+    ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const tag = (BASES[e.base] ? BASES[e.base].emoji : '') + ' ' + albumDate(e.at) + (e.sim != null ? ' · ' + e.sim + ' %' : '');
+    ctx.fillText(tag, x + cell / 2, y + cell + 5);
+  });
+  ctx.restore();
+  if (maxScroll > 0) {
+    const th = Math.max(30, viewH * viewH / (rows * rowH)), ty = top + (viewH - th) * (S.albumScroll / maxScroll);
+    ctx.fillStyle = 'rgba(243,231,202,0.18)'; rr(ox + cw - 6, ty, 3, th, 2); ctx.fill();
+  }
+  buttons = []; buttonRow([['back', '← К листу', true], ['albumclear', 'Очистить альбом']]);
+  drawButtons(); drawTopBar(`Альбом · ${S.album.length}`);
+  if (S.albumOpen >= 0 && S.album[S.albumOpen]) {
+    const e = S.album[S.albumOpen];
+    ctx.fillStyle = 'rgba(23,23,19,0.93)'; ctx.fillRect(0, 0, W, H);
+    const k = 6, fs = Math.min((cw - 40 - 5 * 8) / 6, 0.22 * L.ch, 120);
+    const cx = ox + cw / 2, y0 = L.top + 40;
+    ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(`${BASES[e.base] ? BASES[e.base].name : e.base} · ${albumDate(e.at)}${e.sim != null ? ' · совпало на ' + e.sim + ' %' : ''}`, cx, y0 - 12);
+    const x0 = cx - ((k - 1) * (fs + 8)) / 2;
+    for (let i = 0; i < k; i++) { try { drawFaceImg(albumFace(e, fs, pieceV(i)), x0 + i * (fs + 8), y0 + fs / 2, fs); } catch (err) {} }
+    const big = Math.min(0.5 * cw, 0.42 * L.ch, 300);
+    try { drawFaceImg(albumFace(e, big), cx, y0 + fs + 24 + big / 2, big); } catch (err) {}
+    const hl = e.hand && (e.hand.air || e.hand.wobble || e.hand.press !== 1) ? handLabelOf(e.hand) : '';
+    if (hl) { ctx.fillStyle = '#6f6754'; ctx.font = font(12); ctx.textBaseline = 'top'; ctx.fillText(hl, cx, y0 + fs + 24 + big + 12); }
+    buttons = []; buttonRow([['albumopen_load', 'На лист', true], ['albumopen_share', '🔗 Ссылка'], ['albumopen_del', 'Убрать']]);
+    drawButtons();
+    ctx.fillStyle = '#6f6754'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('тап по фону — закрыть', ox + cw / 2, L.rowBtn.y - 14);
+  }
+}
+let albumCells = [];
 
 // ---------------------------------------------------------------- цикл отрисовки
 let rafId = 0, lastNow = 0;
@@ -1120,6 +1238,7 @@ function frame(now) {
     case 'revealed': drawRevealed(); break;
     case 'slicing': drawSlicing(now); animating = S.mode === 'slicing'; break;
     case 'plate': drawPlate(); break;
+    case 'album': drawAlbum(); break;
   }
   if (anim) { animating = true; anim(now); }
   if (particles.length || shakeUntil > now) animating = true;
@@ -1299,13 +1418,20 @@ function action(id) {
     case 'rotate': if (S.mode === 'lay' && S.selPatch) { const p = S.selPatch; p.rot = ((p.rot || 0) + Math.PI / 4) % Math.PI; if (p.rot < 1e-6) delete p.rot; const bb = bounds(p), hu = (bb.u1 - bb.u0) / 2, hv = (bb.v1 - bb.v0) / 2; p.u = clamp(p.u, Math.min(0.5, hu), Math.max(0.5, 1 - hu)); p.v = clamp(p.v, Math.min(0.5, hv), Math.max(0.5, 1 - hv)); touchModel(); sfx.place(); } break;
     case 'remove': if (S.mode === 'lay' && S.selPatch) { const l = patches(), i = l.indexOf(S.selPatch); if (i >= 0) l.splice(i, 1); S.selPatch = null; touchModel(); } break;
     case 'deselect': S.selPatch = null; dirty = true; break;
-    case 'back': S.mode = 'lay'; S.rollP = 0; S.bigPiece = -1; cut = null; slicing = null; if (S.puzzle) S.puzzle.result = null; dirty = true; break;
+    case 'back': S.mode = 'lay'; S.rollP = 0; S.bigPiece = -1; S.albumOpen = -1; cut = null; slicing = null; if (S.puzzle) S.puzzle.result = null; dirty = true; break;
     case 'new': S.lists[S.base] = []; touchModel(); action('back'); break;
     case 'slice': if (S.mode === 'revealed') startSlicing(); break;
     case 'preview': S.preview = !S.preview; save(); layout(); dirty = true; break;
     case 'puzzle': if (S.puzzle) puzzleStop(); else { let st = {}; try { st = JSON.parse(localStorage.getItem('rollery.puzzle') || '{}'); } catch (e) {} puzzleStart(st.level || 0, st.seed || 1); } break;
     case 'newpuzzle': if (S.puzzle) puzzleStart(Math.max(0, S.puzzle.level), S.puzzle.seed + 1); break;
     case 'share': sharePuzzle(); break;
+    case 'albumsave': albumSave(); break;
+    case 'album': if (S.mode === 'album') { S.mode = 'lay'; S.albumOpen = -1; } else { S.albumOpen = -1; S.albumScroll = 0; S.mode = 'album'; } dirty = true; break;
+    case 'albumclear': if (S.album.length) { S.album = []; try { localStorage.setItem('rollery.album', '[]'); } catch (e) {} dirty = true; } break;
+    case 'albumopen_load': albumLoad(S.albumOpen); break;
+    case 'albumopen_share': albumShare(S.albumOpen); break;
+    case 'albumopen_del': albumRemove(S.albumOpen); break;
+    case 'albumopen_close': S.albumOpen = -1; dirty = true; break;
     case 'shape': { const ks = Object.keys(SHAPES); S.shape = ks[(ks.indexOf(S.shape) + 1) % ks.length]; save(); if (S.puzzle && S.puzzle.result) S.puzzle.result = null; dirty = true; break; }
     case 'next': if (S.puzzle && S.puzzle.result && S.puzzle.result.pass) puzzleStart(Math.max(0, S.puzzle.level + 1), S.puzzle.seed + 1); break;
     case 'lvprev': if (S.puzzle && S.puzzle.level > 0) puzzleStart(S.puzzle.level - 1, S.puzzle.seed); else if (S.puzzle && S.puzzle.level < 0) puzzleStart(0, 1); break;
@@ -1347,6 +1473,12 @@ function onDown(x, y, id) {
     }
     return;
   }
+  if (S.mode === 'album') {
+    if (S.albumOpen >= 0) { S.albumOpen = -1; dirty = true; requestFrame(); return; }   // тап по фону закрывает
+    for (const c of albumCells) if (inRect(x, y, c)) { S.albumOpen = c.i; dirty = true; requestFrame(); return; }
+    drag.id = id; drag.kind = 'albumscroll'; drag.y0 = y; drag.s0 = S.albumScroll; drag.moved = false;
+    return;
+  }
   if (S.mode === 'plate') {
     if (S.bigPiece >= 0) { S.bigPiece = -1; dirty = true; requestFrame(); return; }
     for (let i = 0; i < NPIECES; i++) { const g = L.grid[i]; if (Math.hypot(x - g.x, y - g.y) < g.size / 2) { S.bigPiece = i; dirty = true; requestFrame(); return; } }
@@ -1357,6 +1489,9 @@ function onMove(x, y, id) {
   if (drag.kind === 'chips') {
     drag.moved = drag.moved || Math.abs(x - drag.x0) > 6;
     chipScrollX = drag.s0 - (x - drag.x0);
+  } else if (drag.kind === 'albumscroll') {
+    drag.moved = drag.moved || Math.abs(y - drag.y0) > 6;
+    S.albumScroll = drag.s0 - (y - drag.y0);
   } else if (drag.kind === 'roll') {
     const now = performance.now();
     S.rollP = clamp(drag.p0 + (drag.y0 - y) / (L.sheet.h * 0.85));
@@ -1391,6 +1526,7 @@ function measureHand() {
              press: clamp(0.85 + 0.45 * hold, 0.85, 1.3), v: +v.toFixed(2), cv: +cv.toFixed(2), hold: +hold.toFixed(2) };
   touchModel();
 }
+function handLabelOf(h) { const k = S.hand; S.hand = h; const t = handLabel(); S.hand = k; return t; }
 function handLabel() {
   const h = S.hand; if (!h || (h.air === 0 && h.wobble === 0 && h.press === 1)) return '';
   const parts = [h.v > 1.35 ? 'быстрая тяга' : h.v < 0.75 ? 'медленная тяга' : 'ровная тяга'];
