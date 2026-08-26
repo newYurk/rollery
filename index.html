@@ -57,13 +57,21 @@ const BASES = {
   // SUZUMO SVS-FCA, спецификация машины формовки рисового пласта, задаёт обе прямо —
   // small roll 7 мм x 80 мм (хосомаки) и large 12 мм x 160 мм (футомаки). Лист нори 21x19 см (FAO):
   // хосомаки крутят из ПОЛУЛИСТА (10,5 см), футомаки — из целого. Отсюда и разные ⌀, и число витков.
-  hoso: { name: 'Хосомаки', emoji: '🍣', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+  hoso: { name: 'Хосомаки', emoji: '🍣', kind: 'savoury', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
     T: 1.4, w: 0.02, sheetCm: 10.5, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuckMin: 3, Wv: 38,
     ingredients: ['cucumber', 'salmon', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
-  futo: { name: 'Футомаки', emoji: '🍥', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+  futo: { name: 'Футомаки', emoji: '🍥', kind: 'savoury', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
     T: 2.4, w: 0.02, sheetCm: 21, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuckMin: 6, Wv: 38,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
-  cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
+  // УРАМАКИ — третий несладкий тип. ⚠ ЕГО ГЛАВНОЕ СВОЙСТВО ПОКА НЕ СМОДЕЛИРОВАНО:
+  // у урамаки нори ВНУТРИ, а рис СНАРУЖИ, то есть обёртка не внешний слой намотки.
+  // Модель умеет только «обёртка снаружи», поэтому сейчас урамаки считается как футомаки
+  // из полулиста. Правила ему прописываются отдельно — см. docs/ideas.md, раздел «Урамаки».
+  // Числа ниже НЕ ПОДТВЕРЖДЕНЫ источником, это заглушка: рис на весь лист, ролл ⌀ ~4 см.
+  ura:  { name: 'Урамаки', emoji: '🌀', kind: 'savoury', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+    T: 2.0, w: 0.02, sheetCm: 10.5, spreadEnd: 1.0, kappa: 0.85, beta: 0.55, tuckMin: 4, Wv: 38, inverted: true,
+    ingredients: ['salmon', 'cucumber', 'avocado', 'shrimp', 'tamago', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
+  cake:  { name: 'Рулет', emoji: '🍰', kind: 'sweet', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
     T: 1.0, w: 1.7, turns: 2.5, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,
     ingredients: ['strawberry', 'kiwi', 'banana', 'mango', 'choco', 'jam', 'nut', 'pinkcream'] },
 };
@@ -133,7 +141,7 @@ for (const k in BASES) { BASES[k].wrapperRgb = hexRgb(BASES[k].wrapper); BASES[k
 const S = {
   mode: 'lay',                 // lay | rolled | cut | revealed | slicing | plate
   base: 'hoso',
-  lists: { hoso: [], futo: [], cake: [] },
+  lists: { hoso: [], futo: [], ura: [], cake: [] },
   sel: 'salmon',
   preview: false,
   mute: false,
