@@ -1,0 +1,100 @@
+# Научная база: на что опираемся в модели скрутки
+
+**26.08.2026.** Литература, найденная и проверенная агентами под конкретные вопросы проекта: почему обёртка складывается «гармошкой», откуда берётся воздух между витками, насколько сжимается рис, как укладывается ядро и как всё это калибровать.
+
+**Правило файла: DOI без проверки не добавляем.** Каждая ссылка открывалась через `doi.org` и сверялась по названию и авторам. Позиции, где DOI не подтверждён или его нет, помечены ⚠️ и вынесены в конец.
+
+Всего позиций: 28, из них с проверенным DOI: 25.
+
+
+## Прямо сейчас полезно
+
+**Geometry and Physics of Wrinkling** — Enrique Cerda, L. Mahadevan, 2003, *Physical Review Letters, 90(7), 074302*.  
+[10.1103/PhysRevLett.90.074302](https://doi.org/10.1103/PhysRevLett.90.074302)  
+**Гармошка обёртки.** Даёт критерий: длина волны складки определяется отношением изгибной жёсткости к натяжению. Прямо отвечает на вопрос, почему лента из двух рядов частиц теряет устойчивость, и даёт порог для метрики «складок ≤ 1» — в `sim/KINEMATICS.md`.
+
+**Corrugation and Buckling Defects in Wound Rolls** — P. M. Lin, J. A. Wickert, 2006, *Journal of Manufacturing Science and Engineering (ASME), 128(1), 56–64*.  
+[10.1115/1.2113068](https://doi.org/10.1115/1.2113068)  
+**Складки в намотанном рулоне.** Тот же дефект в инженерной постановке: гофр и потеря устойчивости витков. Показывает, что складки — не только численный артефакт, но и реальный дефект намотки; помогает отличить одно от другого.
+
+**A material point method for thin shells with frictional contact** — Qi Guo, Xuchen Han, Chuyuan Fu, Theodore Gast, Rasmus Tamstorf, Joseph Teran, 2018, *ACM Transactions on Graphics (SIGGRAPH 2018), 37(4), art. 147*.  
+[10.1145/3197517.3201346](https://doi.org/10.1145/3197517.3201346)  
+**Как лечат тонкие оболочки в MPM.** Метод для оболочек с фрикционным контактом — рецепт для нашей нори: изгибная жёсткость и контакт без залипания. Кандидат в исправление «гармошки».
+
+**Anisotropic elastoplasticity for cloth, knit and hair frictional contact** — Chenfanfu Jiang, Theodore Gast, Joseph Teran, 2017, *ACM Transactions on Graphics (SIGGRAPH 2017), 36(4), art. 152*.  
+[10.1145/3072959.3073623](https://doi.org/10.1145/3072959.3073623)  
+**Анизотропная упругопластичность для ткани и волос в MPM.** Отсюда приём раздельного контакта — чтобы нори скользила по рису, а не прилипала.
+
+**Air Entrainment During Steady-State Web Winding** — M. B. Keshavan, J. A. Wickert, 1997, *Journal of Applied Mechanics (ASME), 64(4), 916–922*.  
+[10.1115/1.2788999](https://doi.org/10.1115/1.2788999)  
+**Захват воздуха при намотке.** Прямо про наш эффект «быстрая тяга → рыхлее»: скорость намотки увлекает воздушный слой между витками. Обоснование для параметра `air` в почерке — в `docs/geometry-audit.md`.
+
+**Modeling the influence of web thickness and length imperfections resulting from manufacturing processes on wound roll stresses** — C. Mollamahmutoglu, J. K. Good, 2015, *CIRP Journal of Manufacturing Science and Technology, 8, 22–33*.  
+[10.1016/j.cirpj.2014.10.004](https://doi.org/10.1016/j.cirpj.2014.10.004)  
+**Неравномерная толщина полосы.** Как локальное утолщение (у нас — начинка) искажает форму рулона и напряжения. Опора для профиля толщины и сглаживания бугра.
+
+**New insights into cooked rice quality by measuring modulus, adhesion and cohesion at the level of an individual rice grain** — L. Yu, T. Witt, M. Rincon Bonilla, M. S. Turner, M. Fitzgerald, J. R. Stokes, 2019, *Journal of Food Engineering, 240, 21-28*.  
+[10.1016/j.jfoodeng.2018.07.010](https://doi.org/10.1016/j.jfoodeng.2018.07.010)  
+**Модуль варёного риса.** Редкая работа с измеренными механическими свойствами именно варёного риса — то, чего, как мы и опасались, почти нет. Источник чисел для κ вместо догадки.
+
+**Bending Response of a Book with Internal Friction** — Samuel Poincloux, Tian Chen, Basile Audoly, Pedro M. Reis, 2021, *Physical Review Letters, 126(21), 218004*.  
+[10.1103/PhysRevLett.126.218004](https://doi.org/10.1103/PhysRevLett.126.218004)  
+**Изгиб книги с внутренним трением.** Пачка листов, скользящих друг по другу, — модель нашего ролла: жёсткость на изгиб растёт нелинейно из-за трения между витками.
+
+
+## Механика намотки рулонов
+
+| Работа | Авторы | Год | DOI | Чем полезна |
+|---|---|---|---|---|
+| Modeling the influence of web thickness and length imperfections resulting from manufacturing processes on wound roll stresses | C. Mollamahmutoglu, J. K. Good | 2015 | [10.1016/j.cirpj.2014.10.004](https://doi.org/10.1016/j.cirpj.2014.10.004) | Прямо наша задача о переменной толщине: малые неоднородности толщины и длины полосы дают большой разброс остаточных напряжений и неровный шаг витков. Это то, что у нас делает начинка, которая толще намазки и вытесняет её. Аксисимметричная нелинейная модель — годится как эталон для быстрой модели. |
+| Optimization of winding conditions considering web thickness variation in width direction and experimental verification | Hiromu Hashimoto, Yuta Sunami | 2015 | [10.1299/mej.15-00342](https://doi.org/10.1299/mej.15-00342) | Gauge bands — поперечная неравномерность толщины: как подобрать натяжение и прижим, чтобы полоса с «горбом» не поехала. Плюс экспериментальная проверка расчёта, то есть готовый шаблон для нашей калибровки (замер → подгонка параметров быстрой модели). |
+| Effect of taper tension profile on the telescoping in a winding process of high speed roll to roll printing systems | Changwoo Lee, Hyunkyoo Kang, Hojoon Kim, Keehyun Shin | 2009 | [10.1007/s12206-009-0906-2](https://doi.org/10.1007/s12206-009-0906-2) | Telescoping — осевой съезд витков вбок, наш дефект «ролл выехал» при неровной или несимметричной тяге циновки. Профиль убывающего (taper) натяжения по мере роста радиуса — прямой аналог нашего beta(t): как прижим должен слабеть к концу скрутки. |
+| Winding: Machines, Mechanics and Measurements | James K. Good, David R. Roisum | 2008 | [ссылка](https://books.google.com/books/about/Winding.html?id=mg0Sdg8dCJwC) | Справочник по механике намотки: модели рулона, дефекты (telescoping, starring, гофр), измерения плотности и натяжения. Наш опорный учебник для терминологии и порядков величин. DOI нет (книга); выходные данные подтверждены по Google Books и ISBN 9781932078695. |
+| Corrugation and Buckling Defects in Wound Rolls | P. M. Lin, J. A. Wickert | 2006 | [10.1115/1.2113068](https://doi.org/10.1115/1.2113068) | Ключевая позиция под нашу СВЕЖУЮ ПРОБЛЕМУ «гармошки»: критерий потери устойчивости слоя внутри рулона (starring / corrugation, а также v-buckling с обрушением сердечника) через отношение окружной жёсткости к радиальной податливости, с экспериментальной проверкой. Даёт понимание, при какой изгибной жёсткости нори лента складывается вместо гладкого изгиба — то есть где у нас физика, а где численный артефакт MPM. |
+| Review: Winding and Unwinding Webs: A Review of the State of the Science in 2005 | J. K. Good | 2005 | [10.15376/frc.2005.1.307](https://doi.org/10.15376/frc.2005.1.307) | Обзор на ~100 страниц, покрывающий всю область одним источником: модели напряжений в рулоне, контакт и трение между витками, захват воздуха, дефекты, методы измерения. Полный текст открыт (PDF на bioresources). Удобно ссылаться вместо десятка отдельных статей и брать оттуда порядки величин для калибровки. |
+| Air Entrainment During Steady-State Web Winding | M. B. Keshavan, J. A. Wickert | 1997 | [10.1115/1.2788999](https://doi.org/10.1115/1.2788999) | Наш «воздух между витками при быстрой тяге»: измерение толщины захваченной воздушной плёнки прямо во время намотки и параметрические зависимости от скорости, натяжения, ширины и шероховатости. Даёт физически обоснованный вид штрафа за скорость скрутки (рыхлый ролл при быстром движении циновки). |
+| A Nonlinear Wound Roll Model Allowing for Large Deformation | R. C. Benson | 1995 | [10.1115/1.2896011](https://doi.org/10.1115/1.2896011) | Модель рулона при больших деформациях. У нас ролл маленький (3–5 витков), толщина слоя сравнима с радиусом ядра — малодеформационные формулы Альтманна/Хакиеля тут врут. Ближайшая по геометрии работа к нашей скрутке и к «ядру как области, а не точке». |
+| Nonlinear model for wound roll stresses | Z. Hakiel | 1987 | [ссылка](https://pascal-francis.inist.fr/vibad/index.php?action=getRecordDetail&idt=8331948) | Радиальный модуль как функция давления, Er(σr) — это ровно наша сжимаемость kappa: рис и намазка уплотняются под прижимом циновки, и шаг витков зависит от накопленного давления. Каркас для калибровки kappa по MPM-референсу. DOI нет (TAPPI Journal 1987); выходные данные подтверждены по записи PASCAL/INIST (70(5):113–117, Eastman Kodak). |
+| Formulas for computing the stresses in center-wound rolls | H. C. Altmann | 1968 | [ссылка](https://jglobal.jst.go.jp/en/detail?JGLOBAL_ID=201602009124072128) | Базовая линейно-упругая ортотропная модель «виток за витком»: заданное натяжение подмотки → инкрементальный прирост радиального давления в рулоне. Это прямой прототип нашей быстрой (не-MPM) модели скрутки — форма уравнения, в которую мы подставим переменную толщину листа. DOI нет (TAPPI Journal 1968 не депонирован в Crossref); выходные данные подтверждены по записи J-GLOBAL (51(4):176–179). |
+
+
+## Симуляция: MPM, оболочки, пластичность
+
+| Работа | Авторы | Год | DOI | Чем полезна |
+|---|---|---|---|---|
+| XPBI: Position-Based Dynamics with Smoothing Kernels Handles Continuum Inelasticity | Chang Yu, Xuan Li, Lei Lan, Yin Yang, Chenfanfu Jiang | 2024 | [10.1145/3680528.3687577](https://doi.org/10.1145/3680528.3687577) | Мост между «медленной правдой» и «быстрым стендом»: континуальная пластичность (von Mises, Drucker–Prager, Cam-Clay) внутри XPBD-решателя с SPH-ядрами, без фоновой сетки. Именно та архитектура, к которой мы калибруем быструю модель по MLS-MPM-референсу; заодно уточнённые выходные данные для нашей ссылки «XPBI 2024». |
+| A Hybrid Material Point Method for Frictional Contact with Diverse Materials | Xuchen Han, Theodore F. Gast, Qi Guo, Stephanie Wang, Chenfanfu Jiang, Joseph Teran | 2019 | [10.1145/3340258](https://doi.org/10.1145/3340258) | Гибридный (двухсеточный/многополевой) контакт: разные материалы получают собственные поля скоростей, а между ними явно решается кулоновское трение с возможностью разделения. Это наш случай проскальзывания рис↔нори↔циновка: без него намотка «сваривается» в один кусок и шаг витка получается неверным. |
+| A moving least squares material point method with displacement discontinuity and two-way rigid body coupling | Yuanming Hu, Yu Fang, Ziheng Ge, Ziyin Qu, Yixin Zhu, Andre Pradhana, Chenfanfu Jiang | 2018 | [10.1145/3197517.3201293](https://doi.org/10.1145/3197517.3201293) | Базовая статья нашего солвера: gstaichi считает именно MLS-MPM (APIC + MLS-передача, вычислительно дешевле стандартного MPM). Механизм CPIC (compatible particle-in-cell) даёт разрыв поля скоростей вдоль тонкой поверхности — то, что нужно, чтобы нори скользила по рису и по циновке, а не слипалась с ними на сетке. |
+| A material point method for thin shells with frictional contact | Qi Guo, Xuchen Han, Chuyuan Fu, Theodore Gast, Rasmus Tamstorf, Joseph Teran | 2018 | [10.1145/3197517.3201346](https://doi.org/10.1145/3197517.3201346) | Главный ответ на «гармошку»: оболочка держится лагранжевыми subdivision-элементами с явной изгибной энергией (Kirchhoff–Love), а сетка MPM используется только для контакта и трения. Именно так задают изгибную жёсткость нори в частичном методе, вместо того чтобы надеяться на мембрану из частиц. |
+| Anisotropic elastoplasticity for cloth, knit and hair frictional contact | Chenfanfu Jiang, Theodore Gast, Joseph Teran | 2017 | [10.1145/3072959.3073623](https://doi.org/10.1145/3072959.3073623) | Континуальная модель ткани в MPM: анизотропная упругость вдоль полотна + пластичность на сдвиг, дающая сухое трение между слоями. Прямо описывает нашу нори (почти нерастяжима в плоскости, свободно сдвигается) и трение о циновку; одновременно это источник «гармошки» — изгибной жёсткости в модели нет, поэтому её надо добавлять отдельно (см. Guo 2018). |
+| The material point method for simulating continuum materials | Chenfanfu Jiang, Craig Schroeder, Joseph Teran, Alexey Stomakhin, Andrew Selle | 2016 | [10.1145/2897826.2927348](https://doi.org/10.1145/2897826.2927348) | Единственный связный обзор-учебник по MPM для графики: передачи PIC/FLIP/APIC, устойчивость, шаг по времени, возврат-отображения пластичности, типичные артефакты. Держим как справочник при разборе «гармошки» и при переносе моделей риса/нори в gstaichi — экономит перечитывание десятка статей. |
+| Continuum Foam: A Material Point Method for Shear-Dependent Flows | Yonghao Yue, Breannan Smith, Christopher Batty, Changxi Zheng, Eitan Grinspun | 2015 | [10.1145/2751541](https://doi.org/10.1145/2751541) | Herschel–Bulkley (предел текучести + степенная вязкость) внутри MPM, с процедурой подгонки параметров по реальному реометру. Это второй кандидат на модель варёного риса как вязкопластичной массы, и главное — здесь описан сам путь калибровки: измерение → параметры → сравнение с симуляцией. |
+| A material point method for snow simulation | Alexey Stomakhin, Craig Schroeder, Lawrence Chai, Joseph Teran, Andrew Selle | 2013 | [10.1145/2461912.2461948](https://doi.org/10.1145/2461912.2461948) | Канонический рецепт сжимаемой пластичной массы в MPM: мультипликативная упругопластика с порогами сжатия/растяжения и упрочнением при уплотнении. Это готовая форма для нашей kappa (рис под циновкой уплотняется и перестаёт течь) и для плотного ядра у ближнего края — ядро выходит как область уплотнения, а не точка. |
+| Geometry and Physics of Wrinkling | Enrique Cerda, L. Mahadevan | 2003 | [10.1103/PhysRevLett.90.074302](https://doi.org/10.1103/PhysRevLett.90.074302) | Даёт закон длины волны морщин тонкого листа: lambda ~ (B/K)^(1/4), где B — изгибная жёсткость, K — жёсткость поддерживающей среды. Это наш критерий для «гармошки»: если период складок масштабируется по этому закону — складки физичны, если он равен шагу сетки и не зависит от B — это численная неустойчивость, и лечить надо жёсткость/дискретизацию. |
+
+
+## Складки, изгиб и материалы
+
+| Работа | Авторы | Год | DOI | Чем полезна |
+|---|---|---|---|---|
+| Multilayer Shells Interacting Through Friction | Mert D. Alaydin, Yuri Bazilevs | 2023 | [10.1115/1.4062139](https://doi.org/10.1115/1.4062139) | Изгиб пакета тонких оболочек со скольжением и трением между слоями (демонстрация — трёхточечный изгиб стопки из 40 листов при разных коэффициентах трения). Наш рулон — витки, скользящие друг по другу: отсюда, как межслойное трение переключает намотку между «полное сцепление» (жёсткая) и «полное проскальзывание» (мягкая), что задаёт шаг витков и устойчивость к складкам. |
+| Effect of moisture uptake on the texture of dried laver Porphyra sp. (Nori) studied by mechanical characterization and NMR measurements | Hwabin Jung, Won Byong Yoon, Shingo Matsukawa | 2022 | [10.1016/j.foodhyd.2021.107223](https://doi.org/10.1016/j.foodhyd.2021.107223) | Единственная найденная работа именно про нори как материал: механические испытания листа плюс ЯМР, зависимость жёсткости и хрупкости от набора влаги. Источник модулей оболочки и точки перехода «сухая ломается по сгибу → влажная тянется» — то есть откуда брать B и предел для ленты обёртки. |
+| New insights into cooked rice quality by measuring modulus, adhesion and cohesion at the level of an individual rice grain | L. Yu, T. Witt, M. Rincon Bonilla, M. S. Turner, M. Fitzgerald, J. R. Stokes | 2019 | [10.1016/j.jfoodeng.2018.07.010](https://doi.org/10.1016/j.jfoodeng.2018.07.010) | Модуль, адгезия и когезия отдельного варёного зерна риса — числа на уровне зерна, а не усреднённые TPA-баллы. Прямая калибровка упругой части рисовой массы и липкости, от которой зависит, слипается ли ядро у ближнего края в плотную область и держит ли форму. |
+| Computational modeling of dough sheeting and physical interpretation of the non-linear rheological behavior of wheat flour dough | S. Chakrabarti-Bell, J. S. Bergström, E. Lindskog, T. Sridhar | 2010 | [10.1016/j.jfoodeng.2010.04.010](https://doi.org/10.1016/j.jfoodeng.2010.04.010) | КЭ-модель раскатки теста в лист: нелинейная вязкоупругая модель (модифицированная Bergström–Boyce) плюс валидация по силам на валках и итоговой толщине листа. Методический шаблон для нас — как из реометрии пищевой массы собрать материальную модель и по каким интегральным величинам сверять быструю модель стенда с MPM-референсом. |
+| Stress and Fold Localization in Thin Elastic Membranes | Luka Pocivavsek, Robert Dellsy, Andrew Kern, Sebastián Johnson, Binhua Lin, Ka Yee C. Lee, Enrique Cerda | 2008 | [10.1126/science.1154069](https://doi.org/10.1126/science.1154069) | Переход «гладкие периодические морщины → одиночная локализованная складка» при росте сжатия — буквально наша гармошка. Показывает, что локализация складки закономерна для тонкой плёнки на мягком основании (нори на рисе) и при какой деформации она наступает; калибровочная мишень для сравнения MLS-MPM с физикой. |
+| Stress focusing in elastic sheets | T. A. Witten | 2007 | [10.1103/RevModPhys.79.643](https://doi.org/10.1103/RevModPhys.79.643) | Обзорная база: число Фёппля–фон Кармана (отношение растяжной к изгибной жёсткости), фокусировка напряжений, хребты и d-конусы. Даёт язык, чтобы сформулировать порог «гладкий изгиб против острых складок» и объяснить, почему при B → 0 лист неизбежно уходит в сингулярные сгибы. |
+| Wrinkling of an elastic sheet under tension | E. Cerda, K. Ravi-Chandar, L. Mahadevan | 2002 | [10.1038/419579b](https://doi.org/10.1038/419579b) | Порог и масштаб морщин у листа, растянутого без подложки, — случай нори, натянутой поверх риса при намотке. Позволяет отличить физически ожидаемые поперечные складки от чисто численного артефакта симуляции. |
+| Deformation and fracture of wheat, corn and rice starch gels in lubricated and bonded uniaxial compression | D. D. Christianson, E. M. Casiraghi, E. B. Bagley | 1986 | [10.1016/0144-8617(86)90024-X](https://doi.org/10.1016/0144-8617(86)90024-X) | Одноосное сжатие крахмальных гелей (включая рисовый) в двух режимах — со смазкой и со сцеплением с плитой: модуль Юнга, напряжение и деформация разрушения, влияние температуры приготовления. Источник модулей и предела текучести для намазки/крема и опора для параметра сжимаемости kappa (вытеснение намазки более толстой начинкой). |
+
+
+## Не проверено или DOI нет
+
+- **Formulas for computing the stresses in center-wound rolls** (H. C. Altmann, 1968) — https://jglobal.jst.go.jp/en/detail?JGLOBAL_ID=201602009124072128
+- **Nonlinear model for wound roll stresses** (Z. Hakiel, 1987) — https://pascal-francis.inist.fr/vibad/index.php?action=getRecordDetail&idt=8331948
+- **Winding: Machines, Mechanics and Measurements** (James K. Good, David R. Roisum, 2008) — https://books.google.com/books/about/Winding.html?id=mg0Sdg8dCJwC
+
+## Чего в литературе нет
+
+Работ про **скрутку суши и роллов** не нашлось — ни экспериментальных, ни численных. Ближайшее, что есть: механика намотки бумажных и плёночных рулонов (осесимметрична, отвечает «какое давление в витках», а не «где окажется лосось») и раскатка теста. Ниша пустая.
+
+**Следствие для проекта:** симуляция остаётся посредником со своими неизвестными параметрами, а истиной в последней инстанции — фотографии настоящих срезов с известной раскладкой. Абсолютные числа калибруем по ним; литература даёт формы, зависимости и пороги устойчивости.
