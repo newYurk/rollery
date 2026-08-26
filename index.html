@@ -67,34 +67,43 @@ const BASES = {
 const R0 = 0.25;   // радиус сердцевины
 // Длина листа базы — из номинального числа витков пустого листа (спираль Архимеда с шагом T + w).
 for (const k in BASES) { const b = BASES[k], P0 = b.T + b.w, th = TAU * b.turns; b.L = R0 * th + P0 * th * th / (2 * TAU); }
-// wU — ширина вдоль u, hU — высота; обе в единицах (толщина риса ≈ 5 мм). dv — доля длины ролла. round — круглое сечение.
+// wU — ширина вдоль u, hU — высота; обе в единицах (толщина риса ≈ 5 мм). dv — доля длины ролла.
+//
+// НАРЕЗКА (cut) — главное, что задаёт форму на срезе. Не «как нарисовать красиво», а как повар режет:
+//   'брусок'   — прямоугольное сечение: тамаго, лосось, огурец для каппамаки, сыр
+//   'кружок'   — круглое: креветка, клубника целиком, банан; обычно короткие (dv < 1) — видны не во всех кусочках
+//   'ломтик'   — полумесяц: авокадо, помидор, манго — режут наискось, сечение линзой
+//   'лист'     — очень широкий и тонкий: салат, омлет-лист, нори, ветчина
+//   'паста'    — тонкая линия, в жизни вдавливается в рис: майо, джем, шоколад (см. sim/KINEMATICS.md)
+//   'присыпка' — заполняет поры, своей формы не держит: укроп, цветной рис
+// round и lens — производные от cut, оставлены для быстрой проверки в matAt.
 const ING = {
-  salmon:     { name: 'Лосось',   color: '#ef8a66', wU: 2.0, hU: 1.6, dv: 1.00, tex: 'salmon' },
-  cucumber:   { name: 'Огурец',   color: '#79b55c', wU: 1.4, hU: 1.4, dv: 1.00, tex: 'cucumber', round: true },
-  tamago:     { name: 'Тамаго',   color: '#f3c94f', wU: 2.4, hU: 2.0, dv: 1.00, tex: 'tamago' },
-  avocado:    { name: 'Авокадо',  color: '#a7c455', wU: 2.0, hU: 1.1, dv: 1.00, tex: 'avocado', round: true },
-  shrimp:     { name: 'Креветка', color: '#f4a48c', wU: 2.0, hU: 1.6, dv: 0.30, tex: 'shrimp', round: true },
-  nori:       { name: 'Нори',     color: '#22342b', wU: 2.4, hU: 0.15, dv: 1.00, tex: 'flat' },
-  mayo:       { name: 'Майо',     color: '#f2883f', wU: 0.8, hU: 0.5, dv: 1.00, tex: 'gloss', round: true, wave: { amp: 0.05, freq: 3 } },
-  eggsheet:   { name: 'Омлет', color: '#f6d97a', wU: 10, hU: 0.35, dv: 1.00, tex: 'tamago' },
-  ricePink:   { name: 'Розовый', color: '#f2b3c2', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true },
-  riceYellow: { name: 'Жёлтый', color: '#f0d27a', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true },
-  riceGreen:  { name: 'Зелёный', color: '#b7cf86', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true },
-  riceBlack:  { name: 'Чёрный', color: '#4a4440', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true },
-  cheese:     { name: 'Сыр',      color: '#f2dc8a', wU: 2.2, hU: 1.2, dv: 1.00, tex: 'cheese' },
-  tomato:     { name: 'Помидор',  color: '#e04a3a', wU: 2.6, hU: 1.0, dv: 1.00, tex: 'tomato', round: true },
-  pepper:     { name: 'Перец',    color: '#d8432e', wU: 1.4, hU: 0.9, dv: 1.00, tex: 'pepper', round: true },
-  ham:        { name: 'Ветчина',  color: '#e9a0a8', wU: 3.0, hU: 0.6, dv: 1.00, tex: 'ham' },
-  lettuce:    { name: 'Салат',    color: '#9ccc6a', wU: 8, hU: 0.3, dv: 1.00, tex: 'lettuce' },
-  dill:       { name: 'Укроп',    color: '#8fb86a', wU: 6, hU: 1.0, dv: 1.00, tex: 'dill', paint: true },
-  pinkcream:  { name: 'Роз. крем', color: '#f4a6c0', wU: 10, hU: 0.35, dv: 1.00, tex: 'flat' },
-  strawberry: { name: 'Клубника', color: '#e0364a', wU: 2.6, hU: 2.4, dv: 0.22, tex: 'strawberry', round: true },
-  kiwi:       { name: 'Киви',     color: '#8dbf4c', wU: 3.0, hU: 2.6, dv: 0.20, tex: 'kiwi', round: true },
-  banana:     { name: 'Банан',    color: '#f3e3a0', wU: 2.4, hU: 2.0, dv: 1.00, tex: 'banana', round: true },
-  mango:      { name: 'Манго',    color: '#f6b02f', wU: 2.2, hU: 1.6, dv: 1.00, tex: 'mango', round: true },
-  choco:      { name: 'Шоколад',  color: '#47291b', wU: 0.9, hU: 0.5, dv: 1.00, tex: 'gloss', round: true, wave: { amp: 0.05, freq: 2.5 } },
-  jam:        { name: 'Джем',     color: '#b0203e', wU: 3.5, hU: 0.35, dv: 1.00, tex: 'gloss' },
-  nut:        { name: 'Орех',     color: '#b5793f', wU: 1.2, hU: 1.0, dv: 0.12, tex: 'nut', round: true },
+  salmon:     { name: 'Лосось',   color: '#ef8a66', wU: 2.0, hU: 1.6, dv: 1.00, tex: 'salmon', cut: 'брусок' },
+  cucumber:   { name: 'Огурец',   color: '#79b55c', wU: 1.4, hU: 1.6, dv: 1.00, tex: 'cucumber', cut: 'брусок' },
+  tamago:     { name: 'Тамаго',   color: '#f3c94f', wU: 2.4, hU: 2.0, dv: 1.00, tex: 'tamago', cut: 'брусок' },
+  avocado:    { name: 'Авокадо',  color: '#a7c455', wU: 2.0, hU: 1.1, dv: 1.00, tex: 'avocado', cut: 'ломтик', lens: true },
+  shrimp:     { name: 'Креветка', color: '#f4a48c', wU: 2.0, hU: 1.6, dv: 0.30, tex: 'shrimp', cut: 'кружок', round: true },
+  nori:       { name: 'Нори',     color: '#22342b', wU: 2.4, hU: 0.15, dv: 1.00, tex: 'flat', cut: 'лист' },
+  mayo:       { name: 'Майо',     color: '#f2883f', wU: 0.8, hU: 0.5, dv: 1.00, tex: 'gloss', wave: { amp: 0.05, freq: 3 }, cut: 'паста', round: true },
+  eggsheet:   { name: 'Омлет', color: '#f6d97a', wU: 10, hU: 0.35, dv: 1.00, tex: 'tamago', cut: 'лист' },
+  ricePink:   { name: 'Розовый', color: '#f2b3c2', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true, cut: 'присыпка' },
+  riceYellow: { name: 'Жёлтый', color: '#f0d27a', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true, cut: 'присыпка' },
+  riceGreen:  { name: 'Зелёный', color: '#b7cf86', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true, cut: 'присыпка' },
+  riceBlack:  { name: 'Чёрный', color: '#4a4440', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true, cut: 'присыпка' },
+  cheese:     { name: 'Сыр',      color: '#f2dc8a', wU: 2.2, hU: 1.2, dv: 1.00, tex: 'cheese', cut: 'брусок' },
+  tomato:     { name: 'Помидор',  color: '#e04a3a', wU: 2.6, hU: 1.0, dv: 1.00, tex: 'tomato', cut: 'ломтик', lens: true },
+  pepper:     { name: 'Перец',    color: '#d8432e', wU: 1.4, hU: 0.9, dv: 1.00, tex: 'pepper', cut: 'брусок' },
+  ham:        { name: 'Ветчина',  color: '#e9a0a8', wU: 3.0, hU: 0.6, dv: 1.00, tex: 'ham', cut: 'лист' },
+  lettuce:    { name: 'Салат',    color: '#9ccc6a', wU: 8, hU: 0.3, dv: 1.00, tex: 'lettuce', cut: 'лист' },
+  dill:       { name: 'Укроп',    color: '#8fb86a', wU: 6, hU: 1.0, dv: 1.00, tex: 'dill', paint: true, cut: 'присыпка' },
+  pinkcream:  { name: 'Роз. крем', color: '#f4a6c0', wU: 10, hU: 0.35, dv: 1.00, tex: 'flat', cut: 'лист' },
+  strawberry: { name: 'Клубника', color: '#e0364a', wU: 2.6, hU: 2.4, dv: 0.22, tex: 'strawberry', cut: 'кружок', round: true },
+  kiwi:       { name: 'Киви',     color: '#8dbf4c', wU: 3.0, hU: 2.6, dv: 0.20, tex: 'kiwi', cut: 'кружок', round: true },
+  banana:     { name: 'Банан',    color: '#f3e3a0', wU: 2.4, hU: 2.0, dv: 1.00, tex: 'banana', cut: 'кружок', round: true },
+  mango:      { name: 'Манго',    color: '#f6b02f', wU: 2.2, hU: 1.6, dv: 1.00, tex: 'mango', cut: 'ломтик', lens: true },
+  choco:      { name: 'Шоколад',  color: '#47291b', wU: 0.9, hU: 0.5, dv: 1.00, tex: 'gloss', wave: { amp: 0.05, freq: 2.5 }, cut: 'паста', round: true },
+  jam:        { name: 'Джем',     color: '#b0203e', wU: 3.5, hU: 0.35, dv: 1.00, tex: 'gloss', cut: 'паста' },
+  nut:        { name: 'Орех',     color: '#b5793f', wU: 1.2, hU: 1.0, dv: 0.12, tex: 'nut', cut: 'кружок', round: true },
 };
 for (const k in ING) ING[k].rgb = hexRgb(ING[k].color);
 for (const k in BASES) { BASES[k].wrapperRgb = hexRgb(BASES[k].wrapper); BASES[k].spreadRgb = hexRgb(BASES[k].spread); }
@@ -217,6 +226,8 @@ function matAt(u, v, z, list) {
     const lu = across / rg[3];
     const lz = d.paint ? 0.5 : (z - p.z0) / (p.z1 - p.z0);
     if (d.round) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue; }
+    else if (d.lens) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue;
+      const c = (a + 0.55) / 1.35, e = (b2 + 0.15) / 1.15; if (c * c + e * e < 0.62) continue; }   // ломтик: полумесяц
     return { p, d, lu, lz, lv: along / rg[4] };
   }
   return null;
@@ -333,7 +344,7 @@ function computeCore(list, g) {
     if (d.paint) { y0 = W + (far ? 0 : core.HB); y1 = W + (far ? core.HB : core.HB + core.HA); }
     else if (far) { y0 = W + p.z0 * T; y1 = W + p.z1 * T; }
     else { y0 = W + core.HB + core.HA - p.z1 * T; y1 = W + core.HB + core.HA - p.z0 * T; }
-    core.items.push({ p, d, y0, y1, far, paint: !!d.paint, round: !!d.round });
+    core.items.push({ p, d, y0, y1, far, paint: !!d.paint, round: !!d.round, lens: !!d.lens });
   }
   // Нори — один непрерывный лист. Внутри ядра он идёт тремя участками: по верху постели (подвёрнутый
   // ближний край — «крючок»), вокруг сгиба и обратно по низу постели, откуда уходит в намотку.
@@ -368,6 +379,8 @@ function coreMaterial(m, r, phi, vSlice) {
     let lu = across / rg[3], lz = (y - it.y0) / (it.y1 - it.y0);
     if (!it.far) { lz = 1 - lz; }
     if (it.round) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue; }
+    else if (it.d.lens) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue;
+      const c = (a + 0.55) / 1.35, e = (b2 + 0.15) / 1.15; if (c * c + e * e < 0.62) continue; }
     return { cls: 'patch', mt: { p: it.p, d: it.d, lu, lz, lv: along / rg[4] } };
   }
   return { cls: 'core' };
@@ -790,7 +803,7 @@ function getSpreadTex(w, h) {
 // Фигура патча в экранных координатах: x, y — верхний левый угол; w — вдоль v, h — вдоль u.
 function drawPatchShape(d, x, y, w, h, flat) {
   const c = d.color, rgb = d.rgb;
-  const r = d.round ? h / 2 : 3;
+  const r = d.round ? h / 2 : d.lens ? h / 2.5 : 3;
   if (d.round) {
     const g = ctx.createLinearGradient(0, y, 0, y + h);
     g.addColorStop(0, rgbCss(shade(rgb, 0.75))); g.addColorStop(0.35, rgbCss(mix(rgb, [255, 255, 255], 0.25))); g.addColorStop(0.7, c); g.addColorStop(1, rgbCss(shade(rgb, 0.6)));
