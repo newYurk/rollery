@@ -1102,9 +1102,10 @@ function genTarget(lv, seed) {
   for (let i = 0; i < (lv.paint || 0) && paints.length; i++) kinds.push(paints[Math.floor(rnd() * paints.length)]);
   while (kinds.length < lv.n) kinds.push(full[Math.floor(rnd() * full.length)]);
   const items = kinds.map(kind => ({ kind, half: ING[kind].wU / L / 2 + 0.012 }));
+  const uMax = b.oneTurn ? 0.40 : 0.92;   // суши: только то, что точно намотается до замыкания (ядро + первый оборот)
   let us = null;
   for (let tries = 0; tries < 80 && !us; tries++) {
-    const cand = items.map(it => it.half + rnd() * (0.92 - 2 * it.half));
+    const cand = items.map(it => it.half + rnd() * (uMax - 2 * it.half));
     const order = cand.map((u, i) => i).sort((a, c) => cand[a] - cand[c]); let ok = true;
     for (let j = 1; j < order.length; j++) { const a = order[j - 1], c = order[j]; if (cand[c] - cand[a] < items[a].half + items[c].half) { ok = false; break; } }
     if (ok) us = cand;
