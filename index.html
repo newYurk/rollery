@@ -57,7 +57,7 @@ const BASES = {
     T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 1.0, beta: 0.55, oneTurn: true, flap: 0, tuckMin: 5, Wv: 38,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
-    T: 0.8, w: 0.42, turns: 2.7, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,
+    T: 1.0, w: 1.7, turns: 2.5, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,
     ingredients: ['strawberry', 'kiwi', 'banana', 'mango', 'choco', 'jam', 'nut', 'pinkcream'] },
   // Лаваш-ролл: тонкая обёртка спиралью в 4–5 оборотов — у него нори-подобная линия внутри настоящая
   lavash: { name: 'Лаваш-ролл', emoji: '🌯', wrapper: '#dcbf87', spread: '#f7f1e6', mat: '#b98f5a', matLine: '#a67c48',
@@ -97,10 +97,15 @@ const ING = {
   lettuce:    { name: 'Салат',    color: '#9ccc6a', wU: 8, hU: 0.3, dv: 1.00, tex: 'lettuce', cut: 'лист' },
   dill:       { name: 'Укроп',    color: '#8fb86a', wU: 6, hU: 1.0, dv: 1.00, tex: 'dill', paint: true, cut: 'присыпка' },
   pinkcream:  { name: 'Роз. крем', color: '#f4a6c0', wU: 10, hU: 0.35, dv: 1.00, tex: 'flat', cut: 'лист' },
-  strawberry: { name: 'Клубника', color: '#e0364a', wU: 2.6, hU: 2.4, dv: 0.22, tex: 'strawberry', cut: 'кружок', round: true },
-  kiwi:       { name: 'Киви',     color: '#8dbf4c', wU: 3.0, hU: 2.6, dv: 0.20, tex: 'kiwi', cut: 'кружок', round: true },
-  banana:     { name: 'Банан',    color: '#f3e3a0', wU: 2.4, hU: 2.0, dv: 1.00, tex: 'banana', cut: 'кружок', round: true },
-  mango:      { name: 'Манго',    color: '#f6b02f', wU: 2.2, hU: 1.6, dv: 1.00, tex: 'mango', cut: 'ломтик', lens: true },
+  // Ягода целиком, лежит в ряд вдоль ролла: ⌀ 27 мм, высота 35 мм — срез видит её тело, но не в каждом кусочке.
+  strawberry: { name: 'Клубника', color: '#e0364a', wU: 5.4, hU: 7.0, dv: 0.135, tex: 'strawberry', cut: 'кружок', round: true },
+  // Киви режут кружками и кладут ПЛАШМЯ: срез проходит поперёк ломтика и видит его РЕБРОМ —
+  // зелёную полосу со светлой сердцевиной, а не лицо с семечками. Лицо появилось бы, только если
+  // поставить ломтик на ребро (вариант «стоймя» — кандидат в выбор нарезки, см. docs/ideas.md).
+  kiwi:       { name: 'Киви',     color: '#8dbf4c', wU: 9.0, hU: 1.2, dv: 0.225, tex: 'kiwiEdge', cut: 'ломтик' },
+  // Банан кладут целым вдоль всего ролла: ⌀ 32 мм, круглое сечение в каждом кусочке.
+  banana:     { name: 'Банан',    color: '#f3e3a0', wU: 6.4, hU: 6.4, dv: 1.00, tex: 'banana', cut: 'кружок', round: true },
+  mango:      { name: 'Манго',    color: '#f6b02f', wU: 8.0, hU: 1.6, dv: 1.00, tex: 'mango', cut: 'ломтик', lens: true },
   choco:      { name: 'Шоколад',  color: '#47291b', wU: 0.9, hU: 0.5, dv: 1.00, tex: 'gloss', wave: { amp: 0.05, freq: 2.5 }, cut: 'паста', round: true },
   jam:        { name: 'Джем',     color: '#b0203e', wU: 3.5, hU: 0.35, dv: 1.00, tex: 'gloss', cut: 'паста' },
   nut:        { name: 'Орех',     color: '#b5793f', wU: 1.2, hU: 1.0, dv: 0.12, tex: 'nut', cut: 'кружок', round: true },
@@ -459,7 +464,13 @@ function patchColor(m, px, py) {
     case 'gloss': return mix(c, [255, 255, 255], lz > 0.72 ? 0.25 : 0);
     case 'strawberry': { if (dd > 0.5 && hash(px, py) > 0.92) return [248, 230, 120]; return mix([255, 236, 236], c, smooth(0.15, 0.75, dd)); }
     case 'kiwi': { if (dd > 0.92) return [110, 90, 60]; if (dd > 0.38 && dd < 0.56 && hash(px, py) > 0.85) return [30, 25, 20]; return mix([236, 240, 190], c, smooth(0.1, 0.7, dd)); }
-    case 'banana': { if (dd < 0.25 && hash(px, py) > 0.9) return [150, 120, 80]; return mix([250, 240, 200], c, dd); }
+    // ребро ломтика киви: тёмная кожица по краям, светлая сердцевина посередине, редкие семечки
+    case 'kiwiEdge': { if (Math.abs(lu) > 0.44) return [120, 100, 62]; const core = 1 - Math.min(1, Math.abs(lu) * 3.2);
+      if (core > 0.55 && hash(px, py) > 0.93) return [244, 246, 214];
+      return mix(c, [232, 240, 186], core * 0.75); }
+    case 'banana': { if (dd > 0.9) return [226, 208, 140];                       // тонкая шкурка-кромка
+      const seeds = dd < 0.3 && hash(px >> 1, py >> 1) > 0.86;
+      return seeds ? [148, 120, 78] : mix([252, 244, 208], c, smooth(0.1, 0.95, dd)); }
     case 'mango': return mix(c, [255, 214, 120], fract(lu * 4 + lz) < 0.2 ? 0.25 : 0);
     case 'nut': return mix([220, 180, 120], c, dd);
     case 'cheese': { if (hash(px >> 1, py >> 1) > 0.93) return [236, 214, 130]; return mix(c, [255, 240, 170], lz > 0.75 ? 0.2 : 0); }

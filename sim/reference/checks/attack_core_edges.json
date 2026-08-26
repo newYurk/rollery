@@ -1,0 +1,190 @@
+{
+ "1": {
+  "layout": 1,
+  "Rout_med": 3.423,
+  "Rcore_med": 2.22,
+  "core_area_T2": 16.78,
+  "core_void_frac": 0.145,
+  "ends": {
+   "near": {
+    "r": 2.027,
+    "phi": 236.3,
+    "R_contour_local": 3.465,
+    "R_core_local": 1.914,
+    "frac_of_contour": 0.585,
+    "inside_core": false
+   },
+   "far": {
+    "r": 3.537,
+    "phi": 197.5,
+    "R_contour_local": 3.59,
+    "R_core_local": 3.097,
+    "frac_of_contour": 0.985,
+    "inside_core": false
+   },
+   "r_min_along_sheet": 1.348,
+   "s_of_r_min_frac": 0.152,
+   "near_is_innermost": false
+  },
+  "fillings": [],
+  "order_final_by_x": [],
+  "order_initial_by_x": [],
+  "order_preserved": null,
+  "core_spread_T": 0.0,
+  "core_spread_over_Rout": 0.0,
+  "ref_core_order_left_to_right": []
+ },
+ "2": {
+  "layout": 2,
+  "Rout_med": 3.628,
+  "Rcore_med": 2.994,
+  "core_area_T2": 25.78,
+  "core_void_frac": 0.134,
+  "ends": {
+   "near": {
+    "r": 2.53,
+    "phi": 347.1,
+    "R_contour_local": 3.6,
+    "R_core_local": 1.856,
+    "frac_of_contour": 0.703,
+    "inside_core": false
+   },
+   "far": {
+    "r": 4.325,
+    "phi": 185.7,
+    "R_contour_local": 4.205,
+    "R_core_local": 3.735,
+    "frac_of_contour": 1.028,
+    "inside_core": false
+   },
+   "r_min_along_sheet": 1.809,
+   "s_of_r_min_frac": 0.241,
+   "near_is_innermost": false
+  },
+  "fillings": [
+   {
+    "kind": "tamago",
+    "x": 39.966,
+    "y": 2.473,
+    "r": 1.453,
+    "phi_deg": 238.6,
+    "r_over_Rout_med": 0.4,
+    "R_core_local": 3.409,
+    "R_contour_local": 3.655,
+    "centroid_inside_core": true,
+    "frac_particles_inside_core": 1.0
+   }
+  ],
+  "order_final_by_x": [
+   "tamago"
+  ],
+  "order_initial_by_x": [
+   "tamago"
+  ],
+  "order_preserved": true,
+  "core_spread_T": 0.0,
+  "core_spread_over_Rout": 0.0,
+  "ref_core_order_left_to_right": [
+   "tamago"
+  ]
+ },
+ "4": {
+  "layout": 4,
+  "Rout_med": 4.008,
+  "Rcore_med": 3.587,
+  "core_area_T2": 37.793,
+  "core_void_frac": 0.195,
+  "ends": {
+   "near": {
+    "r": 3.559,
+    "phi": 184.3,
+    "R_contour_local": 4.135,
+    "R_core_local": 3.559,
+    "frac_of_contour": 0.861,
+    "inside_core": true
+   },
+   "far": {
+    "r": 4.075,
+    "phi": 202.2,
+    "R_contour_local": 4.135,
+    "R_core_local": 2.763,
+    "frac_of_contour": 0.985,
+    "inside_core": false
+   },
+   "r_min_along_sheet": 2.311,
+   "s_of_r_min_frac": 0.452,
+   "near_is_innermost": false
+  },
+  "fillings": [
+   {
+    "kind": "salmon",
+    "x": 40.406,
+    "y": 3.509,
+    "r": 0.958,
+    "phi_deg": 212.2,
+    "r_over_Rout_med": 0.239,
+    "R_core_local": 2.979,
+    "R_contour_local": 4.025,
+    "centroid_inside_core": true,
+    "frac_particles_inside_core": 1.0
+   },
+   {
+    "kind": "cucumber",
+    "x": 38.92,
+    "y": 6.593,
+    "r": 3.449,
+    "phi_deg": 131.7,
+    "r_over_Rout_med": 0.861,
+    "R_core_local": 4.413,
+    "R_contour_local": 4.33,
+    "centroid_inside_core": true,
+    "frac_particles_inside_core": 1.0
+   },
+   {
+    "kind": "tamago",
+    "x": 40.611,
+    "y": 5.344,
+    "r": 1.457,
+    "phi_deg": 114.5,
+    "r_over_Rout_med": 0.363,
+    "R_core_local": 3.725,
+    "R_contour_local": 3.925,
+    "centroid_inside_core": true,
+    "frac_particles_inside_core": 1.0
+   },
+   {
+    "kind": "avocado",
+    "x": 42.524,
+    "y": 4.407,
+    "r": 1.364,
+    "phi_deg": 16.5,
+    "r_over_Rout_med": 0.34,
+    "R_core_local": 4.167,
+    "R_contour_local": 4.24,
+    "centroid_inside_core": true,
+    "frac_particles_inside_core": 1.0
+   }
+  ],
+  "order_final_by_x": [
+   "cucumber",
+   "salmon",
+   "tamago",
+   "avocado"
+  ],
+  "order_initial_by_x": [
+   "cucumber",
+   "tamago",
+   "salmon",
+   "avocado"
+  ],
+  "order_preserved": false,
+  "core_spread_T": 4.215,
+  "core_spread_over_Rout": 1.052,
+  "ref_core_order_left_to_right": [
+   "cucumber",
+   "salmon",
+   "tamago",
+   "avocado"
+  ]
+ }
+}
