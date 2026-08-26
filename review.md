@@ -1,0 +1,722 @@
+## Ревью кода «Ролльня»: логические ошибки и оптимизации
+
+### 1. Логические ошибки (проверены в первую очередь)
+
+#### 1.1. Появление начинки в пустом центре для рулета (без ядра)
+В функции `materialAt` для случая `r < coreR` и **отсутствия ядра** (`m.core === null`, например, для рулета) выполняется поиск материала в начале листа:
+
+```js
+if (r < coreR) {
+  if (m.core) return coreMaterial(...);
+  const mt = matAt(0.002, vSlice, ...);
+  return mt ? { cls: 'patch', mt } : { cls: 'core' };
+}
+```
+
+**Проблема:** Внутренняя область рулета (радиус `R0 = 0.25`) представляет собой пустую трубку. Однако код пытается найти патч при `u = 0.002`. Если игрок разместит начинку очень близко к началу листа, она ошибочно отобразится внутри этой пустоты.
+
+**Исправление:** Для случая без ядра всегда возвращать `{ cls: 'core' }`, не выполняя `matAt`:
+
+```js
+if (r < coreR) {
+  if (m.core) return coreMaterial(...);
+  return { cls: 'core' };
+}
+```
+
+---
+
+#### 1.2. Противоречие в длине листа для суши (`oneTurn`)
+В `BASES.sushi` задано `turns: 3.1`, что даёт большую длину листа `L ≈ 39` (при единице ≈ 5 мм). Однако в функции `wind` при `oneTurn === true` лист обрезается сразу после первого полного оборота:
+
+```js
+if (one && k >= 1 && sClose < 0) {
+  sClose = s;
+  sEnd = Math.min(g.L, s + flap);   // flap = 0 для sushi
+}
+```
+
+При `flap = 0` это означает `sEnd = s`, то есть намотка останавливается ровно на угле 2π.  
+**Следствие:** Оставшиеся ~2/3 листа (от `s` до `L`) никогда не используются. Координата `u` для внешних слоёв не превысит `sStart/L + (2π*r)/L ≈ 0.3`.
+
+**Влияние:** Это не нарушает отображение (внешние слои корректно сэмплируются по фактически намотанной части), но **вводит в заблуждение** и приводит к избыточным вычислениям: `thicknessProfile` строится на всю длину `L`, хотя нужна только её часть. Также это усложняет понимание модели.
+
+**Рекомендация:** Либо уменьшить `turns` для суши до ~1.2–1.5, чтобы `L` соответствовала реально используемой длине, либо явно указать в комментариях, что `turns` задаёт только масштаб координат, а фактически используется один оборот.
+
+---
+
+#### 1.3. Мутация исходного списка патчей
+В `buildModel` вызывается `restack(list)`, которая изменяет поля `z0`, `z1` у объектов патчей **в исходном массиве**:
+
+```js
+restack(list);           // мутирует переданный list
+m = { ... list: JSON.parse(JSON.stringify(list)) ... };
+```
+
+Если вызывающий код ожидает, что переданный список не изменится, это может привести к неожиданным эффектам (например, при повторном использовании списка для другого расчёта). Хотя последующий `restack` перезапишет значения, побочный эффект всё же существует.
+
+**Исправление:** Создавать глубокую копию списка **до** вызова `restack`:
+
+```js
+const listCopy = JSON.parse(JSON.stringify(list));
+restack(listCopy);
+m = { ... list: listCopy ... };
+```
+
+Это также защитит от случайного изменения `inCore` (хотя сейчас `computeCore` работает с копией).
+
+---
+
+#### 1.4. Некорректное масштабирование `zn` при сжатии
+В `materialAt`:
+
+```js
+const H = stackTopAt(sm.u, vSlice, m.list);
+const bandN = (sm.t - g.w - (m.g.air || 0)) / g.T;
+if (bandN > 1e-6) zn *= Math.max(1, H) / bandN;
+```
+
+Здесь `zn` – нормализованная координата по толщине намазки (0..1). `bandN` – фактическая толщина слоя намазки в единицах `T`. Если `H > 1` (высокая стопка), `zn` увеличивается пропорционально `H/bandN`. Однако `bandN` может быть меньше `H`, тогда `zn` может превысить 1, и `matAt` не найдёт патч (так как `z` выйдет за пределы `p.z0..p.z1`). В результате точка может быть ошибочно классифицирована как `spread`, хотя на самом деле она внутри сжатого слоя начинки.
+
+**Рекомендация:** Ограничить `zn` диапазоном `[0, 1]` или использовать более точную модель сжатия (например, учитывать сжимаемость `kappa`).
+
+---
+
+### 2. Оптимизации (что и почему)
+
+#### 2.1. Кэширование промежуточных результатов для патчей
+Функции `patchSRange`, `covers`, `stackTopAt` многократно вызываются для каждого патча при каждом обращении к `materialAt` или `thicknessProfile`.  
+`patchSRange` содержит тригонометрические вычисления (`cos`, `sin`, проверки пересечений), которые не зависят от радиуса/угла, а только от `vSlice` и параметров патча.
+
+**Оптимизация:** В момент построения модели (`buildModel`) для каждого `vSlice` из `SLICES` заранее вычислить массив результатов `patchSRange` для всех патчей. Сохранить его в модели (например, `m.patchRanges[vSlice] = [...]`). Тогда `covers` и `matAt` будут использовать готовые диапазоны, исключив повторные расчёты.
+
+**Выгода:** Сокращение времени в горячих циклах (`materialMap`, `similarity`), особенно при большом числе патчей и пикселей.
+
+---
+
+#### 2.2. Кэширование карт материалов (`materialMap`)
+В функции `similarity` для каждого сравниваемого среза `v` заново строятся две карты размером 56×56 пикселей. Это вызывает тысячи обращений к `materialAt`, каждый из которых выполняет поиск по виткам, патчам и т.д. Если `similarity` вызывается многократно (например, в процессе оптимизации параметров), это становится узким местом.
+
+**Оптимизация:** Добавить в модель (`m`) кэш карт материалов: `m.mapCache = new Map()`. Ключ – строка из `size`, `vSlice`, `Rref`. При первом запросе карта вычисляется и сохраняется, при повторном – возвращается из кэша.
+
+**Выгода:** Многократное ускорение сравнения и визуализации, если параметры не меняются.
+
+---
+
+#### 2.3. Уменьшение избыточных вычислений в `thicknessProfile`
+Функция `thicknessProfile` вызывается внутри `wind` для каждого `vSlice`. Она строит профиль на всю длину `L` (сотни точек), хотя для `oneTurn` фактически используется лишь часть листа (до `sEnd`).  
+
+**Оптимизация:** Передавать в `thicknessProfile` фактическую конечную длину `sEnd` (или `sMax`), чтобы не вычислять профиль для неиспользуемого хвоста. Это уменьшит размер массива и время `box blur`.
+
+**Выгода:** Ускорение построения модели, особенно для суши, где `L` в 3 раза больше реально используемой длины.
+
+---
+
+#### 2.4. Использование бинарного поиска в `sampleWind`
+Сейчас `sampleWind` перебирает все витки `k` от 0 до `kmax-1` для каждого запроса. Число витков обычно не превышает 5–6, поэтому линейный перебор не критичен. Однако при увеличении `KMAX` (сейчас 9) или в сценариях с высокой частотой запросов можно ускорить поиск.
+
+**Оптимизация:** Для каждого углового бина `b` заранее построить массив радиусов `rIn` для всех витков и использовать бинарный поиск, чтобы быстро найти нужный виток по радиусу.
+
+**Выгода:** Снижение константы времени в `materialAt`, особенно для внешних точек, где приходится проверять все витки.
+
+---
+
+#### 2.5. Избежание лишних аллокаций в горячих функциях
+Функции `matAt`, `coreMaterial` возвращают новые объекты `{ p, d, lu, lz, lv }`. Эти объекты создаются для каждого пикселя, что создаёт нагрузку на сборщик мусора.
+
+**Оптимизация:** Использовать пул объектов или возвращать примитивы/индексы, а не объекты. Например, `materialAt` может возвращать целочисленный код класса и при необходимости дополнительную информацию в отдельных массивах.
+
+**Выгода:** Уменьшение пауз на сборку мусора при построении больших карт.
+
+---
+
+#### 2.6. Параллелизация / Web Worker (перспективно)
+Построение карты материалов для одного среза (`materialMap`) – чистая функция от модели и параметров. Её можно выполнять в Web Worker, не блокируя основной поток. Это особенно актуально для больших размеров карт (например, 256×256).
+
+**Выгода:** Плавность интерфейса, возможность считать несколько срезов одновременно.
+
+---
+
+### 3. Общий вывод
+
+Код имеет хорошую структуру и в целом логически корректен, но содержит несколько логических недочётов (появление начинки в пустом центре, противоречивая длина листа для суши) и мест для оптимизации. Наиболее перспективные улучшения:
+
+- Исправить обработку пустого центра для рулета.
+- Уточнить параметры `oneTurn`, чтобы избежать избыточных вычислений.
+- Ввести кэширование результатов `patchSRange` и карт материалов.
+- Рассмотреть возможность выноса тяжёлых вычислений в Web Worker.
+
+Эти меры повысят производительность и устранят потенциальные визуальные артефакты.
+
+-----
+
+Я провёл ревью кода. Ниже — приоритетные логические ошибки и затем рекомендации по оптимизации.
+
+## Логические ошибки (критично)
+
+### 1) `restack`: paint-патчи могут выходить за пределы `[0, 1]` по z
+Краска (`d.paint`) принудительно ставится на `z0=0, z1=1`, но позже в `restack` есть блок, который сдвигает компоненты вверх через `shift`:
+
+```js
+const shift = Math.max(0, 1 - B().kappa * ctop);
+for (const k of comp) { list[k].z0 += shift; list[k].z1 += shift; ... }
+```
+
+Условие `if (paint[i]) { ... continue; }` стоит до этого сдвига, но paint-патчи всё равно попадают в `comp`, если они пересекаются с неплавающими патчами (в `adj` они добавляются только если `!paint[i] && !paint[j]`, так что напрямую — нет). Однако если paint-патч не пересекается ни с кем, он остаётся `z0=0, z1=1`, а потом в `matAt` используется нормализация:
+
+```js
+const lz = d.paint ? 0.5 : (z - p.z0) / (p.z1 - p.z0);
+```
+
+Это работает, но если paint-патч случайно окажется в компоненте с неплавающими (через цепочку `adj`), то он получит сдвиг и `z1` станет > 1, что ломает физический смысл «краска на всю толщину намазки». Логика намеренно исключает paint из `adj`, но это хрупкое допущение: если где‑то появится пересечение paint с paint или paint с неплавающим через другую логику, модель «поплывёт».
+
+**Почему стоит поправить:** это скрытая инвариантная уязвимость модели. Лучше явно гарантировать, что paint-патчи никогда не сдвигаются.
+
+### 2) `matAt`: двойной проход и условие `d.paint` может пропускать легитимные попадания
+`matAt` делает два прохода:
+
+```js
+for (let pass = 0; pass < 2; pass++)
+  for (let i = list.length - 1; i >= 0; i--) {
+    ...
+    if (p.inCore || !!d.paint !== (pass === 1)) continue;
+    if (!d.paint && (z < p.z0 || z > p.z1)) continue;
+    ...
+  }
+```
+
+- pass 0: `!!d.paint !== false` → пропускает paint, берёт только `!paint`.
+- pass 1: `!!d.paint !== true` → берёт только paint.
+
+Проблема: для paint-патчей проверка `z < p.z0 || z > p.z1` не выполняется (они берутся на pass 1), но paint-патчи имеют `z0=0, z1=1`, так что фактически они «всегда» попадают по z. Это задумано, но в сочетании с `inCore` и тем, что paint-патчи могут быть в ядре (`p.inCore = true`), они полностью игнорируются в ядре (`if (p.inCore || ...) continue;`). В результате в ядре краска не видна никогда — даже если игрок положил её внутри.
+
+**Почему это ошибка:** если paint используется как декор внутри ядра (например, цветной рис), он не отобразится.
+
+### 3) `patchSRange`: возврат `null` при повороте может быть слишком агрессивным
+Внутри `patchSRange` есть ветки:
+
+```js
+if (Math.abs(c) > 1e-6) { ... }
+else if (Math.abs(dv_) > w / 2) return null;
+
+if (Math.abs(sn) > 1e-6) { ... }
+else if (Math.abs(dv_) > len / 2) return null;
+```
+
+При почти нулевых `cos`/`sin` (углы, близкие к 0, π/2, π) и малых числовых шумах условие `Math.abs(dv_) > w/2` может сработать из‑за погрешности и отбросить корректное пересечение. Это особенно заметно при `rot ≈ 0` или `π/2`, когда одна из осей почти вырождена.
+
+**Почему важно:** это может создавать «дырки» в текстуре патчей на границах поворотов.
+
+### 4) `wind`: условие `if (sClose >= 0)` и расчёт `t` для клапана
+Для `oneTurn` баз в конце намотки:
+
+```js
+if (one && k >= 1 && sClose < 0) { sClose = s; sEnd = Math.min(g.L, s + flap); }
+...
+if (sClose >= 0) t = g.w * clamp((sEnd - s) / 2.5, 0.15, 1);
+```
+
+Здесь `t` (толщина слоя) резко переключается на формулу клапана, но `g.w` — это толщина обёртки, а не намазки. Для суши это ОК (нори тонкая), но для cake/lavash, где `w` относительно велико, это может давать нефизичный скачок толщины на стыке. Кроме того, `clamp(..., 0.15, 1)` жёстко ограничивает минимальную толщину 15% от `g.w`, что может оставлять видимый «уступ».
+
+**Почему это проблема:** визуальный шов на ролле может выглядеть артефактно, особенно при крупных `w`.
+
+### 5) `sampleWind`: интерполяция `f` на последнем бине может давать `u` вне `[u0, u1]`
+В `sampleWind`:
+
+```js
+if (idx === wd.lastIdx) {
+  const fe = (wd.phiEnd - b * DPHI) / DPHI;
+  if (frac > fe) continue;
+  f = fe > 1e-6 ? frac / fe : 0;
+} else {
+  ...
+  const rIn = ri + (ri2 - ri) * f, rOut = ro + (ro2 - ro) * f;
+  if (r >= rIn && r < rOut) return { u: wd.u0[idx] + (wd.u1[idx] - wd.u0[idx]) * f, ... };
+}
+```
+
+На последнем бине `f` нормализуется относительно `fe`, но `u` всё равно считается как линейная интерполяция между `u0[idx]` и `u1[idx]`. Если `fe` сильно меньше 1, `f` может стать > 1 (если `frac` близко к `fe`, а `fe` мало), и `u` выйдет за пределы `[u0, u1]`. Это может приводить к тому, что `materialAt` спросит `matAt(sm.u, ...)` с `sm.u > 1`, где листа уже нет.
+
+**Почему важно:** возможны выходы за границы листа и артефакты на внешнем крае среза.
+
+## Что можно оптимизировать (производительность и структура)
+
+### 1) Кэширование `sheetLen(B())` и `B().Wv` внутри циклов
+Во многих функциях (`dims`, `bounds`, `patchSRange`, `matAt`, `covers`, `bandAt`, `thicknessProfile`, `wind`) многократно вызываются:
+
+```js
+const L = sheetLen(B());
+...
+m.du * L
+...
+m.dv * b.Wv
+```
+
+При этом `B()` и `sheetLen` — чистые, но вызываются в горячих циклах. Достаточно вычислять `L` и `Wv` один раз на срез/модель и передавать вниз.
+
+**Выгода:** сокращение повторных вычислений в `O(N)` циклах по патчам и бинам.
+
+### 2) `restack`: сложность `O(n²)` на пересечениях
+`restack` строит граф пересечений:
+
+```js
+for (let i = 0; i < n; i++)
+  for (let j = 0; j < i; j++)
+    if (!paint[i] && !paint[j] && overlap(list[i], list[j])) { ... }
+```
+
+Это `O(n²)` по числу патчей. Для типичных сцен (до ~20–30 патчей) это приемлемо, но при росте числа ингредиентов станет узким местом.
+
+**Оптимизация:**
+- Ввести пространственное разбиение (сетка по `u,v`) и проверять `overlap` только внутри соседних ячеек.
+- Или сортировать патчи по `u0` и отсекать заведомо непересекающиеся.
+
+### 3) `thicknessProfile`: два прохода box‑blur можно заменить одним гауссом
+Сейчас:
+
+```js
+for (let pass = 0; pass < 2; pass++) {
+  // box-blur с радиусом R
+}
+```
+
+Два прохода box‑blur ≈ гаусс, но можно сразу посчитать гауссиан с нужным σ, уменьшив количество проходов и упростив логику.
+
+**Выгода:** меньше операций на профиль, особенно при больших `M`.
+
+### 4) `wind`: аллокация больших массивов на каждый срез
+`wind` создаёт:
+
+```js
+const n = KMAX * NB, rin = new Float32Array(n), rout = ..., u0 = ..., u1 = ...;
+const top = new Float32Array(NB);
+const prof = thicknessProfile(...); // ещё один массив
+```
+
+Это делается на каждый срез (`SLICES` ~ 16). При частой перестройке модели это ощутимо.
+
+**Оптимизация:**
+- Вынести буферы в общий пул и переиспользовать их.
+- Уменьшить `KMAX` там, где реально нужно меньше витков (например, для cake с 2.7 оборотами).
+
+### 5) `materialMap`: вложенные циклы по пикселям без ранних отсечений
+`materialMap`:
+
+```js
+for (let py = 0; py < size; py++)
+  for (let px = 0; px < size; px++) {
+    ...
+    if (r > wd.Rout) continue;
+    const mat = materialAt(...);
+    ...
+  }
+```
+
+Можно заранее вычислить bounding circle для `wd.Rout * scale` и обрезать циклы по квадрату, чтобы не проверять лишние пиксели.
+
+**Выгода:** ~20–30% меньше вызовов `materialAt` на карту.
+
+### 6) `similarity`: двойной подсчёт `total` и лишние вызовы `near`
+В `similarity`:
+
+```js
+if (a[i] >= 3) { total++; if (near(b, i, a[i])) hits++; }
+if (b[i] >= 3) { total++; if (near(a, i, b[i])) hits++; }
+```
+
+Если и `a[i]`, и `b[i]` ≥ 3, одна и та же позиция считается дважды в `total`. Это не ошибка, но завышает знаменатель и делает метрику менее интуитивной.
+
+**Оптимизация/улучшение:**
+- Считать `total` как количество уникальных позиций с начинкой в объединении, а `hits` — сколько из них совпали с учётом окрестности.
+- Кэшировать `near`-проверки или использовать битовую маску 3×3.
+
+### 7) `getModel` и кэш: сериализация `JSON.stringify(list)` в ключе
+Ключ кэша:
+
+```js
+const key = S.base + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ... + '|' + JSON.stringify(list);
+```
+
+При больших списках патчей это дорого и чувствительно к порядку ключей в объектах.
+
+**Оптимизация:**
+- Использовать стабильный хэш от упорядоченного представления патчей (например, строка `kind|u|v|rot|wU|hU|dv|phase` для каждого, отсортированного).
+- Ограничить размер кэша не «>16», а по объёму памяти или LRU.
+
+## Мелкие замечания по читаемости и надёжности
+
+- `SLICES` генерируется один раз, но содержит дублирующие диапазоны (0.5, потом 0.002.., потом 0.5/3..). Можно явно задокументировать, зачем столько срезов, или параметризовать.
+- `diskToSquare` и `shapeK` используют магические константы (`720`, `Math.SQRT2`). Лучше вынести в константы с именами.
+- В `wind` есть строка `if (ri + t > Rout) Rout = ri + t;` внутри цикла, но позже `Rout` пересчитывается через среднее `Rm`. Это не ошибка, но можно упростить логику.
+
+Если хочешь, могу предложить конкретные правки кода под каждый пункт (особенно для пунктов 1–5 из «логических ошибок»).
+
+-----
+
+Провёл ревью `rollery-geometry.txt` с приоритетом на логическую корректность. Архитектура интересная и в целом хорошо разделена: раскладка начинок → профиль толщины → намотка → выбор материала в срезе. Но есть несколько ошибок, которые способны давать неверную геометрию или визуальные артефакты, особенно на границах витков и для сложных патчей. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/06bed000-4cdb-4da4-8231-84a25402d868/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYE65PMVHZF&Signature=XznXUtBJJKUUAfEHlf8pgrX7Y6Y%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJGMEQCIEda1%2Bf9upZn5Txnn%2BE0wjTmZ5JvpRkTgyEi2CrMINq%2FAiA8ctEYj%2BvXvqWgxBhD3yDfSDVMh%2BB8lH3VYaNHkj7niirzBAgkEAEaDDY5OTc1MzMwOTcwNSIMxp%2FtT0v1eyuQS3l6KtAEZfDFg8TK17IprYFIdQu4u6jhGF2mlq0Z5NCpCdrAxoyPJ%2BXYI5K12hEoStSAK0FfGbJzC62qER%2BdO%2FOOP8Zh0RAJqlYjgGUDvZPD5NwFF638tWSyBypAdz5P5J3egMSa6hrTJqr1cA5dcGujQawTXH0b%2FLAxybocmjpH0Qx82EAB5lEZUs%2BeccnMNORJWxj20Q8b%2BXCC2dsa8Y0%2BcAI7IBq%2FVlQLssWhrFiPKHGzWB%2Bm6JlRK3JlR2yZUStJvMzzaxiksYb4YSAY1XohrVCKLJFk9sbituPT0Y3qKyjKdt%2FLDKOk5muiAs9gdesFVtrT%2BgdgoPM5jq78%2FwXoXbfHZUVZyEUhYAHHeLI9tiBjjoENLO6wAE1r3F3AbxRZA2OOUm7QTbpkHwlPlK5QUPp47saMB917O%2BtMJrDhJXW1Vpb9xIpT510oH%2BNzF0oYELb49hGnzjSemTaA%2BlVkIxEyZxHnolJ6ImlKzeimqLHpmxQx8NNIcZo61au9O2pp12a9KmefWtN3wPkMNM5eNwuSTGdWkUm4W%2BqcFxzDDpFBOy3ataJ5DUMqxh3Y4990Z7%2FJK26KYjHzfdIyX98F7QVR7OK5o9DCMhINKPgEsX42wrL%2FZDh4RHZgMIvJcrtLq620rIpkaN9MCBRbtiMhTdIDJczdDkaxC2SEmEjiraYZFT5hnbMtgx7wTbl88Poeosww0njprGlf4JqQqFdnIu3OXAj9ux5gRwyxqgDuXAYz%2BUGGuG%2FGw8BGr1JcWXAjQseM3gWn28cBJhPb4YXEYuNoQjDH47zUBjqZAdsbwmxlWoXIEZppP05Bbfgw1frP2IrbNuuZsqoTMIX4qnF%2FgXt273GykN46FfK07PC%2FsX%2Ba4tafiNVwyFV1yh3GHkw1rWBnKHEns5adbMrZ1BH3ERphm5yXz5v3sp2TAQrTcmz%2FKrrjahNgJyxoV5Hz%2F34ZpQErjGEio6hrGjqHxXuTu%2BSZ88mnhyGla4h47B25LYFf%2FeFSQw%3D%3D&Expires=1787772826)
+
+## Логические ошибки
+
+### 1. Неверная интерполяция между витками в `sampleWind`
+
+В ветке перехода через границу углового бина:
+
+```js
+const nidx = b + 1 < NB ? idx + 1 : (k + 1) * NB;
+```
+
+для последнего бина витка (`b === NB - 1`) интерполяция берёт первый бин **следующего витка**. Но `u0/u1` относятся к разным последовательным сегментам листа, а `sampleWind` возвращает один материал для конкретных `r, φ`. Это создаёт смешение радиусов и `u` на угле \(2\pi \rightarrow 0\), особенно заметное около шва/конца намотки.
+
+Почему это рискованно:
+- при `b = NB - 1` угол соседнего бина по кругу — бин `0`, но физически он может принадлежать не следующему витку в том же радиальном слое;
+- линейная интерполяция между концом одного витка и началом следующего подменяет геометрию участка;
+- ошибка влияет и на `rIn/rOut`, и на координату листа `u`, то есть может показать не ту начинку.
+
+**Что сделать:** хранить топологическое соседство сегментов явно либо интерполировать по углу только внутри одного непрерывного кольцевого сегмента. На границе витка не интерполировать `u` между витками; использовать значение текущего бина или специальный замкнутый сосед, если он действительно существует.
+
+***
+
+### 2. `innerAt()` не замыкает угловую интерполяцию
+
+В `topAt()` переход через последний бин сделан корректно:
+
+```js
+const b2 = (b + 1) % NB;
+```
+
+А в `innerAt()`:
+
+```js
+const b2 = Math.min(NB - 1, b + 1);
+```
+
+При `phi` в последнем бине интерполяция идёт между последним бином и **ним же**, а не между последним и первым. В результате внутренняя граница ролла имеет разрыв в окрестности угла 0: `topAt()` сглаживает её, `innerAt()` — нет. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/06bed000-4cdb-4da4-8231-84a25402d868/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYE65PMVHZF&Signature=XznXUtBJJKUUAfEHlf8pgrX7Y6Y%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJGMEQCIEda1%2Bf9upZn5Txnn%2BE0wjTmZ5JvpRkTgyEi2CrMINq%2FAiA8ctEYj%2BvXvqWgxBhD3yDfSDVMh%2BB8lH3VYaNHkj7niirzBAgkEAEaDDY5OTc1MzMwOTcwNSIMxp%2FtT0v1eyuQS3l6KtAEZfDFg8TK17IprYFIdQu4u6jhGF2mlq0Z5NCpCdrAxoyPJ%2BXYI5K12hEoStSAK0FfGbJzC62qER%2BdO%2FOOP8Zh0RAJqlYjgGUDvZPD5NwFF638tWSyBypAdz5P5J3egMSa6hrTJqr1cA5dcGujQawTXH0b%2FLAxybocmjpH0Qx82EAB5lEZUs%2BeccnMNORJWxj20Q8b%2BXCC2dsa8Y0%2BcAI7IBq%2FVlQLssWhrFiPKHGzWB%2Bm6JlRK3JlR2yZUStJvMzzaxiksYb4YSAY1XohrVCKLJFk9sbituPT0Y3qKyjKdt%2FLDKOk5muiAs9gdesFVtrT%2BgdgoPM5jq78%2FwXoXbfHZUVZyEUhYAHHeLI9tiBjjoENLO6wAE1r3F3AbxRZA2OOUm7QTbpkHwlPlK5QUPp47saMB917O%2BtMJrDhJXW1Vpb9xIpT510oH%2BNzF0oYELb49hGnzjSemTaA%2BlVkIxEyZxHnolJ6ImlKzeimqLHpmxQx8NNIcZo61au9O2pp12a9KmefWtN3wPkMNM5eNwuSTGdWkUm4W%2BqcFxzDDpFBOy3ataJ5DUMqxh3Y4990Z7%2FJK26KYjHzfdIyX98F7QVR7OK5o9DCMhINKPgEsX42wrL%2FZDh4RHZgMIvJcrtLq620rIpkaN9MCBRbtiMhTdIDJczdDkaxC2SEmEjiraYZFT5hnbMtgx7wTbl88Poeosww0njprGlf4JqQqFdnIu3OXAj9ux5gRwyxqgDuXAYz%2BUGGuG%2FGw8BGr1JcWXAjQseM3gWn28cBJhPb4YXEYuNoQjDH47zUBjqZAdsbwmxlWoXIEZppP05Bbfgw1frP2IrbNuuZsqoTMIX4qnF%2FgXt273GykN46FfK07PC%2FsX%2Ba4tafiNVwyFV1yh3GHkw1rWBnKHEns5adbMrZ1BH3ERphm5yXz5v3sp2TAQrTcmz%2FKrrjahNgJyxoV5Hz%2F34ZpQErjGEio6hrGjqHxXuTu%2BSZ88mnhyGla4h47B25LYFf%2FeFSQw%3D%3D&Expires=1787772826)
+
+**Исправление:**
+
+```js
+const b2 = (b + 1) % NB;
+```
+
+Но после этого нужно отдельно проверить, что `rin[b2]` валиден для конкретного витка: первый бин может быть незаполнен, если намотка не дошла до полного оборота.
+
+***
+
+### 3. `computeCore()` использует ширину патча без учёта поворота
+
+Кластер для подворота рассчитывается так:
+
+```js
+const w = dims(p).du * L;
+return { p, s0: p.u * L - w / 2, s1: p.u * L + w / 2 };
+```
+
+При этом комментарий говорит, что повёрнутый габарит намеренно не учитывается. Однако это не просто приближение, а логическое расхождение с реальной геометрией `patchSRange()`: патч с `rot: Math.PI / 2` может иметь значимое протяжение по направлению `u` из-за своей длины по `v`, но будет исключён из подворота либо попадёт в него неверно.
+
+Последствия:
+- часть начинки физически оказывается в зоне `sFold`, но не помечается `inCore`;
+- либо патч помечается целиком как находящийся в ядре, хотя пересекает его лишь частично;
+- особенно плохо работают диагональные и поперечные полосы.
+
+**Оптимальный вариант:** определять пересечение патча с диапазоном `s < sFold` через реальную геометрию. Как минимум использовать `bounds(p)` и переводить `u0/u1` в длину листа. Лучше — обрезать патч ядром, а не переводить весь патч в `inCore`.
+
+***
+
+### 4. Объекты входного списка мутируются и затем попадают в кэш
+
+`buildModel(list)` вызывает:
+
+```js
+restack(list);
+```
+
+а `restack()` записывает в исходные элементы `z0` и `z1`. Далее `computeCore(m.list, g)` дополнительно записывает:
+
+```js
+p.inCore = true;
+```
+
+То есть вызов построения модели меняет объекты, возвращаемые `patches()`. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/06bed000-4cdb-4da4-8231-84a25402d868/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYE65PMVHZF&Signature=XznXUtBJJKUUAfEHlf8pgrX7Y6Y%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJGMEQCIEda1%2Bf9upZn5Txnn%2BE0wjTmZ5JvpRkTgyEi2CrMINq%2FAiA8ctEYj%2BvXvqWgxBhD3yDfSDVMh%2BB8lH3VYaNHkj7niirzBAgkEAEaDDY5OTc1MzMwOTcwNSIMxp%2FtT0v1eyuQS3l6KtAEZfDFg8TK17IprYFIdQu4u6jhGF2mlq0Z5NCpCdrAxoyPJ%2BXYI5K12hEoStSAK0FfGbJzC62qER%2BdO%2FOOP8Zh0RAJqlYjgGUDvZPD5NwFF638tWSyBypAdz5P5J3egMSa6hrTJqr1cA5dcGujQawTXH0b%2FLAxybocmjpH0Qx82EAB5lEZUs%2BeccnMNORJWxj20Q8b%2BXCC2dsa8Y0%2BcAI7IBq%2FVlQLssWhrFiPKHGzWB%2Bm6JlRK3JlR2yZUStJvMzzaxiksYb4YSAY1XohrVCKLJFk9sbituPT0Y3qKyjKdt%2FLDKOk5muiAs9gdesFVtrT%2BgdgoPM5jq78%2FwXoXbfHZUVZyEUhYAHHeLI9tiBjjoENLO6wAE1r3F3AbxRZA2OOUm7QTbpkHwlPlK5QUPp47saMB917O%2BtMJrDhJXW1Vpb9xIpT510oH%2BNzF0oYELb49hGnzjSemTaA%2BlVkIxEyZxHnolJ6ImlKzeimqLHpmxQx8NNIcZo61au9O2pp12a9KmefWtN3wPkMNM5eNwuSTGdWkUm4W%2BqcFxzDDpFBOy3ataJ5DUMqxh3Y4990Z7%2FJK26KYjHzfdIyX98F7QVR7OK5o9DCMhINKPgEsX42wrL%2FZDh4RHZgMIvJcrtLq620rIpkaN9MCBRbtiMhTdIDJczdDkaxC2SEmEjiraYZFT5hnbMtgx7wTbl88Poeosww0njprGlf4JqQqFdnIu3OXAj9ux5gRwyxqgDuXAYz%2BUGGuG%2FGw8BGr1JcWXAjQseM3gWn28cBJhPb4YXEYuNoQjDH47zUBjqZAdsbwmxlWoXIEZppP05Bbfgw1frP2IrbNuuZsqoTMIX4qnF%2FgXt273GykN46FfK07PC%2FsX%2Ba4tafiNVwyFV1yh3GHkw1rWBnKHEns5adbMrZ1BH3ERphm5yXz5v3sp2TAQrTcmz%2FKrrjahNgJyxoV5Hz%2F34ZpQErjGEio6hrGjqHxXuTu%2BSZ88mnhyGla4h47B25LYFf%2FeFSQw%3D%3D&Expires=1787772826)
+
+Проблемы:
+- внешний UI/логика получает не исходную модель данных, а данные с производными полями;
+- `inCore` остаётся после смены позиций и может быть устаревшим;
+- сериализация в ключе кэша выполняется **до** `restack`, поэтому новый ключ создаётся на одном состоянии, а следующий вызов может видеть уже дополненный список;
+- это затрудняет воспроизводимость и отладку.
+
+**Исправление:** клонировать данные до любых вычислений и мутировать только рабочую копию:
+
+```js
+function buildModel(sourceList) {
+  const list = structuredClone(sourceList);
+  restack(list);
+  // далее работать только с list
+}
+```
+
+Перед расчётом ядра также полезно явно сбрасывать `p.inCore = false`.
+
+***
+
+### 5. Ключ кэша зависит от неканонического и мутабельного JSON
+
+Ключ строится так:
+
+```js
+const key = ... + JSON.stringify(list);
+```
+
+Это приводит к нескольким ненадёжным сценариям:
+- наличие/отсутствие `z0`, `z1`, `inCore` изменяет ключ, хотя пользователь не изменял состав ролла;
+- порядок свойств объекта влияет на ключ;
+- `undefined` в массивах/полях обрабатывается JSON не всегда ожидаемо;
+- `modelKey`, объявленный как внешняя связь в комментарии, фактически не участвует;
+- кэш очищается целиком при 17-й модели, что создаёт скачки производительности.
+
+**Лучше:** строить канонический ключ только из входных параметров патча (`kind`, `u`, `v`, `rot`, overrides размеров, `phase`) и параметров модели. Производные поля (`z0/z1/inCore`) в ключ включать нельзя.
+
+***
+
+## Ошибки модели и граничных условий
+
+### Нормализация `z` сжимаемого слоя не соответствует укладке
+
+В `materialAt()`:
+
+```js
+const H = stackTopAt(sm.u, vSlice, m.list);
+const bandN = (sm.t - g.w - (m.g.air || 0)) / g.T;
+if (bandN > 1e-6) zn *= Math.max(1, H) / bandN;
+```
+
+`stackTopAt()` возвращает максимум `p.z1` для перекрывающих патчей, а не фактическую толщину слоя в данной точке. При этом `restack()` вычисляет уровни через грубый граф пересечений bounding-box’ов, а не через локальное перекрытие. Получается, что:
+- локально начинка может отсутствовать, но её высота влияет на масштабирование `zn`;
+- два патча могут пересечься bbox’ами, но не пересекаться геометрически;
+- слой риса/намазки может быть визуально сжат как под начинкой там, где её нет.
+
+**Улучшение:** добавить функцию локального профиля `stackHeightAt(u, v, list)`, которая проверяет настоящее попадание в патчи и находит максимальную локальную `z1`. Её можно использовать и для `bandAt()`, и для обратного преобразования `zn`.
+
+***
+
+### `restack()` определяет перекрытие только по осевым bbox
+
+`overlap()` основан на `bounds()`, то есть на AABB. Для повёрнутых патчей это заведомо даёт ложные пересечения. Поэтому `restack()` может:
+- положить ингредиент выше другого, хотя в реальности они не пересекаются;
+- чрезмерно увеличить `ctop`;
+- изменить толщину ролла там, где начинки геометрически нет.
+
+Это, вероятно, главный источник завышенных «бугров» для диагональных ингредиентов.
+
+**Компромисс по производительности:** оставить broad phase через bbox, но для кандидатов выполнить точную проверку пересечения двух повёрнутых прямоугольников (SAT) либо проверку пересечения на нескольких `v`-срезах.
+
+***
+
+### Краска перекрывает реальную начинку по порядку списка
+
+В `matAt()` реализованы два прохода:
+
+```js
+for (let pass = 0; pass < 2; pass++)
+```
+
+Первый проходит реальные ингредиенты, второй — `paint`. Это означает, что краска всегда визуально выше всех остальных материалов независимо от её положения в списке и глубины. Для «цветного риса» это, вероятно, ожидаемо. Но для будущих декоративных слоёв или соусов модель станет неверной.
+
+**Решение:** ввести явный `renderLayer` / `materialRole`:
+- `embedded` — объёмная начинка;
+- `spreadPaint` — красит намазку;
+- `surface` — покрывает верхний слой;
+- `wrapperLayer` — отдельный слой обёртки.
+
+Так модель останется расширяемой.
+
+***
+
+## Производительность
+
+Главный горячий путь — `materialMap()` → `materialAt()` → `sampleWind()` / `stackTopAt()` / `matAt()`. Для каждого пикселя среза выполняются проходы по патчам, а карта `56 × 56` генерируется для каждого `v` при сравнении. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/06bed000-4cdb-4da4-8231-84a25402d868/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYE65PMVHZF&Signature=XznXUtBJJKUUAfEHlf8pgrX7Y6Y%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJGMEQCIEda1%2Bf9upZn5Txnn%2BE0wjTmZ5JvpRkTgyEi2CrMINq%2FAiA8ctEYj%2BvXvqWgxBhD3yDfSDVMh%2BB8lH3VYaNHkj7niirzBAgkEAEaDDY5OTc1MzMwOTcwNSIMxp%2FtT0v1eyuQS3l6KtAEZfDFg8TK17IprYFIdQu4u6jhGF2mlq0Z5NCpCdrAxoyPJ%2BXYI5K12hEoStSAK0FfGbJzC62qER%2BdO%2FOOP8Zh0RAJqlYjgGUDvZPD5NwFF638tWSyBypAdz5P5J3egMSa6hrTJqr1cA5dcGujQawTXH0b%2FLAxybocmjpH0Qx82EAB5lEZUs%2BeccnMNORJWxj20Q8b%2BXCC2dsa8Y0%2BcAI7IBq%2FVlQLssWhrFiPKHGzWB%2Bm6JlRK3JlR2yZUStJvMzzaxiksYb4YSAY1XohrVCKLJFk9sbituPT0Y3qKyjKdt%2FLDKOk5muiAs9gdesFVtrT%2BgdgoPM5jq78%2FwXoXbfHZUVZyEUhYAHHeLI9tiBjjoENLO6wAE1r3F3AbxRZA2OOUm7QTbpkHwlPlK5QUPp47saMB917O%2BtMJrDhJXW1Vpb9xIpT510oH%2BNzF0oYELb49hGnzjSemTaA%2BlVkIxEyZxHnolJ6ImlKzeimqLHpmxQx8NNIcZo61au9O2pp12a9KmefWtN3wPkMNM5eNwuSTGdWkUm4W%2BqcFxzDDpFBOy3ataJ5DUMqxh3Y4990Z7%2FJK26KYjHzfdIyX98F7QVR7OK5o9DCMhINKPgEsX42wrL%2FZDh4RHZgMIvJcrtLq620rIpkaN9MCBRbtiMhTdIDJczdDkaxC2SEmEjiraYZFT5hnbMtgx7wTbl88Poeosww0njprGlf4JqQqFdnIu3OXAj9ux5gRwyxqgDuXAYz%2BUGGuG%2FGw8BGr1JcWXAjQseM3gWn28cBJhPb4YXEYuNoQjDH47zUBjqZAdsbwmxlWoXIEZppP05Bbfgw1frP2IrbNuuZsqoTMIX4qnF%2FgXt273GykN46FfK07PC%2FsX%2Ba4tafiNVwyFV1yh3GHkw1rWBnKHEns5adbMrZ1BH3ERphm5yXz5v3sp2TAQrTcmz%2FKrrjahNgJyxoV5Hz%2F34ZpQErjGEio6hrGjqHxXuTu%2BSZ88mnhyGla4h47B25LYFf%2FeFSQw%3D%3D&Expires=1787772826)
+
+| Узкое место | Почему дорого | Что оптимизировать |
+|---|---|---|
+| `similarity()` | Для каждого среза строятся две карты, затем для каждого пикселя вызывается `near()` с обходом 3×3 | Сравнивать только маску заполненных пикселей; предварительно вычислять dilated-маску второго изображения |
+| `materialMap()` | На каждый пиксель вычисляются `atan2`, `hypot`, `shapeK`, поиск витка и материалов | Предвычислить для `size`, `shape`, `Rref` радиально-угловую сетку и использовать её повторно |
+| `sampleWind()` | Линейный поиск по `k` для каждого пикселя | Хранить для каждого углового бина диапазоны слоёв либо бинарно искать по `rout` |
+| `matAt()` / `stackTopAt()` | Перебор всех патчей на каждую точку | Индексировать патчи по диапазонам `u` и `v`; для среза `vSlice` заранее собрать активные патчи |
+| `thicknessProfile()` | Полный расчёт и два blur-прохода для каждого нового `vSlice` | Кэшировать профиль и делать профили только для реально запрошенных срезов; 15 стартовых `SLICES` можно уменьшить или заменить ленивым прогревом |
+| `JSON.stringify()` для ключа | Вызывает сериализацию полного списка при каждом `buildModel()` | Передавать версию состояния/инкрементируемый `modelKey` из UI либо строить компактный нормализованный ключ |
+
+### Самая выгодная оптимизация
+
+Сначала построить структуру «активные патчи на срезе»:
+
+```js
+function patchesAtV(list, v) {
+  return list.filter(p => patchSRange(p, v) !== null && !p.inCore);
+}
+```
+
+Затем передавать этот набор в `wind`, `materialAt`, `matAt`, `stackTopAt`. Если ингредиентов становится много, заменить `filter` на индекс по `v0/v1`. Это снижает число геометрических проверок на каждый пиксель и одновременно упростит локальные расчёты высоты.
+
+***
+
+## Надёжность и поддерживаемость
+
+### Скрытые глобальные зависимости
+
+Большинство функций читают `S`, `B()` и `patches()` напрямую: `sheetLen`, `dims`, `bounds`, `restack`, `matAt`, `spreadAt`, `shapeInfo`, `materialMap`. Хотя верхний комментарий заявляет «чистую математику», в текущем виде модуль не чистый: результат зависит от неявного глобального состояния. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/06bed000-4cdb-4da4-8231-84a25402d868/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYE65PMVHZF&Signature=XznXUtBJJKUUAfEHlf8pgrX7Y6Y%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJGMEQCIEda1%2Bf9upZn5Txnn%2BE0wjTmZ5JvpRkTgyEi2CrMINq%2FAiA8ctEYj%2BvXvqWgxBhD3yDfSDVMh%2BB8lH3VYaNHkj7niirzBAgkEAEaDDY5OTc1MzMwOTcwNSIMxp%2FtT0v1eyuQS3l6KtAEZfDFg8TK17IprYFIdQu4u6jhGF2mlq0Z5NCpCdrAxoyPJ%2BXYI5K12hEoStSAK0FfGbJzC62qER%2BdO%2FOOP8Zh0RAJqlYjgGUDvZPD5NwFF638tWSyBypAdz5P5J3egMSa6hrTJqr1cA5dcGujQawTXH0b%2FLAxybocmjpH0Qx82EAB5lEZUs%2BeccnMNORJWxj20Q8b%2BXCC2dsa8Y0%2BcAI7IBq%2FVlQLssWhrFiPKHGzWB%2Bm6JlRK3JlR2yZUStJvMzzaxiksYb4YSAY1XohrVCKLJFk9sbituPT0Y3qKyjKdt%2FLDKOk5muiAs9gdesFVtrT%2BgdgoPM5jq78%2FwXoXbfHZUVZyEUhYAHHeLI9tiBjjoENLO6wAE1r3F3AbxRZA2OOUm7QTbpkHwlPlK5QUPp47saMB917O%2BtMJrDhJXW1Vpb9xIpT510oH%2BNzF0oYELb49hGnzjSemTaA%2BlVkIxEyZxHnolJ6ImlKzeimqLHpmxQx8NNIcZo61au9O2pp12a9KmefWtN3wPkMNM5eNwuSTGdWkUm4W%2BqcFxzDDpFBOy3ataJ5DUMqxh3Y4990Z7%2FJK26KYjHzfdIyX98F7QVR7OK5o9DCMhINKPgEsX42wrL%2FZDh4RHZgMIvJcrtLq620rIpkaN9MCBRbtiMhTdIDJczdDkaxC2SEmEjiraYZFT5hnbMtgx7wTbl88Poeosww0njprGlf4JqQqFdnIu3OXAj9ux5gRwyxqgDuXAYz%2BUGGuG%2FGw8BGr1JcWXAjQseM3gWn28cBJhPb4YXEYuNoQjDH47zUBjqZAdsbwmxlWoXIEZppP05Bbfgw1frP2IrbNuuZsqoTMIX4qnF%2FgXt273GykN46FfK07PC%2FsX%2Ba4tafiNVwyFV1yh3GHkw1rWBnKHEns5adbMrZ1BH3ERphm5yXz5v3sp2TAQrTcmz%2FKrrjahNgJyxoV5Hz%2F34ZpQErjGEio6hrGjqHxXuTu%2BSZ88mnhyGla4h47B25LYFf%2FeFSQw%3D%3D&Expires=1787772826)
+
+**Почему важно:**
+- трудно запускать тесты на нескольких конфигурациях параллельно;
+- нельзя безопасно сравнить два ролла с разными базами в одном вызове;
+- кэш потенциально смешивает состояние;
+- рефакторинг UI легко ломает геометрию.
+
+**Рекомендуемая граница API:**
+
+```js
+buildModel({
+  base: BASES.sushi,
+  turns: null,
+  hand: { air: 0, wobble: 0, phase: 0, press: 1 },
+  patches: [...]
+});
+```
+
+А `materialMap` должен принимать `shape` параметром, а не читать `S.shape`.
+
+***
+
+### Нужна валидация входных данных
+
+Сейчас код предполагает, что:
+- `p.kind` присутствует в `ING`;
+- `u`, `v`, `phase` валидны;
+- `rot` — число;
+- `S.hand` содержит четыре числовых поля;
+- `S.turns` положителен.
+
+Например, `d.wave.amp * Math.sin(... + p.phase)` даст `NaN`, если `phase` отсутствует у волнистого ингредиента. В примере `phase` есть, но API явно называет его необязательным. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/06bed000-4cdb-4da4-8231-84a25402d868/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYE65PMVHZF&Signature=XznXUtBJJKUUAfEHlf8pgrX7Y6Y%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJGMEQCIEda1%2Bf9upZn5Txnn%2BE0wjTmZ5JvpRkTgyEi2CrMINq%2FAiA8ctEYj%2BvXvqWgxBhD3yDfSDVMh%2BB8lH3VYaNHkj7niirzBAgkEAEaDDY5OTc1MzMwOTcwNSIMxp%2FtT0v1eyuQS3l6KtAEZfDFg8TK17IprYFIdQu4u6jhGF2mlq0Z5NCpCdrAxoyPJ%2BXYI5K12hEoStSAK0FfGbJzC62qER%2BdO%2FOOP8Zh0RAJqlYjgGUDvZPD5NwFF638tWSyBypAdz5P5J3egMSa6hrTJqr1cA5dcGujQawTXH0b%2FLAxybocmjpH0Qx82EAB5lEZUs%2BeccnMNORJWxj20Q8b%2BXCC2dsa8Y0%2BcAI7IBq%2FVlQLssWhrFiPKHGzWB%2Bm6JlRK3JlR2yZUStJvMzzaxiksYb4YSAY1XohrVCKLJFk9sbituPT0Y3qKyjKdt%2FLDKOk5muiAs9gdesFVtrT%2BgdgoPM5jq78%2FwXoXbfHZUVZyEUhYAHHeLI9tiBjjoENLO6wAE1r3F3AbxRZA2OOUm7QTbpkHwlPlK5QUPp47saMB917O%2BtMJrDhJXW1Vpb9xIpT510oH%2BNzF0oYELb49hGnzjSemTaA%2BlVkIxEyZxHnolJ6ImlKzeimqLHpmxQx8NNIcZo61au9O2pp12a9KmefWtN3wPkMNM5eNwuSTGdWkUm4W%2BqcFxzDDpFBOy3ataJ5DUMqxh3Y4990Z7%2FJK26KYjHzfdIyX98F7QVR7OK5o9DCMhINKPgEsX42wrL%2FZDh4RHZgMIvJcrtLq620rIpkaN9MCBRbtiMhTdIDJczdDkaxC2SEmEjiraYZFT5hnbMtgx7wTbl88Poeosww0njprGlf4JqQqFdnIu3OXAj9ux5gRwyxqgDuXAYz%2BUGGuG%2FGw8BGr1JcWXAjQseM3gWn28cBJhPb4YXEYuNoQjDH47zUBjqZAdsbwmxlWoXIEZppP05Bbfgw1frP2IrbNuuZsqoTMIX4qnF%2FgXt273GykN46FfK07PC%2FsX%2Ba4tafiNVwyFV1yh3GHkw1rWBnKHEns5adbMrZ1BH3ERphm5yXz5v3sp2TAQrTcmz%2FKrrjahNgJyxoV5Hz%2F34ZpQErjGEio6hrGjqHxXuTu%2BSZ88mnhyGla4h47B25LYFf%2FeFSQw%3D%3D&Expires=1787772826)
+
+Минимально:
+
+```js
+const phase = p.phase ?? 0;
+const rot = p.rot ?? 0;
+const hand = {
+  air: S.hand?.air ?? 0,
+  wobble: S.hand?.wobble ?? 0,
+  phase: S.hand?.phase ?? 0,
+  press: S.hand?.press ?? 1
+};
+```
+
+Также стоит в одном месте нормализовать `u/v` и принять решение: обрезать патчи по листу или разрешать выступание за его границы.
+
+***
+
+## Приоритет исправлений
+
+1. Исправить граничную логику `sampleWind()` и `innerAt()` — это первичные ошибки геометрии спирали.
+2. Убрать мутацию `patches()` и сформировать стабильный ключ кэша.
+3. Заменить bbox-only overlap на broad phase + точную проверку пересечения.
+4. Исправить обработку повёрнутых патчей в `computeCore()` и частичное пересечение с подворотом.
+5. Вынести глобальный `S` из геометрического ядра.
+6. Добавить индекс активных патчей на `vSlice` и предвычисления для `materialMap()`.
+7. Расширить самопроверку: тестировать границы бинов, `phi ≈ 0`, неполный последний оборот, `rot = π/2`, `rot = π/4`, патчи у `sFold`, пустой ролл, отрицательные/NaN входные параметры.
+
+Итог: сейчас код хорошо подходит для выразительного визуального прототипа, но перед усложнением пазлов и ростом числа ингредиентов стоит стабилизировать топологию витков, изолировать состояние и перейти от приблизительной раскладки через bbox к локальной геометрической модели.
+
+-----
+
+Провёл статическое ревью. Сначала — логика: есть несколько критичных мест, из‑за которых модель может строить неверную геометрию, особенно для sushi и при сравнении/переключении баз. Производительность тоже можно заметно улучшить, но после исправления этих инвариантов. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+## Критические логические ошибки
+
+| Приоритет | Проблема | Почему это ошибка | Что исправить |
+|---|---|---|---|
+| P0 | `oneTurn` в `wind()` останавливает всю намотку после первого оборота | Для `sushi` задано `turns: 3.1`, однако при первом переходе `k >= 1` выставляются `sClose` и `sEnd = s + flap`; у sushi `flap: 0`. Цикл завершается практически сразу после первого витка, а оставшаяся длина листа и начинки вне ядра не участвуют в срезе. Это противоречит заявленной модели «виток за витком». | Разделить понятия: число слоёв начинки/риса и внешний слой обёртки. Не завершать `wind()` по `oneTurn`; вместо этого маркировать или отдельно моделировать только последний участок как внешний клапан/шов. |
+| P0 | Модель зависит от глобального `S.base` после создания | `buildModel()` сохраняет `m.g` и копию патчей, но `windFor()`, `patchSRange()`, `dims()`, `stackTopAt()` и др. продолжают читать `B()` и `sheetLen(B())` из текущего глобального состояния. Если создать `m` для sushi, затем переключить `S.base` на cake и вызвать `materialMap(m, ...)`, расчёт старой модели начнёт использовать параметры cake. Особенно опасно для `similarity(mA, mB, ...)`. | Сделать модель самодостаточной: хранить `base`/`baseId` в `m`, передавать конфигурацию базы явным параметром во все геометрические функции. Убрать чтение `S` из математического ядра. |
+| P0 | Ключ кэша строится до `restack()` и зависит от служебных полей | `buildModel()` создаёт `key` через `JSON.stringify(list)`, а лишь затем вызывает `restack(list)`, который мутирует исходные патчи (`z0`, `z1`). Поэтому первый и второй вызовы для визуально одинаковой раскладки могут иметь разные ключи и дать лишний пересчёт. Также в ключ могут попасть временные поля из внешнего кода. | Ввести `canonicalPatch()` и строить ключ только из входных параметров: `kind, u, v, rot, wU, hU, dv, phase`. Либо не мутировать входной список: сначала клонировать, затем выполнять `restack()` только над копией. |
+| P1 | Подворот ядра захватывает патчи по центру, а не по реальному пересечению | В `computeCore()` выбор идёт по `p.u * L < sFold`. Длинный или повёрнутый патч, центр которого оказался в зоне ядра, целиком получает `p.inCore = true`, даже если большая его часть должна остаться в основной спирали. Обратный случай тоже возможен: край патча может лежать в ядре, но не попасть туда. | Определять пересечение патча с диапазоном `[0, sFold]` через фактические границы с учётом `rot`, `wU`, волны и `v`; при частичном пересечении либо разрезать патч на два геометрических фрагмента, либо явно поддержать clip-range. |
+| P1 | Частичная конфигурация `S.hand` даёт `NaN` или исключение | `buildModel()` использует `hd.air.toFixed(...)`, а `betaEff()` умножает на `S.hand.press`. Если `S.hand = { air: 0 }`, `wobble`, `phase`, `press` будут `undefined`; `toFixed` выбросит ошибку, а вычисления с `press` породят `NaN`. | Нормализовать вход один раз: `const hand = { air: 0, wobble: 0, phase: 0, press: 1, ...S.hand }`; затем использовать только нормализованный объект. |
+| P1 | `S.turns = 0` ошибочно трактуется как «не задано» | В `sheetLen()` проверка `if (!S.turns)` подменяет ноль базовым значением. Это скрывает некорректный вход и смешивает `null`, `undefined`, `0`, `NaN`. | Использовать `S.turns == null` для режима по умолчанию и валидировать диапазон, например `turns > 0`. |
+
+Все эти точки следуют из связки `sheetLen`/`wind`, `buildModel`/`modelCaches`, `computeCore` и вспомогательных функций, читающих глобальные `S` и `B()`. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+## Ошибки модели и граничные случаи
+
+- `computeCore()` создаёт ядро минимальной длины `tuckMin` даже без начинки: для sushi это как минимум 5 единиц. Возможно, это художественное решение, но оно означает, что «пустой» ролл всё равно получает специальную геометрию ядра, а не обычную спираль. Лучше сделать это явным параметром (`emptyCoreLength`) или отключать подворот при пустом списке. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+- `innerAt()` на последнем угловом бине берёт `b2 = NB - 1`, то есть не интерполирует значения через границу \(2\pi \to 0\). При этом `topAt()` делает циклический переход через `(b + 1) % NB`. Из-за разной политики на шве возможен тонкий радиальный артефакт. Для спирали переход к следующему витку может быть осознанным, но он должен обрабатываться одинаково и документированно. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+- В `materialMap()` идентификатор материала кодируется как `3 + KIND_IDS.indexOf(...)`. При неизвестном `kind` получится класс `2`, то есть визуально это станет wrapper, а не контролируемая ошибка. Валидация `kind` должна происходить при добавлении патча, до всех расчётов. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+- `restack()` использует порядок патчей в массиве как правило укладки: более поздний патч оказывается выше. Это допустимо, если порядок — часть игрового действия. Но это не зафиксировано в API, поэтому при иной сериализации или сортировке один и тот же рецепт меняет геометрию. Нужен явный `layer`/`placedAt` либо документированное правило порядка. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+- Входные координаты и размеры почти не валидируются. Отрицательные `wU`/`hU`, `NaN`, `v` вне диапазона и неизвестный материал могут проявиться далеко от места ошибки — например, как пустая карта, странная толщина или падение внутри `ING[p.kind]`. Нормализация входа здесь сэкономит много времени на отладке. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+## Что оптимизировать
+
+### 1. Убрать глобальное состояние из hot path
+
+Сейчас функции геометрии часто вызывают `B()`, `sheetLen(B())`, читают `S.hand` и `S.shape`. Особенно дорого это становится в `materialMap()`, где на каждый пиксель вызывается `materialAt()`, затем `stackTopAt()`, а там для каждого патча запускается `covers()` и `patchSRange()`. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+Оптимизация:
+
+- Передавать в расчёт неизменяемый `ctx`: `{ base, L, hand, shape }`.
+- Предвычислить у патчей `L`, размеры, `cos(rot)`, `sin(rot)`, bounds и числовой `kindId`.
+- Исключить повторные обращения к `dims()`, `sheetLen()` и тригонометрии внутри попиксельного цикла.
+
+Это одновременно исправляет P0-проблему с переключением базы и уменьшает стоимость рендера.
+
+### 2. Не вычислять пересечение каждого патча для каждого пикселя
+
+`materialMap(size=56)` — это 3136 точек на один срез. Для каждой точки путь до `matAt()` может пройти по всем патчам, а `stackTopAt()` дополнительно проходит по ним снова. При `similarity()` две карты строятся для каждого `v`, то есть стоимость быстро растёт. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+Практичный вариант:
+
+1. Для каждого `vSlice` подготовить компактный список активных патчей.
+2. Для каждого активного патча один раз посчитать его диапазон `s` через `patchSRange()`.
+3. Разбить диапазон листа на сегменты/бины и хранить в них верхнюю высоту стопки и список кандидатов.
+4. В `materialAt()` брать кандидатов только из текущего бина, а не обходить весь `list`.
+
+Это заметно важнее микрооптимизаций вроде замены `for...of`.
+
+### 3. Ограничить кэш срезов
+
+`modelCaches` ограничен 16 моделями, но у каждой модели `m.wds` может бесконечно расти: `windFor(m, v)` добавляет новый `v.toFixed(4)` без ограничения. При плавном скролле, анимации или множестве уникальных срезов это будет утечкой памяти внутри долгоживущей модели. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+Решения:
+
+- Квантизировать `v`, например до 64–128 фиксированных срезов.
+- Ввести LRU-лимит для `m.wds`.
+- Если точный непрерывный `v` нужен только при рисовании, кешировать только ближайшие/последние N срезов.
+
+### 4. Дедуплицировать `SLICES`
+
+В начальном массиве уже есть `0.5`, и далее `0.5` повторно добавляется циклом из трёх срезов. `Map` в итоге перезапишет запись, но `buildModel()` всё равно выполнит `wind()` дважды. Это небольшая, но бесплатная правка: строить `SLICES` через `Set`. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+### 5. Заменить полную очистку кэша на LRU
+
+`if (modelCaches.size > 16) modelCaches.clear()` создаёт скачки производительности: один новый ключ выбрасывает все полезные модели. Лучше ограничить размер до вставки и удалить самый давно использованный ключ. Для пазла с целевой и текущей конфигурацией это особенно полезно. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+## Рекомендуемый порядок работ
+
+1. Исправить семантику `oneTurn`: текущая реализация фактически обрывает намотку после одного витка.
+2. Сделать `buildModel()` чистой функцией: вход `baseId/base`, `patches`, `turns`, `hand`; выход — полностью самодостаточный `model`.
+3. Убрать мутацию входного массива и ввести нормализацию/валидацию патчей.
+4. Исправить разбиение патчей на ядро и внешнюю спираль при частичном пересечении.
+5. Только затем профилировать `materialMap()` и добавлять предвычисленные активные патчи/пространственный индекс.
+
+## Тесты, которых не хватает
+
+Имеющийся блок — полезный smoke test: он печатает радиус, число оборотов и последовательность материалов по нескольким лучам. Но он не проверяет ожидаемый результат автоматически, поэтому регрессии в `oneTurn`, кэше и ядре он не поймает. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/63363178/2feff1fd-19fc-478d-9fa6-ce2e06ca2b51/rollery-geometry.txt?AWSAccessKeyId=ASIA2F3EMEYEZAQKFSE2&Signature=%2FgE%2B5F%2F6UxMBxNVRTAqatSQKEi0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLWVhc3QtMSJIMEYCIQCwlFaYk4b%2B8lzrS%2B7lG4ClWkVtiTGmD8FYhTCBw27knwIhAOnRfwBy7zvKZzsJsK5gIj0Knk1RKqZRKLIDZOWqLfXHKvMECCQQARoMNjk5NzUzMzA5NzA1Igy7yalwEVJ2UIa1yVMq0ARkid9pij0CYGMFfOiXN3pQljVtHBCKDO7nGPrvf65hkfuLZAPjK7U%2BDM5M7NxGjFTGxpyUSHh%2FrlANe80NpRyn8csQzbAzCveJxjm%2FGpS7%2F6qHv9BEm3sHYmiaflJoSPnleJTexHTPf8dcZ9XIzUpd7LJlSPzt1Cz26odSeq4dtQFzTNBqhR5MZ30TJI6JrzIWtgdBQ8zULY%2F9kh96ouBwaD8oYEgcChaEG6AVaoZgiHx1%2Fkv7UDwe2P2%2B9t5EdfUlczY0%2Btu5pO1iiK%2FYDsNibMbXhNf%2BQkl019fvkkDpboKFrCft6GHWpR5JCIBMHJVI6sMLXPPjKjxaLJ13Z1s7hc%2B10VI5R3CGp0LrST7uMkaboq3JCS8E%2FZuFwe5fLHSuj1dwdyAv4imrHHwNjUVwgf2gppSL0OVu5CLRcpJOlXtHPg7Nk8G7CkIPOr%2FIRI1bcRcp%2FhOnMRfLK0pF%2F0z5%2BAalUqC2CZ%2FZBTGEsoOoTY7D8Z4grop%2BrpH1ytFMhpiRDxagpdRE0YvFA1uf15lMG%2B1woOjfjhIechAWWQIQbsFFsYVNIdtFiGoL1gTC2vCzV58qOOJ2mwf7fadYge2ber7iyai7oDOON%2Fcp44o%2BwCaTsrhq3bx%2FC%2BPH0Zt2yMVg8z2K0kBzgtq1FCaWG86oXS%2B5shuE3sFlQBT3DWQlkzyrzmLTL%2Fn6e5SxNotZokCQVgKEZRW8oMXVdn7W15%2FWn7fBmo3My5yCyCYWcKLUDZWoPEoNjT7ztibq9myG%2FctKrNKTRjsAh%2BaG08c2x1xnMJ3lvNQGOpcBCeDDN5pwOaZW4DKs99P5YizmxswsTETADxrbgBnLMomL1kQtLrWtbiIFjza%2BJoBBoAfSzQEbRfjMyPBgqk3Qx5RZgEtOmhBoP4xkNUor8f0IbYHBJeQFuea%2FHKpuoczI4fChblcpSkj9VM0QRKJv9mTlrTUTs36L7Cx73PHQPDYvutspzmv9jJH%2BDL8DPKwvn8wlsc2rHw%3D%3D&Expires=1787773040)
+
+Добавил бы как минимум:
+
+- sushi с `turns: 3.1`: проверка, что реально сформировано больше одного витка и дальние патчи участвуют в `materialAt`;
+- создание sushi-модели, переключение текущей базы на cake, повторная выборка из sushi-модели: результат должен быть идентичен;
+- два вызова `buildModel()` с одинаковыми входными патчами: второй обязан вернуть кэш без изменения ключа из-за `z0/z1`;
+- длинный/диагональный патч, пересекающий границу `sFold`: часть должна быть в ядре, часть — в спирали;
+- неполный `hand`, `turns: 0`, неизвестный `kind`, отрицательные размеры: предсказуемая валидационная ошибка.
+
+Главный вывод: **сначала стоит изолировать модель от глобального UI-состояния и исправить преждевременное завершение `wind()` для sushi**. После этого оптимизация попиксельного поиска патчей даст наибольший выигрыш и будет безопаснее.
