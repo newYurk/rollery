@@ -11,6 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SIM = os.path.dirname(HERE)
 RUNS = os.path.join(HERE, 'runs')
 PORT = int(os.environ.get('LAB_PORT', '8770'))
+HOST = os.environ.get('LAB_HOST', '127.0.0.1')   # 0.0.0.0 — открыть для телефона в той же сети
 PY = sys.executable
 
 # ----------------------------------------------------------------- варианты кинематики
@@ -138,7 +139,7 @@ KEY_METRICS = [
     ('Rout_T', 'Радиус ролла, T'), ('Rout_median_T', 'Радиус (медиана), T'),
     ('nori_turns', 'Оборотов обёртки'), ('layers_predicted', 'Оборотов по формуле'),
     ('nori_turns_geom', 'Оборотов по формуле'),
-    ('rice_J_mean', 'Сжатие риса (J)'), ('conservation', 'Сохранение массы'),
+    ('rice_J_mean', 'Сжатие риса (J)'), ('conservation', 'Объём (1 = не сжат)'),
     ('rice_area_ratio', 'Риса на карте'), ('spread_area_ratio', 'Намазки на карте'),
     ('gap_cv', 'Неравномерность витков'), ('hole_T', 'Дырка в центре, T'),
     ('nori_torn', 'Нори порвана'), ('escaped', 'Вылетело частиц'), ('stable', 'Устойчиво'),
@@ -253,8 +254,16 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 if __name__ == '__main__':
     os.makedirs(RUNS, exist_ok=True)
     print('Лаборатория скрутки: http://127.0.0.1:%d' % PORT)
+    if HOST != '127.0.0.1':
+        import socket
+        try:
+            sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); sk.connect(('10.255.255.255', 1))
+            lan = sk.getsockname()[0]; sk.close()
+            print('С телефона (та же сеть Wi-Fi): http://%s:%d' % (lan, PORT))
+        except Exception:
+            print('С телефона: http://<адрес-этого-мака>:%d' % PORT)
     print('Остановить — Ctrl+C в этом окне.')
     try:
-        Server(('127.0.0.1', PORT), Handler).serve_forever()
+        Server((HOST, PORT), Handler).serve_forever()
     except KeyboardInterrupt:
         print('\nостановлено')
