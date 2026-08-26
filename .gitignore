@@ -8,3 +8,4 @@ sim/**/out/*.npy
 sim/**/out/*.npz
 sim/**/out/particles_*
 sim/lab/runs/
+docs/ui-review/
