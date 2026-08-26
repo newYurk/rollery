@@ -1,5 +1,18 @@
 #!/usr/bin/env python
-"""mat-sdf: 2D MLS-MPM reference of rolling a sushi roll with a REAL bamboo mat (makisu).
+"""reference2: 2D MLS-MPM reference of rolling a sushi roll with a REAL bamboo mat (makisu).
+
+The winner of the mat play-off of 26.08.2026 (see README.md): ../mat-sdf, plus three things taken
+from the loser ../mat-chain and one metric asked for by the owner. Deltas against mat-sdf:
+  * R_fold is capped by AREA CONSERVATION -- the first turn cannot enclose more than the material
+    that goes into it (a_fold + s_close*h). Only layout 5 hits the cap; layouts 1-4 are unchanged.
+  * when the cap bites, tuck_eff carries the near end further in proportion to the shrinkage.
+  * wrinkles_mat: the wrinkle count with the threshold the BAMBOO sets (1/R_MAT_MIN = 2 1/T) rather
+    than the bed (1/(T+w) = 0.89 1/T) -- from mat-chain.
+  * crossings_predicted_actual / _best: the layer formula fed the fold length the run actually spent
+    on the first turn -- from mat-chain.
+  * rice_J_min_run: the smallest rice compaction reached at ANY moment (KINEMATICS.md 13:25 -- the
+    wrinkle is the symptom, the crushed rice is the disease).
+  * shape: half-side, fill fraction and corner radius of the square press (layout 5).
 
 Rewritten kinematics (../KINEMATICS.md, "MAIN CORRECTION 26.08.2026, 12:50"). The mat is not an arc
 pressing from above and the near edge of the nori is not grabbed through the air. The mat lies UNDER
@@ -807,6 +820,20 @@ def compute_metrics(xs, vs, cls, Jp, nori_row, nori_col, info, layout, img, px, 
         nn = np.nonzero(seq == CLASS_NORI)[0]
         r_nori_out.append(d[nn[-1]] if len(nn) else 0.0)
     rout = np.array(rout)
+    # --- shape after the press. docs/simulation-research.md sec.5 asks layout 5 for two numbers the
+    #     stand will be compared against: the corner rounding radius of the square and how much of the
+    #     square the rice actually fills. Both are read off the class map, not off the mat.
+    #       half-side  = half of the axis-aligned bounding box of the material
+    #       fill_frac  = material area / (2*half-side)^2
+    #       corner_r   = r from r_diag = sqrt2*(a - r) + r, r_diag measured along the four diagonals
+    ys_px, xs_px = np.nonzero(fg)
+    a_half = 0.5 * max((xs_px.max() - xs_px.min()), (ys_px.max() - ys_px.min())) * px
+    r_diag = float(np.mean([rout[i] for i in (4, 13, 22, 31)]))          # 40, 130, 220, 310 deg
+    corner_r = (math.sqrt(2.0) * a_half - r_diag) / (math.sqrt(2.0) - 1.0)
+    shape_met = dict(square_half_side_T=round(float(a_half), 3),
+                     square_fill_frac=round(float(fg.sum()) * px * px / max(4.0 * a_half * a_half, 1e-9), 3),
+                     square_corner_radius_T=round(float(min(max(corner_r, 0.0), a_half)), 3),
+                     press_shape=extra.get('mat', {}).get('press_shape', 'circle'))
     tail_n, tail_frac, r_contour, tail_mask, tail_excess = tail_outside_metric(xs, cen_world, rout, len(angs))
     # fillings
     fills = []
@@ -923,7 +950,7 @@ def compute_metrics(xs, vs, cls, Jp, nori_row, nori_col, info, layout, img, px, 
         Rcore_core_T=extra['pred']['Rcore_core_T'], Rcore_hollow_T=extra['pred']['Rcore_hollow_T'],
         a_fold_pred_T2=extra['pred']['a_fold_T2'],
         Rout_T=round(float(rout.max()), 3), Rout_mean_T=round(float(rout.mean()), 3), Rout_min_T=round(float(rout.min()), 3),
-        Rout_median_T=round(float(np.median(rout)), 3),
+        Rout_median_T=round(float(np.median(rout)), 3), shape=shape_met,
         R_mat_T=round(extra['R'], 3), R_nori_outer_mean_T=round(float(np.mean(r_nori_out)), 3),
         nori_turns=round(float(np.mean(turns)), 3), nori_turns_min=int(np.min(turns)), nori_turns_max=int(np.max(turns)),
         nori_turns_geom=round(turns_geom(info), 3),
@@ -1074,9 +1101,14 @@ def main():
             / (2.0 * math.pi)
     R_fold_want = R_fold
     R_fold = max(R_MAT_MIN + h_sheet, min(R_fold, R_cap))
+    # When the cap bites, the loop closes BELOW the top of the stack: the stack is being squashed as
+    # the turn shuts, and the near end has to be carried correspondingly further to still land on the
+    # far rice line instead of hooking back into the core. Carry it in proportion to how much the loop
+    # was shrunk. Where the cap does not bite (layouts 1-4) this is exactly 1 and changes nothing.
+    tuck_eff = min(1.3, max(0.6, tuck * min(1.3, R_fold_want / max(R_fold, 1e-6))))
 
     phi_meet0 = phi_land(R_fold, Y_BED)          # near rice line lands exactly on the far rice line
-    phi_meet = min(2.0 * math.pi - 0.05, math.pi + tuck * (phi_meet0 - math.pi))
+    phi_meet = min(2.0 * math.pi - 0.05, math.pi + tuck_eff * (phi_meet0 - math.pi))
     s_close_pred = R_fold * phi_meet
     # sheet left over after the first turn -> the radius the spiral should end at
     a_rest = (max(0.0, (L_SHEET - L_FLAP) - s_close_pred) * h_sheet + L_FLAP * W_NORI) * (1.0 + PACK_AIR)
@@ -1117,7 +1149,7 @@ def main():
     print(f'grid {nx}x{ny} dx={dx:.4f} particles={n} hp={info["hp"]:.4f} nori rows={info["nori_rows"]} '
           f'dt={dt:.5f} cmax={cmax:.2f} v_lift={v_lift:.3f} v_roll={v_roll:.3f}\n'
           f'mat: R_fold={R_fold:.3f} (want {R_fold_want:.3f}, area cap {R_cap:.3f}, '
-          f'>= R_mat_min {R_MAT_MIN}) phi_meet={phi_meet:.3f} rad '
+          f'>= R_mat_min {R_MAT_MIN}) tuck_eff={tuck_eff:.3f} phi_meet={phi_meet:.3f} rad '
           f'({math.degrees(phi_meet):.0f} deg) s_close~{s_close_pred:.2f} T  R_end_pred={R_end_pred:.3f} '
           f'bond={bond} fingers={fingers} hold={t_hold:.1f}\n'
           f'fold zone: {[r[5] for r in fold_rects]} s_fold={s_fold:.2f} a_fold={a_fold:.2f} h_top={h_top:.2f} | '
@@ -1462,6 +1494,7 @@ def main():
     met['R_fold_want_T'] = round(R_fold_want, 3)
     met['R_fold_area_cap_T'] = round(R_cap, 3)
     met['R_fold_capped'] = bool(R_fold_want > R_cap + 1e-6)
+    met['tuck_effective'] = round(tuck_eff, 3)
     met['layers_predicted_close'] = round(layers_close, 3)
     met['crossings_predicted_close'] = round(layers_close + 1.0, 3)
     met['turns_minus_predicted_close'] = round(met['nori_turns'] - (layers_close + 1.0), 3)
@@ -1478,6 +1511,16 @@ def main():
         met['crossings_predicted_actual'] = pred_act['crossings_predicted']
         met['turns_minus_predicted_actual'] = round(met['nori_turns'] - pred_act['crossings_predicted'], 3)
         met['turns_match_formula_actual'] = bool(abs(met['turns_minus_predicted_actual']) <= 0.25)
+        # --- which of the two to believe, decided by the geometry and not by the answer: the length of
+        #     the first turn is set by the FILLINGS when there are any inside it (a_fold > 0) -- the loop
+        #     has to go round them and eats as much sheet as that takes -- and by the flat sheet when
+        #     there are none. So: measured arc if the fold zone is loaded, nominal s_fold if it is empty.
+        use_act = a_fold > 1e-6
+        cr_best = pred_act['crossings_predicted'] if use_act else met['crossings_predicted']
+        met['crossings_predicted_best'] = cr_best
+        met['crossings_best_source'] = 'actual' if use_act else 'nominal'
+        met['turns_minus_predicted_best'] = round(met['nori_turns'] - cr_best, 3)
+        met['turns_match_formula_best'] = bool(abs(met['turns_minus_predicted_best']) <= 0.25)
     met['wrinkles_nonose'] = int(wr_final['wrinkles_nonose'])
     met['wrinkles_nonose_max'] = int(wr['wrinkles_nonose_max'])
     met['mat_min_radius_T'] = R_MAT_MIN
