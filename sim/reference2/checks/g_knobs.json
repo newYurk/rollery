@@ -1,0 +1,8 @@
+{"base_sp1_pr1_ho1": ["_rep_a","_rep_b","_rep_c","_rep_d"],
+ "speed0.5": ["_sp05_a","_sp05_b"],
+ "speed2.0": ["_sp20_a","_sp20_b"],
+ "press0.5": ["_pr05_a","_pr05_b"],
+ "press2.0": ["_pr20_a","_pr20_b"],
+ "hold0":    ["_ho0_a","_ho0_b"],
+ "hold4":    ["_ho4_a","_ho4_b"],
+ "hold8":    ["_ho8_a","_ho8_b"]}

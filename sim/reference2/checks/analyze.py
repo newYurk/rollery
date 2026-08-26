@@ -4,7 +4,7 @@ import json, os, sys, itertools
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, 'out')
+OUT = os.path.join(HERE, 'out_hand')
 NAMES = {0: 'bg', 1: 'rice', 2: 'nori', 3: 'salmon', 4: 'cucumber', 5: 'tamago', 6: 'avocado', 7: 'shrimp'}
 KINDS = ['cucumber', 'tamago', 'salmon', 'avocado']
 

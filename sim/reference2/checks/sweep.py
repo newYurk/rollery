@@ -11,7 +11,7 @@ import json, os, subprocess, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 PY = os.path.join(os.path.dirname(ROOT), '.venv', 'bin', 'python')
-OUT = os.path.join(HERE, 'out')
+OUT = os.path.join(HERE, 'out_hand')
 
 
 def run(tag, extra):
