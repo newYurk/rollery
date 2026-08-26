@@ -10,7 +10,15 @@ import json, math
 import numpy as np
 
 OUT = "/Users/newyurk/Desktop/Home/Projects/rollery/sim/reference2/out"
-T, W_NORI, R_MAT_MIN = 1.0, 0.12, 0.5
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _geom import (T_RICE, W_NORI, H_SHEET, L_SHEET, L_FLAP, R_MAT_MIN, BG_HOLE_T,
+                   WR_DS, WR_KAPPA_MIN, WR_NOSE_T, WR_EDGE_T, WR_FIT_T, PACK_AIR, CORNER_R,
+                   assert_same_geometry)
+# The geometry used to live as a private copy in every one of these scripts (T = 1.0,
+# W_NORI = 0.12, L_SHEET = 38.7, pitch H_NOM = 1.12). It is imported from run.py now: after the
+# thickness correction of 26.08.2026 a stale copy would judge new dumps by the old spiral pitch
+# and print plausible, wrong numbers without raising anything.
 WR_DS, WR_EDGE_T = 0.25, 1.0
 WR_NOSE_T = math.pi * (T + W_NORI)
 
@@ -30,6 +38,7 @@ def midline(z):
 def run(n):
     z = np.load(f"{OUT}/particles_{n}.npz")
     met = json.load(open(f"{OUT}/metrics_{n}.json"))
+    assert_same_geometry(met)
     P = midline(z)
     s0 = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(P, axis=0).T))])
     L = float(s0[-1])

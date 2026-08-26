@@ -10,7 +10,16 @@ F. layout 4: order of the fillings along the sheet, preserved or not
 import json, math, os
 import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(HERE, '..', 'out')
-L_SHEET = 38.7; T = 1.0; W = 0.12; H_NOM = T + W; BG_HOLE_T = 0.35; STEP = 0.25
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _geom import (T_RICE, W_NORI, H_SHEET, L_SHEET, L_FLAP, R_MAT_MIN, BG_HOLE_T,
+                   WR_DS, WR_KAPPA_MIN, WR_NOSE_T, WR_EDGE_T, WR_FIT_T, PACK_AIR, CORNER_R,
+                   assert_same_geometry)
+# The geometry used to live as a private copy in every one of these scripts (T = 1.0,
+# W_NORI = 0.12, L_SHEET = 38.7, pitch H_NOM = 1.12). It is imported from run.py now: after the
+# thickness correction of 26.08.2026 a stale copy would judge new dumps by the old spiral pitch
+# and print plausible, wrong numbers without raising anything.
+W = W_NORI; H_NOM = H_SHEET; STEP = 0.25
 N_ANG = 36
 LAY4 = [('cucumber', 1.5, 1.4), ('tamago', 3.2, 2.4), ('salmon', 5.9, 2.0), ('avocado', 8.2, 2.0)]
 KIND_CLASS = {'salmon': 3, 'cucumber': 4, 'tamago': 5, 'avocado': 6, 'shrimp': 7}
@@ -18,6 +27,7 @@ KIND_CLASS = {'salmon': 3, 'cucumber': 4, 'tamago': 5, 'avocado': 6, 'shrimp': 7
 
 def load(n):
     met = json.load(open(os.path.join(OUT, f'metrics_{n}.json')))
+    assert_same_geometry(met)
     img = np.load(os.path.join(OUT, f'material_{n}.npy'))
     z = np.load(os.path.join(OUT, f'particles_{n}.npz'))
     px = met['px_T']; npx = img.shape[0]

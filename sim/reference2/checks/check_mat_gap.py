@@ -6,14 +6,23 @@ nori-to-mat distance -- `nori_max_gap_T` in metrics_*.json is the gap between CO
 PARTICLES (a tear test), not the nori-to-mat gap.  This measures the real thing on the final dump.
 
 For each angular bin around the roll it reports the distance from the mat surface to the nearest
-nori particle.  In contact that distance is about half a nori row thickness (<= 0.06 T); the task's
-tolerance is half a nori particle spacing, ~0.025 T.
+nori particle.  In contact that distance is about half a nori row thickness (W_NORI/2/rows) and the
+tolerance is half a nori particle spacing.  Both follow run.py: they were 0.06 U and ~0.025 U while
+the nori was 0.12 U thick, and the first of them is 50x smaller now that it is 0.02 U.
 """
 import json
 import numpy as np
 
 OUT = "/Users/newyurk/Desktop/Home/Projects/rollery/sim/reference2/out"
-W_NORI, CORNER_R = 0.12, 0.6
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _geom import (T_RICE, W_NORI, H_SHEET, L_SHEET, L_FLAP, R_MAT_MIN, BG_HOLE_T,
+                   WR_DS, WR_KAPPA_MIN, WR_NOSE_T, WR_EDGE_T, WR_FIT_T, PACK_AIR, CORNER_R,
+                   assert_same_geometry)
+# The geometry used to live as a private copy in every one of these scripts (T = 1.0,
+# W_NORI = 0.12, L_SHEET = 38.7, pitch H_NOM = 1.12). It is imported from run.py now: after the
+# thickness correction of 26.08.2026 a stale copy would judge new dumps by the old spiral pitch
+# and print plausible, wrong numbers without raising anything.
 NBIN = 180
 
 
@@ -30,6 +39,7 @@ def mat_sdf(P, xc, yc, R, shape):
 def run(n):
     z = np.load(f"{OUT}/particles_{n}.npz")
     met = json.load(open(f"{OUT}/metrics_{n}.json"))
+    assert_same_geometry(met)
     mat = met['mat']
     xc, yc, R, shape = mat['xc_final'], mat['y_cen_press'], mat['R_final'], mat['press_shape']
     x = z['x'].astype(np.float64)

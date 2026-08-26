@@ -8,9 +8,23 @@ import importlib.util, json, math, sys
 import numpy as np
 
 ROOT = '/Users/newyurk/Desktop/Home/Projects/rollery/sim'
-T, W = 1.0, 0.12
-L_SHEET, L_FLAP = 38.7, 5.0
-PITCH = T + W
+
+
+def geometry(mod):
+    """Sheet geometry of the attempt being judged, read from ITS OWN run.py.
+
+    These four numbers used to be hardcoded here as T = 1.0, W = 0.12, L_SHEET = 38.7, L_FLAP = 5.0.
+    That was fine only while every attempt shared them. reference2 corrected its thicknesses to the
+    sourced ones on 26.08.2026 (rice bed 1.4 U = 7 mm, nori 0.02 U = 0.1 mm, sheet 42 U = 21 cm) and
+    renamed `T` to `T_RICE`, so a hardcoded copy here would silently judge a reference2 dump with the
+    old spiral pitch. Both spellings are accepted; nothing is guessed.
+    """
+    t_rice = getattr(mod, 'T_RICE', None)
+    if t_rice is None:
+        t_rice = mod.T                       # attempts predating the 26.08.2026 rename
+    w = mod.W_NORI
+    pitch = getattr(mod, 'H_SHEET', t_rice + w)
+    return t_rice, w, mod.L_SHEET, mod.L_FLAP, pitch
 
 
 def load(path, name):
@@ -24,6 +38,7 @@ def load(path, name):
 def predicted(mod, L):
     lay = mod.LAYOUTS[L]
     xs, cls, vol, nr, nc, info = mod.sample_layout(lay, 16000)
+    T, W, L_SHEET, L_FLAP, PITCH = geometry(mod)
     a_rice = (L_SHEET - L_FLAP) * T
     a_nori = L_SHEET * W
     a_fill = info['area_fill']

@@ -6,8 +6,9 @@ from the loser ../mat-chain and one metric asked for by the owner. Deltas agains
   * R_fold is capped by AREA CONSERVATION -- the first turn cannot enclose more than the material
     that goes into it (a_fold + s_close*h). Only layout 5 hits the cap; layouts 1-4 are unchanged.
   * when the cap bites, tuck_eff carries the near end further in proportion to the shrinkage.
-  * wrinkles_mat: the wrinkle count with the threshold the BAMBOO sets (1/R_MAT_MIN = 2 1/T) rather
-    than the bed (1/(T+w) = 0.89 1/T) -- from mat-chain.
+  * wrinkles_mat: the wrinkle count with the threshold the BAMBOO sets (1/R_MAT_MIN = 2 1/U) rather
+    than the bed (1/H_SHEET = 0.704 1/U; it was 0.89 before the thickness correction of 26.08.2026)
+    -- from mat-chain.
   * mat_bend_violations (26.08.2026): every stretch of the band bent tighter than the mat itself can
     bend, over the WHOLE band. Reversal-based counters can be dodged; this one cannot.
 
@@ -41,11 +42,13 @@ Rolling without slipping ties the two together: d(xc)/dt = d(s_c)/dt = v, so the
 arclength s sits at th = (s_c - s)/R and Phi = s_c/R. Two consequences, and they are the whole point:
     * the near end of the mat traces a CYCLOID, and the sheet's fold radius is R everywhere -- no
       crease tighter than R can exist, so an accordion is impossible by construction (the mat's own
-      minimum bend radius, R_MAT_MIN = 0.5 T, is far below R and is never the binding constraint).
+      minimum bend radius, R_MAT_MIN = 0.5 U, is far below R and is never the binding constraint).
       CAVEAT, measured 26.08.2026: this holds for the mat, NOT yet for the sheet. The mat contact is
       one-sided ("stay inside", only when vn < 0) and nothing gives the nori a bending stiffness of
-      its own, so in the CORE the sheet can and does fold tighter than the mat could -- 0.229 T on
-      layout 4 and 0.164 T on layout 5, against a limit of 0.56 T. `mat_bend_violations` records it.
+      its own, so in the CORE the sheet can and does fold tighter than the mat could -- 0.229 U on
+      layout 4 and 0.164 U on layout 5, against a limit of 0.56 U. `mat_bend_violations` records it.
+      MEASURED AT T = 1.0, w = 0.12, L = 38.7 -- needs re-measuring: the limit is now
+      R_MAT_MIN + w/2 = 0.51 U, so the same bend is judged MORE leniently than it was.
       Until the sheet gets an explicit curvature limit, "impossible by construction" is a claim about
       the boundary, not a property of the model;
     * there is no free span of sheet at any moment: the nori is either flat on the table or bonded to
@@ -65,7 +68,8 @@ Phases
   5 ring   the mat closes into a full ring around everything, flap included.
   6 press  final squeeze to force equilibrium at P_press (circle, or rounded square for layout 5).
 
-Units: T = 1 rice thickness (~5 mm), rho_rice = 1, E_rice = 1, time unit = T / sqrt(E_rice/rho_rice).
+Units: U = 1 length unit = 5 mm (the rice bed is T_RICE = 1.4 U, NOT the unit -- see the block of
+constants below), rho_rice = 1, E_rice = 1, time unit = U / sqrt(E_rice/rho_rice).
 Materials, solver, rasterization and metrics are unchanged from ../reference/run.py.
 
 CLI: python run.py --layout 1..6 --speed 1.0 --press 1.0 --tuck 1.0 --hold 1.0 --fingers 1
@@ -75,10 +79,23 @@ import argparse, json, math, os, sys, time
 import numpy as np
 
 # ----------------------------------------------------------------------------- layouts
-T = 1.0
-L_SHEET = 38.7          # sheet length, T
-L_FLAP = 5.0            # bare nori at the far edge, T
-W_NORI = 0.12           # nori thickness, T
+# UNITS (rewritten 26.08.2026). U is the LENGTH UNIT of this file and of the stand (index.html):
+# U = 5 mm. Every bare length below -- the filling sizes in LAYOUTS, R_MAT_MIN, FOLD_CLEAR, WR_DS,
+# TAIL_TOL, ... -- is in U, and NONE of them follows the thickness of the rice.
+# Until 26.08.2026 the unit and the rice bed were one symbol `T`, because they happened to be
+# numerically equal (a 5 mm bed = 1 U). They are not equal any more: the sourced bed is 7 mm = 1.4 U
+# (docs/geometry-audit.md, "Thicknesses from sources"). The symbol `T` is therefore GONE rather than
+# aliased -- a forgotten use has to raise NameError, not quietly read 1.0.
+# The `_T` suffix on the metric keys is KEPT (../judge.py and ../reference/table.py read those keys
+# across every variant) and from now on it reads "in U", not "in rice thicknesses".
+U_MM    = 5.0     # one length unit, mm -- the same unit as index.html
+T_RICE  = 1.4     # rice bed thickness, U = 7 mm   (SUZUMO SVS-FCA: small 7 / medium 8 / futomaki 12)
+W_NORI  = 0.02    # nori thickness,     U = 0.1 mm (FAO: 21x19 cm sheet ~3.0 g -> 75 g/m2, rho 0.7-1.0)
+H_SHEET = T_RICE + W_NORI      # loaded sheet thickness = spiral pitch, U (1.42)
+L_SHEET = 42.0    # sheet length,       U = 21 cm  (long side of the FAO sheet; stand sheetCm 21)
+L_FLAP  = 5.0     # bare nori at the far edge, U = 25 mm -- NOT from the stand, UNVERIFIED: the stand
+                  # has flap 0 for sushi and its `flap` means something else (the tail after closing
+                  # in the one-turn model). At L_FLAP = 0 the rice area would be 58.8 U2, not 51.8.
 KIND_IDS = ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp']
 CLASS_BG, CLASS_RICE, CLASS_NORI = 0, 1, 2
 CLASS_OF_KIND = {k: 3 + i for i, k in enumerate(KIND_IDS)}   # salmon 3, cucumber 4, tamago 5, avocado 6, shrimp 7
@@ -100,12 +117,16 @@ LAYOUTS = {
             press_shape='square'),
     # 6 is NOT one of the five control layouts of docs/simulation-research.md sec.5. It is a diagnostic for the
     # nori_turns target of KINEMATICS.md: a real futomaki carries ~15 cm2 of filling in cross-section, i.e.
-    # ~60 T2 at T = 5 mm. With that much core the 38.7 T sheet closes in ~1.2 turns (see README sec.5.1).
+    # ~60 U2 at U = 5 mm. With that much core the sheet closes in ~1.2 turns (see README sec.5.1;
+    # the turn count was measured on the 38.7 U / T = 1.0 geometry and needs re-measuring).
     6: dict(name='futomaki-full-core', fillings=[fill('tamago', 1.5, 5.0, 4.4), fill('salmon', 7.0, 4.6, 4.0),
                                                  fill('avocado', 12.1, 4.4, 4.2, True)],
             press_shape='circle'),
-    # 7 is the realistic futomaki that layout 6 is NOT. Layout 6 packs 58.8 T2 of filling against
-    # 33.7 T2 of rice (64 % of the cross-section) and the nori tears: it has no rice cushion to lie on.
+    # 7 is the realistic futomaki that layout 6 is NOT. Layout 6 packs 54.9 U2 of filling (the code
+    # samples the avocado as an ELLIPSE; the 58.8 U2 this comment used to claim is the rectangle sum,
+    # i.e. it was wrong before this rewrite too) against 51.8 U2 of rice -- 51 % of the cross-section
+    # after the 26.08.2026 thickness correction, 59 % before it, never the 64 % once claimed. The nori
+    # tears anyway: it has no rice cushion to lie on.
     # A real futomaki carries ~30 % filling with rice all around it. This is the layout the one-turn
     # model of the stand must be checked against -- see ../KINEMATICS.md, "Open discrepancy".
     7: dict(name='futomaki-real', fillings=[fill('tamago', 1.5, 2.4, 2.0), fill('salmon', 3.9, 2.0, 1.6),
@@ -115,11 +136,35 @@ LAYOUTS = {
             press_shape='circle'),
 }
 
-# ----------------------------------------------------------------------------- materials  (unchanged)
+# ----------------------------------------------------------------------------- materials
+# The nori is a MEMBRANE, and what decides whether it survives being dragged is its stiffness per
+# unit width, E*w -- not E alone. E = 25 was picked while the band was w = 0.12 thick, i.e. it was
+# always shorthand for E*w = 3.0; it is not a sourced modulus (nothing in docs/ cites one).
+#
+# Writing down the sourced thickness (0.12 -> 0.02 U = 0.1 mm) without touching E therefore divided
+# the band's membrane stiffness by six, and the bare far flap -- 5 U of nori with no rice on it --
+# stopped being able to drag itself out from under the roll: it severed at s ~ 39 of 42 during the
+# final press. Measured on layout 1, --threads 1, all else equal (26.08.2026):
+#     T=1.0 w=0.12 L=38.7  E=25   grid 240   gap 0.054  torn False   <- the old reference
+#     T=1.4 w=0.02 L=42    E=25   grid 240   gap 1.952  torn TRUE
+#     T=1.4 w=0.02 L=38.7  E=25   grid 240   gap 2.093  torn TRUE    <- not the sheet length
+#     T=1.4 w=0.02 L=42    E=25   grid 240   gap 2.060  torn TRUE    <- 22k particles, baseline hp:
+#                                                                       not the particle spacing
+#     T=1.4 w=0.02 L=42    E=25   grid 400   gap 1.088  torn TRUE    <- 1.66x finer grid: not the grid
+#     T=1.4 w=0.12 L=42    E=25   grid 240   gap 0.069  torn False   <- thick nori alone is fine
+#     T=1.0 w=0.02 L=42    E=25   grid 240   gap 0.072  torn False   <- thin nori alone is fine
+#     T=1.4 w=0.02 L=42    E=150  grid 240   gap 0.069  torn False   <- E*w restored: fixed
+# So E is tied to w here, and a future thickness edit cannot silently soften the band again.
+# OPEN FORK for the owner: this asserts that the correction was bookkeeping -- the band is the same
+# physical object, only drawn to its true thickness. The other reading, that real 0.1 mm nori IS six
+# times floppier than the model has been assuming, is defensible too, and under it the flap tearing
+# is a PREDICTION rather than an artefact. Deciding it needs a measured nori, which we do not have.
+# Cost of the fix: dt ~ 1/sqrt(E), so a run is ~2.3x longer (37 s -> 85 s on layout 1).
+E_NORI_W = 3.0           # membrane stiffness of the nori band, E*w, in units of E_rice * U
 # name: (E, nu, tau_y (shear yield; 1e9 = elastic), rho)
 MATERIALS = {
     'rice':     (1.0, 0.35, 0.03, 1.0),
-    'nori':     (25.0, 0.30, 1e9, 2.0),
+    'nori':     (E_NORI_W / W_NORI, 0.30, 1e9, 2.0),
     'salmon':   (3.0, 0.40, 0.15, 1.0),
     'cucumber': (15.0, 0.30, 1e9, 1.0),
     'tamago':   (10.0, 0.35, 1e9, 1.0),
@@ -138,17 +183,18 @@ X_SHEET = 0.0            # near edge of the sheet -- and of the mat: they coinci
 X_END_EXTRA = 2.0        # hard cap: the contact point never goes past sheet end + this
 
 # --- the mat (makisu) ---------------------------------------------------------------------------
-R_MAT_MIN = 0.5          # minimum bend radius of the mat itself (bamboo sticks ~2-3 mm at T = 5 mm).
+R_MAT_MIN = 0.5          # minimum bend radius of the mat itself (bamboo sticks ~2-3 mm at U = 5 mm).
                          # The working radius R is always far above it; reported as a check.
 MAT_BOND = 0.0           # extra kinematic bond of the nori to the mat, ON TOP of the friction.
                          # Default OFF, and that is a result, not a shortcut: MU_MAT = 2 already makes
                          # the mat sticky, and the nori is pinned to it by the rice above, so the sheet
                          # follows the mat with no bond at all. With bond = 0.85 the band is driven at
                          # the mat's rigid rolling field while the roll under it is not quite rigid,
-                         # and the mismatch tore holes of 0.36-0.72 T in it (layouts 2 and 4).
-MAT_BOND_D = 0.45        # ... within this distance of the mat surface, T
+                         # and the mismatch tore holes of 0.36-0.72 U in it (layouts 2 and 4;
+                         # measured at T = 1.0, w = 0.12, L = 38.7 -- not re-measured since).
+MAT_BOND_D = 0.45        # ... within this distance of the mat surface, U
 BOND_TAPER = 0.5         # ... faded in over this much angle at each end of the contact arc, rad
-BOND_LAG = 0.15          # ... and only for sheet that has already passed the contact point, T
+BOND_LAG = 0.15          # ... and only for sheet that has already passed the contact point, U
 TAU_V = 1.5              # the hand's speed follows its target with this lag: an instant step from 0 to
                          # v_roll yanks the bonded nori while the rest of the roll stands still
 V_LIFT_REF = 0.18        # speed of the contact point during the first turn at --speed 1
@@ -156,23 +202,25 @@ V_ROLL_REF = 0.26        # ... and once the roll is rolling forward
 T_HOLD_REF = 6.0         # length of the pause after the rice meets the rice at --hold 1
 FRONT_CLEAR = 0.35       # while rolling, the mat's leading end is led out to this height above what
                          # still lies ahead (the leading edge is fed out from under the roll). The height is
-                         # MEASURED, not assumed: over the bed it is ~T + w, over the bare far flap it
+                         # MEASURED, not assumed: over the bed it is ~H_SHEET, over the bare far flap it
                          # is ~w, and the mat then closes almost the whole way round and presses the
                          # flap onto the roll instead of rolling over it.
-V_YAHEAD = 0.5           # ... and it follows the measurement at this rate, T per time unit
-FOLD_CLEAR = 0.8         # the first turn clears the tallest filling of the fold zone by this much, T
+V_YAHEAD = 0.5           # ... and it follows the measurement at this rate, U per time unit
+FOLD_CLEAR = 0.8         # the first turn clears the tallest filling of the fold zone by this much, U
 PACK_AIR = 0.04          # a wound layer is this much thicker than the flat sheet: real turns never
                          # pack perfectly. Without the allowance the geometric spiral is the radius of
                          # the UNDEFORMED area, and the mat then has to compress the rice by exactly the
-                         # air between the turns to make it fit (measured: conservation 0.945).
+                         # air between the turns to make it fit (conservation 0.945, measured at
+                         # T = 1.0, w = 0.12, L = 38.7 -- needs re-measuring).
 CORE_HOLLOW = 0.5        # the crease of the first turn leaves a hollow of about half a sheet thickness.
                          # Not free: with 1.0 the geometric spiral ends at R = 3.77 against the 3.49 that
-                         # area conservation allows, and the roll keeps a 6 T2 void in its core for good.
-Y_BED = W_NORI + T       # thickness of the sheet lying flat ahead
-S_FOLD_EMPTY = 5.0       # fold zone of a sheet with no fillings near the edge, T
-S_FOLD_MARGIN = 1.0      # s_fold = (end of the fold zone) + this, T
+                         # area conservation allows, and the roll keeps a 6 U2 void in its core for good.
+                         # (measured at T = 1.0, w = 0.12, L = 38.7 -- needs re-measuring.)
+Y_BED = H_SHEET          # thickness of the sheet lying flat ahead, U
+S_FOLD_EMPTY = 5.0       # fold zone of a sheet with no fillings near the edge, U
+S_FOLD_MARGIN = 1.0      # s_fold = (end of the fold zone) + this, U
 FOLD_REACH = 5.0         # a filling joins the fold zone if it starts within this of the near edge ...
-FOLD_GAP = 2.5           # ... or within this of the previous member, T
+FOLD_GAP = 2.5           # ... or within this of the previous member, U
 FOLD_CAP = 0.45          # s_fold never exceeds this fraction of the sheet
 
 # --- fingers: the second kinematic support of the first turn -------------------------------------
@@ -180,7 +228,9 @@ FOLD_CAP = 0.45          # s_fold never exceeds this fraction of the sheet
 # A lid over the part of the stack the roll has not reached yet: nothing may rise through it and its
 # forward creep is damped. Released the moment the rice meets the rice.
 FING_GAP = 1.05          # the lid starts this many R ahead of the contact point (clear of the mat arc)
-FING_LID = 0.12          # ... and sits this far above the top of the stack, T
+FING_LID = 0.12          # ... and sits this far above the top of the stack, U. NOTE: the 0.12 is a
+                         # clearance in U and has nothing to do with the old W_NORI = 0.12 it happens
+                         # to equal -- do not "fix" it to 0.02.
 FING_RATE = 3.0          # e-folding rate of the forward creep under the fingers, 1/time
 
 # --- pressure control ----------------------------------------------------------------------------
@@ -194,7 +244,8 @@ L_FLOOR = 0.06           # the pressure is charged over at least this fraction o
                          # "nothing is touching yet" reads as "press harder" and not as a 0/0
 HUG_FRAC = 0.25          # the final press is not finished until the ring touches this much of its span.
                          # Was 0.40, which is unreachable: measured ceiling of L_contact/L_arc over 21
-                         # runs is 0.274 (defaults) and 0.352 (--press 2), so `conv` never accumulated
+                         # runs is 0.274 (defaults) and 0.352 (--press 2) -- measured at T = 1.0,
+                         # w = 0.12, L = 38.7 -- so `conv` never accumulated
                          # and the press ALWAYS left by t_press_max (duration 46.00-46.01 in all 21).
                          # The "force equilibrium" the README described never fired once.
 BAND_W = 3.5             # width of the contact band of the circular mat, in grid cells (-0.5 .. 3)
@@ -203,7 +254,7 @@ V_RADIAL = 0.075         # max radial speed of the mat controller
 V_RADIAL_PRESS = 0.06    # ... during the final pressing
 # The radius of the FIRST turn is set by the hands, not by a force balance: during phases 1-2 the
 # controller is off (e_R = 0). It gets authority only from the pause onwards, and the baseline is
-# rebased at every hand-over so R is CONTINUOUS -- a step in R of a few tenths of a T rips the sheet.
+# rebased at every hand-over so R is CONTINUOUS -- a step in R of a few tenths of a U rips the sheet.
 E_HOLD = 0.35            # the pause may only compact: e_R in [-E_HOLD, 0]
 E_ROLL = 0.50            # while rolling the mat may lag this far inside the geometric spiral ...
 E_ROLL_OUT = 0.05        # ... and only this far outside it
@@ -220,11 +271,12 @@ TAIL_TOL = 0.3           # a particle further than this outside the fitted conto
 TAIL_FRAC = 0.002        # fraction of particles above which tail_outside becomes True
 BG_HOLE_T = 0.35         # a background run shorter than this along a ray is a hole between particles
 MAT_GAP_BINS = 180       # angular sectors the nori-to-mat distance is measured in
-PRESSED_GAP_MAX = 0.10   # the mat must finish within this of the roll, T (else the press never landed)
+PRESSED_GAP_MAX = 0.10   # the mat must finish within this of the roll, U (else the press never landed)
 PRESSED_CONTACT_MIN = 0.20     # ... and touch this fraction of its span. Circle.
 PRESSED_CONTACT_MIN_SQ = 0.08  # ... and this for the SQUARE press: a roundish roll inside a square
                                # touches only the four flats, so the ceiling is structurally lower
-                               # (measured 0.115 on layout 5, the only square layout).
+                               # (measured 0.115 on layout 5, the only square layout, at T = 1.0,
+                               # w = 0.12, L = 38.7 -- needs re-measuring).
 GRAVITY = 0.01
 MU_TABLE = 0.4
 MU_MAT = 2.0             # effectively sticky while pressed against the mat
@@ -234,7 +286,7 @@ CORNER_R = 0.6           # corner radius of the square press
 # ----------------------------------------------------------------------------- particle sampling (unchanged)
 def sample_layout(layout, n_target, seed=1):
     fl = layout['fillings']
-    area_rice = (L_SHEET - L_FLAP) * T
+    area_rice = (L_SHEET - L_FLAP) * T_RICE
     area_nori = L_SHEET * W_NORI
     rects = []
     y_top = {}   # per filling index: top y (for stacking)
@@ -242,7 +294,7 @@ def sample_layout(layout, n_target, seed=1):
         if f['stack'] and i > 0:
             base_y = y_top[i - 1]
         else:
-            base_y = W_NORI + T
+            base_y = H_SHEET
         rects.append((f['u'], base_y, f['w'], f['h'], f['round'], CLASS_OF_KIND[f['kind']]))
         y_top[i] = base_y + f['h']
     area_fill = sum((math.pi / 4 if r[4] else 1.0) * r[2] * r[3] for r in rects)
@@ -252,8 +304,8 @@ def sample_layout(layout, n_target, seed=1):
     jit = 0.15 * hp
 
     # rice: rows across thickness, columns along the sheet
-    n_rows = max(2, int(round(T / hp)))
-    dy = T / n_rows
+    n_rows = max(2, int(round(T_RICE / hp)))
+    dy = T_RICE / n_rows
     n_cols = int(round((L_SHEET - L_FLAP) / hp))
     dxp = (L_SHEET - L_FLAP) / n_cols
     for r in range(n_rows):
@@ -310,9 +362,9 @@ def predict_layers(info, s_fold, a_fold=0.0):
 
     (a) the LITERAL formula of the correction -- the number the stand is compared against:
 
-        area  = rice (L - flap)*T + nori L*w + fillings
-        Rout  = sqrt(area/pi);   Rcore = sqrt(s_fold * (T + w) / pi)
-        layers = (Rout - Rcore) / (T + w)
+        area  = rice (L - flap)*T_RICE + nori L*w + fillings
+        Rout  = sqrt(area/pi);   Rcore = sqrt(s_fold * H_SHEET / pi)
+        layers = (Rout - Rcore) / H_SHEET
 
     (b) the same accounting with the two terms the literal version drops. Both are area
         bookkeeping, neither knows anything about the kinematics:
@@ -335,7 +387,7 @@ def predict_layers(info, s_fold, a_fold=0.0):
     bridged ray count lands within 0.009..0.102 on all five layouts, while the raw count overshot by
     0.269..0.713. The old +1 offset was cancelling that overshoot, so the two errors hid each other.
     """
-    h = T + W_NORI
+    h = H_SHEET
     area = info['area_rice'] + info['area_nori'] + info['area_fill']
     r_out = math.sqrt(area / math.pi)
     r_core = math.sqrt(max(s_fold, 0.0) * h / math.pi)
@@ -552,7 +604,8 @@ def build(nx, ny, n_part, threads=0):
             # ... and only for the nori that has already PASSED the contact point (sarc < s_c). Without
             #     that gate the bond also grabs the sheet still lying flat ahead -- it is within dbond
             #     of the big circle for several T in front of the roll -- and drives it downwards into
-            #     the table while its neighbours stand still, which tears the band (0.33 T holes).
+            #     the table while its neighbours stand still, which tears the band (0.33 U holes,
+            #     measured on the pre-26.08.2026 geometry).
             if bond > 0.0 and cls[p] == CLASS_NORI and th_hi > th_lo and sarc[p] <= s_c - BOND_LAG:
                 bdx = x[p][0] - xc
                 bdy = x[p][1] - (R + ylift)
@@ -565,7 +618,8 @@ def build(nx, ny, n_part, threads=0):
                     sn = ti.sin(bth); cs = ti.cos(bth)
                     # taper the bond at BOTH ends of the arc. A hard edge there is a jump in prescribed
                     # velocity between a bonded particle and its neighbour half a spacing away, and the
-                    # band is pulled apart at exactly that point (measured: a 1.2 T hole in the nori).
+                    # band is pulled apart at exactly that point (a 1.2 U hole in the nori, measured
+                    # on the pre-26.08.2026 geometry).
                     we = ti.min(1.0, ti.min((bth - th_lo) / BOND_TAPER, (th_hi - bth) / BOND_TAPER))
                     wb = bond * (1.0 - bd / dbond) * ti.max(we, 0.0)
                     vm = ti.Vector([vc * (1.0 - cs) - Rdot * sn, Rdot + vly - Rdot * cs + vc * sn])
@@ -663,9 +717,12 @@ def runs_bridged(d, seq, c, tol=None):
     "a background run shorter than this along a ray is a hole between particles" -- and bridges such
     holes when it measures the rice under a filling; it did NOT bridge them when it counted nori runs,
     and the raw count therefore over-reported the turns by 0.27..0.71 (15-29 %) on all five layouts.
-    Measured 26.08.2026: 108 of 297 inter-run gaps were shorter than 0.35 T, median 0.025 T = 1.2 px,
-    while a real gap between turns is ~1.14 T; the map is one connected nori component in all five.
-    The answer is flat for a bridging tolerance anywhere in 0.05..0.30 T -- the gaps are bimodal.
+    Measured 26.08.2026 (on the PRE-correction geometry T = 1.0, w = 0.12, L = 38.7): 108 of 297
+    inter-run gaps were shorter than 0.35 U, median 0.025 U = 1.2 px, while a real gap between turns
+    was ~1.14 U; the map is one connected nori component in all five. The answer is flat for a
+    bridging tolerance anywhere in 0.05..0.30 U -- the gaps are bimodal. The correction WIDENS the
+    valley (a real gap is now ~H_SHEET = 1.42 U) so 0.35 keeps its margin; the median hole scales
+    with the pixel size, not with the thickness. Left at 0.35; re-measure to be sure.
     """
     tol = BG_HOLE_T if tol is None else tol
     m = seq == c
@@ -719,10 +776,10 @@ def tail_outside_metric(xs, cen_world, rout, n_ang, tol=TAIL_TOL):
     return int(out.sum()), float(out.mean()), rs, out, excess
 
 def turns_geom(info):
-    """A-priori number of spiral turns: an Archimedean spiral of pitch h = T + W_NORI wound from a core of
+    """A-priori number of spiral turns: an Archimedean spiral of pitch h = H_SHEET wound from a core of
     area info['area_fill'] until the whole sheet is used. pi*(R^2 - r0^2) = h * L_SHEET, N = (R - r0)/h.
     Depends only on sheet length, rice thickness and filling area - NOT on the kinematics."""
-    h = T + W_NORI
+    h = H_SHEET
     r0 = math.sqrt(max(info['area_fill'], 0.0) / math.pi)
     R = math.sqrt(r0 * r0 + h * L_SHEET / math.pi)
     return (R - r0) / h
@@ -731,16 +788,22 @@ def turns_geom(info):
 # The defect the owner found on the phase-B frames: the wrapper band gathers into 2-3 folds instead of
 # bending into one arc (../KINEMATICS.md, "accordion"). Measured on the MIDLINE of the nori band:
 #   wrinkles  = sign changes of the signed curvature along the band, outside the fold nose
-#   amplitude = largest departure of the midline from a local quadratic fit, T
+#   amplitude = largest departure of the midline from a local quadratic fit, U
 # The midline is smoothed over 3 particles (as specified) and then RESAMPLED at WR_DS along arc length:
-# raw particle-to-particle curvature is pure noise (spacing 0.05 T, position noise ~0.005 T gives
-# kappa noise ~2 1/T, above any sane threshold), the 0.25 T resampling brings it to ~0.08.
-WR_DS = 0.25                        # arc-length step the midline is resampled at, T
-WR_KAPPA_MIN = 1.0 / (T + W_NORI)   # 0.893 1/T -- a reversal counts only if it bends TIGHTER than the
-                                    # sheet's own thickness; the roll's own core (R ~ 1.3 T) never trips it
-WR_NOSE_T = math.pi * (T + W_NORI)  # arc length of the fold nose that is excluded (a half turn at r = h), T
-WR_EDGE_T = 1.0                     # ... and this much at each end of the sheet
-WR_FIT_T = 0.9                      # half-window of the local quadratic fit used for the amplitude, T
+# raw particle-to-particle curvature is pure noise (spacing 0.05 U, position noise ~0.005 U gives
+# kappa noise ~2 1/U, above any sane threshold), the 0.25 U resampling brings it to ~0.08. The noise
+# figures were measured at T = 1.0, w = 0.12, L = 38.7; the particle spacing grows with the sheet
+# area, so re-measure before trusting them.
+WR_DS = 0.25                        # arc-length step the midline is resampled at, U
+WR_KAPPA_MIN = 1.0 / H_SHEET        # 0.704 1/U -- a reversal counts only if it bends TIGHTER than the
+                                    # sheet's own thickness; the roll's own core (R ~ 1.3 U) never trips it.
+                                    # It was 0.893 1/U while the sheet was 1.12 U thick: the bar is now
+                                    # 21 % LOWER, so strictly MORE reversals qualify (see README).
+WR_NOSE_T = math.pi * H_SHEET       # arc length of the fold nose that is excluded (a half turn at r = h), U
+WR_EDGE_T = 1.0                     # ... and this much at each end of the sheet, U. OPEN QUESTION: if
+                                    # this was meant as "one sheet thickness of free end" it should now
+                                    # be H_SHEET = 1.42. Left in U pending the owner's call.
+WR_FIT_T = 0.9                      # half-window of the local quadratic fit used for the amplitude, U
 WR_EVERY = 400                      # steps between samples of the metric during the run
 
 
@@ -786,7 +849,7 @@ def wrinkle_metric(xs, nori_row, nori_col, nrows, x0=None, s_fold=None):
                       the sheet folding on itself.
       bed_drag_T    = how far the sheet still lying flat AHEAD of the fold zone has been dragged
                       BACKWARDS (initial x minus current x). The crease acts as a pulley when the sheet
-                      is not held: the top layer lengthens by feeding bed through the crease. > 0.5 T is
+                      is not held: the top layer lengthens by feeding bed through the crease. > 0.5 U is
                       the pulley at work.
     """
     out = dict(wrinkles=0, wrinkles_nonose=0, wrinkles_mat=0, wrinkle_amp_T=0.0, wrinkle_kappa_max=0.0,
@@ -817,7 +880,7 @@ def wrinkle_metric(xs, nori_row, nori_col, nrows, x0=None, s_fold=None):
     dp = (tv[:-1] * tv[1:]).sum(1)
     ang = np.arctan2(cr, dp)                                  # signed turn at each interior vertex, rad
     ds = 0.5 * (seg[:-1] + seg[1:])
-    kap = ang / np.maximum(ds, 1e-12)                         # signed curvature, 1/T
+    kap = ang / np.maximum(ds, 1e-12)                         # signed curvature, 1/U
     sv = sq[1:len(ang) + 1]
     inner = (sv >= WR_EDGE_T) & (sv <= s0[-1] - WR_EDGE_T)
     kmax = float(np.max(np.abs(kap[inner]))) if inner.any() else float(np.max(np.abs(kap)))
@@ -830,7 +893,8 @@ def wrinkle_metric(xs, nori_row, nori_col, nrows, x0=None, s_fold=None):
     #     accumulated |turning|, i.e. it lands by construction on the most bent stretch of the band.
     #     Measured 26.08.2026: opening the window turned the published "zero wrinkles in the final
     #     frame on all five layouts" into 3 / 2 / 1 reversals on layouts 2 / 4 / 5, two of them bent
-    #     tighter than the mat's own minimum radius (0.229 T and 0.164 T against R_MAT_MIN = 0.5 T).
+    #     tighter than the mat's own minimum radius (0.229 U and 0.164 U against R_MAT_MIN = 0.5 U;
+    #     measured on the pre-26.08.2026 geometry).
     cum = np.concatenate([[0.0], np.cumsum(np.abs(ang))])
     j = np.minimum(np.searchsorted(sv, sv + WR_NOSE_T), len(sv))
     i0 = int(np.argmax(cum[j] - cum[np.arange(len(sv))]))
@@ -844,8 +908,8 @@ def wrinkle_metric(xs, nori_row, nori_col, nrows, x0=None, s_fold=None):
         out['wrinkles_nonose'] = int(np.sum(sgn_n[1:] != sgn_n[:-1]))
     # --- grafted from ../mat-chain: the same count with the threshold the MAT sets rather than the bed.
     #     A reversal is a FOLD of the wrapper only if the sheet is bent tighter than a bamboo stick can
-    #     bend (1/R_MAT_MIN = 2.0 1/T).  Anything gentler is the roll's own curvature, which the bed
-    #     threshold 1/(T+w) = 0.89 also catches.  This is the "accordion is impossible by construction"
+    #     bend (1/R_MAT_MIN = 2.0 1/U).  Anything gentler is the roll's own curvature, which the bed
+    #     threshold 1/H_SHEET = 0.704 also catches.  This is the "accordion is impossible by construction"
     #     test of KINEMATICS.md stated as a number: wrinkles_mat > 0 means the nori left the mat.
     sgm = np.sign(kap[ok & (np.abs(kap) >= 1.0 / R_MAT_MIN)])
     if len(sgm) > 1:
@@ -853,7 +917,8 @@ def wrinkle_metric(xs, nori_row, nori_col, nrows, x0=None, s_fold=None):
     # --- the physics of the mat written down directly, and in a form no window can hide: ANY stretch
     #     of the band bent tighter than the bamboo can bend is a violation, reversal or not. The sheet
     #     rides on the mat, the mat is slats of radius R_MAT_MIN, and the sheet sits half its own
-    #     thickness outside them, so the tightest legal midline radius is R_MAT_MIN + w/2 = 0.56 T.
+    #     thickness outside them, so the tightest legal midline radius is R_MAT_MIN + w/2 = 0.51 U
+    #     (it was 0.56 U while the nori was 0.12 thick: the limit RELAXED by 9 %).
     #     Only the WR_EDGE_T ends are excused (the two free ends of the band are genuinely unsupported).
     r_lim = R_MAT_MIN + 0.5 * W_NORI
     viol = ok & (np.abs(kap) > 1.0 / r_lim)
@@ -891,8 +956,10 @@ def wrinkle_metric(xs, nori_row, nori_col, nrows, x0=None, s_fold=None):
         okv[m:len(Q) - m] = True
         okv &= (sq >= WR_EDGE_T) & (sq <= s0[-1] - WR_EDGE_T)
         # (the nose window is no longer cut out here either -- see the note above. Measured effect on
-        #  the final frame: amplitude 0.0337 -> 0.1295 T on layout 4 and 0.0352 -> 0.1313 T on layout
-        #  5, still under the 0.3 T bar, so the amplitude half of the claim survives the correction.)
+        #  the final frame: amplitude 0.0337 -> 0.1295 U on layout 4 and 0.0352 -> 0.1313 U on layout
+        #  5, still under the 0.3 U bar, so the amplitude half of the claim survives the correction.
+        #  Measured at T = 1.0, w = 0.12, L = 38.7 -- and note that the 0.3 bar is an absolute length
+        #  in U, so against a sheet that is now 27 % thicker it is 21 % less strict in relative terms.)
         if okv.any():
             out['wrinkle_amp_T'] = round(float(dev[okv].max()), 4)
     return out
@@ -1099,7 +1166,7 @@ def compute_metrics(xs, vs, cls, Jp, nori_row, nori_col, info, layout, img, px, 
         turns_match_formula_core=bool(abs(float(np.mean(turns)) - extra['pred']['crossings_predicted_core']) <= 0.25),
         # --- the "accordion" defect (KINEMATICS.md, 26.08.2026): curvature reversals of the wrapper
         #     band outside the fold nose. With a real mat the target is STRICT: zero wrinkles at every
-        #     phase and amplitude below 0.3 T. A wrinkle now means the nori came off the mat.
+        #     phase and amplitude below 0.3 U. A wrinkle now means the nori came off the mat.
         wrinkles=int(extra['wr']['final']['wrinkles']),
         wrinkles_max=int(extra['wr']['wrinkles_max']), wrinkles_max_phase=extra['wr']['wrinkles_max_phase'],
         wrinkles_mat=int(extra['wr']['final']['wrinkles_mat']),
@@ -1148,8 +1215,8 @@ def gather_R(xnp, xc, ycen, shape, pct=99.5, must=None):
     The centre is given (xc, ycen) and is the roll's own centroid, NOT the point where a circle would
     touch the table. That matters: ../reference gathered a circle tangent to the table, for which a
     particle lying ON the table a distance d off the tangency needs R = d^2/(2y) -- unbounded as
-    y -> 0. A roll resting on the table always has such particles, so the gather ran into R_MAX (8 T)
-    around a roll of Rout = 4, and the press then had 4 T of empty travel to make.
+    y -> 0. A roll resting on the table always has such particles, so the gather ran into R_MAX (8 U)
+    around a roll of Rout = 4, and the press then had 4 U of empty travel to make.
 
     shape 0: circle, R = |P - C|.   shape 1: rounded square of half-side R, R = max(|dx|, |dy|).
     `must` is a mask of particles that may NOT be left outside at any percentile -- the WRAPPER: a
@@ -1168,8 +1235,8 @@ def main():
     global L_SHEET, X1
     ap = argparse.ArgumentParser()
     ap.add_argument('--layout', type=int, default=1)
-    ap.add_argument('--sheet', type=float, default=38.7,
-                    help='sheet length, T (default %(default)s = 19.3 cm nori). Note: layout 3 pins its filling '
+    ap.add_argument('--sheet', type=float, default=42.0,
+                    help='sheet length, U (default %(default)s = 21 cm nori). Note: layout 3 pins its filling '
                          'position at import time and is not rescaled by this flag.')
     ap.add_argument('--speed', type=float, default=1.0, help='speed of the rolling hand (phases 1-4)')
     ap.add_argument('--press', type=float, default=1.0, help='pressure of the mat')
@@ -1190,7 +1257,7 @@ def main():
     ap.add_argument('--particles', type=int, default=16000)
     ap.add_argument('--out', type=str, default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'out'))
     ap.add_argument('--frames', type=int, default=10, help='number of debug snapshots (0 = none)')
-    ap.add_argument('--window', type=float, default=12.0, help='material map window side, T')
+    ap.add_argument('--window', type=float, default=12.0, help='material map window side, U')
     ap.add_argument('--tag', type=str, default='')
     # accepted so the older command lines keep working; the real mat has no such knobs
     ap.add_argument('--pitch', type=float, default=1.0, help=argparse.SUPPRESS)
@@ -1199,7 +1266,7 @@ def main():
     ap.add_argument('--bend', type=float, default=0.0, help=argparse.SUPPRESS)
     args = ap.parse_args()
     L_SHEET = args.sheet
-    X1 = X_SHEET + L_SHEET + 9.3     # the roll must stay inside the box: 48.0 for the default 38.7 T sheet
+    X1 = X_SHEET + L_SHEET + 9.3     # the roll must stay inside the box: 51.3 for the default 42 U sheet
     layout = LAYOUTS[args.layout]
     os.makedirs(args.out, exist_ok=True)
     tag = f'{args.layout}{args.tag}'
@@ -1216,8 +1283,8 @@ def main():
     # ---------------- geometry of the mat --------------------------------------------------------
     # Only the fillings lying close to the near edge end up inside the first turn (fold_zone).
     s_fold, fold_rects, a_fold = fold_zone(info)
-    h_top = max((r[1] + r[3] for r in fold_rects), default=W_NORI + T)
-    h_sheet = T + W_NORI
+    h_top = max((r[1] + r[3] for r in fold_rects), default=H_SHEET)
+    h_sheet = H_SHEET
     # Radius of the FIRST TURN. The mat has to go around the stack of fillings, so the circle it
     # closes on must hold them (plus the hollow the crease leaves) inside a wall one sheet thick.
     # It is a hand-set radius, not a force-controlled one: this is what the cook's fingers do.
@@ -1232,9 +1299,9 @@ def main():
 
     # ... and the first turn cannot enclose more area than the material that goes INTO it. This is
     # the one lesson of ../mat-chain worth keeping (there the loop radius was likewise clamped by area
-    # conservation). Without the cap a tall stack at the near edge -- layout 5, h_top = 6.1 T -- makes
+    # conservation). Without the cap a tall stack at the near edge -- layout 5, h_top = 6.1 U -- makes
     # the clearance term 0.5*h_top + FOLD_CLEAR ask for a circle the sheet cannot fill: the core comes
-    # out hollow by ~16 T2, the wrapper bridges the void, and the press then crumples it inwards. That
+    # out hollow by ~16 U2, the wrapper bridges the void, and the press then crumples it inwards. That
     # is where every wrinkle of layout 5 came from.
     #     material entering the first turn = a_fold + s_close*h_sheet,   s_close = R*phi_meet
     #     closed first turn encloses       = pi*R^2
@@ -1292,11 +1359,16 @@ def main():
     t_total_max = t_lift + t_hold + t_rollmax + T_CLOSE + t_press_max
     n_steps_max = int(math.ceil(t_total_max / dt))
 
+    # w/dx and T_RICE/dx are printed on every run: since 26.08.2026 the nori is 0.1 mm = 0.02 U,
+    # i.e. a FIFTH of a grid cell, and both its particle rows sit inside one cell. Anything measured
+    # on the nori band (wrinkles, mat_bend_*, nori_mat_gap_*) is measured on a sub-cell object.
+    print(f'resolution: w_nori/dx={W_NORI / dx:.3f} cells, T_rice/dx={T_RICE / dx:.2f} cells, '
+          f'w_nori/hp={W_NORI / info["hp"]:.3f}', flush=True)
     print(f'grid {nx}x{ny} dx={dx:.4f} particles={n} hp={info["hp"]:.4f} nori rows={info["nori_rows"]} '
           f'dt={dt:.5f} cmax={cmax:.2f} v_lift={v_lift:.3f} v_roll={v_roll:.3f}\n'
           f'mat: R_fold={R_fold:.3f} (want {R_fold_want:.3f}, area cap {R_cap:.3f}, '
           f'>= R_mat_min {R_MAT_MIN}) tuck_eff={tuck_eff:.3f} phi_meet={phi_meet:.3f} rad '
-          f'({math.degrees(phi_meet):.0f} deg) s_close~{s_close_pred:.2f} T  R_end_pred={R_end_pred:.3f} '
+          f'({math.degrees(phi_meet):.0f} deg) s_close~{s_close_pred:.2f} U  R_end_pred={R_end_pred:.3f} '
           f'bond={bond} fingers={fingers} hold={t_hold:.1f}\n'
           f'fold zone: {[r[5] for r in fold_rects]} s_fold={s_fold:.2f} a_fold={a_fold:.2f} h_top={h_top:.2f} | '
           f'predicted from area: Rout={pred["Rout_pred_T"]} layers={pred["layers_predicted"]} '
@@ -1450,16 +1522,16 @@ def main():
             arc_len = R * max(th_hi - th_lo, 0.0) if shp == 0 else 8 * R
             F_t = P_ref * max(L_f, L_FLOOR * arc_len)
             # Once the ring is closed and lifted off the table it carries the roll's own WEIGHT, and
-            # that alone balances a small target: the controller then stalls with the mat 0.6 T off
+            # that alone balances a small target: the controller then stalls with the mat 0.6 U off
             # the roll and calls it equilibrium. The press is a squeeze, so weigh it net.
             F_net = F_f - (W_roll if phase in ('ring', 'press') else 0.0)
             err = (max(F_net, 0.0) - F_t) / max(F_t, 1e-6)
             err_last = err
             # the force reading is noisy, so "equilibrium" has to HOLD, not just happen once: a single
-            # spike used to stop the press with the mat still 1.3 T off the roll (Rout 4.38 vs 3.49)
+            # spike used to stop the press with the mat still 1.3 U off the roll (Rout 4.38 vs 3.49)
             # ... and, during the final press, the ring must actually HUG the roll: with a contact of
             # 8 % of the span the target P*L_contact is met by the roll's own weight resting in the
-            # ring, and the press would stop with the mat 0.6 T off the roll.
+            # ring, and the press would stop with the mat 0.6 U off the roll.
             hug = (phase != 'press') or (L_f >= HUG_FRAC * arc_len)
             conv = conv + ctrl_every * dt if (abs(err) < 0.08 and hug) else 0.0
             vrad = V_RADIAL_PRESS if phase in ('ring', 'press') else V_RADIAL
@@ -1538,7 +1610,7 @@ def main():
                 if _gg.max() > _g:
                     _g = float(_gg.max()); _at = float(nori_col[_m][_o][int(np.argmax(_gg))]) / info['nori_cols'] * L_SHEET
             print(f'  -> phase {phase} at t={t:.1f}  s_c={s_c:.2f} Phi={th_hi:.2f} R={R:.3f}  '
-                  f'nori max gap={_g:.3f} T at s={_at:.1f} T', flush=True)
+                  f'nori max gap={_g:.3f} U at s={_at:.1f} U', flush=True)
         if args.frames and (phase != last_phase or step % snap_every == 0):
             save_frame(S, cls, xc, R, th_lo, th_hi, shp,
                        os.path.join(frames_dir, f'f{step:07d}_{phase}.png'), t, F_f, gp, 1, ylift=ylift,
@@ -1592,17 +1664,21 @@ def main():
                                                rf=w['fold_radius_T'], dg=w['bed_drag_T']) for w in wr_hist])
     print(f"wrinkles: max {wr['wrinkles_max']} at t={wr['wrinkles_max_t']} ({wr['wrinkles_max_phase']}), "
           f"no-nose max {wr['wrinkles_nonose_max']}, mat-threshold max {wr['wrinkles_mat_max']}, "
-          f"amp max {wr['wrinkle_amp_max_T']:.3f} T "
+          f"amp max {wr['wrinkle_amp_max_T']:.3f} U "
           f"({wr['wrinkle_amp_max_phase']}), final {wr_final['wrinkles']}; "
-          f"r_fold min {wr['fold_radius_min_T']:.3f} T, bed drag max {wr['bed_drag_max_T']:.2f} T; "
+          f"r_fold min {wr['fold_radius_min_T']:.3f} U, bed drag max {wr['bed_drag_max_T']:.2f} U; "
           f"rice J min {wr['rice_J_min_run']:.3f} ({wr['rice_J_min_run_phase']}); "
           f"mat-bend violations max {wr['mat_bend_violations_max']} "
           f"({wr['mat_bend_violations_max_phase']}, {wr['mat_bend_samples_with_violation']}/{len(wr_hist)} samples), "
-          f"tightest R {wr['mat_bend_min_R_run_T']:.3f} T", flush=True)
+          f"tightest R {wr['mat_bend_min_R_run_T']:.3f} U", flush=True)
 
     # ---- outputs
     center = (xs_f[:, 0].mean(), xs_f[:, 1].mean())
     img, px = rasterize(xs_f, cls, info['hp'], W_NORI / info['nori_rows'], center, args.window, 600)
+    # rasterize() drops whatever falls outside the window WITHOUT a word, and every map-derived metric
+    # (Rout_T, nori_turns, rice_area_map_T2, shape.*) then measures a clipped roll. Count it.
+    _half = args.window / 2.0
+    _rout_win = int(np.sum((np.abs(xs_f[:, 0] - center[0]) > _half) | (np.abs(xs_f[:, 1] - center[1]) > _half)))
     np.save(os.path.join(args.out, f'material_{tag}.npy'), img)
     np.savez_compressed(os.path.join(args.out, f'particles_{tag}.npz'), x=xs_f, cls=cls,
                         nori_row=nori_row, nori_col=nori_col, J=Jp, vol=vol)
@@ -1679,7 +1755,7 @@ def main():
     met['wrinkles_nonose_max'] = int(wr['wrinkles_nonose_max'])
     # --- did the press actually reach the roll? A trap for the silently invalid run: at --speed 2 the
     #     ring opens out to R_MAX and the press cannot close it inside t_press_max, so the mat finishes
-    #     0.93 T (4.7 mm) away from the roll with ZERO contact -- and every existing flag passes it
+    #     0.93 U (4.7 mm) away from the roll with ZERO contact -- and every existing flag passes it
     #     (stable, wrinkles 0, nori_torn false, core order preserved, 0 escaped). These two numbers,
     #     both already in the controller log, catch it.
     #     Both quantities are shape-aware: for the circle the mat radius R is compared with Rout, for
@@ -1746,6 +1822,15 @@ def main():
     met['core_order_preserved'] = bool(met['core_order_by_arc'] == init_order)
     met['core_order_preserved_mirrored'] = bool(_rot(init_order, list(reversed(got))))
     met['conservation_ok'] = bool(met['conservation'] >= 0.95)
+    met['raster_outside_particles'] = _rout_win
+    met['raster_window_ok'] = bool(_rout_win == 0)
+    # --- the geometry this run was made with, stamped into the file so that an old metrics_N.json and
+    #     a new one cannot be confused: the keys are identical and only the numbers moved.
+    met['geometry'] = dict(unit_mm=U_MM, T_rice_U=T_RICE, w_nori_U=W_NORI, h_sheet_U=round(H_SHEET, 4),
+                           L_sheet_U=L_SHEET, L_flap_U=L_FLAP, w_nori_over_dx=round(W_NORI / dx, 4),
+                           T_rice_over_dx=round(T_RICE / dx, 3),
+                           E_nori_w=E_NORI_W, E_nori=round(MATERIALS['nori'][0], 3),
+                           source='stand BASES.sushi 26.08.2026 (docs/geometry-audit.md)')
     met['controller_log'] = log[-40:]
     met['wrinkle_hist'] = wr['hist']
     def _js(o):

@@ -53,16 +53,19 @@ function hash(x, y) {
 
 // ---------------------------------------------------------------- данные
 const BASES = {
-  sushi: { name: 'Суши-ролл', emoji: '🍣', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
-    T: 1.4, w: 0.02, sheetCm: 21, turns: 3.1, kappa: 0.85, spreadEnd: 1.0, beta: 0.55, oneTurn: true, flap: 0, tuckMin: 5, Wv: 38,
+  // Две несладкие базы — это ОДНА техника с разным листом, а не разные игры. Числа не на глаз:
+  // SUZUMO SVS-FCA, спецификация машины формовки рисового пласта, задаёт обе прямо —
+  // small roll 7 мм x 80 мм (хосомаки) и large 12 мм x 160 мм (футомаки). Лист нори 21x19 см (FAO):
+  // хосомаки крутят из ПОЛУЛИСТА (10,5 см), футомаки — из целого. Отсюда и разные ⌀, и число витков.
+  hoso: { name: 'Хосомаки', emoji: '🍣', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+    T: 1.4, w: 0.02, sheetCm: 10.5, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuckMin: 3, Wv: 38,
+    ingredients: ['cucumber', 'salmon', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
+  futo: { name: 'Футомаки', emoji: '🍥', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+    T: 2.4, w: 0.02, sheetCm: 21, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuckMin: 6, Wv: 38,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
     T: 1.0, w: 1.7, turns: 2.5, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,
     ingredients: ['strawberry', 'kiwi', 'banana', 'mango', 'choco', 'jam', 'nut', 'pinkcream'] },
-  // Лаваш-ролл: тонкая обёртка спиралью в 4–5 оборотов — у него нори-подобная линия внутри настоящая
-  lavash: { name: 'Лаваш-ролл', emoji: '🌯', wrapper: '#dcbf87', spread: '#f7f1e6', mat: '#b98f5a', matLine: '#a67c48',
-    T: 0.45, w: 0.4, turns: 4.5, kappa: 0.7, spreadEnd: 0.96, beta: 0.6, Wv: 40,
-    ingredients: ['salmon', 'cucumber', 'cheese', 'tomato', 'pepper', 'ham', 'lettuce', 'eggsheet', 'dill'] },
 };
 const R0 = 0.25;   // радиус сердцевины
 // Длина листа. Лист — физический продукт с известным размером (лист нори 19x21 см, лаваш, противень),
@@ -129,8 +132,8 @@ for (const k in BASES) { BASES[k].wrapperRgb = hexRgb(BASES[k].wrapper); BASES[k
 // ---------------------------------------------------------------- состояние
 const S = {
   mode: 'lay',                 // lay | rolled | cut | revealed | slicing | plate
-  base: 'sushi',
-  lists: { sushi: [], cake: [], lavash: [] },
+  base: 'hoso',
+  lists: { hoso: [], futo: [], cake: [] },
   sel: 'salmon',
   preview: false,
   mute: false,
@@ -158,7 +161,7 @@ const NPIECES = 6;
 function load() {
   try {
     const m = JSON.parse(localStorage.getItem('rollery.model.v2') || 'null');
-    if (m && m.lists) { S.base = m.base in BASES ? m.base : 'sushi'; S.lists = m.lists; }
+    if (m && m.lists) { S.base = m.base in BASES ? m.base : 'hoso'; S.lists = m.lists; }
     for (const k in BASES) if (!S.lists[k]) S.lists[k] = [];
     S.preview = localStorage.getItem('rollery.preview') === '1';
     S.mute = localStorage.getItem('rollery.mute') === '1';
@@ -243,9 +246,7 @@ function matAt(u, v, z, list) {
     const du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
     const lu = across / rg[3];
     const lz = d.paint ? 0.5 : (z - p.z0) / (p.z1 - p.z0);
-    if (d.round) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue; }
-    else if (d.lens) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue;
-      const c = (a + 0.55) / 1.35, e = (b2 + 0.15) / 1.15; if (c * c + e * e < 0.62) continue; }   // ломтик: полумесяц
+    if (!d.paint) { const sp = cutSpan(d, lu); if (lz < sp[0] || lz > sp[1]) continue; }
     return { p, d, lu, lz, lv: along / rg[4] };
   }
   return null;
@@ -253,6 +254,16 @@ function matAt(u, v, z, list) {
 // Геометрия. Единица длины — толщина намазки суши-ролла.
 function geometry() { const b = B(); restack(patches()); return { T: b.T, w: b.w, r0: R0, L: sheetLen(b) }; }
 const NB = 1440, DPHI = TAU / NB, KMAX = 9;
+// ФОРМА СРЕЗА — ОДНО ОПРЕДЕЛЕНИЕ НА ВСЕХ. Раньше её задавали ДВЕ независимые формулы:
+// предикат в matAt/coreMaterial (что закрашивать) и heightAt (какой бугор получается в намотке).
+// Они не совпадали, и у ломтика верхний рог срезался ровной горизонталью — не рисовался никогда.
+// Возвращает [низ, верх] в долях собственной толщины куска; lu — поперёк куска, -0.5…0.5.
+function cutSpan(d, lu) {
+  const a = clamp(lu * 2, -1, 1), q = Math.max(0, 1 - a * a);
+  if (d.round) { const h = Math.sqrt(q) / 2; return [0.5 - h, 0.5 + h]; }        // кружок — круг
+  if (d.lens) { const h = Math.pow(q, 0.55) / 2; return [0.5 - h, 0.5 + h]; }     // ломтик — линза
+  return [0, 1];                                                                 // брусок и лист
+}
 function covers(p, u, v) { return heightAt(p, u, v) > 0; }
 // Высота начинки над листом в точке (u, v), с учётом ФОРМЫ сечения (нарезки), в долях полной высоты.
 // Брусок держит высоту по всей ширине; кружок и ломтик — только в середине. От этого зависит,
@@ -262,11 +273,8 @@ function heightAt(p, u, v) {
   const rg = patchSRange(p, v); if (!rg) return 0;
   const sU = u * sheetLen(B());
   if (sU < rg[0] || sU > rg[1]) return 0;
-  const d = ING[p.kind];
-  if (!d.round && !d.lens) return 1;                       // брусок и лист — плоский верх
   const lu = (sU - (rg[0] + rg[1]) / 2) / Math.max(1e-6, rg[1] - rg[0]);   // −0.5…0.5 поперёк куска
-  const t = clamp(1 - 4 * lu * lu, 0, 1);
-  return d.lens ? Math.sqrt(t) * 0.85 : Math.sqrt(t);      // ломтик ниже и площе: он срезан наискось
+  return cutSpan(ING[p.kind], lu)[1];                      // верх ТОЙ ЖЕ фигуры, что рисует matAt
 }
 // Толщина «намазка + стопка» в точке листа (без обёртки), в единицах: рис под начинкой выдавлен, когда стопка выше намазки.
 function stackTopAt(u, v, list) {
@@ -414,9 +422,7 @@ function coreMaterial(m, r, phi, vSlice) {
     const sU = it.far ? half + x : half - x, du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
     let lu = across / rg[3], lz = (y - it.y0) / (it.y1 - it.y0);
     if (!it.far) { lz = 1 - lz; }
-    if (it.round) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue; }
-    else if (it.d.lens) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue;
-      const c = (a + 0.55) / 1.35, e = (b2 + 0.15) / 1.15; if (c * c + e * e < 0.62) continue; }
+    if (!it.paint) { const sp = cutSpan(it.d, lu); if (lz < sp[0] || lz > sp[1]) continue; }
     return { cls: 'patch', mt: { p: it.p, d: it.d, lu, lz, lv: along / rg[4] } };
   }
   return { cls: 'core' };
@@ -456,7 +462,7 @@ function materialAt(m, wd, vSlice, r, phi) {
 // (им скругляются углы квадратного ролла, см. shapeInfo). Аргументы gx, gy — координаты В ЗЁРНАХ.
 function spreadColor(gx, gy, b, ct, st) {
   const c = b.spreadRgb;
-  if (S.base === 'sushi' || (S.base !== 'cake' && b.T >= 1)) {
+  if (S.base !== 'cake') {                                  // крупа — у всех несладких баз
     // Клеточный шум: у каждой клетки свой сдвинутый центр, зерно — ближайший к точке, а разность
     // расстояний до двух ближайших даёт границу между зёрнами. Расстояние меряется АНИЗОТРОПНО:
     // вдоль зерна оно сжато в GRAIN_ASPECT раз, поэтому зёрна выходят вытянутыми. Направление

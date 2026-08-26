@@ -5,11 +5,21 @@
 import json, math, os
 import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(HERE, '..', 'out')
-N_ANG = 36; STEP = 0.25; H_NOM = 1.12; L_SHEET = 38.7
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _geom import (T_RICE, W_NORI, H_SHEET, L_SHEET, L_FLAP, R_MAT_MIN, BG_HOLE_T,
+                   WR_DS, WR_KAPPA_MIN, WR_NOSE_T, WR_EDGE_T, WR_FIT_T, PACK_AIR, CORNER_R,
+                   assert_same_geometry)
+# The geometry used to live as a private copy in every one of these scripts (T = 1.0,
+# W_NORI = 0.12, L_SHEET = 38.7, pitch H_NOM = 1.12). It is imported from run.py now: after the
+# thickness correction of 26.08.2026 a stale copy would judge new dumps by the old spiral pitch
+# and print plausible, wrong numbers without raising anything.
+N_ANG = 36; STEP = 0.25; H_NOM = H_SHEET
 
 
 def setup(n):
     met = json.load(open(os.path.join(OUT, f'metrics_{n}.json')))
+    assert_same_geometry(met)
     img = np.load(os.path.join(OUT, f'material_{n}.npy')); px = met['px_T']; npx = img.shape[0]
     fg = img != 0; rr, cc = np.nonzero(fg); cr, cc0 = rr.mean(), cc.mean()
     cen = met['window_center_xy']

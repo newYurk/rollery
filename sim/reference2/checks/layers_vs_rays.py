@@ -10,8 +10,16 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, '..', 'out')
-T, W_NORI = 1.0, 0.12
-H_NOM = T + W_NORI                      # pitch the formula in run.py assumes
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _geom import (T_RICE, W_NORI, H_SHEET, L_SHEET, L_FLAP, R_MAT_MIN, BG_HOLE_T,
+                   WR_DS, WR_KAPPA_MIN, WR_NOSE_T, WR_EDGE_T, WR_FIT_T, PACK_AIR, CORNER_R,
+                   assert_same_geometry)
+# The geometry used to live as a private copy in every one of these scripts (T = 1.0,
+# W_NORI = 0.12, L_SHEET = 38.7, pitch H_NOM = 1.12). It is imported from run.py now: after the
+# thickness correction of 26.08.2026 a stale copy would judge new dumps by the old spiral pitch
+# and print plausible, wrong numbers without raising anything.
+H_NOM = H_SHEET                         # pitch the formula in run.py assumes
 CLASS_BG, CLASS_RICE, CLASS_NORI = 0, 1, 2
 STEP = 0.25                             # ray sampling step, in pixels (same as run.py)
 
@@ -40,6 +48,7 @@ def spans(d, seq, c):
 def analyse(n):
     img = np.load(os.path.join(OUT, f'material_{n}.npy'))
     met = json.load(open(os.path.join(OUT, f'metrics_{n}.json')))
+    assert_same_geometry(met)
     px = met['px_T']
     cen = met['window_center_xy']
     npx = img.shape[0]
@@ -141,7 +150,7 @@ for r in rows:
     if not ok_n: fails_nom.append(r['n'])
     print(f"  {r['n']:<3}{p_act:>16.3f}{p_nom:>13.3f}{r['cross_meas']:>10.3f}{d_act:>+8.3f}{d_nom:>+8.3f}"
           f"{str(ok_a):>8}{str(ok_n):>8}")
-print(f"  fails with measured pitch: {fails_act}   fails with nominal pitch h=1.12: {fails_nom}")
+print(f"  fails with measured pitch: {fails_act}   fails with nominal pitch h={H_NOM:.2f}: {fails_nom}")
 
 print()
 print('=== D. run.py own prediction vs the same measured crossings ===')

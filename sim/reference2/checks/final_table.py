@@ -1,11 +1,21 @@
 import json, math, os
 import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(HERE, '..', 'out')
-N_ANG = 36; STEP = 0.25; H = 1.12; L_SHEET = 38.7
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _geom import (T_RICE, W_NORI, H_SHEET, L_SHEET, L_FLAP, R_MAT_MIN, BG_HOLE_T,
+                   WR_DS, WR_KAPPA_MIN, WR_NOSE_T, WR_EDGE_T, WR_FIT_T, PACK_AIR, CORNER_R,
+                   assert_same_geometry)
+# The geometry used to live as a private copy in every one of these scripts (T = 1.0,
+# W_NORI = 0.12, L_SHEET = 38.7, pitch H_NOM = 1.12). It is imported from run.py now: after the
+# thickness correction of 26.08.2026 a stale copy would judge new dumps by the old spiral pitch
+# and print plausible, wrong numbers without raising anything.
+N_ANG = 36; STEP = 0.25; H = H_SHEET
 
 
 def prep(n):
     met = json.load(open(os.path.join(OUT, f'metrics_{n}.json')))
+    assert_same_geometry(met)
     img = np.load(os.path.join(OUT, f'material_{n}.npy')); px = met['px_T']; npx = img.shape[0]
     fg = img != 0; rr, cc = np.nonzero(fg); cr, cc0 = rr.mean(), cc.mean()
     cen = met['window_center_xy']
@@ -52,7 +62,7 @@ if len(w):
     lo, hi = max(0, w[0] - 4), min(len(seq), w[0] + 40)
     print('   r,T  :', ' '.join(f"{v:5.2f}" for v in d[lo:hi:2]))
     print('   class:', ' '.join(f"{v:5d}" for v in seq[lo:hi:2]))
-    print('   (class 2 = nori, 1 = rice, 0 = background; nori band is w = 0.12 T thick,')
+    print(f'   (class 2 = nori, 1 = rice, 0 = background; nori band is w = {W_NORI} U thick,')
     print('    nori particle spacing is 0.049 T -- a single 0 inside the band is a raster pinhole)')
 
 print()
