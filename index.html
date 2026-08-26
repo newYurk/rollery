@@ -235,13 +235,31 @@ function matAt(u, v, z, list) {
 // Геометрия. Единица длины — толщина намазки суши-ролла.
 function geometry() { const b = B(); restack(patches()); return { T: b.T, w: b.w, r0: R0, L: sheetLen(b) }; }
 const NB = 1440, DPHI = TAU / NB, KMAX = 9;
-function covers(p, u, v) {
-  if (p.inCore) return false;
-  const rg = patchSRange(p, v); if (!rg) return false;
-  const sU = u * sheetLen(B()); return sU >= rg[0] && sU <= rg[1];
+function covers(p, u, v) { return heightAt(p, u, v) > 0; }
+// Высота начинки над листом в точке (u, v), с учётом ФОРМЫ сечения (нарезки), в долях полной высоты.
+// Брусок держит высоту по всей ширине; кружок и ломтик — только в середине. От этого зависит,
+// насколько ролл раздувается в этом месте и сколько риса вытесняется: круглый брусок вытесняет меньше.
+function heightAt(p, u, v) {
+  if (p.inCore) return 0;
+  const rg = patchSRange(p, v); if (!rg) return 0;
+  const sU = u * sheetLen(B());
+  if (sU < rg[0] || sU > rg[1]) return 0;
+  const d = ING[p.kind];
+  if (!d.round && !d.lens) return 1;                       // брусок и лист — плоский верх
+  const lu = (sU - (rg[0] + rg[1]) / 2) / Math.max(1e-6, rg[1] - rg[0]);   // −0.5…0.5 поперёк куска
+  const t = clamp(1 - 4 * lu * lu, 0, 1);
+  return d.lens ? Math.sqrt(t) * 0.85 : Math.sqrt(t);      // ломтик ниже и площе: он срезан наискось
 }
 // Толщина «намазка + стопка» в точке листа (без обёртки), в единицах: рис под начинкой выдавлен, когда стопка выше намазки.
-function stackTopAt(u, v, list) { let H = 0; for (const p of list) if (!ING[p.kind].paint && covers(p, u, v)) H = Math.max(H, p.z1); return H; }
+function stackTopAt(u, v, list) {
+  let H = 0;
+  for (const p of list) {
+    if (ING[p.kind].paint) continue;
+    const f = heightAt(p, u, v); if (f <= 0) continue;
+    H = Math.max(H, p.z0 + (p.z1 - p.z0) * f);             // форма куска задаёт профиль бугра
+  }
+  return H;
+}
 // Начинка толще намазки при надавливании циновкой сжимается: слой растёт только на β от избытка.
 const TAPER = 0.08;   // рис сходит на нет перед голой кромкой (доля листа, ≈ 1,5 см)
 function spreadAt(u) { const b = B(); if (b.oneTurn) return 1; const se = b.spreadEnd; return u >= se ? 0 : u > se - TAPER ? (se - u) / TAPER : 1; }
