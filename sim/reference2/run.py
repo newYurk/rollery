@@ -1057,6 +1057,24 @@ def main():
         c = 1.0 - min(max(y / max(Rr, 1e-6), 0.0), 2.0)
         return 2.0 * math.pi - math.acos(min(1.0, max(-1.0, c)))
 
+    # ... and the first turn cannot enclose more area than the material that goes INTO it. This is
+    # the one lesson of ../mat-chain worth keeping (there the loop radius was likewise clamped by area
+    # conservation). Without the cap a tall stack at the near edge -- layout 5, h_top = 6.1 T -- makes
+    # the clearance term 0.5*h_top + FOLD_CLEAR ask for a circle the sheet cannot fill: the core comes
+    # out hollow by ~16 T2, the wrapper bridges the void, and the press then crumples it inwards. That
+    # is where every wrinkle of layout 5 came from.
+    #     material entering the first turn = a_fold + s_close*h_sheet,   s_close = R*phi_meet
+    #     closed first turn encloses       = pi*R^2
+    # phi_meet itself depends on R, so iterate; PACK_AIR is the same inter-turn air the spiral allows.
+    R_cap = R_fold
+    for _ in range(4):
+        phi_c = min(2.0 * math.pi - 0.05, math.pi + tuck * (phi_land(R_cap, Y_BED) - math.pi))
+        b_cap = phi_c * h_sheet * (1.0 + PACK_AIR)
+        R_cap = (b_cap + math.sqrt(b_cap * b_cap + 4.0 * math.pi * max(a_fold, 0.0) * (1.0 + PACK_AIR))) \
+            / (2.0 * math.pi)
+    R_fold_want = R_fold
+    R_fold = max(R_MAT_MIN + h_sheet, min(R_fold, R_cap))
+
     phi_meet0 = phi_land(R_fold, Y_BED)          # near rice line lands exactly on the far rice line
     phi_meet = min(2.0 * math.pi - 0.05, math.pi + tuck * (phi_meet0 - math.pi))
     s_close_pred = R_fold * phi_meet
@@ -1098,7 +1116,8 @@ def main():
 
     print(f'grid {nx}x{ny} dx={dx:.4f} particles={n} hp={info["hp"]:.4f} nori rows={info["nori_rows"]} '
           f'dt={dt:.5f} cmax={cmax:.2f} v_lift={v_lift:.3f} v_roll={v_roll:.3f}\n'
-          f'mat: R_fold={R_fold:.3f} (>= R_mat_min {R_MAT_MIN}) phi_meet={phi_meet:.3f} rad '
+          f'mat: R_fold={R_fold:.3f} (want {R_fold_want:.3f}, area cap {R_cap:.3f}, '
+          f'>= R_mat_min {R_MAT_MIN}) phi_meet={phi_meet:.3f} rad '
           f'({math.degrees(phi_meet):.0f} deg) s_close~{s_close_pred:.2f} T  R_end_pred={R_end_pred:.3f} '
           f'bond={bond} fingers={fingers} hold={t_hold:.1f}\n'
           f'fold zone: {[r[5] for r in fold_rects]} s_fold={s_fold:.2f} a_fold={a_fold:.2f} h_top={h_top:.2f} | '
@@ -1144,6 +1163,13 @@ def main():
 
     def wr_sample(ph, tt):
         w = wrinkle_metric(S['x'].to_numpy(), nori_row, nori_col, info['nori_rows'], nori_x0, s_fold)
+        # --- how hard is the rice being squashed, RIGHT NOW? (KINEMATICS.md, owner's finding of
+        #     26.08.2026 13:25: wrinkles are the symptom, crushed rice is the disease. Boiled rice is
+        #     ~70 % water and gives up only the air between the grains, 5-15 %, so J below ~0.88 at ANY
+        #     moment means the model let the roll collapse and the nori had to fold the slack away.)
+        Jr = S['J'].to_numpy()[rice_idx]
+        w['rice_J_mean'] = round(float(Jr.mean()), 4)
+        w['rice_J_p05'] = round(float(np.percentile(Jr, 5.0)), 4)
         w['t'] = round(tt, 2); w['phase'] = ph
         wr_hist.append(w)
         cur = wr_phase.get(ph)
@@ -1368,6 +1394,10 @@ def main():
               wrinkle_amp_max_T=float(wr_amp_max['wrinkle_amp_T']), wrinkle_amp_max_phase=wr_amp_max['phase'],
               fold_radius_min_T=round(min(w['fold_radius_T'] for w in wr_hist if w['fold_radius_T'] > 0), 4),
               bed_drag_max_T=round(max(w['bed_drag_T'] for w in wr_hist), 3),
+              rice_J_min_run=round(min(w['rice_J_mean'] for w in wr_hist if 'rice_J_mean' in w), 4),
+              rice_J_min_run_phase=min((w for w in wr_hist if 'rice_J_mean' in w),
+                                       key=lambda w: w['rice_J_mean'])['phase'],
+              rice_J_p05_min_run=round(min(w['rice_J_p05'] for w in wr_hist if 'rice_J_p05' in w), 4),
               by_phase={k: dict(wrinkles=v['wrinkles'], nonose=v['wrinkles_nonose'], mat=v['wrinkles_mat'],
                                 amp_T=v['wrinkle_amp_T'],
                                 kappa=v['wrinkle_kappa_max'], r_fold_T=v['fold_radius_T'],
@@ -1381,7 +1411,8 @@ def main():
           f"no-nose max {wr['wrinkles_nonose_max']}, mat-threshold max {wr['wrinkles_mat_max']}, "
           f"amp max {wr['wrinkle_amp_max_T']:.3f} T "
           f"({wr['wrinkle_amp_max_phase']}), final {wr_final['wrinkles']}; "
-          f"r_fold min {wr['fold_radius_min_T']:.3f} T, bed drag max {wr['bed_drag_max_T']:.2f} T", flush=True)
+          f"r_fold min {wr['fold_radius_min_T']:.3f} T, bed drag max {wr['bed_drag_max_T']:.2f} T; "
+          f"rice J min {wr['rice_J_min_run']:.3f} ({wr['rice_J_min_run_phase']})", flush=True)
 
     # ---- outputs
     center = (xs_f[:, 0].mean(), xs_f[:, 1].mean())
@@ -1428,16 +1459,36 @@ def main():
     # --- the first turn is a hand-set radius, so the layer count implied by area conservation has a
     #     third form: everything outside R_fold is wrapper. crossings = layers + 1 (the first turn).
     met['R_fold_T'] = round(R_fold, 3)
+    met['R_fold_want_T'] = round(R_fold_want, 3)
+    met['R_fold_area_cap_T'] = round(R_cap, 3)
+    met['R_fold_capped'] = bool(R_fold_want > R_cap + 1e-6)
     met['layers_predicted_close'] = round(layers_close, 3)
     met['crossings_predicted_close'] = round(layers_close + 1.0, 3)
     met['turns_minus_predicted_close'] = round(met['nori_turns'] - (layers_close + 1.0), 3)
     met['turns_match_formula_close'] = bool(abs(met['turns_minus_predicted_close']) <= 0.25)
+    # --- grafted from ../mat-chain: the area formula is fed the fold length the run ACTUALLY spent on
+    #     the first turn (arc consumed when rice met rice), not the nominal s_fold read off the flat
+    #     sheet. The two differ whenever the loop decides for itself how much sheet to eat -- which is
+    #     every layout with a filling, and the whole reason `turns_match_formula` kept failing.
+    if s_close_act:
+        pred_act = predict_layers(info, s_close_act, a_fold)
+        met['s_fold_T'] = round(s_fold, 3)
+        met['s_fold_actual_T'] = round(s_close_act, 3)
+        met['layers_predicted_actual'] = pred_act['layers_predicted']
+        met['crossings_predicted_actual'] = pred_act['crossings_predicted']
+        met['turns_minus_predicted_actual'] = round(met['nori_turns'] - pred_act['crossings_predicted'], 3)
+        met['turns_match_formula_actual'] = bool(abs(met['turns_minus_predicted_actual']) <= 0.25)
     met['wrinkles_nonose'] = int(wr_final['wrinkles_nonose'])
     met['wrinkles_nonose_max'] = int(wr['wrinkles_nonose_max'])
     met['mat_min_radius_T'] = R_MAT_MIN
     met['mat_radius_min_run_T'] = round(min(l['R'] for l in log), 3) if log else round(R, 3)
     met['wrinkle_ok'] = bool(wr['wrinkles_max'] == 0 and wr['wrinkle_amp_max_T'] < 0.3)
     met['wrinkle_ok_final'] = bool(wr_final['wrinkles'] == 0 and wr_final['wrinkle_amp_T'] < 0.3)
+    met['wrinkle_ok_mat'] = bool(wr['wrinkles_mat_max'] == 0)
+    met['rice_J_min_run'] = wr['rice_J_min_run']
+    met['rice_J_min_run_phase'] = wr['rice_J_min_run_phase']
+    met['rice_J_p05_min_run'] = wr['rice_J_p05_min_run']
+    met['rice_squash_ok'] = bool(wr['rice_J_min_run'] >= 0.88)
     # --- order of the fillings in the core. After the roll they sit AROUND the core, so the honest
     #     test is that their angular order is a ROTATION of their order along the flat sheet.
     init_order = [f['kind'] for f in sorted(layout['fillings'], key=lambda f: f['u'])]

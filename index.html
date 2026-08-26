@@ -54,14 +54,14 @@ function hash(x, y) {
 // ---------------------------------------------------------------- данные
 const BASES = {
   sushi: { name: 'Суши-ролл', emoji: '🍣', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
-    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 1.0, beta: 0.55, oneTurn: true, flap: 0, tuckMin: 5, Wv: 38,
+    T: 1.4, w: 0.02, sheetCm: 21, turns: 3.1, kappa: 0.85, spreadEnd: 1.0, beta: 0.55, oneTurn: true, flap: 0, tuckMin: 5, Wv: 38,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
     T: 1.0, w: 1.7, turns: 2.5, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,
     ingredients: ['strawberry', 'kiwi', 'banana', 'mango', 'choco', 'jam', 'nut', 'pinkcream'] },
   // Лаваш-ролл: тонкая обёртка спиралью в 4–5 оборотов — у него нори-подобная линия внутри настоящая
   lavash: { name: 'Лаваш-ролл', emoji: '🌯', wrapper: '#dcbf87', spread: '#f7f1e6', mat: '#b98f5a', matLine: '#a67c48',
-    T: 0.45, w: 0.2, turns: 4.5, kappa: 0.7, spreadEnd: 0.96, beta: 0.6, Wv: 40,
+    T: 0.45, w: 0.4, turns: 4.5, kappa: 0.7, spreadEnd: 0.96, beta: 0.6, Wv: 40,
     ingredients: ['salmon', 'cucumber', 'cheese', 'tomato', 'pepper', 'ham', 'lettuce', 'eggsheet', 'dill'] },
 };
 const R0 = 0.25;   // радиус сердцевины
