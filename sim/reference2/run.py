@@ -220,6 +220,11 @@ TAIL_TOL = 0.3           # a particle further than this outside the fitted conto
 TAIL_FRAC = 0.002        # fraction of particles above which tail_outside becomes True
 BG_HOLE_T = 0.35         # a background run shorter than this along a ray is a hole between particles
 MAT_GAP_BINS = 180       # angular sectors the nori-to-mat distance is measured in
+PRESSED_GAP_MAX = 0.10   # the mat must finish within this of the roll, T (else the press never landed)
+PRESSED_CONTACT_MIN = 0.20     # ... and touch this fraction of its span. Circle.
+PRESSED_CONTACT_MIN_SQ = 0.08  # ... and this for the SQUARE press: a roundish roll inside a square
+                               # touches only the four flats, so the ceiling is structurally lower
+                               # (measured 0.115 on layout 5, the only square layout).
 GRAVITY = 0.01
 MU_TABLE = 0.4
 MU_MAT = 2.0             # effectively sticky while pressed against the mat
@@ -1677,10 +1682,16 @@ def main():
     #     0.93 T (4.7 mm) away from the roll with ZERO contact -- and every existing flag passes it
     #     (stable, wrinkles 0, nori_torn false, core order preserved, 0 escaped). These two numbers,
     #     both already in the controller log, catch it.
+    #     Both quantities are shape-aware: for the circle the mat radius R is compared with Rout, for
+    #     the square R is a HALF-SIDE and belongs against the half-side of the roll's bounding box.
     _arc_end = R * max(th_hi - th_lo, 0.0) if shp == 0 else 8 * R
-    met['mat_gap_end_T'] = round(float(R - met['Rout_T']), 3)
+    _roll_ref = met['Rout_T'] if shp == 0 else met['shape']['square_half_side_T']
+    met['mat_gap_end_T'] = round(float(R - _roll_ref), 3)
     met['press_contact_frac_end'] = round(float(L_f / max(_arc_end, 1e-9)), 3)
-    met['pressed_ok'] = bool(met['mat_gap_end_T'] <= 0.10 and met['press_contact_frac_end'] >= 0.20)
+    _c_min = PRESSED_CONTACT_MIN if shp == 0 else PRESSED_CONTACT_MIN_SQ
+    met['pressed_contact_min'] = _c_min
+    met['pressed_ok'] = bool(met['mat_gap_end_T'] <= PRESSED_GAP_MAX and
+                             met['press_contact_frac_end'] >= _c_min)
     met['stable'] = bool(met['stable'] and met['pressed_ok'])
     met['mat_min_radius_T'] = R_MAT_MIN
     met['mat_radius_min_run_T'] = round(min(l['R'] for l in log), 3) if log else round(R, 3)
