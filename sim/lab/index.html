@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Лаборатория скрутки — Ролльня</title>
+<style>
+  :root{
+    --ground:#15171a; --panel:#1c1f23; --panel2:#22262b; --line:#2f353c;
+    --ink:#e9e6dd; --dim:#a6a396; --faint:#7b7a70;
+    --nori:#4c8b69; --tamago:#e8b74e; --ok:#79c48b; --bad:#e2765c;
+    --sans:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font:16px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{display:grid;grid-template-columns:322px 1fr;min-height:100vh}
+  @media(max-width:900px){.wrap{grid-template-columns:1fr}}
+
+  /* ── панель управления ── */
+  aside{background:var(--panel);border-right:1px solid var(--line);padding:20px 20px 40px;overflow-y:auto}
+  h1{font-size:19px;margin:0 0 3px;letter-spacing:-.01em}
+  .sub{font-size:12.5px;color:var(--faint);margin:0 0 22px;font-family:var(--mono)}
+  .grp{margin-bottom:20px}
+  .grp>label,.lbl{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+  select,input[type=number]{width:100%;background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+    border-radius:6px;padding:9px 10px;font:14px var(--sans)}
+  select:focus,input:focus{outline:2px solid var(--tamago);outline-offset:1px}
+  .vnote{font-size:12.5px;color:var(--dim);margin-top:7px;line-height:1.4}
+  .knob{margin-bottom:15px}
+  .knob .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+  .knob .row b{font-weight:500;font-size:14px}
+  .knob .row span{font-family:var(--mono);font-size:13px;color:var(--tamago)}
+  input[type=range]{width:100%;accent-color:var(--tamago);height:22px}
+  .knob .hint{font-size:12px;color:var(--faint);margin-top:2px;line-height:1.35}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  button{font:600 15px var(--sans);border-radius:8px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--ink);padding:11px 14px;cursor:pointer}
+  button:hover{border-color:var(--faint)}
+  button.go{background:var(--tamago);border-color:var(--tamago);color:#191a15;width:100%;padding:13px}
+  button.go:disabled{opacity:.5;cursor:default}
+  button.ghost{background:transparent}
+  .qual{display:flex;gap:8px;margin-top:6px}
+  .qual button{flex:1;padding:8px 6px;font-size:13px;font-weight:500}
+  .qual button[aria-pressed=true]{border-color:var(--tamago);color:var(--tamago)}
+
+  /* ── сцена ── */
+  main{padding:22px 26px 60px;min-width:0}
+  .status{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;min-height:34px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--faint);flex:none}
+  .dot.run{background:var(--tamago);animation:pulse 1s infinite}
+  .dot.ok{background:var(--ok)} .dot.err{background:var(--bad)}
+  @keyframes pulse{50%{opacity:.25}}
+  @media(prefers-reduced-motion:reduce){.dot.run{animation:none}}
+  .status .txt{font-size:14.5px;color:var(--dim)}
+  .status code{font-family:var(--mono);font-size:12px;color:var(--faint);background:var(--panel);
+    padding:2px 7px;border-radius:4px}
+
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:16px}
+  .stage img{display:block;width:100%;height:auto;border-radius:6px;background:#1c1c20}
+  .player{display:flex;align-items:center;gap:12px;margin-top:12px}
+  .player button{padding:9px 12px;min-width:44px}
+  .player input[type=range]{flex:1}
+  .phase{font-family:var(--mono);font-size:12px;color:var(--nori);white-space:nowrap;min-width:96px;text-align:right}
+  .empty{color:var(--faint);font-size:14px;text-align:center;padding:56px 20px;line-height:1.6}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:820px){.cols{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .card h3{margin:0 0 10px;font-size:13px;font-family:var(--mono);letter-spacing:.1em;
+    text-transform:uppercase;color:var(--faint);font-weight:400}
+  .card img{display:block;width:100%;height:auto;border-radius:6px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+  td{padding:6px 0;border-bottom:1px solid var(--line)}
+  td:last-child{text-align:right;font-family:var(--mono);font-size:13px}
+  tr:last-child td{border-bottom:0}
+  .good{color:var(--ok)} .warn{color:var(--tamago)} .bad{color:var(--bad)}
+  pre{margin:0;font-family:var(--mono);font-size:11.5px;line-height:1.55;color:var(--dim);
+    max-height:190px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+  .hist{margin-top:16px}
+  .hist button{display:block;width:100%;text-align:left;margin-bottom:6px;font-weight:400;font-size:13px;
+    padding:8px 10px;font-family:var(--mono);color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<aside>
+  <h1>Лаборатория скрутки</h1>
+  <p class="sub">выбери · покрути · прогони</p>
+
+  <div class="grp">
+    <label for="variant">Кинематика</label>
+    <select id="variant"></select>
+    <div class="vnote" id="vnote"></div>
+  </div>
+
+  <div class="grp">
+    <label for="layout">Что лежит на листе</label>
+    <select id="layout"></select>
+  </div>
+
+  <div class="grp">
+    <span class="lbl">Рука</span>
+    <div id="knobs"></div>
+  </div>
+
+  <div class="grp">
+    <span class="lbl">Подробность</span>
+    <div class="qual" id="qual">
+      <button data-q="fast" aria-pressed="false">Быстро<br><small>~10 с</small></button>
+      <button data-q="norm" aria-pressed="true">Обычно<br><small>~25 с</small></button>
+      <button data-q="fine" aria-pressed="false">Точно<br><small>~60 с</small></button>
+    </div>
+  </div>
+
+  <button class="go" id="go">Прогнать</button>
+  <div class="two" style="margin-top:10px">
+    <button class="ghost" id="stop" disabled>Остановить</button>
+    <button class="ghost" id="again">Повторить</button>
+  </div>
+
+  <div class="hist">
+    <span class="lbl">Недавние прогоны</span>
+    <div id="hist"></div>
+  </div>
+</aside>
+
+<main>
+  <div class="status">
+    <span class="dot" id="dot"></span>
+    <span class="txt" id="txt">Готово к прогону</span>
+    <code id="cmd"></code>
+  </div>
+
+  <div class="stage">
+    <div id="stageBody"><div class="empty">Слева выбери кинематику и раскладку, нажми «Прогнать».<br>Здесь будет видно, как ролл скручивается — кадр за кадром.</div></div>
+    <div class="player" id="player" hidden>
+      <button id="play">▶</button>
+      <input type="range" id="scrub" min="0" max="0" value="0">
+      <span class="phase" id="phase"></span>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="card"><h3>Срез</h3><div id="cutBox"><div class="empty" style="padding:30px">—</div></div></div>
+    <div class="card"><h3>Что получилось</h3><div id="metrics"><div class="empty" style="padding:30px">—</div></div></div>
+  </div>
+
+  <div class="card" style="margin-top:16px"><h3>Что пишет расчёт</h3><pre id="log">—</pre></div>
+</main>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let CFG = null, JOB = null, poll = null, frames = [], fi = 0, playing = false, timer = null, quality = 'norm';
+const QUAL = { fast: {grid:150, particles:7000, frames:22}, norm: {grid:200, particles:12000, frames:30}, fine: {grid:260, particles:20000, frames:40} };
+
+async function boot(){
+  CFG = await (await fetch('/api/variants')).json();
+  const vs = $('#variant');
+  CFG.variants.forEach(v => vs.add(new Option(v.title + ' · ' + v.id, v.id)));
+  vs.value = CFG.variants.find(v => v.id === 'reference') ? 'reference' : CFG.variants[0].id;
+  vs.onchange = onVariant; onVariant();
+  $('#qual').onclick = e => { const b = e.target.closest('button'); if(!b) return;
+    quality = b.dataset.q; [...$('#qual').children].forEach(x => x.setAttribute('aria-pressed', x === b)); };
+  $('#go').onclick = run; $('#stop').onclick = stop; $('#again').onclick = run;
+  $('#play').onclick = togglePlay;
+  $('#scrub').oninput = e => { pause(); show(+e.target.value); };
+  document.addEventListener('keydown', e => {
+    if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if(e.key === ' '){ e.preventDefault(); togglePlay(); }
+    if(e.key === 'ArrowRight'){ pause(); show(fi+1); }
+    if(e.key === 'ArrowLeft'){ pause(); show(fi-1); }
+  });
+  history_();
+}
+
+function onVariant(){
+  const v = CFG.variants.find(x => x.id === $('#variant').value);
+  $('#vnote').textContent = v.note + ' · код обновлён ' + v.mtime;
+  const ls = $('#layout'); ls.innerHTML = '';
+  v.layouts.forEach(n => ls.add(new Option(n + ' — ' + (CFG.layoutNames[n] || 'раскладка ' + n), n)));
+  const kb = $('#knobs'); kb.innerHTML = '';
+  v.knobs.forEach(k => {
+    const c = CFG.knobs[k];
+    const d = document.createElement('div'); d.className = 'knob';
+    d.innerHTML = `<div class="row"><b>${c.label}</b><span id="v-${k}">${c.def}</span></div>
+      <input type="range" id="k-${k}" min="${c.min}" max="${c.max}" step="${c.step}" value="${c.def}">
+      <div class="hint">${c.hint}</div>`;
+    kb.appendChild(d);
+    d.querySelector('input').oninput = e => { $('#v-'+k).textContent = e.target.value; };
+  });
+}
+
+function args(){
+  const v = CFG.variants.find(x => x.id === $('#variant').value), a = {};
+  v.knobs.forEach(k => { const el = $('#k-'+k); if(el) a[k] = parseFloat(el.value); });
+  return a;
+}
+
+async function run(){
+  pause(); frames = []; $('#player').hidden = true;
+  $('#stageBody').innerHTML = '<div class="empty">Считается… первые кадры появятся, как только расчёт дойдёт до конца.<br>Это 10–60 секунд.</div>';
+  $('#cutBox').innerHTML = '<div class="empty" style="padding:30px">—</div>';
+  $('#metrics').innerHTML = '<div class="empty" style="padding:30px">—</div>';
+  const q = QUAL[quality];
+  const body = { variant: $('#variant').value, layout: +$('#layout').value, args: args(),
+                 grid: q.grid, particles: q.particles, frames: q.frames };
+  const r = await (await fetch('/api/run', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})).json();
+  if(r.error){ setStatus('err', r.error); return; }
+  JOB = r.id; $('#go').disabled = true; $('#stop').disabled = false;
+  setStatus('run', 'Считается…');
+  clearInterval(poll); poll = setInterval(tick, 1200); tick();
+}
+
+async function stop(){ if(JOB) await fetch('/api/stop', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: JOB})}); }
+
+async function tick(){
+  if(!JOB) return;
+  const s = await (await fetch('/api/status?id=' + encodeURIComponent(JOB))).json();
+  $('#log').textContent = (s.log || []).join('\n') || '—';
+  $('#cmd').textContent = s.cmd || '';
+  if(!s.done){ setStatus('run', 'Считается… ' + s.seconds + ' с'); return; }
+  clearInterval(poll); $('#go').disabled = false; $('#stop').disabled = true;
+  if(s.error){ setStatus('err', s.error); return; }
+  setStatus('ok', 'Готово за ' + s.seconds + ' с');
+  frames = (s.frames || []).map(f => ({ ...f, url: '/runs/' + JOB + '/' + f.src }));
+  if(frames.length){
+    $('#stageBody').innerHTML = '<img id="frame" alt="кадр скрутки">';
+    $('#player').hidden = false; $('#scrub').max = frames.length - 1;
+    frames.forEach(f => { const i = new Image(); i.src = f.url; });   // прогреть кэш
+    show(0); play();
+  }
+  if(s.cut) $('#cutBox').innerHTML = `<img src="/runs/${JOB}/${s.cut}" alt="срез">`;
+  if(s.metrics) renderMetrics(s.metrics);
+  history_();
+}
+
+function setStatus(kind, text){
+  $('#dot').className = 'dot ' + (kind === 'run' ? 'run' : kind === 'ok' ? 'ok' : kind === 'err' ? 'err' : '');
+  $('#txt').textContent = text;
+}
+
+function show(i){
+  if(!frames.length) return;
+  fi = (i + frames.length) % frames.length;
+  const f = frames[fi];
+  const img = $('#frame'); if(img) img.src = f.url;
+  $('#scrub').value = fi;
+  const ru = CFG.phases[f.phase] || f.phase || '';
+  $('#phase').textContent = ru ? (fi+1) + '/' + frames.length + ' · ' + ru : (fi+1) + '/' + frames.length;
+}
+function play(){ playing = true; $('#play').textContent = '❚❚'; clearInterval(timer); timer = setInterval(() => show(fi+1), 220); }
+function pause(){ playing = false; $('#play').textContent = '▶'; clearInterval(timer); }
+function togglePlay(){ playing ? pause() : play(); }
+
+function renderMetrics(m){
+  const rows = [];
+  const seen = new Set();
+  CFG.keyMetrics.forEach(([k, label]) => {
+    if(!(k in m) || seen.has(label)) return;
+    seen.add(label);
+    let v = m[k], cls = '';
+    if(typeof v === 'boolean'){
+      if(k === 'stable'){ cls = v ? 'good' : 'bad'; v = v ? 'да' : 'нет'; }
+      else { cls = v ? 'bad' : 'good'; v = v ? 'да' : 'нет'; }
+    } else if(typeof v === 'number'){
+      if(k === 'conservation') cls = v >= 0.97 ? 'good' : v >= 0.93 ? 'warn' : 'bad';
+      if(k === 'rice_J_mean') cls = (v > 0.88 && v < 0.99) ? 'good' : 'warn';
+      if(k === 'escaped') cls = v ? 'bad' : 'good';
+      if(k === 'gap_cv') cls = v < 0.35 ? 'good' : 'warn';
+      v = Number.isInteger(v) ? v : (Math.abs(v) < 10 ? v.toFixed(3) : v.toFixed(2));
+    }
+    rows.push(`<tr><td>${label}</td><td class="${cls}">${v}</td></tr>`);
+  });
+  const ru = m.rice_under_filling_T || {};
+  Object.keys(ru).forEach(k => rows.push(`<tr><td>Риса под «${k}»</td><td>${(+ru[k]).toFixed(2)}</td></tr>`));
+  if(m.core_order_left_to_right && m.core_order_left_to_right.length)
+    rows.push(`<tr><td>Порядок в ядре</td><td style="font-size:11.5px">${m.core_order_left_to_right.join(' → ')}</td></tr>`);
+  $('#metrics').innerHTML = rows.length ? '<table>' + rows.join('') + '</table>' : '<div class="empty" style="padding:30px">нет чисел</div>';
+}
+
+async function history_(){
+  const h = await (await fetch('/api/history')).json();
+  $('#hist').innerHTML = (h.runs || []).slice(0, 8).map(r =>
+    `<button data-id="${r.id}">${r.at} · ${r.variant} · ${r.layout}${Object.keys(r.args || {}).length ? ' · ' + Object.entries(r.args).map(([k,v]) => k[0]+v).join(' ') : ''}</button>`).join('') || '<div class="hint" style="color:var(--faint);font-size:12.5px">пока пусто</div>';
+  $('#hist').querySelectorAll('button').forEach(b => b.onclick = () => { JOB = b.dataset.id; clearInterval(poll); tick(); });
+}
+
+boot();
+</script>
+</body>
+</html>

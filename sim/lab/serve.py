@@ -1,0 +1,260 @@
+#!/usr/bin/env python
+"""Лаборатория скрутки — локальный стенд: запускает симуляцию и показывает, как она крутится.
+
+Запуск:  ./lab.sh        (из папки sim/lab)
+Откроется http://127.0.0.1:8770 — выбираешь вариант кинематики, раскладку, ползунки, «Прогнать».
+Питон знать не нужно: всё делается в браузере.
+"""
+import http.server, json, os, re, shutil, socketserver, subprocess, sys, threading, time, urllib.parse
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SIM = os.path.dirname(HERE)
+RUNS = os.path.join(HERE, 'runs')
+PORT = int(os.environ.get('LAB_PORT', '8770'))
+PY = sys.executable
+
+# ----------------------------------------------------------------- варианты кинематики
+TITLES = {
+    'kin-grab':    ('Захват края', 'Циновка «пальцами» берёт край нори и заводит его через начинки'),
+    'kin-mat':     ('Лопатка', 'Подворот делает сама циновка — подсовывается под край, без захвата частиц'),
+    'reference':   ('Референс', 'Сборка лучшего из двух: все пять контрольных раскладок'),
+    'play':        ('Песочница', 'Твоя личная копия — можно ломать'),
+    'spiral-curl': ('Спираль · завивка', 'Рулет и лаваш: край закручивается в тугой завиток'),
+    'spiral-seed': ('Спираль · посев', 'Рулет и лаваш: завиток задан сразу, дальше мотается'),
+    'mpm-shell':   ('Первая версия', 'Историческая: циновка катится по столу (видно, как гребёт рис)'),
+}
+LAYOUT_NAMES = {
+    1: 'Пустой лист', 2: 'Тамаго у края', 3: 'Лосось в середине',
+    4: 'Четыре начинки у края', 5: 'Переполнение + квадрат', 6: 'Рулет (спираль)', 7: 'Лаваш (спираль)',
+}
+KNOB_INFO = {
+    'speed':  ('Скорость руки', 0.4, 2.0, 0.1, 1.0, 'быстрее — рыхлее и крупнее'),
+    'press':  ('Прижим циновки', 0.4, 2.0, 0.1, 1.0, 'сильнее — плотнее и мельче'),
+    'tuck':   ('Глубина подворота', 0.6, 1.3, 0.05, 1.0, 'дальше — начинка уходит из центра'),
+    'hold':   ('Держать в конце', 0.0, 8.0, 0.5, 0.0, 'дольше — плотнее ядро'),
+    'lift':   ('Подъём циновки', 0.0, 1.5, 0.1, 1.0, '0 — циновка едет по столу и гребёт рис'),
+    'fronty': ('Передний край дуги', -1.0, 3.0, 0.1, -1.0, 'ниже — дуга сильнее задевает лист'),
+}
+
+_variants_cache = {}
+
+
+def variants():
+    out = []
+    for name in sorted(os.listdir(SIM)):
+        d = os.path.join(SIM, name)
+        rp = os.path.join(d, 'run.py')
+        if not os.path.isfile(rp):
+            continue
+        if name in _variants_cache and _variants_cache[name]['mtime'] == os.path.getmtime(rp):
+            out.append(_variants_cache[name]['data'])
+            continue
+        src = open(rp, encoding='utf-8', errors='ignore').read()
+        knobs = [k for k in KNOB_INFO if "'--%s'" % k in src]
+        layouts = sorted({int(m) for m in re.findall(r'^\s*(\d)\s*:\s*dict\(', src, re.M)})
+        if not layouts:
+            layouts = [1, 2, 3, 4, 5]
+        title, note = TITLES.get(name, (name, ''))
+        data = dict(id=name, title=title, note=note, knobs=knobs, layouts=layouts,
+                    mtime=time.strftime('%H:%M %d.%m', time.localtime(os.path.getmtime(rp))))
+        _variants_cache[name] = dict(mtime=os.path.getmtime(rp), data=data)
+        out.append(data)
+    order = ['reference', 'kin-grab', 'kin-mat', 'spiral-curl', 'spiral-seed', 'play', 'mpm-shell']
+    out.sort(key=lambda v: (order.index(v['id']) if v['id'] in order else 99, v['id']))
+    return out
+
+
+# ----------------------------------------------------------------- запуск прогона
+JOBS = {}
+
+
+class Job:
+    def __init__(self, rid, variant, layout, args, frames, grid, particles):
+        self.id, self.variant, self.layout = rid, variant, layout
+        self.dir = os.path.join(RUNS, rid)
+        os.makedirs(self.dir, exist_ok=True)
+        self.log, self.done, self.error, self.proc = [], False, None, None
+        self.started = time.time()
+        cmd = [PY, 'run.py', '--layout', str(layout), '--out', self.dir, '--tag', 'lab',
+               '--frames', str(frames), '--grid', str(grid), '--particles', str(particles)]
+        for k, v in args.items():
+            cmd += ['--%s' % k, str(v)]
+        self.cmd = ' '.join(cmd[1:])
+        threading.Thread(target=self._run, args=(cmd,), daemon=True).start()
+
+    def _run(self, cmd):
+        try:
+            self.proc = subprocess.Popen(cmd, cwd=os.path.join(SIM, self.variant), stdout=subprocess.PIPE,
+                                         stderr=subprocess.STDOUT, text=True, bufsize=1,
+                                         env=dict(os.environ, PYTHONUNBUFFERED='1'))
+            for line in self.proc.stdout:
+                line = line.rstrip()
+                if line.startswith('[GsTaichi]') or not line:
+                    continue
+                self.log.append(line)
+                if len(self.log) > 400:
+                    del self.log[:200]
+            self.proc.wait()
+            if self.proc.returncode:
+                self.error = 'прогон завершился с ошибкой (код %s)' % self.proc.returncode
+        except Exception as e:                                   # noqa: BLE001
+            self.error = str(e)
+        finally:
+            self.done = True
+
+    def stop(self):
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
+
+    def artefacts(self):
+        frames, cut, metrics, roll = [], None, None, None
+        for root, _dirs, files in os.walk(self.dir):
+            for f in sorted(files):
+                rel = os.path.relpath(os.path.join(root, f), self.dir)
+                if f.endswith('.png') and 'frames_' in root:
+                    m = re.match(r'f(\d+)_?(.*)\.png$', f)
+                    phase = (m.group(2) if m else '') or ''
+                    frames.append(dict(src=rel, phase=phase, step=int(m.group(1)) if m else 0))
+                elif f.startswith('material_') and f.endswith('.png'):
+                    cut = rel
+                elif f.startswith('final_') and f.endswith('.png'):
+                    roll = rel
+                elif f.startswith('metrics_') and f.endswith('.json'):
+                    metrics = rel
+        frames.sort(key=lambda x: x['step'])
+        data = None
+        if metrics:
+            try:
+                data = json.load(open(os.path.join(self.dir, metrics), encoding='utf-8'))
+            except Exception:                                    # noqa: BLE001
+                data = None
+        return dict(frames=frames, cut=cut, roll=roll, metrics=data)
+
+
+PHASE_RU = {'A': 'подъём края', 'B': 'заведение', 'Btuck': 'подворот', 'Bhold': 'удержание',
+            'C': 'прокатка', 'D_close': 'замыкание', 'D_press': 'прижим', 'curl': 'завивка'}
+
+KEY_METRICS = [
+    ('Rout_T', 'Радиус ролла, T'), ('Rout_median_T', 'Радиус (медиана), T'),
+    ('nori_turns', 'Оборотов обёртки'), ('layers_predicted', 'Оборотов по формуле'),
+    ('nori_turns_geom', 'Оборотов по формуле'),
+    ('rice_J_mean', 'Сжатие риса (J)'), ('conservation', 'Сохранение массы'),
+    ('rice_area_ratio', 'Риса на карте'), ('spread_area_ratio', 'Намазки на карте'),
+    ('gap_cv', 'Неравномерность витков'), ('hole_T', 'Дырка в центре, T'),
+    ('nori_torn', 'Нори порвана'), ('escaped', 'Вылетело частиц'), ('stable', 'Устойчиво'),
+]
+
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *a):                                    # тише
+        pass
+
+    def _json(self, obj, code=200):
+        b = json.dumps(obj, ensure_ascii=False).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(b)))
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(b)
+
+    def do_GET(self):
+        p = urllib.parse.urlparse(self.path)
+        q = urllib.parse.parse_qs(p.query)
+        if p.path == '/':
+            return self._file(os.path.join(HERE, 'index.html'), 'text/html; charset=utf-8')
+        if p.path == '/api/variants':
+            return self._json(dict(variants=variants(), layoutNames=LAYOUT_NAMES,
+                                   knobs={k: dict(zip(('label', 'min', 'max', 'step', 'def', 'hint'), v))
+                                          for k, v in KNOB_INFO.items()},
+                                   phases=PHASE_RU, keyMetrics=KEY_METRICS))
+        if p.path == '/api/status':
+            j = JOBS.get(q.get('id', [''])[0])
+            if not j:
+                return self._json(dict(error='нет такого прогона'), 404)
+            r = dict(id=j.id, done=j.done, error=j.error, log=j.log[-30:],
+                     seconds=round(time.time() - j.started, 1), cmd=j.cmd)
+            if j.done:
+                r.update(j.artefacts())
+            return self._json(r)
+        if p.path == '/api/history':
+            hist = []
+            for rid in sorted(os.listdir(RUNS), reverse=True)[:24] if os.path.isdir(RUNS) else []:
+                meta = os.path.join(RUNS, rid, 'lab.json')
+                if os.path.exists(meta):
+                    try:
+                        hist.append(json.load(open(meta, encoding='utf-8')))
+                    except Exception:                             # noqa: BLE001
+                        pass
+            return self._json(dict(runs=hist))
+        if p.path.startswith('/runs/'):
+            f = os.path.join(RUNS, urllib.parse.unquote(p.path[len('/runs/'):]))
+            if os.path.isfile(f) and os.path.abspath(f).startswith(RUNS):
+                return self._file(f, 'image/png' if f.endswith('.png') else 'application/json')
+            self.send_error(404)
+            return None
+        self.send_error(404)
+        return None
+
+    def do_POST(self):
+        p = urllib.parse.urlparse(self.path)
+        n = int(self.headers.get('Content-Length', 0))
+        body = json.loads(self.rfile.read(n) or b'{}')
+        if p.path == '/api/run':
+            variant = body.get('variant', 'reference')
+            if not os.path.isfile(os.path.join(SIM, variant, 'run.py')):
+                return self._json(dict(error='нет такого варианта'), 400)
+            layout = int(body.get('layout', 1))
+            args = {k: v for k, v in (body.get('args') or {}).items() if k in KNOB_INFO}
+            frames = max(6, min(60, int(body.get('frames', 30))))
+            grid = max(120, min(320, int(body.get('grid', 200))))
+            particles = max(4000, min(40000, int(body.get('particles', 12000))))
+            rid = time.strftime('%H%M%S') + '-' + variant + '-l' + str(layout)
+            job = Job(rid, variant, layout, args, frames, grid, particles)
+            JOBS[rid] = job
+            meta = dict(id=rid, variant=variant, layout=layout, args=args, frames=frames,
+                        grid=grid, particles=particles, at=time.strftime('%H:%M'))
+            json.dump(meta, open(os.path.join(job.dir, 'lab.json'), 'w', encoding='utf-8'), ensure_ascii=False)
+            return self._json(dict(id=rid))
+        if p.path == '/api/stop':
+            j = JOBS.get(body.get('id'))
+            if j:
+                j.stop()
+            return self._json(dict(ok=True))
+        if p.path == '/api/clear':
+            for rid in list(JOBS):
+                JOBS[rid].stop()
+            JOBS.clear()
+            shutil.rmtree(RUNS, ignore_errors=True)
+            os.makedirs(RUNS, exist_ok=True)
+            return self._json(dict(ok=True))
+        self.send_error(404)
+        return None
+
+    def _file(self, path, ctype):
+        try:
+            data = open(path, 'rb').read()
+        except OSError:
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.send_header('Content-Type', ctype)
+        self.send_header('Content-Length', str(len(data)))
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(data)
+
+
+class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+
+if __name__ == '__main__':
+    os.makedirs(RUNS, exist_ok=True)
+    print('Лаборатория скрутки: http://127.0.0.1:%d' % PORT)
+    print('Остановить — Ctrl+C в этом окне.')
+    try:
+        Server(('127.0.0.1', PORT), Handler).serve_forever()
+    except KeyboardInterrupt:
+        print('\nостановлено')
