@@ -374,11 +374,11 @@ function coreMaterial(m, r, phi, vSlice) {
 }
 function buildModel(list) {
   const hd = S.hand || { air: 0, wobble: 0, phase: 0, press: 1 };
-  const key = S.base + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|' + JSON.stringify(list);
+  const key = S.base + '|' + S.shape + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|' + JSON.stringify(list);
   let m = modelCaches.get(key); if (m) return m;
   if (modelCaches.size > 16) modelCaches.clear();
   restack(list); const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), sStart: 0, air: hd.air * b.T, wobble: hd.wobble, phase: hd.phase };
-  m = { key, g, list: JSON.parse(JSON.stringify(list)), wds: new Map(), Rmax: 0, core: null };
+  m = { key, g, shape: S.shape, list: JSON.parse(JSON.stringify(list)), wds: new Map(), Rmax: 0, core: null };
   m.core = computeCore(m.list, g);
   if (m.core) { g.r0 = m.core.R; g.sStart = m.core.sFold; }
   for (const v of SLICES) { const wd = wind(v, g.L, g, m.list); m.wds.set(v.toFixed(4), wd); m.Rmax = Math.max(m.Rmax, wd.Rout); }
@@ -446,21 +446,44 @@ function patchColor(m, px, py) {
 // size — в пикселях устройства; vSlice — где режем; m — модель; Rref — общий радиус масштаба (для сравнения двух моделей).
 // Форма прессовки циновкой: круг, скруглённый квадрат, скруглённый треугольник.
 // Экранный радиус r_s на угле φ → радиус модели r_m = r_s · sqrt(A) / ρ(φ); площадь сохраняется.
-const SHAPES = { round: { k: 0, p: 0, glyph: '⭕' }, square: { k: 4, p: 0.6, glyph: '◻' }, triangle: { k: 3, p: 0.55, glyph: '△' } };
+// Форма сечения. По источникам (docs/shapes.md) это НЕ отдельная скрутка, а финишная операция:
+// лист, навеска и число оборотов те же, углы набирают пальцами поверх циновки. Отсюда три правила:
+//   · тонкий ролл квадратится целиком, толстый — только с боков, верх остаётся круглым (хосомаки vs футомаки);
+//   · углы набирают повторами и прижимом — слабый прижим даёт скруглённые углы, сильный острые;
+//   · шов кладут вниз, на грань, а не на угол;
+//   · треугольник в маки — капля с «горкой» сзади, а не равносторонний.
+const SHAPES = { round: { k: 0, p: 0, glyph: '⭕' }, square: { k: 4, p: 0.62, glyph: '◻' }, triangle: { k: 3, p: 0.58, glyph: '△', drop: 0.22 } };
+const R_THIN = 3.2, R_THICK = 5.0;   // тоньше — квадратится целиком, толще — только бока
 const shapeCache = {};
-function shapeInfo(name) {
-  if (shapeCache[name]) return shapeCache[name];
-  const sh = SHAPES[name] || SHAPES.round, N = 720, rho = new Float32Array(N); let A = 0, rhoMax = 0;
+function shapeInfo(name, Rout, press) {
+  const sh = SHAPES[name] || SHAPES.round;
+  // A: с ростом диаметра углы сдаются; D: прижим их возвращает, но не выше предела
+  const fat = clamp(((Rout || 3.5) - R_THIN) / (R_THICK - R_THIN));
+  const pr = clamp(0.55 + 0.45 * (press == null ? 1 : press), 0.4, 1.25);
+  const p = clamp(sh.p * (1 - 0.55 * fat) * pr, 0, 0.9);
+  const key = name + '|' + p.toFixed(3);
+  if (shapeCache[key]) return shapeCache[key];
+  const N = 720, rho = new Float32Array(N); let A = 0, rhoMax = 0;
   for (let i = 0; i < N; i++) {
     const phi = i / N * TAU; let r = 1;
-    if (sh.k) { const sector = TAU / sh.k, a = ((phi + Math.PI / 2 + sector / 2) % sector) - sector / 2; r = lerp(1, Math.cos(Math.PI / sh.k) / Math.cos(a) , sh.p); }
+    if (sh.k) {
+      // B: фаза подобрана так, чтобы φ = 0 (шов) пришёлся на середину нижней грани
+      const sector = TAU / sh.k, a = ((phi + Math.PI / 2 + sector / 2) % sector) - sector / 2;
+      r = lerp(1, Math.cos(Math.PI / sh.k) / Math.cos(a), p);
+      // A: у толстого ролла бока зажаты сильнее верха
+      if (fat > 0 && sh.k === 4) r = lerp(r, lerp(1, r, Math.abs(Math.cos(phi))), fat * 0.7);
+      // C: треугольник — капля: вершина напротив шва скруглена, сзади «горка»
+      if (sh.drop) r *= 1 + sh.drop * p * Math.cos(phi + Math.PI);
+    }
     rho[i] = r; A += r * r; rhoMax = Math.max(rhoMax, r);
   }
-  A /= N; return (shapeCache[name] = { rho, sqrtA: Math.sqrt(A), margin: rhoMax / Math.sqrt(A) });
+  A /= N;
+  if (Object.keys(shapeCache).length > 40) for (const k in shapeCache) delete shapeCache[k];
+  return (shapeCache[key] = { rho, sqrtA: Math.sqrt(A), margin: rhoMax / Math.sqrt(A), p });
 }
 function shapeK(phi, info) { const i = Math.floor(phi / TAU * 720) % 720; return info.sqrtA / info.rho[i]; }
 function renderSection(size, vSlice, m, Rref) {
-  const g = m.g, b = B(), wd = windFor(m, vSlice), si = shapeInfo(S.shape);
+  const g = m.g, b = B(), wd = windFor(m, vSlice), si = shapeInfo(m.shape || S.shape, m.Rmax, (S.hand || {}).press);
   const off = document.createElement('canvas'); off.width = off.height = size;
   const c = off.getContext('2d'); const img = c.createImageData(size, size); const d = img.data;
   const half = size / 2, R = Rref || m.Rmax, scale = (half - 1.5) / (R * si.margin);
@@ -489,7 +512,7 @@ function renderSection(size, vSlice, m, Rref) {
 // Карта материалов среза для сравнения: 0 — вне, 1 — рис/сердцевина, 2 — обёртка, 3+ — начинка по индексу вида.
 const KIND_IDS = Object.keys(ING);
 function materialMap(size, vSlice, m, Rref) {
-  const si = shapeInfo(S.shape), wd = windFor(m, vSlice), out = new Uint8Array(size * size), half = size / 2, scale = (half - 1) / (Rref * si.margin);
+  const si = shapeInfo(m.shape || S.shape, m.Rmax, (S.hand || {}).press), wd = windFor(m, vSlice), out = new Uint8Array(size * size), half = size / 2, scale = (half - 1) / (Rref * si.margin);
   for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
     const dx = (px + 0.5 - half) / scale, dy = (py + 0.5 - half) / scale;
     let phi = Math.atan2(dy, dx); if (phi < 0) phi += TAU;
@@ -501,6 +524,8 @@ function materialMap(size, vSlice, m, Rref) {
   return out;
 }
 // Похожесть двух моделей на срезах vs: доля пикселей начинок, у которых тот же материал в окрестности 3×3 у соседа.
+// Сравнение форм: shapeInfo зависит от радиуса каждой модели, поэтому квадрат против круга
+// теперь даёт разные карты (раньше отображение было общим и сокращалось — уровни с формой ничего не проверяли).
 function similarity(mA, mB, vs) {
   const size = 56, Rref = Math.max(mA.Rmax, mB.Rmax); let hits = 0, total = 0;
   const near = (map, i, id) => { const x = i % size, y = (i / size) | 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < size && yy < size && map[yy * size + xx] === id) return true; } return false; };
@@ -512,7 +537,7 @@ function similarity(mA, mB, vs) {
 }
 const faceCache = new Map();
 let modelKey = '';
-function touchModel() { modelKey = S.base + JSON.stringify(patches()); save(); dirty = true; }
+function touchModel() { modelKey = S.base + '|' + S.shape + JSON.stringify(patches()); save(); dirty = true; }
 function face(vSlice, cssSize, m, Rref) {
   m = m || getModel(); const size = Math.round(cssSize * DPR);
   const key = m.key + '|' + vSlice.toFixed(3) + '|' + size + '|' + (Rref ? Rref.toFixed(3) : '') + '|' + S.shape;
