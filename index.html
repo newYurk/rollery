@@ -54,7 +54,7 @@ function hash(x, y) {
 // ---------------------------------------------------------------- данные
 const BASES = {
   sushi: { name: 'Суши-ролл', emoji: '🍣', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
-    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 0.87, beta: 0.55,
+    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 1.0, beta: 0.55, oneTurn: true, flap: 5, tuckMin: 5,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
     T: 0.8, w: 0.42, turns: 2.7, kappa: 0.5, spreadEnd: 0.95, beta: 0.7,
@@ -198,7 +198,7 @@ function covers(p, u, v) {
 function stackTopAt(u, v, list) { let H = 0; for (const p of list) if (!ING[p.kind].paint && covers(p, u, v)) H = Math.max(H, p.z1); return H; }
 // Начинка толще намазки при надавливании циновкой сжимается: слой растёт только на β от избытка.
 const TAPER = 0.08;   // рис сходит на нет перед голой кромкой (доля листа, ≈ 1,5 см)
-function spreadAt(u) { const se = B().spreadEnd; return u >= se ? 0 : u > se - TAPER ? (se - u) / TAPER : 1; }
+function spreadAt(u) { const b = B(); if (b.oneTurn) return 1; const se = b.spreadEnd; return u >= se ? 0 : u > se - TAPER ? (se - u) / TAPER : 1; }
 function bandAt(u, v, g, list) { const r = spreadAt(u), H = stackTopAt(u, v, list); return (r + B().beta * Math.max(0, H - r)) * g.T; }
 // Намотка листа переменной толщины: по угловым бинам, виток за витком. sMax — сколько листа съедено (для анимации скрутки).
 const PROF_DS = 0.02, SMOOTH_R = 0.9;   // шаг профиля толщины и радиус сглаживания (единицы ≈ 5 мм)
@@ -217,17 +217,23 @@ function thicknessProfile(vSlice, g, list) {
 function wind(vSlice, sMax, g, list) {
   const n = KMAX * NB, rin = new Float32Array(n).fill(-1), rout = new Float32Array(n), u0 = new Float32Array(n), u1 = new Float32Array(n);
   const top = new Float32Array(NB).fill(g.r0), prof = thicknessProfile(vSlice, g, list);
-  let s = g.sStart || 0, k = 0, b = 0, phiEnd = -1, lastIdx = -1, Rout = g.r0, bins = 0;
+  let s = g.sStart || 0, k = 0, b = 0, phiEnd = -1, lastIdx = -1, Rout = g.r0, bins = 0, sClose = -1, sEnd = g.L;
   if (sMax < s) Rout = g.r0 * Math.sqrt(Math.max(0.05, sMax / s));   // ядро ещё сминается
-  while (s < sMax && k < KMAX) {
+  const one = !!B().oneTurn, flap = B().flap || 0;
+  while (s < Math.min(sMax, sEnd) && k < KMAX) {
     const idx = k * NB + b, u = s / g.L;
-    const t = prof[Math.min(prof.length - 1, Math.round(s / PROF_DS))] + g.w, ri = top[b], rm = ri + t / 2, ds = rm * DPHI;
+    if (one && k >= 1 && sClose < 0) { sClose = s; sEnd = Math.min(g.L, s + flap); }   // ролл замкнулся: дальше только голый клапан
+    let t;
+    if (sClose >= 0) t = g.w * clamp((sEnd - s) / 2.5, 0.15, 1);                       // клапан нори, прижатый к концу
+    else t = prof[Math.min(prof.length - 1, Math.round(s / PROF_DS))] + g.w;
+    const ri = top[b], rm = ri + t / 2, ds = rm * DPHI;
     rin[idx] = ri; rout[idx] = ri + t; u0[idx] = u; top[b] = ri + t; if (ri + t > Rout) Rout = ri + t; bins++;
-    if (s + ds >= sMax) { u1[idx] = sMax / g.L; phiEnd = b * DPHI + (sMax - s) / rm; lastIdx = idx; s = sMax; break; }
+    const sStop = Math.min(sMax, sEnd);
+    if (s + ds >= sStop) { u1[idx] = sStop / g.L; phiEnd = b * DPHI + (sStop - s) / rm; lastIdx = idx; s = sStop; break; }
     s += ds; u1[idx] = s / g.L;
     if (++b === NB) { b = 0; k++; }
   }
-  return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax: Math.min(KMAX, k + 1), turns: bins / NB };
+  return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax: Math.min(KMAX, k + 1), turns: bins / NB, sClose, sEnd };
 }
 // Пиксель среза (r, φ) → на каком витке и где на листе. null — вне листа.
 function sampleWind(wd, r, phi) {
@@ -250,10 +256,11 @@ const modelCaches = new Map();
 // пополам: дальняя половина — нижний слой, ближняя ложится сверху перевёрнутой (её нори — внутренний крючок).
 // Площадь ядра = рис + начинки; ядро — диск той же площади; остаток листа наматывается вокруг него.
 function computeCore(list, g) {
+  const base = B(); if (!base.oneTurn) return null;   // рулет — спираль без подворота
   const L = g.L, T = g.T, items = list.filter(p => !ING[p.kind].paint).map(p => ({ p, s0: bounds(p).u0 * L, s1: bounds(p).u1 * L })).sort((a, b) => a.s0 - b.s0);
-  if (!items.length || items[0].s0 > 5) return null;
-  let end = items[0].s1; for (let i = 1; i < items.length; i++) { if (items[i].s0 - end > 2.5) break; end = Math.max(end, items[i].s1); }
-  const sFold = Math.min(0.45 * L, end + 1.0), half = sFold / 2;
+  let end = 0;
+  if (items.length && items[0].s0 <= 5) { end = items[0].s1; for (let i = 1; i < items.length; i++) { if (items[i].s0 - end > 2.5) break; end = Math.max(end, items[i].s1); } }
+  const sFold = Math.min(0.45 * L, Math.max(base.tuckMin || 0, end + 1.0)), half = sFold / 2;
   const core = { sFold, Wc: half, items: [], HA: T, HB: T };
   const inside = list.filter(p => p.u * L < sFold);
   for (const p of inside) { const far = p.u * L >= half; if (!ING[p.kind].paint) { if (far) core.HB = Math.max(core.HB, p.z1 * T); else core.HA = Math.max(core.HA, p.z1 * T); } }
@@ -817,10 +824,18 @@ function drawLay() {
   // лист: остаток, ещё не скрученный
   ctx.save(); ctx.beginPath(); ctx.rect(s.x - 8, s.y - 8, s.w + 16, Math.max(0, yb - s.y + 8)); ctx.clip();
   rr(s.x - 5, s.y - 5, s.w + 10, s.h + 10, 6); ctx.fillStyle = B().wrapper; ctx.fill();
-  const bare = (1 - B().spreadEnd) * s.h, taperPx = TAPER * s.h;
+  const mdl = getModel(), wd0 = windFor(mdl, 0.5), Lm = mdl.g.L;
+  const uClose = wd0.sClose >= 0 ? wd0.sClose / Lm : B().spreadEnd, uEnd = wd0.sEnd < Lm ? wd0.sEnd / Lm : 1;
+  const bare = (1 - uClose) * s.h, taperPx = B().oneTurn ? 0 : TAPER * s.h;
   ctx.save(); rr(s.x, s.y + bare, s.w, s.h - bare, 4); ctx.clip(); ctx.drawImage(getSpreadTex(s.w, s.h), s.x, s.y, s.w, s.h);
-  const gr = ctx.createLinearGradient(0, s.y + bare, 0, s.y + bare + taperPx); gr.addColorStop(0, B().wrapper); gr.addColorStop(1, rgbCss(B().wrapperRgb, 0)); ctx.fillStyle = gr; ctx.fillRect(s.x, s.y + bare, s.w, taperPx); ctx.restore();
-  for (const pt of patches()) if (pt !== drag.patch) drawPatchTop(pt);
+  if (taperPx) { const gr = ctx.createLinearGradient(0, s.y + bare, 0, s.y + bare + taperPx); gr.addColorStop(0, B().wrapper); gr.addColorStop(1, rgbCss(B().wrapperRgb, 0)); ctx.fillStyle = gr; ctx.fillRect(s.x, s.y + bare, s.w, taperPx); }
+  ctx.restore();
+  for (const pt of patches()) if (pt !== drag.patch) drawPatchTop(pt, uEnd < 1 && pt.u > uEnd ? 0.35 : 1);
+  if (uEnd < 1) {   // лишний лист обрезан: ролл замкнулся раньше; что выше линии — не попадёт в ролл
+    const yEnd = s.y + (1 - uEnd) * s.h; ctx.fillStyle = 'rgba(23,23,19,0.35)'; ctx.fillRect(s.x - 5, s.y - 5, s.w + 10, yEnd - s.y + 5);
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = 'rgba(243,231,202,0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x, yEnd); ctx.lineTo(s.x + s.w, yEnd); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(243,231,202,0.7)'; ctx.font = font(10); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('лишний нори — обрезан, ролл замкнулся раньше', s.x + s.w / 2, s.y + 6);
+  }
   if (drag.patch) drawPatchTop(drag.patch, 0.85);
   const sel = S.selPatch && patches().includes(S.selPatch) ? S.selPatch : (S.selPatch = null);
   if (sel && p === 0) {
