@@ -1,0 +1,446 @@
+// ============================================================================
+//  «Ролльня» — ядро геометрии: лист → намотка → срез
+//  Извлечено из index.html 26.08.2026. Ни одной зависимости, ни одного
+//  обращения к canvas / document / window — чистая математика.
+//  Проверено: считается в Node без браузера (тест в конце файла).
+//
+//  МОДЕЛЬ В ДВУХ АБЗАЦАХ
+//
+//  Лист хранится в координатах (u, v, z): u — вдоль направления скрутки
+//  (0 — ближний край, уходит в центр ролла; 1 — дальний край), v — вдоль
+//  оси ролла (какой ломтик), z — по толщине намазки (0 — на обёртке,
+//  1 — верх намазки). Начинка — прямоугольный патч с интервалом по z,
+//  возможно повёрнутый (rot: 0 вдоль оси, π/2 поперёк, π/4 по диагонали).
+//  Единица длины — толщина намазки: у суши это слой риса ≈ 5 мм.
+//
+//  Скрутка — намотка листа ПЕРЕМЕННОЙ толщины: лист режется на 1440 угловых
+//  бинов и наматывается виток за витком. Где стопка толще намазки — слой
+//  толще, рис под начинкой выдавлен (сжимаемость kappa), избыток сжат
+//  циновкой (beta), профиль сглажен, чтобы бугор не был уступом. Начинки
+//  у ближнего края сминаются в плотное ядро (подворот). Срез — попиксельная
+//  развёртка: для точки (r, φ) находим виток, положение внутри него и
+//  спрашиваем, какой материал лежит в соответствующей точке листа.
+//
+//  ВХОД:  список патчей [{kind, u, v, rot?, wU?, hU?, dv?, phase}]
+//  ВЫХОД: materialAt(...)  — что лежит в точке среза;
+//         materialMap(...) — карта классов: 0 фон, 1 намазка, 2 обёртка, 3+ начинки;
+//         similarity(...)  — сходство двух роллов (для пазла и калибровки).
+//
+//  ЧТО ПОДСТАВИТЬ ПРИ ПЕРЕНОСЕ (единственные внешние связи):
+//    S.base    — активная база: 'sushi' | 'cake' | 'lavash'
+//    S.turns   — число витков, если задано пазлом, иначе null
+//    S.shape   — форма прессовки: 'round' | 'square' | 'triangle'
+//    S.hand    — почерк: {air, wobble, phase, press}
+//    B()       — текущая база: BASES[S.base]
+//    patches() — текущий список патчей
+//    modelKey  — строка-ключ кэша (можно оставить пустой)
+//  В другом языке это становится аргументами функций.
+// ============================================================================
+
+const TAU = Math.PI * 2;
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+const fract = x => x - Math.floor(x);
+
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+
+const hexRgb = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+
+const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+
+const shade = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
+
+function hash(x, y) {
+  let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+const BASES = {
+  sushi: { name: 'Суши-ролл', emoji: '🍣', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 1.0, beta: 0.55, oneTurn: true, flap: 0, tuckMin: 5, Wv: 38,
+    ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
+  cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
+    T: 0.8, w: 0.42, turns: 2.7, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,
+    ingredients: ['strawberry', 'kiwi', 'banana', 'mango', 'choco', 'jam', 'nut', 'pinkcream'] },
+  // Лаваш-ролл: тонкая обёртка спиралью в 4–5 оборотов — у него нори-подобная линия внутри настоящая
+  lavash: { name: 'Лаваш-ролл', emoji: '🌯', wrapper: '#dcbf87', spread: '#f7f1e6', mat: '#b98f5a', matLine: '#a67c48',
+    T: 0.45, w: 0.2, turns: 4.5, kappa: 0.7, spreadEnd: 0.96, beta: 0.6, Wv: 40,
+    ingredients: ['salmon', 'cucumber', 'cheese', 'tomato', 'pepper', 'ham', 'lettuce', 'eggsheet', 'dill'] },
+};
+
+const R0 = 0.25;   // радиус сердцевины
+// Длина листа базы — из номинального числа витков пустого листа (спираль Архимеда с шагом T + w).
+
+for (const k in BASES) { const b = BASES[k], P0 = b.T + b.w, th = TAU * b.turns; b.L = R0 * th + P0 * th * th / (2 * TAU); }
+
+const ING = {
+  salmon:     { name: 'Лосось',   color: '#ef8a66', wU: 2.0, hU: 1.6, dv: 1.00, tex: 'salmon' },
+  cucumber:   { name: 'Огурец',   color: '#79b55c', wU: 1.4, hU: 1.4, dv: 1.00, tex: 'cucumber', round: true },
+  tamago:     { name: 'Тамаго',   color: '#f3c94f', wU: 2.4, hU: 2.0, dv: 1.00, tex: 'tamago' },
+  avocado:    { name: 'Авокадо',  color: '#a7c455', wU: 2.0, hU: 1.1, dv: 1.00, tex: 'avocado', round: true },
+  shrimp:     { name: 'Креветка', color: '#f4a48c', wU: 2.0, hU: 1.6, dv: 0.30, tex: 'shrimp', round: true },
+  nori:       { name: 'Нори',     color: '#22342b', wU: 2.4, hU: 0.15, dv: 1.00, tex: 'flat' },
+  mayo:       { name: 'Майо',     color: '#f2883f', wU: 0.8, hU: 0.5, dv: 1.00, tex: 'gloss', round: true, wave: { amp: 0.05, freq: 3 } },
+  eggsheet:   { name: 'Омлет', color: '#f6d97a', wU: 10, hU: 0.35, dv: 1.00, tex: 'tamago' },
+  ricePink:   { name: 'Розовый', color: '#f2b3c2', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true },
+  riceYellow: { name: 'Жёлтый', color: '#f0d27a', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true },
+  riceGreen:  { name: 'Зелёный', color: '#b7cf86', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true },
+  riceBlack:  { name: 'Чёрный', color: '#4a4440', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true },
+  cheese:     { name: 'Сыр',      color: '#f2dc8a', wU: 2.2, hU: 1.2, dv: 1.00, tex: 'cheese' },
+  tomato:     { name: 'Помидор',  color: '#e04a3a', wU: 2.6, hU: 1.0, dv: 1.00, tex: 'tomato', round: true },
+  pepper:     { name: 'Перец',    color: '#d8432e', wU: 1.4, hU: 0.9, dv: 1.00, tex: 'pepper', round: true },
+  ham:        { name: 'Ветчина',  color: '#e9a0a8', wU: 3.0, hU: 0.6, dv: 1.00, tex: 'ham' },
+  lettuce:    { name: 'Салат',    color: '#9ccc6a', wU: 8, hU: 0.3, dv: 1.00, tex: 'lettuce' },
+  dill:       { name: 'Укроп',    color: '#8fb86a', wU: 6, hU: 1.0, dv: 1.00, tex: 'dill', paint: true },
+  pinkcream:  { name: 'Роз. крем', color: '#f4a6c0', wU: 10, hU: 0.35, dv: 1.00, tex: 'flat' },
+  strawberry: { name: 'Клубника', color: '#e0364a', wU: 2.6, hU: 2.4, dv: 0.22, tex: 'strawberry', round: true },
+  kiwi:       { name: 'Киви',     color: '#8dbf4c', wU: 3.0, hU: 2.6, dv: 0.20, tex: 'kiwi', round: true },
+  banana:     { name: 'Банан',    color: '#f3e3a0', wU: 2.4, hU: 2.0, dv: 1.00, tex: 'banana', round: true },
+  mango:      { name: 'Манго',    color: '#f6b02f', wU: 2.2, hU: 1.6, dv: 1.00, tex: 'mango', round: true },
+  choco:      { name: 'Шоколад',  color: '#47291b', wU: 0.9, hU: 0.5, dv: 1.00, tex: 'gloss', round: true, wave: { amp: 0.05, freq: 2.5 } },
+  jam:        { name: 'Джем',     color: '#b0203e', wU: 3.5, hU: 0.35, dv: 1.00, tex: 'gloss' },
+  nut:        { name: 'Орех',     color: '#b5793f', wU: 1.2, hU: 1.0, dv: 0.12, tex: 'nut', round: true },
+};
+
+for (const k in ING) ING[k].rgb = hexRgb(ING[k].color);
+
+for (const k in BASES) { BASES[k].wrapperRgb = hexRgb(BASES[k].wrapper); BASES[k].spreadRgb = hexRgb(BASES[k].spread); }
+
+const NPIECES = 6;
+
+function sheetLen(b) { if (!S.turns) return b.L; const P0 = b.T + b.w, th = TAU * S.turns; return R0 * th + P0 * th * th / (2 * TAU); }
+
+function dims(p) { const d = ING[p.kind], b = B(); return { du: (p.wU ?? d.wU) / sheetLen(b), dv: p.dv ?? d.dv, h: (p.hU ?? d.hU) / b.T }; }
+
+function bounds(p) {
+  const d = ING[p.kind], m = dims(p), b = B(), amp = d.wave ? d.wave.amp : 0, rot = p.rot || 0, c = Math.abs(Math.cos(rot)), sn = Math.abs(Math.sin(rot));
+  const w = m.du * sheetLen(b), len = m.dv * b.Wv, hu = (w * c + len * sn) / 2 / sheetLen(b), hv = (w * sn + len * c) / 2 / b.Wv;
+  return { u0: p.u - hu - amp, u1: p.u + hu + amp, v0: p.v - hv, v1: p.v + hv };
+}
+
+function patchSRange(p, v) {
+  const d = ING[p.kind], m = dims(p), b = B(), L = sheetLen(b), rot = p.rot || 0, c = Math.cos(rot), sn = Math.sin(rot);
+  const w = m.du * L, len = m.dv * b.Wv, dv_ = (v - p.v) * b.Wv;
+  let lo = -1e9, hi = 1e9;
+  if (Math.abs(c) > 1e-6) { const a = (-w / 2 - dv_ * sn) / c, e = (w / 2 - dv_ * sn) / c; lo = Math.max(lo, Math.min(a, e)); hi = Math.min(hi, Math.max(a, e)); }
+  else if (Math.abs(dv_) > w / 2) return null;
+  if (Math.abs(sn) > 1e-6) { const a = (dv_ * c - len / 2) / sn, e = (dv_ * c + len / 2) / sn; lo = Math.max(lo, Math.min(a, e)); hi = Math.min(hi, Math.max(a, e)); }
+  else if (Math.abs(dv_) > len / 2) return null;
+  if (hi <= lo) return null;
+  let uc = p.u; if (d.wave) uc += d.wave.amp * Math.sin(TAU * d.wave.freq * v + p.phase);
+  return [uc * L + lo, uc * L + hi, uc, w, len, c, sn, dv_];
+}
+
+function overlap(a, b) {
+  const A = bounds(a), Bb = bounds(b);
+  return A.u0 < Bb.u1 && Bb.u0 < A.u1 && A.v0 < Bb.v1 && Bb.v0 < A.v1;
+}
+
+function restack(list) {
+  const n = list.length, adj = list.map(() => []), paint = list.map(p => !!ING[p.kind].paint);
+  for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) if (!paint[i] && !paint[j] && overlap(list[i], list[j])) { adj[i].push(j); adj[j].push(i); }
+  for (let i = 0; i < n; i++) {
+    const p = list[i]; let base = 0;
+    for (const j of adj[i]) if (j < i) base = Math.max(base, list[j].z1);
+    p.z0 = base; p.z1 = base + dims(p).h;
+  }
+  const seen = new Array(n).fill(false); let top = 1;
+  for (let i = 0; i < n; i++) {
+    if (paint[i]) { list[i].z0 = 0; list[i].z1 = 1; seen[i] = true; continue; }   // краска: вся толщина намазки, не бугрит
+    if (seen[i]) continue;
+    const comp = [i]; seen[i] = true;
+    for (let k = 0; k < comp.length; k++) for (const j of adj[comp[k]]) if (!seen[j]) { seen[j] = true; comp.push(j); }
+    let ctop = 0; for (const k of comp) ctop = Math.max(ctop, list[k].z1);
+    const shift = Math.max(0, 1 - B().kappa * ctop);   // рис под стопкой сжат частично (κ), не выдавлен целиком
+    for (const k of comp) { list[k].z0 += shift; list[k].z1 += shift; top = Math.max(top, list[k].z1); }
+  }
+  return top;
+}
+
+function matAt(u, v, z, list) {
+  const L = sheetLen(B());
+  for (let pass = 0; pass < 2; pass++) for (let i = list.length - 1; i >= 0; i--) {
+    const p = list[i], d = ING[p.kind];
+    if (p.inCore || !!d.paint !== (pass === 1)) continue;
+    if (!d.paint && (z < p.z0 || z > p.z1)) continue;
+    const rg = patchSRange(p, v); if (!rg) continue;
+    const sU = u * L; if (sU < rg[0] || sU > rg[1]) continue;
+    const du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
+    const lu = across / rg[3];
+    const lz = d.paint ? 0.5 : (z - p.z0) / (p.z1 - p.z0);
+    if (d.round) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue; }
+    return { p, d, lu, lz, lv: along / rg[4] };
+  }
+  return null;
+}
+
+function geometry() { const b = B(); restack(patches()); return { T: b.T, w: b.w, r0: R0, L: sheetLen(b) }; }
+
+const NB = 1440, DPHI = TAU / NB, KMAX = 9;
+
+function covers(p, u, v) {
+  if (p.inCore) return false;
+  const rg = patchSRange(p, v); if (!rg) return false;
+  const sU = u * sheetLen(B()); return sU >= rg[0] && sU <= rg[1];
+}
+
+function stackTopAt(u, v, list) { let H = 0; for (const p of list) if (!ING[p.kind].paint && covers(p, u, v)) H = Math.max(H, p.z1); return H; }
+
+const TAPER = 0.08;   // рис сходит на нет перед голой кромкой (доля листа, ≈ 1,5 см)
+
+function spreadAt(u) { const b = B(); if (b.oneTurn) return 1; const se = b.spreadEnd; return u >= se ? 0 : u > se - TAPER ? (se - u) / TAPER : 1; }
+
+const betaEff = () => clamp(B().beta * (S.hand ? S.hand.press : 1), 0.15, 0.95);
+
+function bandAt(u, v, g, list) { const r = spreadAt(u), H = stackTopAt(u, v, list); return (r + betaEff() * Math.max(0, H - r)) * g.T; }
+
+const PROF_DS = 0.02, SMOOTH_R = 0.9;   // шаг профиля толщины и радиус сглаживания (единицы ≈ 5 мм)
+
+function thicknessProfile(vSlice, g, list) {
+  const M = Math.ceil(g.L / PROF_DS) + 2; let a = new Float32Array(M), tmp = new Float32Array(M);
+  for (let i = 0; i < M; i++) a[i] = bandAt(Math.min(1, i * PROF_DS / g.L), vSlice, g, list);
+  const R = Math.max(1, Math.round(SMOOTH_R / PROF_DS));
+  for (let pass = 0; pass < 2; pass++) {              // два прохода box-blur ≈ гаусс
+    let acc = 0; for (let i = -R; i <= R; i++) acc += a[Math.min(M - 1, Math.max(0, i))];
+    for (let i = 0; i < M; i++) { tmp[i] = acc / (2 * R + 1); acc += a[Math.min(M - 1, i + R + 1)] - a[Math.max(0, i - R)]; }
+    const sw = a; a = tmp; tmp = sw;
+  }
+  return a;
+}
+
+function wind(vSlice, sMax, g, list) {
+  const n = KMAX * NB, rin = new Float32Array(n).fill(-1), rout = new Float32Array(n), u0 = new Float32Array(n), u1 = new Float32Array(n);
+  const top = new Float32Array(NB).fill(g.r0), prof = thicknessProfile(vSlice, g, list);
+  // Спиральные базы (без подворота): начало листа прижато и сходит на нет — сердцевина растёт на толщину слоя
+  // за первый оборот; все витки наследуют этот подъём, и выходит настоящая спираль без шва на угле 0.
+  if (!B().oneTurn && !(g.sStart > 0)) { const t0 = prof[0] + g.w; for (let b = 0; b < NB; b++) top[b] = g.r0 + t0 * (b / NB); }
+  let s = g.sStart || 0, k = 0, b = 0, phiEnd = -1, lastIdx = -1, Rout = g.r0, bins = 0, sClose = -1, sEnd = g.L;
+  if (sMax < s) Rout = g.r0 * Math.sqrt(Math.max(0.05, sMax / s));   // ядро ещё сминается
+  const one = !!B().oneTurn, flap = B().flap || 0;
+  while (s < Math.min(sMax, sEnd) && k < KMAX) {
+    const idx = k * NB + b, u = s / g.L;
+    if (one && k >= 1 && sClose < 0) { sClose = s; sEnd = Math.min(g.L, s + flap); }   // ролл замкнулся: лишний лист обрезан, нори сомкнулась стык в стык
+    let t;
+    if (sClose >= 0) t = g.w * clamp((sEnd - s) / 2.5, 0.15, 1);                       // клапан нори, прижатый к концу
+    else {
+      t = prof[Math.min(prof.length - 1, Math.round(s / PROF_DS))] + (g.air || 0);
+      // Шов: у выхода из ядра (или в самом центре спирали) намазки ещё нет — она входит клином,
+      // поэтому обёртка продолжается прямо с поверхности ядра и спираль читается как одна линия.
+      t += g.w;
+      if (g.wobble) t *= 1 + g.wobble * Math.sin(TAU * (s / g.L) * 2.5 + (g.phase || 0));   // рывки при тяге
+      if (!one) { const tail = g.L - s; if (tail < 5) t *= clamp(tail / 5, 0.03, 1) * clamp(tail / 5, 0.03, 1) * (3 - 2 * clamp(tail / 5, 0.03, 1)); }   // спираль: конец листа прижат и сходит на нет (плавно, ≈2,5 см)
+    }
+    const ri = top[b], rm = ri + t / 2, ds = rm * DPHI;
+    rin[idx] = ri; rout[idx] = ri + t; u0[idx] = u; top[b] = ri + t; if (ri + t > Rout) Rout = ri + t; bins++;
+    const sStop = Math.min(sMax, sEnd);
+    if (s + ds >= sStop) { u1[idx] = sStop / g.L; phiEnd = b * DPHI + (sStop - s) / rm; lastIdx = idx; s = sStop; break; }
+    s += ds; u1[idx] = s / g.L;
+    if (++b === NB) { b = 0; k++; }
+  }
+  // Прижим циновкой: ролл подгоняется к круглому сечению — слои сжимаются пропорционально,
+  // поэтому клин у шва и бугры от начинок не оставляют ступенек на контуре.
+  const round = clamp(0.55 * (S.hand ? S.hand.press : 1), 0, 0.85);
+  let sum = 0, cnt = 0;
+  for (let b2 = 0; b2 < NB; b2++) if (top[b2] > g.r0) { sum += top[b2]; cnt++; }
+  if (cnt) {
+    const Rm = sum / cnt; Rout = g.r0;
+    for (let b2 = 0; b2 < NB; b2++) {
+      if (top[b2] <= g.r0 + 1e-6) continue;
+      const tgt = Rm + (1 - round) * (top[b2] - Rm), f = (tgt - g.r0) / (top[b2] - g.r0);   // сжимаем слои, ядро не трогаем
+      for (let k2 = 0; k2 < KMAX; k2++) { const i2 = k2 * NB + b2; if (rin[i2] < 0) break; rin[i2] = g.r0 + (rin[i2] - g.r0) * f; rout[i2] = g.r0 + (rout[i2] - g.r0) * f; }
+      top[b2] = tgt; if (tgt > Rout) Rout = tgt;
+    }
+  }
+  return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax: Math.min(KMAX, k + 1), turns: bins / NB, sClose, sEnd };
+}
+
+function sampleWind(wd, r, phi) {
+  const fb = phi / DPHI; let b = Math.floor(fb); if (b >= NB) b = NB - 1; const frac = fb - b;
+  for (let k = 0; k < wd.kmax; k++) {
+    const idx = k * NB + b, ri = wd.rin[idx]; if (ri < 0) break;
+    const ro = wd.rout[idx]; let ri2 = ri, ro2 = ro, f = frac;
+    if (idx === wd.lastIdx) { const fe = (wd.phiEnd - b * DPHI) / DPHI; if (frac > fe) continue; f = fe > 1e-6 ? frac / fe : 0; }
+    else { const nidx = b + 1 < NB ? idx + 1 : (k + 1) * NB; if (nidx < wd.rin.length && wd.rin[nidx] >= 0) { ri2 = wd.rin[nidx]; ro2 = wd.rout[nidx]; } }
+    const rIn = ri + (ri2 - ri) * f, rOut = ro + (ro2 - ro) * f;
+    if (r >= rIn && r < rOut) return { u: wd.u0[idx] + (wd.u1[idx] - wd.u0[idx]) * f, zr: r - rIn, t: rOut - rIn, rOut };
+  }
+  return null;
+}
+
+function innerAt(wd, phi) { const fb = phi / DPHI; let b = Math.floor(fb); if (b >= NB) b = NB - 1; const f = fb - b, b2 = Math.min(NB - 1, b + 1); const a = wd.rin[b] >= 0 ? wd.rin[b] : -1, c = wd.rin[b2] >= 0 ? wd.rin[b2] : a; return a < 0 ? -1 : a + (c - a) * f; }
+
+function topAt(wd, phi) { const fb = phi / DPHI; let b = Math.floor(fb); if (b >= NB) b = NB - 1; const f = fb - b, b2 = (b + 1) % NB; return wd.top[b] + (wd.top[b2] - wd.top[b]) * f; }
+
+const SLICES = [0.5]; for (let i = 0; i < 6; i++) SLICES.push(i / 6 + 0.002); for (let i = 0; i < 3; i++) SLICES.push((i + 0.5) / 3); for (let i = 0; i < 6; i++) SLICES.push((i + 0.5) / 6);
+
+const modelCaches = new Map();
+
+function computeCore(list, g) {
+  const base = B(); if (!base.oneTurn) return null;   // рулет — спираль без подворота
+  // кластер у края — по центру и ширине начинки (повёрнутый габарит не считается: диагональная полоска не «затягивает» полстола в ядро)
+  const L = g.L, T = g.T, items = list.filter(p => !ING[p.kind].paint).map(p => { const w = dims(p).du * L; return { p, s0: p.u * L - w / 2, s1: p.u * L + w / 2 }; }).sort((a, b) => a.s0 - b.s0);
+  let end = 0;
+  if (items.length && items[0].s0 <= 5) { end = items[0].s1; for (let i = 1; i < items.length; i++) { if (items[i].s0 - end > 2.5) break; end = Math.max(end, items[i].s1); } }
+  const sFold = Math.min(0.45 * L, Math.max(base.tuckMin || 0, end + 1.0)), half = sFold / 2;
+  const core = { sFold, Wc: half, items: [], HA: T, HB: T };
+  const inside = list.filter(p => p.u * L < sFold);
+  for (const p of inside) { const far = p.u * L >= half; if (!ING[p.kind].paint) { if (far) core.HB = Math.max(core.HB, p.z1 * T); else core.HA = Math.max(core.HA, p.z1 * T); } }
+  for (const p of inside) {
+    p.inCore = true; const d = ING[p.kind], far = p.u * L >= half;
+    let y0, y1;
+    const W = g.w;
+    if (d.paint) { y0 = W + (far ? 0 : core.HB); y1 = W + (far ? core.HB : core.HB + core.HA); }
+    else if (far) { y0 = W + p.z0 * T; y1 = W + p.z1 * T; }
+    else { y0 = W + core.HB + core.HA - p.z1 * T; y1 = W + core.HB + core.HA - p.z0 * T; }
+    core.items.push({ p, d, y0, y1, far, paint: !!d.paint, round: !!d.round });
+  }
+  // Нори — один непрерывный лист. Внутри ядра он идёт тремя участками: по верху постели (подвёрнутый
+  // ближний край — «крючок»), вокруг сгиба и обратно по низу постели, откуда уходит в намотку.
+  // Кольцо разомкнуто справа (φ = 0) — там лист выходит наружу и продолжается спиралью.
+  // Нори внутрь не заходит: лист смыкается стык в стык снаружи. Внутри ядра — только рис и начинки
+  // (нори внутри появляется, лишь если игрок сам её положил — обёрткой вокруг начинки или слоем).
+  core.Hc = core.HA + core.HB + 2 * g.w;
+  // почерк: сильный прижим уплотняет ядро, быстрая тяга оставляет в нём воздух
+  const hd = S.hand || { press: 1, air: 0 };
+  core.R = Math.sqrt(core.Wc * core.Hc / Math.PI) * clamp(1 - 0.22 * (hd.press - 1) + 0.35 * hd.air, 0.9, 1.12);
+  return core;
+}
+
+function diskToSquare(x, y) {
+  const a = 2 + x * x - y * y, b = 2 * Math.SQRT2 * x, c = 2 - x * x + y * y, d = 2 * Math.SQRT2 * y;
+  const u = 0.5 * Math.sqrt(Math.max(0, a + b)) - 0.5 * Math.sqrt(Math.max(0, a - b));
+  const v = 0.5 * Math.sqrt(Math.max(0, c + d)) - 0.5 * Math.sqrt(Math.max(0, c - d));
+  return [u, v];
+}
+
+function coreMaterial(m, r, phi, vSlice) {
+  const c = m.core, xd = r * Math.cos(phi) / c.R, yd = r * Math.sin(phi) / c.R;
+  const [us, vs] = diskToSquare(xd, yd);
+  const x = (us + 1) / 2 * c.Wc, y = (vs + 1) / 2 * c.Hc;
+  const L = m.g.L, half = c.Wc;
+  for (let pass = 0; pass < 2; pass++) for (let i = c.items.length - 1; i >= 0; i--) {
+    const it = c.items[i]; if (it.paint !== (pass === 1)) continue;
+    if (y < it.y0 || y > it.y1) continue;
+    const rg = patchSRange(it.p, vSlice); if (!rg) continue;
+    const x0 = it.far ? rg[0] - half : half - rg[1], x1 = it.far ? rg[1] - half : half - rg[0];
+    if (x < x0 || x > x1) continue;
+    const sU = it.far ? half + x : half - x, du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
+    let lu = across / rg[3], lz = (y - it.y0) / (it.y1 - it.y0);
+    if (!it.far) { lz = 1 - lz; }
+    if (it.round) { const a = lu * 2, b2 = lz * 2 - 1; if (a * a + b2 * b2 > 1) continue; }
+    return { cls: 'patch', mt: { p: it.p, d: it.d, lu, lz, lv: along / rg[4] } };
+  }
+  return { cls: 'core' };
+}
+
+function buildModel(list) {
+  const hd = S.hand || { air: 0, wobble: 0, phase: 0, press: 1 };
+  const key = S.base + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|' + JSON.stringify(list);
+  let m = modelCaches.get(key); if (m) return m;
+  if (modelCaches.size > 16) modelCaches.clear();
+  restack(list); const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), sStart: 0, air: hd.air * b.T, wobble: hd.wobble, phase: hd.phase };
+  m = { key, g, list: JSON.parse(JSON.stringify(list)), wds: new Map(), Rmax: 0, core: null };
+  m.core = computeCore(m.list, g);
+  if (m.core) { g.r0 = m.core.R; g.sStart = m.core.sFold; }
+  for (const v of SLICES) { const wd = wind(v, g.L, g, m.list); m.wds.set(v.toFixed(4), wd); m.Rmax = Math.max(m.Rmax, wd.Rout); }
+  modelCaches.set(key, m); return m;
+}
+
+function getModel() { return buildModel(patches()); }
+
+function windFor(m, v) { const key = v.toFixed(4); let wd = m.wds.get(key); if (!wd) { wd = wind(v, m.g.L, m.g, m.list); m.wds.set(key, wd); } return wd; }
+
+function materialAt(m, wd, vSlice, r, phi) {
+  const g = m.g;
+  const rin0 = innerAt(wd, phi), coreR = rin0 >= 0 ? rin0 : g.r0;
+  if (r < coreR) { if (m.core) return coreMaterial(m, r, phi, vSlice); const mt = matAt(0.002, vSlice, Math.max(1, bandAt(0.002, vSlice, g, m.list) / g.T) - 0.02, m.list); return mt ? { cls: 'patch', mt } : { cls: 'core' }; }
+  const sm = sampleWind(wd, r, phi);
+  if (!sm) return { cls: 'out' };
+  let zn = (sm.t - g.w - sm.zr) / g.T;
+  if (zn < 0) return { cls: 'wrap', sm };
+  const H = stackTopAt(sm.u, vSlice, m.list), bandN = (sm.t - g.w - (m.g.air || 0)) / g.T; if (bandN > 1e-6) zn *= Math.max(1, H) / bandN;   // сжатый слой → собственные z стопки
+  const mt = matAt(sm.u, vSlice, zn, m.list);
+  return mt ? { cls: 'patch', mt, sm } : { cls: 'spread', sm };
+}
+
+const SHAPES = { round: { k: 0, p: 0, glyph: '⭕' }, square: { k: 4, p: 0.6, glyph: '◻' }, triangle: { k: 3, p: 0.55, glyph: '△' } };
+
+const shapeCache = {};
+
+function shapeInfo(name) {
+  if (shapeCache[name]) return shapeCache[name];
+  const sh = SHAPES[name] || SHAPES.round, N = 720, rho = new Float32Array(N); let A = 0, rhoMax = 0;
+  for (let i = 0; i < N; i++) {
+    const phi = i / N * TAU; let r = 1;
+    if (sh.k) { const sector = TAU / sh.k, a = ((phi + Math.PI / 2 + sector / 2) % sector) - sector / 2; r = lerp(1, Math.cos(Math.PI / sh.k) / Math.cos(a) , sh.p); }
+    rho[i] = r; A += r * r; rhoMax = Math.max(rhoMax, r);
+  }
+  A /= N; return (shapeCache[name] = { rho, sqrtA: Math.sqrt(A), margin: rhoMax / Math.sqrt(A) });
+}
+
+function shapeK(phi, info) { const i = Math.floor(phi / TAU * 720) % 720; return info.sqrtA / info.rho[i]; }
+
+const KIND_IDS = Object.keys(ING);
+
+function materialMap(size, vSlice, m, Rref) {
+  const si = shapeInfo(S.shape), wd = windFor(m, vSlice), out = new Uint8Array(size * size), half = size / 2, scale = (half - 1) / (Rref * si.margin);
+  for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
+    const dx = (px + 0.5 - half) / scale, dy = (py + 0.5 - half) / scale;
+    let phi = Math.atan2(dy, dx); if (phi < 0) phi += TAU;
+    const r = Math.hypot(dx, dy) * shapeK(phi, si);
+    if (r > wd.Rout) continue;
+    const mat = materialAt(m, wd, vSlice, r, phi);
+    out[py * size + px] = mat.cls === 'out' ? 0 : mat.cls === 'wrap' ? 2 : mat.cls === 'patch' ? 3 + KIND_IDS.indexOf(mat.mt.p.kind) : 1;
+  }
+  return out;
+}
+
+function similarity(mA, mB, vs) {
+  const size = 56, Rref = Math.max(mA.Rmax, mB.Rmax); let hits = 0, total = 0;
+  const near = (map, i, id) => { const x = i % size, y = (i / size) | 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < size && yy < size && map[yy * size + xx] === id) return true; } return false; };
+  for (const v of vs) {
+    const a = materialMap(size, v, mA, Rref), b = materialMap(size, v, mB, Rref);
+    for (let i = 0; i < a.length; i++) { if (a[i] >= 3) { total++; if (near(b, i, a[i])) hits++; } if (b[i] >= 3) { total++; if (near(a, i, b[i])) hits++; } }
+  }
+  return total ? hits / total : 1;
+}
+
+const pieceV = i => i / NPIECES + 0.002;   // левая грань кусочка; кусочек 0 — торец ролла
+
+// ---------------------------------------------------------------- звук (процедурный, минимальный)
+
+// ============================================================================
+//  САМОПРОВЕРКА. Скопируй файл в rollery-geometry.js, раскомментируй блок
+//  ниже и запусти:  node rollery-geometry.js
+// ============================================================================
+/*
+const S = { base: 'sushi', turns: null, shape: 'round',
+            hand: { air: 0, wobble: 0, phase: 0, press: 1 },
+            lists: { sushi: [], cake: [], lavash: [] } };
+const B = () => BASES[S.base];
+const patches = () => S.lists[S.base];
+let modelKey = '';
+
+S.lists.sushi = [
+  { kind: 'tamago',   u: 0.06, v: 0.5, z0: 0, z1: 0, phase: 0 },
+  { kind: 'salmon',   u: 0.15, v: 0.5, z0: 0, z1: 0, phase: 0 },
+  { kind: 'cucumber', u: 0.24, v: 0.5, z0: 0, z1: 0, phase: 0 },
+];
+const m = buildModel(patches());
+const wd = windFor(m, 0.5);
+console.log('радиус ролла:', wd.Rout.toFixed(2),
+            '· оборотов:', wd.turns.toFixed(2),
+            '· радиус ядра:', m.core.R.toFixed(2));
+for (const phi of [0.3, 2.0, 4.5]) {
+  let last = null, seq = [];
+  for (let r = 0.03; r < wd.Rout; r += 0.01) {
+    const mt = materialAt(m, wd, 0.5, r, phi);
+    const id = mt.cls === 'patch' ? mt.mt.p.kind : mt.cls;
+    if (id !== last) { seq.push(id); last = id; }
+  }
+  console.log('луч', phi, ':', seq.join(' -> '));
+}
+*/
