@@ -242,6 +242,9 @@ function thicknessProfile(vSlice, g, list) {
 function wind(vSlice, sMax, g, list) {
   const n = KMAX * NB, rin = new Float32Array(n).fill(-1), rout = new Float32Array(n), u0 = new Float32Array(n), u1 = new Float32Array(n);
   const top = new Float32Array(NB).fill(g.r0), prof = thicknessProfile(vSlice, g, list);
+  // Спиральные базы (без подворота): начало листа прижато и сходит на нет — сердцевина растёт на толщину слоя
+  // за первый оборот; все витки наследуют этот подъём, и выходит настоящая спираль без шва на угле 0.
+  if (!B().oneTurn && !(g.sStart > 0)) { const t0 = prof[0] + g.w; for (let b = 0; b < NB; b++) top[b] = g.r0 + t0 * (b / NB); }
   let s = g.sStart || 0, k = 0, b = 0, phiEnd = -1, lastIdx = -1, Rout = g.r0, bins = 0, sClose = -1, sEnd = g.L;
   if (sMax < s) Rout = g.r0 * Math.sqrt(Math.max(0.05, sMax / s));   // ядро ещё сминается
   const one = !!B().oneTurn, flap = B().flap || 0;
@@ -250,7 +253,10 @@ function wind(vSlice, sMax, g, list) {
     if (one && k >= 1 && sClose < 0) { sClose = s; sEnd = Math.min(g.L, s + flap); }   // ролл замкнулся: дальше только голый клапан
     let t;
     if (sClose >= 0) t = g.w * clamp((sEnd - s) / 2.5, 0.15, 1);                       // клапан нори, прижатый к концу
-    else t = prof[Math.min(prof.length - 1, Math.round(s / PROF_DS))] + g.w;
+    else {
+      t = prof[Math.min(prof.length - 1, Math.round(s / PROF_DS))] + g.w;
+      if (!one) { const tail = g.L - s; if (tail < 5) t *= clamp(tail / 5, 0.03, 1) * clamp(tail / 5, 0.03, 1) * (3 - 2 * clamp(tail / 5, 0.03, 1)); }   // спираль: конец листа прижат и сходит на нет (плавно, ≈2,5 см)
+    }
     const ri = top[b], rm = ri + t / 2, ds = rm * DPHI;
     rin[idx] = ri; rout[idx] = ri + t; u0[idx] = u; top[b] = ri + t; if (ri + t > Rout) Rout = ri + t; bins++;
     const sStop = Math.min(sMax, sEnd);
@@ -273,6 +279,7 @@ function sampleWind(wd, r, phi) {
   }
   return null;
 }
+function innerAt(wd, phi) { const fb = phi / DPHI; let b = Math.floor(fb); if (b >= NB) b = NB - 1; const f = fb - b, b2 = Math.min(NB - 1, b + 1); const a = wd.rin[b] >= 0 ? wd.rin[b] : -1, c = wd.rin[b2] >= 0 ? wd.rin[b2] : a; return a < 0 ? -1 : a + (c - a) * f; }
 function topAt(wd, phi) { const fb = phi / DPHI; let b = Math.floor(fb); if (b >= NB) b = NB - 1; const f = fb - b, b2 = (b + 1) % NB; return wd.top[b] + (wd.top[b2] - wd.top[b]) * f; }
 // Модель = список патчей + намотки на стандартных срезах; общий масштаб — по максимальному радиусу.
 const SLICES = [0.5]; for (let i = 0; i < 6; i++) SLICES.push(i / 6 + 0.002); for (let i = 0; i < 3; i++) SLICES.push((i + 0.5) / 3); for (let i = 0; i < 6; i++) SLICES.push((i + 0.5) / 6);
@@ -346,7 +353,8 @@ function windFor(m, v) { const key = v.toFixed(4); let wd = m.wds.get(key); if (
 // Материал в точке среза (r, φ): 'out' | 'core' | 'wrap' | 'spread' | { патч }.
 function materialAt(m, wd, vSlice, r, phi) {
   const g = m.g;
-  if (r < g.r0) { if (m.core) return coreMaterial(m, r, phi, vSlice); const mt = matAt(0.002, vSlice, Math.max(1, bandAt(0.002, vSlice, g, m.list) / g.T) - 0.02, m.list); return mt ? { cls: 'patch', mt } : { cls: 'core' }; }
+  const rin0 = innerAt(wd, phi), coreR = rin0 >= 0 ? rin0 : g.r0;
+  if (r < coreR) { if (m.core) return coreMaterial(m, r, phi, vSlice); const mt = matAt(0.002, vSlice, Math.max(1, bandAt(0.002, vSlice, g, m.list) / g.T) - 0.02, m.list); return mt ? { cls: 'patch', mt } : { cls: 'core' }; }
   const sm = sampleWind(wd, r, phi);
   if (!sm) return { cls: 'out' };
   let zn = (sm.t - g.w - sm.zr) / g.T;
