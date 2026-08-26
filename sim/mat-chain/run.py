@@ -59,9 +59,9 @@ LAYOUTS = {
     5: dict(name='overflow-square', fillings=[fill('tamago', 1.5, 2.4, 2.0), fill('salmon', 1.7, 2.0, 1.6, stack=True),
                                               fill('cucumber', 2.0, 1.4, 1.4, True, stack=True)],
             press_shape='square'),
-    # 6 is NOT one of the five control layouts of docs/simulation-research.md §5. It is a diagnostic for the
+    # 6 is NOT one of the five control layouts of docs/simulation-research.md sec.5. It is a diagnostic for the
     # nori_turns target of KINEMATICS.md: a real futomaki carries ~15 cm2 of filling in cross-section, i.e.
-    # ~60 T2 at T = 5 mm. With that much core the 38.7 T sheet closes in ~1.2 turns (see README §5.1).
+    # ~60 T2 at T = 5 mm. With that much core the 38.7 T sheet closes in ~1.2 turns (see README sec.5.1).
     6: dict(name='futomaki-full-core', fillings=[fill('tamago', 1.5, 5.0, 4.4), fill('salmon', 7.0, 4.6, 4.0),
                                                  fill('avocado', 12.1, 4.4, 4.2, True)],
             press_shape='circle'),
@@ -113,7 +113,7 @@ R_DEEP = 0.55            # a node closer than this fraction of the wrap radius m
 DRIVE_BAND = 0.45        # the palms only drive mat that is within this fraction of R of the wrap
 CIRC_W = 0.9             # weight of the pull back onto the force-controlled circle
 V_R_GLOBAL = 0.060       # rate the GLOBAL wrap radius follows the force error, T per time unit
-R_TIGHT = 1.08           # the tightest a wound roll ever gets, as a multiple of the area radius
+R_TIGHT = 1.11           # the tightest a wound roll ever gets, as a multiple of the area radius
 R_LOOSE = 1.35           # how much wider than the area radius the wrap may ever be (air in the roll)
 VTAR = 0.55              # speed cap of the shape servo at --speed 1, T per time unit
 X_C0 = 0.90              # where the contact point of the first turn starts, T
@@ -847,7 +847,7 @@ def turns_geom(info):
 
 # ----------------------------------------------------------------------------- wrinkle metric ("accordion")
 # The defect the owner found on the phase-B frames: the wrapper band gathers into 2-3 folds instead of
-# bending into one arc (../KINEMATICS.md, "gармошка"). Measured on the MIDLINE of the nori band:
+# bending into one arc (../KINEMATICS.md, "accordion"). Measured on the MIDLINE of the nori band:
 #   wrinkles  = sign changes of the signed curvature along the band, outside the fold nose
 #   amplitude = largest departure of the midline from a local quadratic fit, T
 # The midline is smoothed over 3 particles (as specified) and then RESAMPLED at WR_DS along arc length:
@@ -1358,7 +1358,7 @@ def main():
                        t, F_f, hand, phase in ('lift', 'close', 'hold'), (x_c, y_c), R_ctl)
 
     # ---- how big the roll must be once `x` of the sheet has been picked up. This is pure area
-    #      bookkeeping (KINEMATICS.md: "число слоёв выводится из сохранения площади"), it knows
+    #      bookkeeping (KINEMATICS.md: "the layer count follows from area conservation"), it knows
     #      nothing about the kinematics, and it is only used to place the AXIS of the wrap -- where
     #      each mat node actually sits on that axis is decided by the pressure servo.
     _ord = np.argsort(x0p)
@@ -1409,7 +1409,7 @@ def main():
             hand_on = 0
             f = min(1.0, t_phase / 8.0)
             pref = (P_ROLL_REF + f * (P_PRESS_REF - P_ROLL_REF)) * args.press
-            # "обжать со всех сторон": nothing moves any more, the wrap kept from the rolling phase
+            # "squeeze from every side": nothing moves any more, the wrap kept from the rolling phase
             # (PHI_LEAD rad of it) is simply pressed harder and evenly all the way round.
 
         # ---- fold geometry: the nose opens, then the near end is carried forward over the stack

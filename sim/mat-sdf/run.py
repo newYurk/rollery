@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """mat-sdf: 2D MLS-MPM reference of rolling a sushi roll with a REAL bamboo mat (makisu).
 
-Rewritten kinematics (../KINEMATICS.md, "ГЛАВНАЯ ПОПРАВКА 26.08.2026, 12:50"). The mat is not an arc
+Rewritten kinematics (../KINEMATICS.md, "MAIN CORRECTION 26.08.2026, 12:50"). The mat is not an arc
 pressing from above and the near edge of the nori is not grabbed through the air. The mat lies UNDER
 the sheet from the first instant, its near end flush with the near edge of the nori, and the nori
 rides ON it, held down by the rice.
@@ -68,9 +68,9 @@ LAYOUTS = {
     5: dict(name='overflow-square', fillings=[fill('tamago', 1.5, 2.4, 2.0), fill('salmon', 1.7, 2.0, 1.6, stack=True),
                                               fill('cucumber', 2.0, 1.4, 1.4, True, stack=True)],
             press_shape='square'),
-    # 6 is NOT one of the five control layouts of docs/simulation-research.md §5. It is a diagnostic for the
+    # 6 is NOT one of the five control layouts of docs/simulation-research.md sec.5. It is a diagnostic for the
     # nori_turns target of KINEMATICS.md: a real futomaki carries ~15 cm2 of filling in cross-section, i.e.
-    # ~60 T2 at T = 5 mm. With that much core the 38.7 T sheet closes in ~1.2 turns (see README §5.1).
+    # ~60 T2 at T = 5 mm. With that much core the 38.7 T sheet closes in ~1.2 turns (see README sec.5.1).
     6: dict(name='futomaki-full-core', fillings=[fill('tamago', 1.5, 5.0, 4.4), fill('salmon', 7.0, 4.6, 4.0),
                                                  fill('avocado', 12.1, 4.4, 4.2, True)],
             press_shape='circle'),
@@ -93,7 +93,7 @@ for k, c in CLASS_OF_KIND.items():
 N_CLASS = 8
 
 # ----------------------------------------------------------------------------- domain / mat constants
-X0, X1 = -2.0, 48.0
+X0, X1 = -2.0, 48.0   # X1 is re-derived from the sheet length in main(); see --sheet
 Y0, Y1 = -0.4, 12.6
 X_SHEET = 0.0            # near edge of the sheet -- and of the mat: they coincide at t = 0
 X_END_EXTRA = 2.0        # hard cap: the contact point never goes past sheet end + this
@@ -116,7 +116,7 @@ V_LIFT_REF = 0.18        # speed of the contact point during the first turn at -
 V_ROLL_REF = 0.26        # ... and once the roll is rolling forward
 T_HOLD_REF = 6.0         # length of the pause after the rice meets the rice at --hold 1
 FRONT_CLEAR = 0.35       # while rolling, the mat's leading end is led out to this height above what
-                         # still lies ahead ("передний край выводится из-под ролла"). The height is
+                         # still lies ahead (the leading edge is fed out from under the roll). The height is
                          # MEASURED, not assumed: over the bed it is ~T + w, over the bare far flap it
                          # is ~w, and the mat then closes almost the whole way round and presses the
                          # flap onto the roll instead of rolling over it.
@@ -137,7 +137,7 @@ FOLD_GAP = 2.5           # ... or within this of the previous member, T
 FOLD_CAP = 0.45          # s_fold never exceeds this fraction of the sheet
 
 # --- fingers: the second kinematic support of the first turn -------------------------------------
-# "Остальные пальцы держат начинку сверху, чтобы она не разъехалась при первом обороте."
+# "The other fingers hold the filling from above so it does not slide apart on the first turn."
 # A lid over the part of the stack the roll has not reached yet: nothing may rise through it and its
 # forward creep is damped. Released the moment the rice meets the rice.
 FING_GAP = 1.05          # the lid starts this many R ahead of the contact point (clear of the mat arc)
@@ -642,7 +642,7 @@ def turns_geom(info):
 
 # ----------------------------------------------------------------------------- wrinkle metric ("accordion")
 # The defect the owner found on the phase-B frames: the wrapper band gathers into 2-3 folds instead of
-# bending into one arc (../KINEMATICS.md, "gармошка"). Measured on the MIDLINE of the nori band:
+# bending into one arc (../KINEMATICS.md, "accordion"). Measured on the MIDLINE of the nori band:
 #   wrinkles  = sign changes of the signed curvature along the band, outside the fold nose
 #   amplitude = largest departure of the midline from a local quadratic fit, T
 # The midline is smoothed over 3 particles (as specified) and then RESAMPLED at WR_DS along arc length:
@@ -974,8 +974,12 @@ def gather_R(xnp, xc, ycen, shape, pct=99.5, must=None):
 
 # ----------------------------------------------------------------------------- main
 def main():
+    global L_SHEET, X1
     ap = argparse.ArgumentParser()
     ap.add_argument('--layout', type=int, default=1)
+    ap.add_argument('--sheet', type=float, default=38.7,
+                    help='sheet length, T (default %(default)s = 19.3 cm nori). Note: layout 3 pins its filling '
+                         'position at import time and is not rescaled by this flag.')
     ap.add_argument('--speed', type=float, default=1.0, help='speed of the rolling hand (phases 1-4)')
     ap.add_argument('--press', type=float, default=1.0, help='pressure of the mat')
     ap.add_argument('--tuck', type=float, default=1.0,
@@ -1001,6 +1005,8 @@ def main():
     ap.add_argument('--anchor', type=float, default=0.0, help=argparse.SUPPRESS)
     ap.add_argument('--bend', type=float, default=0.0, help=argparse.SUPPRESS)
     args = ap.parse_args()
+    L_SHEET = args.sheet
+    X1 = X_SHEET + L_SHEET + 9.3     # the roll must stay inside the box: 48.0 for the default 38.7 T sheet
     layout = LAYOUTS[args.layout]
     os.makedirs(args.out, exist_ok=True)
     tag = f'{args.layout}{args.tag}'
