@@ -1,11 +1,27 @@
+# ── системное
 .DS_Store
 *.bak
+__pycache__/
+*.pyc
+
+# ── стенд игры
+game/
+playtest/
+
+# ── симуляция: в git идёт только исходник сцен и доки, не результаты прогонов
 sim/.venv/
+sim/**/out/
+sim/**/out_*/
+sim/**/runs/
 sim/**/frames_*/
-sim/**/__pycache__/
-sim/play/out/
-sim/**/out/*.npy
-sim/**/out/*.npz
-sim/**/out/particles_*
+sim/**/checks/out/
+sim/**/out_judge/
+sim/*_out*.json
+sim/**/_apitest.py
 sim/lab/runs/
+*.npy
+*.npz
+*.log
+
+# ── отработанные улики: скриншоты ревью живут локально
 docs/ui-review/
