@@ -7,3 +7,4 @@ sim/play/out/
 sim/**/out/*.npy
 sim/**/out/*.npz
 sim/**/out/particles_*
+sim/lab/runs/

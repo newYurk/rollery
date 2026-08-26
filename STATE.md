@@ -4,6 +4,8 @@
 
 Папка проекта: `~/Desktop/Home/Projects/rollery/` — сам репозиторий (публичный `newYurk/rollery`, GitHub Pages). Рабочее имя «Ролльня» / `rollery` — из треда («ролльня, а не суши-бар»); имя игры не выбрано, перед выбором — проверка товарных знаков.
 
+**Лаборатория скрутки** (смотреть, как крутится, и крутить ручки самой): `cd sim/lab && ./lab.sh` — описание в `sim/lab/README.md`.
+
 **Отчёт по симуляции скрутки** (кадры фаз, срезы, числа, что опровергнуто): https://claude.ai/code/artifact/433ac466-b27c-4bec-b7be-ebc035f196fa — источник `docs/reports/kinematics.html`.
 
 **Стенд для теста:** https://newyurk.github.io/rollery/ — телефон (портрет), планшет, десктоп. Режим «Пазл» — иконка 🧩 или https://newyurk.github.io/rollery/?puzzle. Код: `index.html`, один файл, Canvas 2D, без сборки.
