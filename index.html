@@ -59,6 +59,10 @@ const BASES = {
   cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
     T: 0.8, w: 0.42, turns: 2.7, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,
     ingredients: ['strawberry', 'kiwi', 'banana', 'mango', 'choco', 'jam', 'nut', 'pinkcream'] },
+  // Лаваш-ролл: тонкая обёртка спиралью в 4–5 оборотов — у него нори-подобная линия внутри настоящая
+  lavash: { name: 'Лаваш-ролл', emoji: '🌯', wrapper: '#dcbf87', spread: '#f7f1e6', mat: '#b98f5a', matLine: '#a67c48',
+    T: 0.45, w: 0.2, turns: 4.5, kappa: 0.7, spreadEnd: 0.96, beta: 0.6, Wv: 40,
+    ingredients: ['salmon', 'cucumber', 'cheese', 'tomato', 'pepper', 'ham', 'lettuce', 'eggsheet', 'dill'] },
 };
 const R0 = 0.25;   // радиус сердцевины
 // Длина листа базы — из номинального числа витков пустого листа (спираль Архимеда с шагом T + w).
@@ -77,6 +81,12 @@ const ING = {
   riceYellow: { name: 'Жёлтый', color: '#f0d27a', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true },
   riceGreen:  { name: 'Зелёный', color: '#b7cf86', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true },
   riceBlack:  { name: 'Чёрный', color: '#4a4440', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true },
+  cheese:     { name: 'Сыр',      color: '#f2dc8a', wU: 2.2, hU: 1.2, dv: 1.00, tex: 'cheese' },
+  tomato:     { name: 'Помидор',  color: '#e04a3a', wU: 2.6, hU: 1.0, dv: 1.00, tex: 'tomato', round: true },
+  pepper:     { name: 'Перец',    color: '#d8432e', wU: 1.4, hU: 0.9, dv: 1.00, tex: 'pepper', round: true },
+  ham:        { name: 'Ветчина',  color: '#e9a0a8', wU: 3.0, hU: 0.6, dv: 1.00, tex: 'ham' },
+  lettuce:    { name: 'Салат',    color: '#9ccc6a', wU: 8, hU: 0.3, dv: 1.00, tex: 'lettuce' },
+  dill:       { name: 'Укроп',    color: '#8fb86a', wU: 6, hU: 1.0, dv: 1.00, tex: 'dill', paint: true },
   pinkcream:  { name: 'Роз. крем', color: '#f4a6c0', wU: 10, hU: 0.35, dv: 1.00, tex: 'flat' },
   strawberry: { name: 'Клубника', color: '#e0364a', wU: 2.6, hU: 2.4, dv: 0.22, tex: 'strawberry', round: true },
   kiwi:       { name: 'Киви',     color: '#8dbf4c', wU: 3.0, hU: 2.6, dv: 0.20, tex: 'kiwi', round: true },
@@ -93,7 +103,7 @@ for (const k in BASES) { BASES[k].wrapperRgb = hexRgb(BASES[k].wrapper); BASES[k
 const S = {
   mode: 'lay',                 // lay | rolled | cut | revealed | slicing | plate
   base: 'sushi',
-  lists: { sushi: [], cake: [] },
+  lists: { sushi: [], cake: [], lavash: [] },
   sel: 'salmon',
   preview: false,
   mute: false,
@@ -114,6 +124,7 @@ function load() {
   try {
     const m = JSON.parse(localStorage.getItem('rollery.model.v2') || 'null');
     if (m && m.lists) { S.base = m.base in BASES ? m.base : 'sushi'; S.lists = m.lists; }
+    for (const k in BASES) if (!S.lists[k]) S.lists[k] = [];
     S.preview = localStorage.getItem('rollery.preview') === '1';
     S.mute = localStorage.getItem('rollery.mute') === '1';
     S.shape = localStorage.getItem('rollery.shape') || 'round';
@@ -348,7 +359,7 @@ function materialAt(m, wd, vSlice, r, phi) {
 // ---------------------------------------------------------------- цвета материалов на срезе
 function spreadColor(px, py, b) {
   const c = b.spreadRgb;
-  if (S.base === 'sushi') {
+  if (S.base === 'sushi' || (S.base !== 'cake' && b.T >= 1)) {
     const n1 = hash(px >> 1, py >> 1), n2 = hash(px >> 2, (py >> 2) + 77);
     let t = (n1 - 0.5) * 10 + (n2 - 0.5) * 16; if (n1 > 0.965) t -= 24;
     return [c[0] + t, c[1] + t, c[2] + t * 0.6];
@@ -376,6 +387,12 @@ function patchColor(m, px, py) {
     case 'banana': { if (dd < 0.25 && hash(px, py) > 0.9) return [150, 120, 80]; return mix([250, 240, 200], c, dd); }
     case 'mango': return mix(c, [255, 214, 120], fract(lu * 4 + lz) < 0.2 ? 0.25 : 0);
     case 'nut': return mix([220, 180, 120], c, dd);
+    case 'cheese': { if (hash(px >> 1, py >> 1) > 0.93) return [236, 214, 130]; return mix(c, [255, 240, 170], lz > 0.75 ? 0.2 : 0); }
+    case 'tomato': { if (dd < 0.55 && hash(px, py) > 0.9) return [250, 230, 150]; return mix([246, 130, 110], c, smooth(0.2, 0.9, dd)); }
+    case 'pepper': return dd > 0.8 ? [150, 30, 20] : mix([240, 90, 70], c, dd);
+    case 'ham': { if (hash(px >> 1, py) > 0.94) return [250, 235, 230]; return c; }
+    case 'lettuce': return fract(lu * 6 + m.p.phase) < 0.12 ? [214, 236, 170] : c;
+    case 'dill': { const n = hash(px, py); return n > 0.7 ? [70, 110, 50] : n > 0.4 ? [190, 205, 160] : [230, 232, 212]; }
     case 'rice': { const n1 = hash(px >> 1, py >> 1), n2 = hash(px >> 2, (py >> 2) + 77); let t = (n1 - 0.5) * 10 + (n2 - 0.5) * 16; if (n1 > 0.965) t -= 24; return [c[0] + t, c[1] + t, c[2] + t * 0.6]; }
     default: return c;
   }
