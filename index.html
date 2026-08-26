@@ -454,6 +454,10 @@ function patchColor(m, px, py) {
 //   · треугольник в маки — капля с «горкой» сзади, а не равносторонний.
 const SHAPES = { round: { k: 0, p: 0, glyph: '⭕' }, square: { k: 4, p: 0.62, glyph: '◻' }, triangle: { k: 3, p: 0.58, glyph: '△', drop: 0.22 } };
 const R_THIN = 3.2, R_THICK = 5.0;   // тоньше — квадратится целиком, толще — только бока
+// Угол не может быть острее зерна. Рисинка ≈ 2,5 мм в поперечнике, то есть половина слоя риса (T ≈ 5 мм):
+// сколько ни дави, кромка скругляется на этот размер — «углы нельзя добрать нажимом, зёрна давятся»
+// (docs/shapes.md). Отсюда скругление берётся не на глаз, а из зерна: чем меньше ролл, тем мягче углы.
+const GRAIN = 0.5;
 const shapeCache = {};
 function shapeInfo(name, Rout, press) {
   const sh = SHAPES[name] || SHAPES.round;
@@ -476,6 +480,19 @@ function shapeInfo(name, Rout, press) {
       if (sh.drop) r *= 1 + sh.drop * p * Math.cos(phi + Math.PI);
     }
     rho[i] = r; A += r * r; rhoMax = Math.max(rhoMax, r);
+  }
+  // скругление зерном: усредняем ρ(φ) по дуге шириной в рисинку
+  const halfWin = Math.max(1, Math.round(N * (GRAIN / Math.max(1.2, Rout || 3.5)) / TAU));
+  if (sh.k) {
+    const src = Float32Array.from(rho);
+    let acc = 0;
+    for (let d = -halfWin; d <= halfWin; d++) acc += src[(d + N) % N];
+    for (let i = 0; i < N; i++) {
+      rho[i] = acc / (2 * halfWin + 1);
+      acc += src[(i + halfWin + 1) % N] - src[(i - halfWin + N) % N];
+    }
+    A = 0; rhoMax = 0;
+    for (let i = 0; i < N; i++) { A += rho[i] * rho[i]; rhoMax = Math.max(rhoMax, rho[i]); }
   }
   A /= N;
   if (Object.keys(shapeCache).length > 40) for (const k in shapeCache) delete shapeCache[k];
