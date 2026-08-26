@@ -3,3 +3,4 @@
 sim/.venv/
 sim/**/frames_*/
 sim/**/__pycache__/
+sim/play/out/
