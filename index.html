@@ -306,13 +306,19 @@ function computeCore(list, g) {
   for (const p of inside) {
     p.inCore = true; const d = ING[p.kind], far = p.u * L >= half;
     let y0, y1;
-    if (d.paint) { y0 = far ? 0 : core.HB; y1 = far ? core.HB : core.HB + core.HA; }
-    else if (far) { y0 = p.z0 * T; y1 = p.z1 * T; }
-    else { y0 = core.HB + core.HA - p.z1 * T; y1 = core.HB + core.HA - p.z0 * T; }
+    const W = g.w;
+    if (d.paint) { y0 = W + (far ? 0 : core.HB); y1 = W + (far ? core.HB : core.HB + core.HA); }
+    else if (far) { y0 = W + p.z0 * T; y1 = W + p.z1 * T; }
+    else { y0 = W + core.HB + core.HA - p.z1 * T; y1 = W + core.HB + core.HA - p.z0 * T; }
     core.items.push({ p, d, y0, y1, far, paint: !!d.paint, round: !!d.round });
   }
-  core.hook = { y0: core.HB + core.HA, y1: core.HB + core.HA + g.w };   // нори ближней половины, подвёрнутая внутрь
-  core.Hc = core.HA + core.HB + g.w;
+  // Нори — один непрерывный лист. Внутри ядра он идёт тремя участками: по верху постели (подвёрнутый
+  // ближний край — «крючок»), вокруг сгиба и обратно по низу постели, откуда уходит в намотку.
+  // Кольцо разомкнуто справа (φ = 0) — там лист выходит наружу и продолжается спиралью.
+  core.base = { y0: 0, y1: g.w };                                        // низ постели: нори дальней половины
+  core.hook = { y0: g.w + core.HB + core.HA, y1: g.w + core.HB + core.HA + g.w };   // верх: подвёрнутый край
+  core.nose = { x1: g.w * 1.2 };                                         // сгиб слева, где лист заворачивается
+  core.Hc = core.HA + core.HB + 2 * g.w;
   // почерк: сильный прижим уплотняет ядро, быстрая тяга оставляет в нём воздух
   const hd = S.hand || { press: 1, air: 0 };
   core.R = Math.sqrt(core.Wc * core.Hc / Math.PI) * clamp(1 - 0.22 * (hd.press - 1) + 0.35 * hd.air, 0.9, 1.12);
@@ -329,7 +335,7 @@ function coreMaterial(m, r, phi, vSlice) {
   const c = m.core, xd = r * Math.cos(phi) / c.R, yd = r * Math.sin(phi) / c.R;
   const [us, vs] = diskToSquare(xd, yd);
   const x = (us + 1) / 2 * c.Wc, y = (vs + 1) / 2 * c.Hc;
-  if (y >= c.hook.y0) return { cls: 'wrap' };
+  if (y >= c.hook.y0 || y <= c.base.y1 || x <= c.nose.x1) return { cls: 'wrap' };
   const L = m.g.L, half = c.Wc;
   for (let pass = 0; pass < 2; pass++) for (let i = c.items.length - 1; i >= 0; i--) {
     const it = c.items[i]; if (it.paint !== (pass === 1)) continue;
