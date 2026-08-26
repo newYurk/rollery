@@ -1,2 +1,5 @@
 .DS_Store
 *.bak
+sim/.venv/
+sim/**/frames_*/
+sim/**/__pycache__/
