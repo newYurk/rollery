@@ -936,6 +936,8 @@ def compute_metrics(xs, vs, cls, Jp, nori_row, nori_col, info, layout, img, px, 
         #     phase and amplitude below 0.3 T. A wrinkle now means the nori came off the mat.
         wrinkles=int(extra['wr']['final']['wrinkles']),
         wrinkles_max=int(extra['wr']['wrinkles_max']), wrinkles_max_phase=extra['wr']['wrinkles_max_phase'],
+        wrinkles_mat=int(extra['wr']['final']['wrinkles_mat']),
+        wrinkles_mat_max=int(extra['wr']['wrinkles_mat_max']),
         wrinkle_amp_T=float(extra['wr']['final']['wrinkle_amp_T']),
         wrinkle_amp_max_T=float(extra['wr']['wrinkle_amp_max_T']),
         wrinkle_amp_max_phase=extra['wr']['wrinkle_amp_max_phase'],
