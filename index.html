@@ -890,11 +890,24 @@ function drawPatchTop(p, alpha = 1) {
   }
   ctx.restore();
 }
-function drawMat(x, y, w, h) {
-  const b = B(); rr(x, y, w, h, 14); ctx.fillStyle = b.mat; ctx.fill();
-  ctx.save(); rr(x, y, w, h, 14); ctx.clip();
+function drawMat(x, y, w, h, r = 14, b = B()) {
+  rr(x, y, w, h, r); ctx.fillStyle = b.mat; ctx.fill();
+  ctx.save(); rr(x, y, w, h, r); ctx.clip();
   ctx.strokeStyle = b.matLine; ctx.lineWidth = 1.2;
   for (let yy = y + 3; yy < y + h; yy += 7) { ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + w, yy); ctx.stroke(); }
+  ctx.restore();
+}
+// Кусочки лежат на той же доске, на которой сворачивали. Без неё тёмная нори (#22342b) тонет
+// в фоне (#171713): контраст 1,36:1 — внешнего контура ролла просто не видно. На циновке — 5,9:1.
+// items — [{x, y, size}] центры срезов; доска одна, по их общей рамке.
+function drawSlab(items, alpha = 1, b = B(), pad = null) {
+  if (!items || !items.length || alpha <= 0.02) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, mn = Infinity;
+  for (const it of items) { const h = it.size / 2; if (!(h > 0)) continue; x0 = Math.min(x0, it.x - h); y0 = Math.min(y0, it.y - h); x1 = Math.max(x1, it.x + h); y1 = Math.max(y1, it.y + h); mn = Math.min(mn, it.size); }
+  if (!(x1 > x0)) return;
+  const p = pad == null ? clamp(0.08 * mn, 5, 14) : pad;
+  ctx.save(); ctx.globalAlpha *= alpha;
+  drawMat(x0 - p, y0 - p, x1 - x0 + 2 * p, y1 - y0 + 2 * p, Math.min(14, (mn + 2 * p) / 2), b);
   ctx.restore();
 }
 // Цилиндр ролла (вид сверху). pieces: [{a, b, off}] в долях длины, off — сдвиг по x; squash — сплющивание.
@@ -932,6 +945,9 @@ function drawFaceImg(img, x, y, size, scaleX = 1, alpha = 1) {
   ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.scale(Math.max(0.01, scaleX), 1);
   ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 8;
   ctx.drawImage(img, -size / 2, -size / 2, size, size);
+  // контактная тень: узкий тёмный ореол по силуэту — граница светлой обёртки на светлой доске
+  ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1;
+  ctx.drawImage(img, -size / 2, -size / 2, size, size);
   ctx.restore();
 }
 
@@ -963,27 +979,27 @@ function drawPreviewArea(p) {
   const turnsTxt = () => `${windFor(getModel(), 0.5).turns.toFixed(1).replace('.', ',')} витка`;
   if (pm === 'band') {
     const cx = L.ox + L.cw / 2, y = L.previewY;
-    if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs); }
-    else { drawFaceImg(face(0.5, 116), cx - 30, y, 116); label(cx + 30 + 14, y - 8, ['живой срез', turnsTxt()], 'left'); }
+    if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs); }
+    else { drawSlab([{ x: cx - 30, y, size: 116 }], 1, B(), 8); drawFaceImg(face(0.5, 116), cx - 30, y, 116); label(cx + 30 + 14, y - 8, ['живой срез', turnsTxt()], 'left'); }
   } else if (pm === 'overlay') {
     const s = L.sheet;
     if (pz) {
       const fs = Math.min(56, (s.w - 16 - 6 * (k - 1)) / k), x0 = s.x + s.w / 2 - ((k - 1) * (fs + 6)) / 2, y = s.y + fs / 2 + 8;
-      rr(s.x + 4, s.y + 4, s.w - 8, fs + 8, 10); ctx.fillStyle = 'rgba(23,23,19,0.55)'; ctx.fill();
+      drawMat(s.x + 4, s.y + 4, s.w - 8, fs + 8, 10);
       for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 6), y, fs);
     } else {
       const fs = 88, x = s.x + s.w - fs / 2 - 8, y = s.y + fs / 2 + 8;
-      ctx.beginPath(); ctx.arc(x, y, fs / 2 + 6, 0, TAU); ctx.fillStyle = 'rgba(23,23,19,0.55)'; ctx.fill();
+      drawMat(x - fs / 2 - 7, y - fs / 2 - 7, fs + 14, fs + 14, (fs + 14) / 2);
       drawFaceImg(face(0.5, fs), x, y, fs);
     }
   } else if (pm === 'side') {
     const sd = L.side, cx = sd.x + sd.w / 2; let y = sd.y;
     if (pz) {
-      if (k === 1) { const fs = L.previewSize; drawFaceImg(face(pz.vs[0], fs, tm), cx, y + fs / 2, fs); y += fs + 16; }
-      else { const cell = L.targetCell, per = Math.min(k, 3), rows = Math.ceil(k / per), x0 = cx - ((per - 1) * (cell + 8)) / 2; for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], cell, tm), x0 + (i % per) * (cell + 8), y + cell / 2 + Math.floor(i / per) * (cell + 8), cell); y += rows * (cell + 8) + 8; }
+      if (k === 1) { const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 7); drawFaceImg(face(pz.vs[0], fs, tm), cx, y + fs / 2, fs); y += fs + 16; }
+      else { const cell = L.targetCell, per = Math.min(k, 3), rows = Math.ceil(k / per), x0 = cx - ((per - 1) * (cell + 8)) / 2; const pos = i => ({ x: x0 + (i % per) * (cell + 8), y: y + cell / 2 + Math.floor(i / per) * (cell + 8), size: cell }); drawSlab(Array.from({ length: k }, (_, i) => pos(i)), 1, B(), 6); for (let i = 0; i < k; i++) { const q = pos(i); drawFaceImg(face(pz.vs[i], cell, tm), q.x, q.y, cell); } y += rows * (cell + 8) + 8; }
       if (L.mode !== 'L') { ctx.fillStyle = '#e0b25a'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const t = levelTitle(pz.lv, pz.level); ctx.fillText(t.length > 34 ? t.slice(0, 33) + '…' : t, cx, y + 8); label(cx, y + 28, ['повтори срез: разложи, скрути, разрежь']); }
     } else {
-      const fs = L.previewSize; drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); label(cx, y + fs + 16, ['живой срез · ' + turnsTxt()]);
+      const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 6); drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); label(cx, y + fs + 18, ['живой срез · ' + turnsTxt()]);
     }
   }
 }
@@ -1076,6 +1092,7 @@ function drawCut(now) {
   if (open > 0) {
     const reveal = clamp(open), z = easeInOutCubic(zoom);
     const size = lerp(2 * c.R, L.faceSize, z), x = lerp(c.x + gap, L.ox + L.cw / 2, z), y = lerp(L.roll.y, L.faceY, z);
+    drawSlab([{ x, y, size }], easeOutCubic(zoom) * reveal, B(), 10);
     drawFaceImg(c.img, x, y, size, reveal);
   }
   if (t < 0.9) {
@@ -1095,6 +1112,8 @@ function drawCompare() {
   let yv;
   if (k === 1) {
     const fs = Math.max(80, Math.min(wide ? 0.3 * cw : (cw - 56) / 2, 0.45 * (L.rowBtn.y - top - 120), 400)), gap = wide ? 40 : 20;
+    const p1 = clamp(gap / 2 - 3, 4, 10);
+    drawSlab([{ x: cx - fs / 2 - gap / 2, y: top + fs / 2, size: fs }], 1, B(), p1); drawSlab([{ x: cx + fs / 2 + gap / 2, y: top + fs / 2, size: fs }], 1, B(), p1);
     drawFaceImg(face(pz.vs[0], fs, tm, Rref), cx - fs / 2 - gap / 2, top + fs / 2, fs); drawFaceImg(face(pz.vs[0], fs, pm, Rref), cx + fs / 2 + gap / 2, top + fs / 2, fs);
     ctx.fillText('цель', cx - fs / 2 - gap / 2, top + fs + 18); ctx.fillText('твой', cx + fs / 2 + gap / 2, top + fs + 18);
     yv = top + fs + 52;
@@ -1102,6 +1121,8 @@ function drawCompare() {
     const fs = Math.max(40, Math.min(wide ? (cw - 160) / k : (cw - 32 - 6 * (k - 1)) / k, 0.26 * ch, 213)), gap = 6;
     const sideLabels = cw - k * (fs + gap) >= 100, x0 = cx - ((k - 1) * (fs + gap)) / 2 + (sideLabels ? 20 : 0);
     const y1 = top + (sideLabels ? 0 : 18) + fs / 2, y2 = y1 + fs + 26;
+    const row = yy => Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + gap), y: yy, size: fs })), pr = sideLabels ? 8 : 5;
+    drawSlab(row(y1), 1, B(), pr); drawSlab(row(y2), 1, B(), pr);
     for (let i = 0; i < k; i++) { drawFaceImg(face(pz.vs[i], fs, tm, Rref), x0 + i * (fs + gap), y1, fs); drawFaceImg(face(pz.vs[i], fs, pm, Rref), x0 + i * (fs + gap), y2, fs); }
     if (sideLabels) { ctx.textAlign = 'right'; ctx.fillText('цель', x0 - fs / 2 - 16, y1); ctx.fillText('твой', x0 - fs / 2 - 16, y2); ctx.textAlign = 'center'; }
     else { ctx.fillText('цель', cx, top + 6); ctx.fillText('твой', cx, y2 - fs / 2 - 10); }
@@ -1120,7 +1141,9 @@ function drawRevealed() {
   if (S.puzzle && performance.now() - (cut.revealedAt || 0) > 900) { drawCompare(); return; }
   if (S.puzzle) dirty = true;
   const c = cut, cx = L.ox + L.cw / 2;
+  drawBoard(c.R, c.len, 0.22);   // половинки ролла остаются на своей доске: без неё торчат «культями» из-под среза
   drawRollBody(L.roll.x, L.roll.y, c.R, c.len, [{ a: 0, b: c.v, off: -18 }, { a: c.v, b: 1, off: 18 }], 1, 0.3);
+  drawSlab([{ x: cx, y: L.faceY, size: L.faceSize }], 1, B(), 10);
   drawFaceImg(c.img, cx, L.faceY, L.faceSize);
   ctx.fillStyle = '#8d846f'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины`, cx, L.faceY + L.faceSize / 2 + 14);
@@ -1154,6 +1177,7 @@ function drawSlicing(now) {
   if (shakeUntil > now) ctx.translate((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4);
   if (move < 1) drawBoard(s.R, s.len, 1 - reveal);
   if (move < 1) drawRollBody(L.roll.x, L.roll.y, s.R, s.len, pieces, 1, 1 - reveal * 0.85);
+  drawSlab(L.grid, move, B(), 16);
   if (idx < s.cutsV.length) {
     const ph = (el % s.chop) / s.chop, x = L.roll.x - s.len / 2 + s.cutsV[idx] * s.len;
     const y = L.roll.y + s.R * 0.95 - Math.abs(Math.sin(ph * Math.PI)) * s.R * 2.6;
@@ -1171,9 +1195,10 @@ function drawSlicing(now) {
 }
 function drawPlate() {
   const s = slicing, cx = L.ox + L.cw / 2;
+  drawSlab(L.grid, 1, B(), 16);
   for (let i = 0; i < NPIECES; i++) {
     const gx = L.grid[i]; drawFaceImg(s.imgs[i], gx.x, gx.y, gx.size);
-    ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(String(i + 1), gx.x, gx.y + gx.size / 2 + 4);
+    ctx.fillStyle = 'rgba(46,30,14,0.78)'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(String(i + 1), gx.x, gx.y + gx.size / 2 + 4);
   }
   buttons = []; buttonRow([['albumsave', S.saved > performance.now() ? '✓ В альбоме' : '★ В альбом', true], ['back', 'Ещё начинки'], ['new', 'Новый лист']]);
   if (S.saved > performance.now()) dirty = true;
@@ -1183,6 +1208,7 @@ function drawPlate() {
     const img = face(pieceV(S.bigPiece), L.faceSize);
     ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillText(`кусочек ${S.bigPiece + 1} из ${NPIECES} · тапни, чтобы закрыть`, cx, L.faceY - L.faceSize / 2 - 14);
+    drawSlab([{ x: cx, y: L.faceY, size: L.faceSize }], 1, B(), 10);
     drawFaceImg(img, cx, L.faceY, L.faceSize);
   }
 }
@@ -1264,7 +1290,9 @@ function drawAlbum() {
     const x = ox + 12 + c * (cell + 12), y = top + r * rowH - S.albumScroll;
     if (y > top + viewH || y + rowH < top - rowH) return;
     albumCells.push({ i, x, y, w: cell, h: cell });
-    try { drawFaceImg(albumFace(e, cell), x + cell / 2, y + cell / 2, cell); } catch (err) {}
+    const bp = Math.max(5, Math.round(cell * 0.07)), cfs = cell - 2 * bp;
+    drawMat(x, y, cell, cell, 12, BASES[e.base] || B());
+    try { drawFaceImg(albumFace(e, cfs), x + cell / 2, y + cell / 2, cfs); } catch (err) {}
     ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     const tag = (BASES[e.base] ? BASES[e.base].emoji : '') + ' ' + albumDate(e.at) + (e.sim != null ? ' · ' + e.sim + ' %' : '');
     ctx.fillText(tag, x + cell / 2, y + cell + 5);
@@ -1283,9 +1311,11 @@ function drawAlbum() {
     const cx = ox + cw / 2, y0 = L.top + 40;
     ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillText(`${BASES[e.base] ? BASES[e.base].name : e.base} · ${albumDate(e.at)}${e.sim != null ? ' · совпало на ' + e.sim + ' %' : ''}`, cx, y0 - 12);
-    const x0 = cx - ((k - 1) * (fs + 8)) / 2;
+    const x0 = cx - ((k - 1) * (fs + 8)) / 2, eb = BASES[e.base] || B();
+    drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y: y0 + fs / 2, size: fs })), 1, eb, 6);
     for (let i = 0; i < k; i++) { try { drawFaceImg(albumFace(e, fs, pieceV(i)), x0 + i * (fs + 8), y0 + fs / 2, fs); } catch (err) {} }
     const big = Math.min(0.5 * cw, 0.42 * L.ch, 300);
+    drawSlab([{ x: cx, y: y0 + fs + 24 + big / 2, size: big }], 1, eb, 8);
     try { drawFaceImg(albumFace(e, big), cx, y0 + fs + 24 + big / 2, big); } catch (err) {}
     const hl = e.hand && (e.hand.air || e.hand.wobble || e.hand.press !== 1) ? handLabelOf(e.hand) : '';
     if (hl) { ctx.fillStyle = '#6f6754'; ctx.font = font(12); ctx.textBaseline = 'top'; ctx.fillText(hl, cx, y0 + fs + 24 + big + 12); }
