@@ -54,7 +54,7 @@ function hash(x, y) {
 // ---------------------------------------------------------------- данные
 const BASES = {
   sushi: { name: 'Суши-ролл', emoji: '🍣', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
-    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 1.0, beta: 0.55, oneTurn: true, flap: 5, tuckMin: 5, Wv: 38,
+    T: 1.0, w: 0.12, turns: 3.1, kappa: 0.85, spreadEnd: 1.0, beta: 0.55, oneTurn: true, flap: 0, tuckMin: 5, Wv: 38,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   cake:  { name: 'Рулет', emoji: '🍰', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
     T: 0.8, w: 0.42, turns: 2.7, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,
@@ -255,11 +255,14 @@ function wind(vSlice, sMax, g, list) {
   const one = !!B().oneTurn, flap = B().flap || 0;
   while (s < Math.min(sMax, sEnd) && k < KMAX) {
     const idx = k * NB + b, u = s / g.L;
-    if (one && k >= 1 && sClose < 0) { sClose = s; sEnd = Math.min(g.L, s + flap); }   // ролл замкнулся: дальше только голый клапан
+    if (one && k >= 1 && sClose < 0) { sClose = s; sEnd = Math.min(g.L, s + flap); }   // ролл замкнулся: лишний лист обрезан, нори сомкнулась стык в стык
     let t;
     if (sClose >= 0) t = g.w * clamp((sEnd - s) / 2.5, 0.15, 1);                       // клапан нори, прижатый к концу
     else {
-      t = prof[Math.min(prof.length - 1, Math.round(s / PROF_DS))] + g.w + (g.air || 0);
+      t = prof[Math.min(prof.length - 1, Math.round(s / PROF_DS))] + (g.air || 0);
+      // Шов: у выхода из ядра (или в самом центре спирали) намазки ещё нет — она входит клином,
+      // поэтому обёртка продолжается прямо с поверхности ядра и спираль читается как одна линия.
+      t += g.w;
       if (g.wobble) t *= 1 + g.wobble * Math.sin(TAU * (s / g.L) * 2.5 + (g.phase || 0));   // рывки при тяге
       if (!one) { const tail = g.L - s; if (tail < 5) t *= clamp(tail / 5, 0.03, 1) * clamp(tail / 5, 0.03, 1) * (3 - 2 * clamp(tail / 5, 0.03, 1)); }   // спираль: конец листа прижат и сходит на нет (плавно, ≈2,5 см)
     }
@@ -269,6 +272,20 @@ function wind(vSlice, sMax, g, list) {
     if (s + ds >= sStop) { u1[idx] = sStop / g.L; phiEnd = b * DPHI + (sStop - s) / rm; lastIdx = idx; s = sStop; break; }
     s += ds; u1[idx] = s / g.L;
     if (++b === NB) { b = 0; k++; }
+  }
+  // Прижим циновкой: ролл подгоняется к круглому сечению — слои сжимаются пропорционально,
+  // поэтому клин у шва и бугры от начинок не оставляют ступенек на контуре.
+  const round = clamp(0.55 * (S.hand ? S.hand.press : 1), 0, 0.85);
+  let sum = 0, cnt = 0;
+  for (let b2 = 0; b2 < NB; b2++) if (top[b2] > g.r0) { sum += top[b2]; cnt++; }
+  if (cnt) {
+    const Rm = sum / cnt; Rout = g.r0;
+    for (let b2 = 0; b2 < NB; b2++) {
+      if (top[b2] <= g.r0 + 1e-6) continue;
+      const tgt = Rm + (1 - round) * (top[b2] - Rm), f = (tgt - g.r0) / (top[b2] - g.r0);   // сжимаем слои, ядро не трогаем
+      for (let k2 = 0; k2 < KMAX; k2++) { const i2 = k2 * NB + b2; if (rin[i2] < 0) break; rin[i2] = g.r0 + (rin[i2] - g.r0) * f; rout[i2] = g.r0 + (rout[i2] - g.r0) * f; }
+      top[b2] = tgt; if (tgt > Rout) Rout = tgt;
+    }
   }
   return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax: Math.min(KMAX, k + 1), turns: bins / NB, sClose, sEnd };
 }
@@ -315,9 +332,8 @@ function computeCore(list, g) {
   // Нори — один непрерывный лист. Внутри ядра он идёт тремя участками: по верху постели (подвёрнутый
   // ближний край — «крючок»), вокруг сгиба и обратно по низу постели, откуда уходит в намотку.
   // Кольцо разомкнуто справа (φ = 0) — там лист выходит наружу и продолжается спиралью.
-  core.base = { y0: 0, y1: g.w };                                        // низ постели: нори дальней половины
-  core.hook = { y0: g.w + core.HB + core.HA, y1: g.w + core.HB + core.HA + g.w };   // верх: подвёрнутый край
-  core.nose = { x1: g.w * 1.2 };                                         // сгиб слева, где лист заворачивается
+  // Нори внутрь не заходит: лист смыкается стык в стык снаружи. Внутри ядра — только рис и начинки
+  // (нори внутри появляется, лишь если игрок сам её положил — обёрткой вокруг начинки или слоем).
   core.Hc = core.HA + core.HB + 2 * g.w;
   // почерк: сильный прижим уплотняет ядро, быстрая тяга оставляет в нём воздух
   const hd = S.hand || { press: 1, air: 0 };
@@ -335,7 +351,6 @@ function coreMaterial(m, r, phi, vSlice) {
   const c = m.core, xd = r * Math.cos(phi) / c.R, yd = r * Math.sin(phi) / c.R;
   const [us, vs] = diskToSquare(xd, yd);
   const x = (us + 1) / 2 * c.Wc, y = (vs + 1) / 2 * c.Hc;
-  if (y >= c.hook.y0 || y <= c.base.y1 || x <= c.nose.x1) return { cls: 'wrap' };
   const L = m.g.L, half = c.Wc;
   for (let pass = 0; pass < 2; pass++) for (let i = c.items.length - 1; i >= 0; i--) {
     const it = c.items[i]; if (it.paint !== (pass === 1)) continue;
