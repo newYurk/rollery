@@ -4,3 +4,6 @@ sim/.venv/
 sim/**/frames_*/
 sim/**/__pycache__/
 sim/play/out/
+sim/**/out/*.npy
+sim/**/out/*.npz
+sim/**/out/particles_*
