@@ -462,7 +462,18 @@ function patchColor(m, px, py) {
     case 'avocado': return mix([226, 224, 140], [104, 150, 60], smooth(0.15, 1, dd));
     case 'shrimp': return fract(lu * 3 + lv * 2 + 0.2) < 0.45 ? [250, 236, 224] : c;
     case 'gloss': return mix(c, [255, 255, 255], lz > 0.72 ? 0.25 : 0);
-    case 'strawberry': { if (dd > 0.5 && hash(px, py) > 0.92) return [248, 230, 120]; return mix([255, 236, 236], c, smooth(0.15, 0.75, dd)); }
+    // Разрез целой ягоды: бледная сердцевина (узкая, не половина ягоды), от неё радиальные
+    // белые прожилки к мякоти, семечки — только по самой кромке, они снаружи, а не внутри.
+    case 'strawberry': {
+      if (dd > 0.86 && hash(px, py) > 0.9) return [248, 230, 120];            // семечки на кожице
+      const ang = Math.atan2(lz * 2 - 1, lu * 2);
+      // прожилки живут в средней зоне: у центра гаснут (иначе сходятся в звезду), у кромки тоже
+      const vein = (fract(ang / TAU * 9 + hash(px >> 3, py >> 3) * 0.15) < 0.26 ? 1 : 0)
+                 * smooth(0.18, 0.42, dd) * (1 - smooth(0.62, 0.9, dd));
+      const core = 1 - smooth(0.04, 0.3, dd);                                  // сердцевина мягкая, не точка
+      const pale = Math.min(0.62, core * 0.62 + vein * 0.3);
+      return mix(c, [252, 214, 206], pale);                                    // бледно-розовый, не белый
+    }
     case 'kiwi': { if (dd > 0.92) return [110, 90, 60]; if (dd > 0.38 && dd < 0.56 && hash(px, py) > 0.85) return [30, 25, 20]; return mix([236, 240, 190], c, smooth(0.1, 0.7, dd)); }
     // ребро ломтика киви: тёмная кожица по краям, светлая сердцевина посередине, редкие семечки
     case 'kiwiEdge': { if (Math.abs(lu) > 0.44) return [120, 100, 62]; const core = 1 - Math.min(1, Math.abs(lu) * 3.2);
