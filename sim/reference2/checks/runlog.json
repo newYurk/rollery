@@ -1,8 +1,122 @@
 [
  {
-  "tag": "_rep_a",
+  "tag": "_rep_b",
+  "ok": true,
+  "sec": 22.8,
+  "cmd": "--seed 1"
+ },
+ {
+  "tag": "_rep_c",
+  "ok": true,
+  "sec": 23.0,
+  "cmd": "--seed 1"
+ },
+ {
+  "tag": "_rep_d",
+  "ok": true,
+  "sec": 23.0,
+  "cmd": "--seed 1"
+ },
+ {
+  "tag": "_seed2",
   "ok": true,
   "sec": 22.9,
-  "cmd": "--seed 1"
+  "cmd": "--seed 2"
+ },
+ {
+  "tag": "_seed3",
+  "ok": true,
+  "sec": 23.1,
+  "cmd": "--seed 3"
+ },
+ {
+  "tag": "_seed4",
+  "ok": true,
+  "sec": 23.2,
+  "cmd": "--seed 4"
+ },
+ {
+  "tag": "_sp05_a",
+  "ok": true,
+  "sec": 48.5,
+  "cmd": "--speed 0.5 --seed 1"
+ },
+ {
+  "tag": "_sp05_b",
+  "ok": true,
+  "sec": 52.5,
+  "cmd": "--speed 0.5 --seed 1"
+ },
+ {
+  "tag": "_sp20_a",
+  "ok": true,
+  "sec": 22.1,
+  "cmd": "--speed 2 --seed 1"
+ },
+ {
+  "tag": "_sp20_b",
+  "ok": true,
+  "sec": 22.9,
+  "cmd": "--speed 2 --seed 1"
+ },
+ {
+  "tag": "_pr05_a",
+  "ok": true,
+  "sec": 40.3,
+  "cmd": "--press 0.5 --seed 1"
+ },
+ {
+  "tag": "_pr05_b",
+  "ok": true,
+  "sec": 40.6,
+  "cmd": "--press 0.5 --seed 1"
+ },
+ {
+  "tag": "_pr20_a",
+  "ok": true,
+  "sec": 37.2,
+  "cmd": "--press 2 --seed 1"
+ },
+ {
+  "tag": "_pr20_b",
+  "ok": true,
+  "sec": 39.7,
+  "cmd": "--press 2 --seed 1"
+ },
+ {
+  "tag": "_ho0_a",
+  "ok": true,
+  "sec": 40.4,
+  "cmd": "--hold 0 --seed 1"
+ },
+ {
+  "tag": "_ho0_b",
+  "ok": true,
+  "sec": 33.4,
+  "cmd": "--hold 0 --seed 1"
+ },
+ {
+  "tag": "_ho4_a",
+  "ok": true,
+  "sec": 32.4,
+  "cmd": "--hold 4 --seed 1"
+ },
+ {
+  "tag": "_ho4_b",
+  "ok": true,
+  "sec": 25.9,
+  "cmd": "--hold 4 --seed 1"
+ },
+ {
+  "tag": "_ho8_a",
+  "ok": true,
+  "sec": 27.4,
+  "cmd": "--hold 8 --seed 1"
+ },
+ {
+  "tag": "_ho8_b",
+  "ok": true,
+  "sec": 33.5,
+  "cmd": "--hold 8 --seed 1"
  }
 ]
