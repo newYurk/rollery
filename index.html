@@ -468,7 +468,13 @@ function materialAt(m, wd, vSlice, r, phi) {
 // шум по двухпиксельным клеткам, то есть зерно зависело от зума и выходило ~0,25 мм вместо 2,5 мм,
 // в десять раз мельче настоящего. Тот же файл при этом уже знал верный размер: GRAIN = 0,5 ед. = 2,5 мм
 // (им скругляются углы квадратного ролла, см. shapeInfo). Аргументы gx, gy — координаты В ЗЁРНАХ.
-function spreadColor(gx, gy, b, ct, st) {
+// Рельеф зерна, направление света и щель между зёрнами — УСЛОВНОСТИ ОТРИСОВКИ, помечены `inferred`:
+// источника у них нет, замером они не являются и в таблицу физических толщин переезжать не имеют права
+// (docs/geometry-audit.md, раздел «Условности отрисовки»).
+const LIGHT_X = -0.70, LIGHT_Y = -0.71;   // one light for the whole slice; chosen to agree with `vig` in renderSection (key from the top-left)
+const GRAIN_GAP_RGB = [201, 186, 160];    // the gap is a MIX toward a warm tone, never a subtraction — see below
+const LEVEL_FIX = 7.5;                    // keeps the mean rice brightness inside the +-3 acceptance band; solved in the stand (Δ = 0,0 хосо / +0,4 футо), not eyeballed
+function spreadColor(gx, gy, b, ct, st, lod) {
   const c = b.spreadRgb;
   if (S.base !== 'cake') {                                  // крупа — у всех несладких баз
     // Клеточный шум: у каждой клетки свой сдвинутый центр, зерно — ближайший к точке, а разность
@@ -477,7 +483,7 @@ function spreadColor(gx, gy, b, ct, st) {
     // (ct, st) — касательная к витку: в ролле зёрна ложатся вдоль намотки, а не по осям экрана.
     const cx = ct === undefined ? 1 : ct, sy = st === undefined ? 0 : st;
     const ci = Math.floor(gx), cj = Math.floor(gy);
-    let d1 = 9, d2 = 9, hit = 0;
+    let d1 = 9, d2 = 9, hit = 0, bx = 0, by = 0;
     // Метрика сжимает расстояние вдоль зерна, поэтому соседей вдоль надо перебрать больше, чем поперёк.
     // На срезе направление витка своё в каждой точке — ищем во все стороны; на плоском листе зерно
     // всегда вдоль оси x, и хватает узкой полосы: 5x3 вместо 5x5.
@@ -488,12 +494,24 @@ function spreadColor(gx, gy, b, ct, st) {
       const ddx = cxp - gx, ddy = cyp - gy;
       const along = (ddx * cx + ddy * sy) / GRAIN_ASPECT, across = -ddx * sy + ddy * cx;
       const dd = along * along + across * across;
-      if (dd < d1) { d2 = d1; d1 = dd; hit = h; } else if (dd < d2) { d2 = dd; }
+      if (dd < d1) { d2 = d1; d1 = dd; hit = h; bx = ddx; by = ddy; } else if (dd < d2) { d2 = dd; }   // bx,by — вектор ТОЧКА→ЦЕНТР зерна, нужен для рельефа
     }
     const edge = Math.sqrt(d2) - Math.sqrt(d1);              // 0 на границе зёрен
-    let t = (hit - 0.5) * 13 - 16 * Math.max(0, 0.14 - edge);
-    if (hit > 0.955) t -= 12;                                 // редкое зерно потемнее
-    return [c[0] + t, c[1] + t, c[2] + t * 0.6];
+    // ПОЧЕМУ рельеф. Плоский дизеринг ±6 на почти белом фоне глазом не читается как рис — несладкий срез
+    // выходил белым пятном. Зерно рисуется телом с освещённой и теневой стороной; тон самой клетки при
+    // этом ослаблен (13 → 7), иначе случайная яркость зерна забивает рельеф и остаётся тот же шум.
+    // ПОЧЕМУ подмес, а не вычитание. Вычитание одинакового из R,G и меньшего из B уводит борозды
+    // в сине-лиловое — щель делается ПОДМЕСОМ тёплого тона (проверено ревьюером, не догадка).
+    // ПОЧЕМУ LEVEL_FIX. Подмес темнее намазки, и без компенсации рис молча становится темнее —
+    // это была бы правка «внешнего вида продукта», а не читаемости. Приёмка: |Δсредней| ≤ 3.
+    // ПОЧЕМУ LOD. Та же формула на плоском листе (там зерно занимает единицы пикселей) превращает
+    // намазку в сетку. Амплитуда рельефа и глубина щели гаснут, когда зерно мельче ~6 device-px.
+    const k = lod === undefined ? 1 : lod;
+    const lam = clamp(-(bx * LIGHT_X + by * LIGHT_Y) / 0.55, -1, 1);   // знак обратный: bx,by смотрят от точки К центру
+    let t = (hit - 0.5) * 7 + (11 * lam + LEVEL_FIX) * k;
+    if (hit > 0.955) t -= 10;                                 // редкое зерно потемнее
+    const gap = Math.max(0, 1 - edge / 0.13);
+    return mix([c[0] + t, c[1] + t, c[2] + t * 0.6], GRAIN_GAP_RGB, Math.min(0.78, gap * gap * 0.9) * k);
   }
   const t = (hash(Math.floor(gx * 2), Math.floor(gy * 2)) - 0.5) * 4;     // крем и соус — мелкая рябь
   return [c[0] + t, c[1] + t, c[2] + t];
@@ -610,16 +628,57 @@ function shapeInfo(name, Rout, press) {
   return (shapeCache[key] = { rho, sqrtA: Math.sqrt(A), margin: rhoMax / Math.sqrt(A), p });
 }
 function shapeK(phi, info) { const i = Math.floor(phi / TAU * 720) % 720; return info.sqrtA / info.rho[i]; }
+// УСЛОВНОСТЬ ОТРИСОВКИ, не физика. Лента нори — 0,02 ед. (0,10 мм, по источнику), и на срезе 260 css-px
+// она занимает 1,6 device-px у хосомаки и 0,9 у футомаки: alpha-blend выбеливает её в серую паутинку,
+// а срез читается как белое пятно. Поэтому ВНЕШНЯЯ поверхность ролла обводится штрихом минимальной
+// экранной ширины — обёртка снова читается как материал. Условность гасится сама: как только честная
+// лента дорастает до 1,5 × MIN, множитель уходит в ноль (у сладкого рулета лента 58,7 px → множитель 0,
+// то есть рулет не меняется ни на пиксель). Обводится ТОЛЬКО внешняя поверхность и никогда не спираль
+// намотки: в настоящем маки лист делает ровно один оборот (docs/reality-check.md), поэтому внутренняя
+// дуга — артефакт модели; жирная чёрная спираль сквозь рис была бы заявлением о том, чего в продукте нет.
+const WRAP_MIN_CSS = 1.6;
+function strokeWrapperRim(c, m, wd, si, scale, half) {
+  const b = B();
+  if (b.inverted) return;                       // урамаки: нори внутри, модель этого не умеет — не подчёркивать известную ошибку
+  const MIN = WRAP_MIN_CSS * DPR, wPx = m.g.w * scale;
+  const a = clamp((1.5 * MIN - wPx) / (0.5 * MIN));
+  if (a <= 0) return;                           // честная лента и так достаточно толстая
+  const LW = Math.max(MIN, wPx);
+  const step = Math.max(1, Math.round(NB / (TAU * m.Rmax * scale / 2)));   // шаг бинов ≈ 2 device-px по дуге
+  const p = new Path2D();
+  let first = true;
+  for (let i = 0; i <= NB; i += step) {
+    const bb = i % NB, phi = bb * DPHI, rOut = topAt(wd, phi);
+    if (rOut <= m.g.r0) continue;
+    // половина ширины вычитается в ЭКРАННЫХ px, а не в единицах модели: на плоских гранях квадрата и
+    // треугольника shapeK < 1, и сдвиг в единицах модели вытолкнул бы штрих за силуэт
+    const rpx = rOut / shapeK(phi, si) * scale - LW / 2;
+    const x = half + Math.cos(phi) * rpx, y = half + Math.sin(phi) * rpx;
+    if (first) { p.moveTo(x, y); first = false; } else p.lineTo(x, y);
+  }
+  if (first) return;
+  p.closePath();
+  c.save();
+  c.globalCompositeOperation = 'source-atop';   // не красить за силуэтом, который посчитала модель
+  c.globalAlpha = a; c.lineJoin = 'round'; c.lineCap = 'round';
+  c.strokeStyle = 'rgba(24,40,30,0.28)'; c.lineWidth = LW + 1.7 * MIN; c.stroke(p);   // контактная тень в канавке; `inferred`, источника нет
+  c.strokeStyle = rgbCss(b.wrapperRgb);   c.lineWidth = LW;             c.stroke(p);
+  c.restore();
+}
 function renderSection(size, vSlice, m, Rref) {
   const g = m.g, b = B(), wd = windFor(m, vSlice), si = shapeInfo(m.shape || S.shape, m.Rmax, (S.hand || {}).press);
   const off = document.createElement('canvas'); off.width = off.height = size;
   const c = off.getContext('2d'); const img = c.createImageData(size, size); const d = img.data;
   const half = size / 2, R = Rref || m.Rmax, scale = (half - 1.5) / (R * si.margin);
+  // LOD крупы: сколько device-px приходится на зерно. На альбомных миниатюрах рельеф гасится, иначе
+  // он вырождается в решётку. sweet — сладкая база не усиливается: она и так читается, и «нереальная
+  // разница» между срезами должна исчезнуть, а не поменять знак.
+  const lod = clamp((GRAIN * scale - 6) / 8), sweet = S.base === 'cake';
   for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
     const i = (py * size + px) * 4;
     const dx = (px + 0.5 - half) / scale, dy = (py + 0.5 - half) / scale;
     let phi = Math.atan2(dy, dx); if (phi < 0) phi += TAU;
-    const r = Math.hypot(dx, dy) * shapeK(phi, si);
+    const rho = Math.hypot(dx, dy), r = rho * shapeK(phi, si);
     if (r > wd.Rout + 1 / scale) { d[i + 3] = 0; continue; }
     let alpha = 1, rgb;
     const mat = materialAt(m, wd, vSlice, r, phi);
@@ -631,15 +690,32 @@ function renderSection(size, vSlice, m, Rref) {
       // Крупа разворачивается ПО ВИТКУ: зёрна в ролле ложатся вдоль намотки. Решётка клеток остаётся
       // ровной (в полярных координатах клетка размазывается в дугу), а по касательной разворачивается
       // только вытянутость зерна — через (-sin, cos) от угла точки.
-      const gr = 1 / Math.max(1e-6, Math.hypot(dx, dy));
+      // НА ОСИ У ВИТКА НЕТ КАСАТЕЛЬНОЙ. Ровно в центре (-dy, dx)/|r| не определена и на соседних пикселях
+      // разворачивается на целый оборот: анизотропная метрика скачет, и в середине среза вылезает
+      // «цветок» из четырёх лепестков. Он был и раньше, но еле виден; рельеф зерна его проявил.
+      // Поэтому в пределах одной рисинки от оси направление плавно замораживается вдоль x, а амплитуда
+      // рельефа гасится: сердцевина ролла — это подворот листа, а не поле уложенных зёрен.
+      const gr = 1 / Math.max(1e-6, rho), tw = smooth(0.2 * GRAIN, 1.0 * GRAIN, rho);
+      const tx = lerp(1, -dy * gr, tw), ty = lerp(0, dx * gr, tw), tn = 1 / Math.max(1e-6, Math.hypot(tx, ty));
       rgb = mat.cls === 'wrap' ? wrapperColor(px, py, b) : mat.cls === 'patch' ? patchColor(mat.mt, px, py)
-          : spreadColor(dx / GRAIN, dy / GRAIN, b, -dy * gr, dx * gr);
+          : spreadColor(dx / GRAIN, dy / GRAIN, b, tx * tn, ty * tn, lod * tw);
+      // Начинка у несладких баз: хрома ×1,25 и тонкий тёмный кант по кромке. ПОЧЕМУ обёрткой, а не внутри
+      // patchColor: та обязана остаться чистой функцией цвета материала — её зовут и вид листа, и альбом,
+      // и хексы в ING менять нельзя. Кант нужен потому, что кусок ЛЕЖИТ В РИСЕ: без контактной тени он
+      // читается как наклейка поверх среза. Хрома ×1,25 — заявленная условность, того же класса, что уже
+      // записанные «ненатуральные цвета/контраст».
+      if (mat.cls === 'patch' && !sweet) {
+        const lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+        const kk = 1 - 0.16 * smooth(0.82, 1.0, Math.hypot(mat.mt.lu * 2, mat.mt.lz * 2 - 1));
+        rgb = [(lum + (rgb[0] - lum) * 1.25) * kk, (lum + (rgb[1] - lum) * 1.25) * kk, (lum + (rgb[2] - lum) * 1.25) * kk];
+      }
       if (mat.sm && mat.sm.rOut >= topAt(wd, phi) - 1e-4) alpha = clamp(0.5 + (mat.sm.rOut - r) * scale);   // внешняя кромка
     }
     const rr = r / R, vig = 1 - 0.10 * rr * rr - 0.035 * (dx + dy) / R;
     d[i] = clamp(rgb[0] * vig, 0, 255); d[i + 1] = clamp(rgb[1] * vig, 0, 255); d[i + 2] = clamp(rgb[2] * vig, 0, 255); d[i + 3] = alpha * 255;
   }
   c.putImageData(img, 0, 0);
+  strokeWrapperRim(c, m, wd, si, scale, half);
   return off;
 }
 // Карта материалов среза для сравнения: 0 — вне, 1 — рис/сердцевина, 2 — обёртка, 3+ — начинка по индексу вида.
@@ -896,8 +972,10 @@ function getSpreadTex(w, h) {
   if (spreadTex && spreadTexKey === key) return spreadTex;
   const b = B(), base = b.spreadRgb, c = document.createElement('canvas'); c.width = cw; c.height = ch;
   const x = c.getContext('2d'); const img = x.createImageData(cw, ch); const d = img.data;
+  // тот же LOD, что на срезе, только зерно тут меряется по ширине листа: cw device-px на Wv/GRAIN зёрен
+  const sheetLod = clamp((cw / (b.Wv / GRAIN) - 6) / 8);
   for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
-    const col = spreadColor(i / cw * b.Wv / GRAIN, j / ch * sheetLen(b) / GRAIN, b), k = (j * cw + i) * 4;
+    const col = spreadColor(i / cw * b.Wv / GRAIN, j / ch * sheetLen(b) / GRAIN, b, undefined, undefined, sheetLod), k = (j * cw + i) * 4;
     d[k] = base[0] + (col[0] - base[0]) * 0.7; d[k + 1] = base[1] + (col[1] - base[1]) * 0.7; d[k + 2] = base[2] + (col[2] - base[2]) * 0.7; d[k + 3] = 255;
   }
   x.putImageData(img, 0, 0); spreadTex = c; spreadTexKey = key;
