@@ -112,6 +112,10 @@ const S = {
   rollP: 0,                    // прогресс скрутки 0..1 (в режиме lay)
   bigPiece: -1,
   selPatch: null,              // выделенная начинка на листе
+  // «Почерк»: как игрок тянул циновку. air — воздух между витками (быстрая тяга),
+  // wobble — неравномерность толщины по длине (рывки), press — множитель прижима (удержание в конце).
+  // Нейтральные значения {0, 0, 1} дают ровно ту же намотку, что и раньше.
+  hand: { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 },
   turns: null,                 // число витков (пазл задаёт длину листа); null — по базе
   shape: 'round',              // форма прессовки: round | square | triangle
   puzzle: null,                // режим «Пазл»: { level, seed, target, vs, result }
@@ -224,7 +228,8 @@ function stackTopAt(u, v, list) { let H = 0; for (const p of list) if (!ING[p.ki
 // Начинка толще намазки при надавливании циновкой сжимается: слой растёт только на β от избытка.
 const TAPER = 0.08;   // рис сходит на нет перед голой кромкой (доля листа, ≈ 1,5 см)
 function spreadAt(u) { const b = B(); if (b.oneTurn) return 1; const se = b.spreadEnd; return u >= se ? 0 : u > se - TAPER ? (se - u) / TAPER : 1; }
-function bandAt(u, v, g, list) { const r = spreadAt(u), H = stackTopAt(u, v, list); return (r + B().beta * Math.max(0, H - r)) * g.T; }
+const betaEff = () => clamp(B().beta * (S.hand ? S.hand.press : 1), 0.15, 0.95);
+function bandAt(u, v, g, list) { const r = spreadAt(u), H = stackTopAt(u, v, list); return (r + betaEff() * Math.max(0, H - r)) * g.T; }
 // Намотка листа переменной толщины: по угловым бинам, виток за витком. sMax — сколько листа съедено (для анимации скрутки).
 const PROF_DS = 0.02, SMOOTH_R = 0.9;   // шаг профиля толщины и радиус сглаживания (единицы ≈ 5 мм)
 // Профиль толщины листа вдоль u, сглаженный: лист и рис не дают бугру быть уступом.
@@ -254,7 +259,8 @@ function wind(vSlice, sMax, g, list) {
     let t;
     if (sClose >= 0) t = g.w * clamp((sEnd - s) / 2.5, 0.15, 1);                       // клапан нори, прижатый к концу
     else {
-      t = prof[Math.min(prof.length - 1, Math.round(s / PROF_DS))] + g.w;
+      t = prof[Math.min(prof.length - 1, Math.round(s / PROF_DS))] + g.w + (g.air || 0);
+      if (g.wobble) t *= 1 + g.wobble * Math.sin(TAU * (s / g.L) * 2.5 + (g.phase || 0));   // рывки при тяге
       if (!one) { const tail = g.L - s; if (tail < 5) t *= clamp(tail / 5, 0.03, 1) * clamp(tail / 5, 0.03, 1) * (3 - 2 * clamp(tail / 5, 0.03, 1)); }   // спираль: конец листа прижат и сходит на нет (плавно, ≈2,5 см)
     }
     const ri = top[b], rm = ri + t / 2, ds = rm * DPHI;
@@ -307,7 +313,9 @@ function computeCore(list, g) {
   }
   core.hook = { y0: core.HB + core.HA, y1: core.HB + core.HA + g.w };   // нори ближней половины, подвёрнутая внутрь
   core.Hc = core.HA + core.HB + g.w;
-  core.R = Math.sqrt(core.Wc * core.Hc / Math.PI);
+  // почерк: сильный прижим уплотняет ядро, быстрая тяга оставляет в нём воздух
+  const hd = S.hand || { press: 1, air: 0 };
+  core.R = Math.sqrt(core.Wc * core.Hc / Math.PI) * clamp(1 - 0.22 * (hd.press - 1) + 0.35 * hd.air, 0.9, 1.12);
   return core;
 }
 // Диск → квадрат (обратное эллиптическое отображение Фонга): формы ядра почти не искажаются.
@@ -338,10 +346,11 @@ function coreMaterial(m, r, phi, vSlice) {
   return { cls: 'core' };
 }
 function buildModel(list) {
-  const key = S.base + '|' + (S.turns || '') + '|' + JSON.stringify(list);
+  const hd = S.hand || { air: 0, wobble: 0, phase: 0, press: 1 };
+  const key = S.base + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|' + JSON.stringify(list);
   let m = modelCaches.get(key); if (m) return m;
   if (modelCaches.size > 16) modelCaches.clear();
-  restack(list); const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), sStart: 0 };
+  restack(list); const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), sStart: 0, air: hd.air * b.T, wobble: hd.wobble, phase: hd.phase };
   m = { key, g, list: JSON.parse(JSON.stringify(list)), wds: new Map(), Rmax: 0, core: null };
   m.core = computeCore(m.list, g);
   if (m.core) { g.r0 = m.core.R; g.sStart = m.core.sFold; }
@@ -359,7 +368,7 @@ function materialAt(m, wd, vSlice, r, phi) {
   if (!sm) return { cls: 'out' };
   let zn = (sm.t - g.w - sm.zr) / g.T;
   if (zn < 0) return { cls: 'wrap', sm };
-  const H = stackTopAt(sm.u, vSlice, m.list), bandN = (sm.t - g.w) / g.T; if (bandN > 1e-6) zn *= Math.max(1, H) / bandN;   // сжатый слой → собственные z стопки
+  const H = stackTopAt(sm.u, vSlice, m.list), bandN = (sm.t - g.w - (m.g.air || 0)) / g.T; if (bandN > 1e-6) zn *= Math.max(1, H) / bandN;   // сжатый слой → собственные z стопки
   const mt = matAt(sm.u, vSlice, zn, m.list);
   return mt ? { cls: 'patch', mt, sm } : { cls: 'spread', sm };
 }
@@ -1015,6 +1024,7 @@ function drawRevealed() {
   drawFaceImg(c.img, cx, L.faceY, L.faceSize);
   ctx.fillStyle = '#8d846f'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины`, cx, L.faceY + L.faceSize / 2 + 14);
+  const hl = handLabel(); if (hl) { ctx.fillStyle = '#6f6754'; ctx.font = font(12); ctx.fillText(hl, cx, L.faceY + L.faceSize / 2 + 32); }
   buttons = []; buttonRow([['slice', `Нарезать на ${NPIECES}`, true], ['back', 'Ещё начинки'], ['new', 'Новый лист']]);
   drawButtons(); drawTopBar(hints.revealed);
 }
@@ -1225,7 +1235,7 @@ function puzzleEvaluate() {
 }
 // Ссылка на пазл: раскладка (цель) в хэше адреса; друг видит только срез.
 function encodePuzzle(list, turns) {
-  const data = { b: S.base, t: turns || null, s: S.shape, l: list.map(p => [p.kind, +p.u.toFixed(4), +p.v.toFixed(3), p.wU ?? null, p.hU ?? null, p.dv ?? null, +p.phase.toFixed(3), p.rot ? +p.rot.toFixed(4) : null]) };
+  const h = S.hand || {}; const data = { b: S.base, t: turns || null, s: S.shape, h: (h.air || h.wobble || (h.press !== 1)) ? [+h.air.toFixed(3), +h.wobble.toFixed(3), +h.phase.toFixed(2), +h.press.toFixed(2)] : null, l: list.map(p => [p.kind, +p.u.toFixed(4), +p.v.toFixed(3), p.wU ?? null, p.hU ?? null, p.dv ?? null, +p.phase.toFixed(3), p.rot ? +p.rot.toFixed(4) : null]) };
   return location.origin + location.pathname + '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(data)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 function decodePuzzle(hash) {
@@ -1234,11 +1244,13 @@ function decodePuzzle(hash) {
     const json = decodeURIComponent(escape(atob(mm[1].replace(/-/g, '+').replace(/_/g, '/'))));
     const data = JSON.parse(json); if (!data.l || !BASES[data.b]) return null;
     const list = data.l.map(a => { const p = { kind: a[0], u: a[1], v: a[2], z0: 0, z1: 0, phase: a[6] || 0 }; if (a[3] != null) p.wU = a[3]; if (a[4] != null) p.hU = a[4]; if (a[5] != null) p.dv = a[5]; if (a[7]) p.rot = a[7]; return p; }).filter(p => ING[p.kind]);
-    return { base: data.b, turns: data.t, shape: SHAPES[data.s] ? data.s : 'round', list };
+    const hh = Array.isArray(data.h) ? { air: data.h[0], wobble: data.h[1], phase: data.h[2], press: data.h[3], v: 1, cv: 0, hold: 0 } : null;
+    return { base: data.b, turns: data.t, shape: SHAPES[data.s] ? data.s : 'round', hand: hh, list };
   } catch (e) { return null; }
 }
 function puzzleFromLink(pz) {
   S.base = pz.base; S.sel = B().ingredients[0]; S.turns = pz.turns || null; S.selPatch = null; S.shape = pz.shape || 'round';
+  if (pz.hand) S.hand = pz.hand;
   const local = pz.list.some(p => (p.dv ?? ING[p.kind].dv) < 1), n = pz.list.filter(p => p.kind !== 'nori').length;
   const lv = { n, turns: S.turns || B().turns, pieces: local ? 3 : 1, custom: true };
   S.puzzle = { level: -1, seed: 0, lv, target: pz.list, vs: puzzleSlices(lv.pieces), result: null };
@@ -1295,7 +1307,7 @@ function onDown(x, y, id) {
       return;
     }
     const s = L.sheet;
-    if (inRect(x, y, L.handle) || (S.rollP > 0 && inRect(x, y, s))) { drag.id = id; drag.kind = 'roll'; drag.y0 = y; drag.p0 = S.rollP; drag.lastY = y; drag.lastT = performance.now(); sfx.rustleStart(); return; }
+    if (inRect(x, y, L.handle) || (S.rollP > 0 && inRect(x, y, s))) { drag.id = id; drag.kind = 'roll'; drag.y0 = y; drag.p0 = S.rollP; drag.lastY = y; drag.lastT = performance.now(); drag.samples = []; drag.moveT = drag.lastT; drag.sampT = drag.lastT; sfx.rustleStart(); return; }
     if (inRect(x, y, s)) {
       const p = hitPatch(x, y);
       drag.id = id; drag.x0 = x; drag.y0 = y; drag.moved = false;
@@ -1328,6 +1340,8 @@ function onMove(x, y, id) {
     const now = performance.now();
     S.rollP = clamp(drag.p0 + (drag.y0 - y) / (L.sheet.h * 0.85));
     const speed = Math.abs(y - drag.lastY) / Math.max(1, now - drag.lastT); drag.lastY = y; drag.lastT = now;
+    if (drag.samples && now - drag.sampT >= 8) { drag.samples.push(speed); drag.sampT = now; if (drag.samples.length > 240) drag.samples.shift(); }
+    if (speed > 0.05) drag.moveT = now;
     sfx.rustle(speed * 1.5);
   } else if (drag.kind === 'move') {
     const uv = sheetUV(x, y), bb = bounds(drag.patch), hu = (bb.u1 - bb.u0) / 2, hv = (bb.v1 - bb.v0) / 2;
@@ -1341,6 +1355,28 @@ function onMove(x, y, id) {
   }
   dirty = true; requestFrame();
 }
+// Почерк из жеста: средняя скорость тяги, её неровность и удержание в конце.
+// Всё считается из того, что сделала рука, — никакого Math.random, поэтому «стиль», а не лотерея.
+function measureHand() {
+  const sm = drag.samples; if (!sm || sm.length < 5) return;
+  const use = sm.filter(v => v > 0.02).sort((a, b) => a - b); if (use.length < 5) return;
+  const q = f => use[clamp(Math.round(f * (use.length - 1)), 0, use.length - 1)];
+  const med = q(0.5), spread = (q(0.75) - q(0.25)) / Math.max(med, 1e-3);   // медиана и межквартильный разброс — устойчивы к выбросам
+  const vRef = L.sheet.h / 600;                                   // спокойная тяга — примерно за 600 мс
+  const v = clamp(med / vRef, 0.3, 3), cv = clamp(spread, 0, 1.5);
+  const hold = clamp((performance.now() - drag.moveT) / 900, 0, 1);
+  const phase = (sm.reduce((a, b, i) => a + b * (i + 1), 0) % TAU + TAU) % TAU;
+  S.hand = { air: clamp(0.16 * (v - 1), 0, 0.22), wobble: clamp(0.09 * cv, 0, 0.11), phase,
+             press: clamp(0.85 + 0.45 * hold, 0.85, 1.3), v: +v.toFixed(2), cv: +cv.toFixed(2), hold: +hold.toFixed(2) };
+  touchModel();
+}
+function handLabel() {
+  const h = S.hand; if (!h || (h.air === 0 && h.wobble === 0 && h.press === 1)) return '';
+  const parts = [h.v > 1.35 ? 'быстрая тяга' : h.v < 0.75 ? 'медленная тяга' : 'ровная тяга'];
+  if (h.cv > 0.65) parts.push('рывками'); else if (h.cv < 0.3) parts.push('плавно');
+  parts.push(h.press > 1.12 ? 'сильный прижим' : h.press < 0.95 ? 'лёгкий прижим' : 'обычный прижим');
+  return 'почерк: ' + parts.join(' · ');
+}
 function onUp(x, y, id) {
   if (drag.id !== id) return;
   const kind = drag.kind; drag.id = null; drag.kind = null;
@@ -1348,6 +1384,7 @@ function onUp(x, y, id) {
     if (!drag.moved) for (const c of chips) if (inRect(x, y, c)) { S.sel = c.kind; break; }
   } else if (kind === 'roll') {
     sfx.rustleStop();
+    measureHand();
     if (S.rollP >= 0.5) tween(S.rollP, 1, 380, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; dirty = true; });
     else tween(S.rollP, 0, 260, v => { S.rollP = v; });
   } else if (kind === 'move') {
@@ -1367,7 +1404,7 @@ canvas.addEventListener('pointercancel', e => { onUp(e.clientX, e.clientY, e.poi
 window.addEventListener('keydown', e => {
   if (e.key === 'Backspace') action('undo');
   else if (e.key === 'Escape') action('back');
-  else if (e.key === 'Enter') { if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 500, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; dirty = true; }); else if (S.mode === 'rolled') { startCut(0.5); requestFrame(); } else if (S.mode === 'revealed') action('slice'); }
+  else if (e.key === 'Enter') { if (S.mode === 'lay' && !anim) { S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 }; } if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 500, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; dirty = true; }); else if (S.mode === 'rolled') { startCut(0.5); requestFrame(); } else if (S.mode === 'revealed') action('slice'); }
 });
 window.addEventListener('resize', () => { resize(); requestFrame(); });
 if (window.visualViewport) window.visualViewport.addEventListener('resize', () => { resize(); requestFrame(); });
