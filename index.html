@@ -3,33 +3,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Ролльня</title>
 <script>
-  // Старые ссылки продолжают работать. Тестерам раздавали корень с параметрами:
-  // ?puzzle — режим «Пазл», #<...> — рецепт, которым делятся. Голый корень теперь
-  // показывает эту страницу, а корень С параметрами уводит прямо в игру, вместе с ними.
+  // Старые ссылки тестеров продолжают работать: корень раздавали с ?puzzle
+  // и с рецептом в #. Голый корень показывает эту страницу, корень С параметрами
+  // уводит прямо в игру вместе с ними. Не удалять вместе с другими скриптами.
   (function () {
     var q = location.search, h = location.hash;
-    if (q.indexOf('puzzle') >= 0 || h.length > 1) location.replace('play/' + q + h);
+    if (q.indexOf("puzzle") >= 0 || h.length > 1) location.replace("play/" + q + h);
   })();
 </script>
-<script>
-  // Лаборатория живёт на localhost, и это ловушка в двух случаях:
-  //  * страница открыта по https с github.io — браузер не пустит на http://127.0.0.1;
-  //  * страница открыта с ТЕЛЕФОНА — там localhost это сам телефон, а не компьютер.
-  // В обоих случаях честнее показать адрес текстом, чем дать ссылку, которая молча не работает.
-  addEventListener('DOMContentLoaded', function () {
-    var local = location.protocol === 'file:' ||
-                /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
-    if (local) return;
-    var a = document.getElementById('lab'), n = document.getElementById('labnote');
-    if (!a || !n) return;
-    a.removeAttribute('href');
-    a.style.cursor = 'default';
-    n.innerHTML = 'Прогоны симуляции: варианты кинематики, раскладки, ползунки.<br>' +
-      '<em>Открывается только на компьютере, где запущен <code>sim/lab/lab.sh</code>, ' +
-      'по адресу <b style="color:var(--hot)">127.0.0.1:8770</b>. ' +
-      'С этой страницы ссылка не сработает: она отдана по https, а лаборатория живёт локально.</em>';
-  });
-</script>
+
 <style>
   /* Палитра из самой игры (play/index.html): тот же тёмный стол и тёплое дерево, */
   /* чтобы страница читалась как её прихожая, а не как чужая заставка.            */
@@ -74,8 +56,8 @@
 
   <a class="card" id="lab" href="http://127.0.0.1:8770/">
     <b>Лаборатория &rarr;</b>
-    <span id="labnote">Прогоны симуляции: варианты кинематики, раскладки, ползунки.
-      <em>Только на этом компьютере и только когда запущен <code>sim/lab/lab.sh</code></em></span>
+    <span>Прогоны симуляции: варианты кинематики, раскладки, ползунки.
+      <em>Открывается на компьютере, где запущен <code>sim/lab/lab.sh</code></em></span>
   </a>
 
   <a class="card" href="docs/">
