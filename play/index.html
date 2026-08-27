@@ -372,7 +372,7 @@ function stackTopAt(u, v, list, g) {
 const RIM_W = 0.05;   // доля листа под бортиком: ≈ 10 мм на футомаки, ≈ 5 мм на хосомаки
 const RIM_H = 1.30;   // во сколько раз бортик выше грядки
 function spreadAt(u, g) {
-  const b = g || B(); if (b.oneTurn) return 1;
+  const b = g || B();
   const se = b.spreadEnd; if (u >= se) return 0;
   const w = Math.min(RIM_W, se * 0.5);
   const k = se / (se + w * (RIM_H - 1) / 2);          // нормировка: масса риса та же, что у ровной грядки
@@ -427,10 +427,16 @@ function wind(vSlice, sMax, g, list, routOnly) {
   const top = new Float32Array(NB).fill(g.r0), prof = thicknessProfile(vSlice, g, list);
   // Спиральные базы (без подворота): начало листа прижато и сходит на нет — сердцевина растёт на толщину слоя
   // за первый оборот; все витки наследуют этот подъём, и выходит настоящая спираль без шва на угле 0.
-  if (!g.oneTurn && !(g.sStart > 0)) { const t0 = prof[0] + g.w; for (let b = 0; b < NB; b++) top[b] = g.r0 + t0 * (b / NB); }
+  if (!g.tuck && !(g.sStart > 0)) { const t0 = prof[0] + g.w; for (let b = 0; b < NB; b++) top[b] = g.r0 + t0 * (b / NB); }
   let s = g.sStart || 0, k = 0, b = 0, phiEnd = -1, lastIdx = -1, Rout = g.r0, bins = 0, sClose = -1, sEnd = g.L;
   if (sMax < s) Rout = g.r0 * Math.sqrt(Math.max(0.05, sMax / s));   // ядро ещё сминается
-  const one = !!g.oneTurn, flap = g.flap || 0;
+  // `one` — это «ролл замыкается ровно за ОДИН оборот, лишний лист обрезан». Оно ехало на том же
+  // флаге, что и подворот, и в этом была вся путаница. Замыкание за оборот ОПРОВЕРГНУТО 26.08:
+  // симуляция даёт 1,85–1,91 оборота у футомаки (sim/reference2, раскладка 7), и в срезе видно
+  // два слоя нори — их и обводит strokeWrapperTurns. Поэтому флаг сняли с баз, но вместе с ним
+  // случайно отключился и подворот: computeCore смотрел на тот же `oneTurn`. Теперь подворот на
+  // своём флаге `tuck`, а обрезка за оборот выключена НАМЕРЕННО и здесь и остаётся.
+  const one = false, flap = g.flap || 0;
   while (s < Math.min(sMax, sEnd) && k < KMAX) {
     const idx = k * NB + b, u = s / g.L;
     if (one && k >= 1 && sClose < 0) { sClose = s; sEnd = Math.min(g.L, s + flap); }   // ролл замкнулся: лишний лист обрезан, нори сомкнулась стык в стык
@@ -500,7 +506,14 @@ const modelCaches = new Map();
 // пополам: дальняя половина — нижний слой, ближняя ложится сверху перевёрнутой (её нори — внутренний крючок).
 // Площадь ядра = рис + начинки; ядро — диск той же площади; остаток листа наматывается вокруг него.
 function computeCore(list, g) {
-  if (!g.oneTurn) return null;   // рулет — спираль без подворота
+  // ⚑ ПОДВОРОТ СЕЙЧАС ВЫКЛЮЧЕН У ВСЕХ БАЗ, и это не опечатка, а незакрытый долг.
+  // Флаг `tuck` не ставит никто, поэтому сюда всегда возвращается null. Пробовал включить
+  // 27.08: ролл выходит кособоким — торчит язык листа, начинки сбиваются в ком у ядра,
+  // разброс медиана/максимум 47,4 против 59,0 мм там, где настоящий футомаки круглый.
+  // Причина в том, что computeCore писался под модель «замыкается за один оборот»: ядро
+  // съедает начало листа, а остаток в 1,5 оборота ложится поверх неровно. Чинить это —
+  // отдельная работа с проверкой по симуляции, а не установка флага. Разбор — docs/reality-check.md.
+  if (!g.tuck) return null;
   // кластер у края — по центру и ширине начинки (повёрнутый габарит не считается: диагональная полоска не «затягивает» полстола в ядро)
   const L = g.L, T = g.T, items = list.filter(p => !ING[p.kind].paint).map(p => { const w = dims(p, g).du * L; return { p, s0: p.u * L - w / 2, s1: p.u * L + w / 2 }; }).sort((a, b) => a.s0 - b.s0);
   let end = 0;
@@ -573,7 +586,7 @@ function buildModel(list) {
   const own = JSON.parse(JSON.stringify(list));
   // g — ПАСПОРТ модели: всё, что геометрия раньше подсматривала в S и B(), теперь снято здесь один раз.
   const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), Wv: b.Wv, sStart: 0, air: hd.air * b.T, wobble: hd.wobble, phase: hd.phase,
-    press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, oneTurn: !!b.oneTurn, flap: b.flap || 0, tuckMin: b.tuckMin || 0 };
+    press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, tuck: !!b.tuck, flap: b.flap || 0, tuckMin: b.tuckMin || 0 };
   restack(own, g);
   m = { key, g, shape: S.shape, list: own, wds: new Map(), Rmax: 0, core: null };
   m.core = computeCore(m.list, g);
@@ -1502,7 +1515,7 @@ function drawLay() {
   rr(s.x - 5, s.y - 5, s.w + 10, s.h + 10, 6); ctx.fillStyle = B().wrapper; ctx.fill();
   const mdl = getModel(), wd0 = windFor(mdl, 0.5), Lm = mdl.g.L;
   const uClose = wd0.sClose >= 0 ? wd0.sClose / Lm : B().spreadEnd, uEnd = wd0.sEnd < Lm ? wd0.sEnd / Lm : 1;
-  const bare = (1 - uClose) * s.h, rimPx = B().oneTurn ? 0 : RIM_W * s.h;
+  const bare = (1 - uClose) * s.h, rimPx = B().spreadEnd < 1 ? RIM_W * s.h : 0;
   ctx.save(); rr(s.x, s.y + bare, s.w, s.h - bare, 4); ctx.clip(); ctx.drawImage(getSpreadTex(s.w, s.h), s.x, s.y, s.w, s.h);
   // Бортик виден как валик: светлая макушка сразу под голой полосой и тень с внутренней стороны.
   if (rimPx) {
@@ -1922,7 +1935,7 @@ function genTarget(lv, seed) {
   for (let i = 0; i < (lv.paint || 0) && paints.length; i++) kinds.push(paints[Math.floor(rnd() * paints.length)]);
   while (kinds.length < lv.n) kinds.push(full[Math.floor(rnd() * full.length)]);
   const items = kinds.map(kind => ({ kind, half: ING[kind].wU / L / 2 + 0.012 }));
-  const uMax = b.oneTurn ? 0.40 : 0.92;   // суши: только то, что точно намотается до замыкания (ядро + первый оборот)
+  const uMax = 0.92;   // суши: только то, что точно намотается до замыкания (ядро + первый оборот)
   let us = null;
   for (let tries = 0; tries < 80 && !us; tries++) {
     const cand = items.map(it => it.half + rnd() * (uMax - 2 * it.half));
