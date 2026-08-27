@@ -210,7 +210,30 @@ function bounds(p, g) {
   return { u0: p.u - hu - amp, u1: p.u + hu + amp, v0: p.v - hv, v1: p.v + hv };
 }
 // Отрезок листа (в единицах длины, вдоль u), который патч занимает в ломтике v; null — патча в этом ломтике нет.
+// ОТВЕТ КЭШИРУЕТСЯ НА ПАТЧЕ. Отрезок не зависит ни от радиуса, ни от угла — только от патча, ломтика v
+// и паспорта g, — а спрашивают его на КАЖДОМ шаге профиля толщины (тысячи шагов на ломтик) и на КАЖДОМ
+// пикселе среза. На рулете это сотни тысяч одинаковых вычислений тригонометрии и столько же выброшенных
+// массивов на одну модель. Ключ — не округлённая позиция (на этом легко обмануться: сдвиг в 1e-7 не
+// различается и меряешь попадание в кэш), а САМИ поля патча: запись хранит g и всё, от чего зависит
+// отрезок, и выбрасывается, как только хоть одно поле разошлось.
+// Возвращённый массив ОБЩИЙ для всех вызывающих — его нельзя менять (никто и не менял: все только читают).
+const SR_MAX = 64;   // ломтиков на модель — второй десяток; больше — значит v идёт непрерывно, и кэш пора сбросить
+function srReset(p, g) {
+  const c = { g, kind: p.kind, u: p.u, v: p.v, rot: p.rot, wU: p.wU, dv: p.dv, phase: p.phase, m: new Map() };
+  // не перечислимое: патч уходит и в JSON.parse(JSON.stringify(...)) при клонировании модели, и в localStorage
+  if (Object.prototype.hasOwnProperty.call(p, '_sr')) p._sr = c;
+  else Object.defineProperty(p, '_sr', { value: c, writable: true, configurable: true, enumerable: false });
+  return c;
+}
 function patchSRange(p, v, g) {
+  if (g === undefined) return srCompute(p, v, g);   // без паспорта размеры берутся из текущей базы и могут уехать — не кэшируем
+  let c = p._sr;
+  if (c === undefined || c.g !== g || c.kind !== p.kind || c.u !== p.u || c.v !== p.v || c.rot !== p.rot || c.wU !== p.wU || c.dv !== p.dv || c.phase !== p.phase) c = srReset(p, g);
+  let r = c.m.get(v);
+  if (r === undefined) { r = srCompute(p, v, g); if (c.m.size >= SR_MAX) c.m.clear(); c.m.set(v, r); }
+  return r;
+}
+function srCompute(p, v, g) {
   const d = ING[p.kind], m = dims(p, g), L = gL(g), Wv = g ? g.Wv : B().Wv, rot = p.rot || 0, c = Math.cos(rot), sn = Math.sin(rot);
   const w = m.du * L, len = m.dv * Wv, dv_ = (v - p.v) * Wv;
   let lo = -1e9, hi = 1e9;
@@ -304,6 +327,14 @@ function cutSpan(d, lu) {
   if (d.lens) { const h = Math.pow(q, 0.55) / 2; return [0.5 - h, 0.5 + h]; }     // ломтик — линза
   return [0, 1];                                                                 // брусок и лист
 }
+// Только ВЕРХ той же фигуры — тем же выражением, что и cutSpan, но без массива на каждый вызов:
+// профиль толщины и stackTopAt спрашивают верх на каждом шаге и на каждом пикселе, а низ им не нужен.
+function cutTop(d, lu) {
+  const a = clamp(lu * 2, -1, 1), q = Math.max(0, 1 - a * a);
+  if (d.round) return 0.5 + Math.sqrt(q) / 2;
+  if (d.lens) return 0.5 + Math.pow(q, 0.55) / 2;
+  return 1;
+}
 function covers(p, u, v, g) { return heightAt(p, u, v, g) > 0; }
 // Высота начинки над листом в точке (u, v), с учётом ФОРМЫ сечения (нарезки), в долях полной высоты.
 // Брусок держит высоту по всей ширине; кружок и ломтик — только в середине. От этого зависит,
@@ -314,7 +345,7 @@ function heightAt(p, u, v, g) {
   const sU = u * gL(g);
   if (sU < rg[0] || sU > rg[1]) return 0;
   const lu = (sU - (rg[0] + rg[1]) / 2) / Math.max(1e-6, rg[1] - rg[0]);   // −0.5…0.5 поперёк куска
-  return cutSpan(ING[p.kind], lu)[1];                      // верх ТОЙ ЖЕ фигуры, что рисует matAt
+  return cutTop(ING[p.kind], lu);                          // верх ТОЙ ЖЕ фигуры, что рисует matAt
 }
 // Толщина «намазка + стопка» в точке листа (без обёртки), в единицах: рис под начинкой выдавлен, когда стопка выше намазки.
 function stackTopAt(u, v, list, g) {
@@ -330,13 +361,33 @@ function stackTopAt(u, v, list, g) {
 const TAPER = 0.08;   // рис сходит на нет перед голой кромкой (доля листа, ≈ 1,5 см)
 function spreadAt(u, g) { const b = g || B(); if (b.oneTurn) return 1; const se = b.spreadEnd; return u >= se ? 0 : u > se - TAPER ? (se - u) / TAPER : 1; }
 const betaEff = g => clamp((g ? g.beta : B().beta) * (g ? g.press : (S.hand ? S.hand.press : 1)), 0.15, 0.95);
-function bandAt(u, v, g, list) { const r = spreadAt(u, g), H = stackTopAt(u, v, list, g); return (r + betaEff(g) * Math.max(0, H - r)) * g.T; }
 // Намотка листа переменной толщины: по угловым бинам, виток за витком. sMax — сколько листа съедено (для анимации скрутки).
 const PROF_DS = 0.02, SMOOTH_R = 0.9;   // шаг профиля толщины и радиус сглаживания (единицы ≈ 5 мм)
 // Профиль толщины листа вдоль u, сглаженный: лист и рис не дают бугру быть уступом.
+// СЧИТАЕТСЯ ОТ НАЧИНОК, а не от каждого шага. Раньше на каждом из M шагов (у рулета их 2849) вызывался
+// stackTopAt, то есть все патчи, то есть patchSRange — при шестнадцати ломтиках под двести тысяч вызовов
+// на модель, и это было главным расходом построения модели. Но patchSRange от u не зависит: отрезок листа
+// у патча один на весь ломтик. Поэтому отрезки берутся ОДИН РАЗ на ломтик, и каждый патч заполняет только
+// своё окно индексов — вне окна он и раньше давал ноль. Формула шага не тронута: u, sU, порядок max
+// и «(r + β·max(0, H − r))·T» — те же, что были в bandAt/heightAt; вне начинок H = 0 и выражение
+// сводится к r·T ровно так же, как сводилось раньше.
 function thicknessProfile(vSlice, g, list) {
   const M = Math.ceil(g.L / PROF_DS) + 2; let a = new Float32Array(M), tmp = new Float32Array(M);
-  for (let i = 0; i < M; i++) a[i] = bandAt(Math.min(1, i * PROF_DS / g.L), vSlice, g, list);
+  const L = g.L, bt = betaEff(g), H = new Float64Array(M);   // Float64, не Float32: H — те же double, что складывал stackTopAt
+  for (const p of list) {
+    const d = ING[p.kind]; if (d.paint || p.inCore) continue;   // краска не бугрит, подвёрнутое в ядро — не в намотке
+    const rg = patchSRange(p, vSlice, g); if (!rg) continue;
+    const mid = (rg[0] + rg[1]) / 2, wdt = Math.max(1e-6, rg[1] - rg[0]);
+    // окно с запасом в три шага: границы всё равно перепроверяются тем же сравнением, что и в heightAt
+    const i0 = Math.max(0, Math.floor(rg[0] / PROF_DS) - 3), i1 = Math.min(M - 1, Math.ceil(rg[1] / PROF_DS) + 3);
+    for (let i = i0; i <= i1; i++) {
+      const sU = Math.min(1, i * PROF_DS / L) * L;
+      if (sU < rg[0] || sU > rg[1]) continue;
+      const f = cutTop(d, (sU - mid) / wdt); if (f <= 0) continue;
+      const h = p.z0 + (p.z1 - p.z0) * f; if (h > H[i]) H[i] = h;
+    }
+  }
+  for (let i = 0; i < M; i++) { const r = spreadAt(Math.min(1, i * PROF_DS / L), g); a[i] = (r + bt * Math.max(0, H[i] - r)) * g.T; }
   const R = Math.max(1, Math.round(SMOOTH_R / PROF_DS));
   for (let pass = 0; pass < 2; pass++) {              // два прохода box-blur ≈ гаусс
     let acc = 0; for (let i = -R; i <= R; i++) acc += a[Math.min(M - 1, Math.max(0, i))];
@@ -345,8 +396,16 @@ function thicknessProfile(vSlice, g, list) {
   }
   return a;
 }
-function wind(vSlice, sMax, g, list) {
-  const n = KMAX * NB, rin = new Float32Array(n).fill(-1), rout = new Float32Array(n), u0 = new Float32Array(n), u1 = new Float32Array(n);
+// ДВА РЕЖИМА. Полный заводит массивы витков (rin/rout/u0/u1 — по KMAX·NB = 12 960 чисел, 200 КБ на один
+// ломтик) и нужен только тому ломтику, который действительно рисуют. Лёгкий (routOnly) ведёт ТУ ЖЕ намотку
+// по тем же формулам и с тем же Float32-накоплением в top[], но массивов не заводит: ему нужен только
+// внешний радиус, а тот считается исключительно по top[] — и в цикле, и после прижима циновкой (внутренний
+// цикл прижима трогает лишь rin/rout и на Rout не влияет). Из-за этого модели больше не нужно мотать все
+// шестнадцать ломтиков ради Rmax: полную намотку строит windFor по требованию.
+function wind(vSlice, sMax, g, list, routOnly) {
+  const n = KMAX * NB;
+  const rin = routOnly ? null : new Float32Array(n).fill(-1), rout = routOnly ? null : new Float32Array(n),
+        u0 = routOnly ? null : new Float32Array(n), u1 = routOnly ? null : new Float32Array(n);
   const top = new Float32Array(NB).fill(g.r0), prof = thicknessProfile(vSlice, g, list);
   // Спиральные базы (без подворота): начало листа прижато и сходит на нет — сердцевина растёт на толщину слоя
   // за первый оборот; все витки наследуют этот подъём, и выходит настоящая спираль без шва на угле 0.
@@ -368,10 +427,11 @@ function wind(vSlice, sMax, g, list) {
       if (!one) { const tail = g.L - s; if (tail < 5) t *= clamp(tail / 5, 0.03, 1) * clamp(tail / 5, 0.03, 1) * (3 - 2 * clamp(tail / 5, 0.03, 1)); }   // спираль: конец листа прижат и сходит на нет (плавно, ≈2,5 см)
     }
     const ri = top[b], rm = ri + t / 2, ds = rm * DPHI;
-    rin[idx] = ri; rout[idx] = ri + t; u0[idx] = u; top[b] = ri + t; if (ri + t > Rout) Rout = ri + t; bins++;
+    if (!routOnly) { rin[idx] = ri; rout[idx] = ri + t; u0[idx] = u; }
+    top[b] = ri + t; if (ri + t > Rout) Rout = ri + t; bins++;
     const sStop = Math.min(sMax, sEnd);
-    if (s + ds >= sStop) { u1[idx] = sStop / g.L; phiEnd = b * DPHI + (sStop - s) / rm; lastIdx = idx; s = sStop; break; }
-    s += ds; u1[idx] = s / g.L;
+    if (s + ds >= sStop) { if (!routOnly) u1[idx] = sStop / g.L; phiEnd = b * DPHI + (sStop - s) / rm; lastIdx = idx; s = sStop; break; }
+    s += ds; if (!routOnly) u1[idx] = s / g.L;
     if (++b === NB) { b = 0; k++; }
   }
   // Прижим циновкой: ролл подгоняется к круглому сечению — слои сжимаются пропорционально,
@@ -384,12 +444,15 @@ function wind(vSlice, sMax, g, list) {
     for (let b2 = 0; b2 < NB; b2++) {
       if (top[b2] <= g.r0 + 1e-6) continue;
       const tgt = Rm + (1 - round) * (top[b2] - Rm), f = (tgt - g.r0) / (top[b2] - g.r0);   // сжимаем слои, ядро не трогаем
-      for (let k2 = 0; k2 < KMAX; k2++) { const i2 = k2 * NB + b2; if (rin[i2] < 0) break; rin[i2] = g.r0 + (rin[i2] - g.r0) * f; rout[i2] = g.r0 + (rout[i2] - g.r0) * f; }
+      if (!routOnly) for (let k2 = 0; k2 < KMAX; k2++) { const i2 = k2 * NB + b2; if (rin[i2] < 0) break; rin[i2] = g.r0 + (rin[i2] - g.r0) * f; rout[i2] = g.r0 + (rout[i2] - g.r0) * f; }
       top[b2] = tgt; if (tgt > Rout) Rout = tgt;
     }
   }
+  if (routOnly) return Rout;
   return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax: Math.min(KMAX, k + 1), turns: bins / NB, sClose, sEnd };
 }
+// Внешний радиус намотки без массивов витков — для Rmax модели и для превью скрутки.
+const windRout = (vSlice, sMax, g, list) => wind(vSlice, sMax, g, list, true);
 // Пиксель среза (r, φ) → на каком витке и где на листе. null — вне листа.
 function sampleWind(wd, r, phi) {
   const fb = phi / DPHI; let b = Math.floor(fb); if (b >= NB) b = NB - 1; const frac = fb - b;
@@ -497,7 +560,10 @@ function buildModel(list) {
   m = { key, g, shape: S.shape, list: own, wds: new Map(), Rmax: 0, core: null };
   m.core = computeCore(m.list, g);
   if (m.core) { g.r0 = m.core.R; g.sStart = m.core.sFold; }
-  for (const v of SLICES) { const wd = wind(v, g.L, g, m.list); m.wds.set(v.toFixed(4), wd); m.Rmax = Math.max(m.Rmax, wd.Rout); }
+  // Rmax — по всем стандартным ломтикам (общий масштаб ролла), но ЛЁГКИМ проходом: сами витки
+  // строит windFor тому ломтику, который спросят. Модель перестала весить 3 МБ намоток, а поиску,
+  // которому нужен один срез из шестнадцати, не приходится мотать остальные пятнадцать.
+  for (const v of SLICES) m.Rmax = Math.max(m.Rmax, windRout(v, g.L, g, m.list));
   modelCaches.set(key, m); return m;
 }
 function getModel() { return buildModel(patches()); }
@@ -874,6 +940,14 @@ function resize() {
   canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
   layout(); dirty = true;
 }
+// Подпись под чипом шире самого чипа («Креветка» ≈ 52 px при чипе 44), а полоса чипов
+// отсекается по своей рамке. Отсюда отступ: на сколько содержимое полосы надо отодвинуть
+// от края, чтобы крайняя подпись целиком осталась внутри.
+function chipLabelPad(size, list) {
+  ctx.font = font(11);
+  let w = 0; for (const k of list) w = Math.max(w, ctx.measureText(ING[k].name).width);
+  return Math.max(0, Math.ceil((w - size) / 2));
+}
 // Раскладка экрана. Режимы: P — телефон портрет, L — телефон альбом, T — планшет, D — широкий десктоп.
 // Всё считается в рамке cw × ch внутри safe-area; лист — в приоритете, предпросмотр/цель — полосой, накладкой или в боковой колонке.
 function layout() {
@@ -895,26 +969,52 @@ function layout() {
     y += 2 * 40 + 8 + 12;
     L.chips = { x: sx, y, w: swid, size: 36, rows: 2, labels: false, perRow: Math.ceil(n / 2) };
   } else if (mode === 'P') {
-    const handleH = 40; let chipsH = 64, band = showPrev && ch >= 800 ? (k > 1 ? 118 : 136) : 0;
+    const handleH = 40, chipSize = 44, chipGap = 8, chipRow = chipSize + 18;
+    let band = showPrev && ch >= 800 ? (k > 1 ? 118 : 136) : 0;
+    // Ниже листа стопка жёсткая: лист→циновка 8, циновка 40, →кнопки 12, кнопки 44,
+    // →чипы 12, чипы rows × 62, нижний отступ 12. Что не съедено ею — отдаётся листу.
+    // (Прежний расчёт чипы не резервировал: его «chipsH = 64» уходило на зазоры ниже листа,
+    //  один ряд оставлял под собой 6 px вместо 12, а второй ряд брался только из случайного
+    //  остатка — которого при упёршемся в потолок листе как раз и не оставалось.)
+    const belowSheet = 8 + handleH + 12 + btnH + 12, bottomPad = 12;
+    const stripW = cw - 24, pad = chipLabelPad(chipSize, B().ingredients);
+    const inner = Math.max(chipSize, stripW - 2 * pad);
+    // Сколько рядов НУЖНО, чтобы показать все начинки без прокрутки. Один ряд из 11 чипов
+    // требует окна ≥ 596 px, из 12 → ≥ 648 px (с местом под подписи): портретных телефонов
+    // такой ширины не бывает, поэтому один ряд на телефоне гарантированно прячет начинки —
+    // прокрутка здесь не запасной вариант, а потеря. Прежнее условие n > 7 не блокировало
+    // никогда (минимум среди баз — 8 у рулета) и решало не то: остаток, а не влезание.
+    const wantRows = Math.max(1, Math.min(2, Math.ceil(n / Math.max(1, Math.floor((inner + chipGap) / (chipSize + chipGap))))));
     let sw = Math.min(cw - 32, 560);
-    const fixed = panelH + 26 + handleH + 12 + btnH + 12 + chipsH + 12;
-    let rem = ch - fixed - band;
-    if (rem < 0.8 * sw && band) { band = 0; rem = ch - fixed; }
+    // Пол листа. На листе кладут начинки пальцем: hitPatch расширяет патч на 10 px с каждой
+    // стороны, значит экранная высота патча должна быть ≥ 44 − 20 = 24 px. Обычный брусок
+    // (лосось/авокадо/креветка, wU = 2 ед.) на самом коротком листе — хосомаки, L = 21 ед. —
+    // занимает 2/21 = 0,095 высоты, отсюда 24 / 0,095 = 252 px. Ниже лист перестаёт быть
+    // пальцевым, и второй ряд чипов такой цены не стоит. Пропорцию лист держит сам:
+    // если высоты мало, он сужается (sw = rem / 0,8), а не отказывается от ряда, —
+    // иначе широкое и низкое окно (500 x 667) прячет начинки при свободной вертикали.
+    const floor = 252;
+    const room = (r, bnd) => ch - (panelH + 26 + belowSheet + bottomPad) - bnd - r * chipRow;
+    // Порядок уступок: сначала полоса предпросмотра (она не пропадает, а переезжает
+    // в накладку), и только потом второй ряд чипов (он уносит начинки за край).
+    const plans = band ? [[wantRows, band], [wantRows, 0], [1, 0]] : [[wantRows, 0], [1, 0]];
+    let rows = 1, rem = 0;
+    for (const [r, bnd] of plans) { rows = r; band = bnd; rem = room(r, bnd); if (rem >= floor) break; }
     if (rem < 0.8 * sw) sw = Math.max(120, rem / 0.8);
-    const sh = Math.max(90, clamp(rem, 0.8 * sw, 1.15 * sw));
-    let left = Math.max(0, rem - sh), rows = 1;
-    if (left >= 60 && n > 7) { rows = 2; left -= 60; }
+    const sh = Math.max(90, clamp(rem, 0.8 * sw, 1.15 * sw)), left = Math.max(0, rem - sh), perRow = Math.ceil(n / rows);
     L.previewMode = showPrev ? (band ? 'band' : 'overlay') : 'none';
     L.sheet = { x: ox + (cw - sw) / 2, y: L.top + 26 + band + left / 2, w: sw, h: sh };
     L.handle = { x: L.sheet.x - 18, y: L.sheet.y + sh + 8, w: sw + 36, h: handleH };
     L.layBtn = { x: L.rowBtn.x, y: L.handle.y + handleH + 12, w: L.rowBtn.w, h: btnH, max: 3 };
-    L.chips = { x: ox + 12, y: L.layBtn.y + btnH + 12, w: cw - 24, size: 44, rows, labels: true, perRow: rows === 2 ? Math.ceil(n / 2) : n };
-    L.chipScroll = rows === 1 && n * 52 - 8 > cw - 24;
+    L.chips = { x: ox + 12, y: L.layBtn.y + btnH + 12, w: stripW, size: chipSize, rows, labels: true, perRow, pad };
+    L.chipScroll = perRow * (chipSize + chipGap) - chipGap > inner;
     L.previewY = L.top + 12 + band / 2; L.previewSize = k > 1 ? Math.min(84, (cw - 32 - 8 * (k - 1)) / k) : 116;
   } else {
     const handleH = 40, scol = mode === 'D' ? 320 : 260, block = Math.min(cw - 32, mode === 'D' ? 1040 : cw - 32);
     let sw = Math.min(560, block - scol - 24);
-    const oneRow = n * 60 <= sw + 36, chipsH = oneRow ? 68 : 68 * 2 - 8;
+    const pad = chipLabelPad(52, B().ingredients);
+    // Ряд влезает, если он влезает С ПОДПИСЯМИ: сравниваем с шириной полосы за вычетом их выноса.
+    const oneRow = n * 60 - 8 <= Math.max(52, sw + 36 - 2 * pad), chipsH = (oneRow ? 1 : 2) * 70;
     const avail = ch - panelH - 26 - handleH - 8 - 12 - btnH - 12 - chipsH - 12;
     let sh = Math.min(1.15 * sw, Math.max(0.9 * sw, avail));
     if (0.9 * sw > avail) { sw = Math.max(120, avail / 0.9); sh = Math.max(90, avail); }
@@ -922,7 +1022,7 @@ function layout() {
     L.sheet = { x: bx, y: L.top + 26, w: sw, h: sh };
     L.handle = { x: bx - 18, y: L.sheet.y + sh + 8, w: sw + 36, h: handleH };
     L.layBtn = { x: bx - 18, y: L.handle.y + handleH + 12, w: sw + 36, h: btnH, max: 3 };
-    L.chips = { x: bx - 18, y: L.layBtn.y + btnH + 12, w: sw + 36, size: 52, rows: oneRow ? 1 : 2, labels: true, perRow: oneRow ? n : Math.ceil(n / 2) };
+    L.chips = { x: bx - 18, y: L.layBtn.y + btnH + 12, w: sw + 36, size: 52, rows: oneRow ? 1 : 2, labels: true, perRow: oneRow ? n : Math.ceil(n / 2), pad };
     L.side = { x: bx + sw + 24, y: L.top + 16, w: scol, h: ch - panelH - 32 };
     L.previewMode = showPrev ? 'side' : 'none'; L.previewSize = mode === 'D' ? 260 : 200; L.targetCell = mode === 'D' ? 100 : 84;
   }
@@ -971,9 +1071,12 @@ let chips = [], chipScrollX = 0;
 function drawChips() {
   chips = []; const c = L.chips, ings = B().ingredients, n = ings.length, gap = 8, size = c.size;
   const perRow = c.perRow || n, rowH = size + (c.labels ? 18 : 6), rowW = perRow * (size + gap) - gap;
-  const maxScroll = Math.max(0, rowW - c.w); chipScrollX = clamp(chipScrollX, 0, L.chipScroll ? maxScroll : 0);
+  // Подпись шире чипа, а полоса отсекается по своей рамке, поэтому содержимое живёт с отступом
+  // pad от краёв: иначе крайняя подпись («Огурец» → «гурец») срезана даже при нулевой прокрутке.
+  const pad = c.pad || 0, inner = Math.max(size, c.w - 2 * pad);
+  const maxScroll = Math.max(0, rowW - inner); chipScrollX = clamp(chipScrollX, 0, L.chipScroll ? maxScroll : 0);
   ctx.save(); ctx.beginPath(); ctx.rect(c.x - 2, c.y - 4, c.w + 4, c.rows * rowH + 8); ctx.clip();
-  const x0 = L.chipScroll ? c.x - chipScrollX : c.x + Math.max(0, (c.w - rowW) / 2);
+  const x0 = c.x + pad + (L.chipScroll ? -chipScrollX : Math.max(0, (inner - rowW) / 2));
   ings.forEach((kind, i) => {
     const row = Math.floor(i / perRow), col = i % perRow, x = x0 + col * (size + gap), y = c.y + row * rowH, d = ING[kind], selected = kind === S.sel;
     chips.push({ kind, x, y, w: size, h: rowH });
@@ -987,8 +1090,16 @@ function drawChips() {
     if (c.labels) { ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(d.name, x + size / 2, y + size + 3); }
   });
   ctx.restore();
-  if (L.chipScroll) {   // затухание по краям — намёк на прокрутку
-    for (const [xx, dir] of [[c.x, 1], [c.x + c.w, -1]]) { const gr = ctx.createLinearGradient(xx, 0, xx + dir * 18, 0); gr.addColorStop(0, '#171713'); gr.addColorStop(1, 'rgba(23,23,19,0)'); ctx.fillStyle = gr; ctx.fillRect(Math.min(xx, xx + dir * 18), c.y - 4, 18, c.rows * rowH + 8); }
+  if (L.chipScroll) {   // край прокрутки: гасим и ставим шеврон — и только с той стороны, где чипы ЕСТЬ
+    const fw = 26;
+    for (const [xx, dir, more] of [[c.x, 1, chipScrollX > 0.5], [c.x + c.w, -1, chipScrollX < maxScroll - 0.5]]) {
+      if (!more) continue;
+      const gr = ctx.createLinearGradient(xx, 0, xx + dir * fw, 0);
+      gr.addColorStop(0, '#171713'); gr.addColorStop(0.5, 'rgba(23,23,19,0.86)'); gr.addColorStop(1, 'rgba(23,23,19,0)');
+      ctx.fillStyle = gr; ctx.fillRect(Math.min(xx, xx + dir * fw), c.y - 4, fw, c.rows * rowH + 8);
+      ctx.fillStyle = '#c8bda2'; ctx.font = font(17, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(dir > 0 ? '‹' : '›', xx + dir * 7, c.y + (c.rows * rowH - (c.labels ? 18 : 6)) / 2);
+    }
   }
   if (!c.labels) { ctx.fillStyle = '#f3e7ca'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(ING[S.sel].name, c.x + c.w / 2, c.y + c.rows * rowH + 2); }
 }
@@ -1268,7 +1379,7 @@ function drawLay() {
   if (core) { const yf = s.y + (1 - core.sFold / getModel().g.L) * s.h; ctx.setLineDash([2, 5]); ctx.strokeStyle = 'rgba(40,30,20,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x, yf); ctx.lineTo(s.x + s.w, yf); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = 'rgba(40,30,20,0.55)'; ctx.font = font(10); ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText('подворот — ядро', s.x + s.w - 6, yf - 2); }
   ctx.restore();
   // ролл в процессе скрутки
-  if (p > 0) { const mm = getModel(); const R = wind(0.5, p * mm.g.L, mm.g, mm.list).Rout * s.h / mm.g.L; drawRollBody(s.x + s.w / 2, yb, R, s.w + 10, [{ a: 0, b: 1, off: 0 }]); }
+  if (p > 0) { const mm = getModel(); const R = windRout(0.5, p * mm.g.L, mm.g, mm.list) * s.h / mm.g.L; drawRollBody(s.x + s.w / 2, yb, R, s.w + 10, [{ a: 0, b: 1, off: 0 }]); }
   // циновка-ручка
   rr(hd.x, hd.y, hd.w, hd.h, 10); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
   ctx.fillStyle = 'rgba(40,30,20,0.55)'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
