@@ -371,9 +371,21 @@ function stackTopAt(u, v, list, g) {
 // бортика нигде не дана в миллиметрах — источника нет»). RIM_W и RIM_H — оценка, не замер.
 const RIM_W = 0.05;   // доля листа под бортиком: ≈ 10 мм на футомаки, ≈ 5 мм на хосомаки
 const RIM_H = 1.30;   // во сколько раз бортик выше грядки
+// СЛАДКИЙ РУЛЕТ — ЗЕРКАЛЬНО К СУШИ, И ЭТО НЕ ОПЕЧАТКА. Крем кладут густо у БЛИЖНЕГО края и
+// сводят на нет к дальнему; у суши наоборот — бортик перед норисиро. Три источника:
+//   cotta: 「手前は厚め、巻き終わりになる奥側のクリームは少し薄めに」
+//   ABC Cooking: 「クリームは手前から3cm程度を厚めに、奥に向かうほど薄くします」
+//   macaroni: 「手前をクリームたっぷりにすることで、ロールケーキの芯の部分がしっかりでき」 — густой
+//   ближний край нужен, чтобы СЕРДЦЕВИНА рулета получилась плотной.
+// Раньше сюда применялся суши-бортик: +30 % крема уходило в ПОСЛЕДНИЙ виток — самый длинный и
+// самый заметный на срезе. То есть главный узор сладкой базы был перевёрнут.
+// Доли подобраны так, чтобы средняя осталась 1 — крема кладут отмеренную порцию, его не
+// прибавляется от того, что размазали иначе.
+const CREAM_NEAR = 1.35, CREAM_FAR = 0.65;
 function spreadAt(u, g) {
   const b = g || B();
   const se = b.spreadEnd; if (u >= se) return 0;
+  if (b.sweet) return CREAM_NEAR + (CREAM_FAR - CREAM_NEAR) * (u / se);
   const w = Math.min(RIM_W, se * 0.5);
   const k = se / (se + w * (RIM_H - 1) / 2);          // нормировка: масса риса та же, что у ровной грядки
   return u > se - w ? k * (1 + (RIM_H - 1) * (u - (se - w)) / w) : k;
@@ -602,7 +614,7 @@ function buildModel(list) {
   const own = JSON.parse(JSON.stringify(list));
   // g — ПАСПОРТ модели: всё, что геометрия раньше подсматривала в S и B(), теперь снято здесь один раз.
   const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), Wv: b.Wv, sStart: 0, air: hd.air * b.T, wobble: hd.wobble, phase: hd.phase,
-    press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, tuck: !!b.tuck, flap: b.flap || 0, tuckMin: b.tuckMin || 0 };
+    press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, sweet: b.kind === 'sweet', tuck: !!b.tuck, flap: b.flap || 0, tuckMin: b.tuckMin || 0 };
   restack(own, g);
   m = { key, g, shape: S.shape, list: own, wds: new Map(), Rmax: 0, core: null };
   m.core = computeCore(m.list, g);
