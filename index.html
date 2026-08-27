@@ -2,15 +2,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Ролльня</title>
-<script>
-  // Старые ссылки тестеров продолжают работать: корень раздавали с ?puzzle
-  // и с рецептом в #. Голый корень показывает эту страницу, корень С параметрами
-  // уводит прямо в игру вместе с ними. Не удалять вместе с другими скриптами.
-  (function () {
-    var q = location.search, h = location.hash;
-    if (q.indexOf("puzzle") >= 0 || h.length > 1) location.replace("play/" + q + h);
-  })();
-</script>
 
 <style>
   /* Палитра из самой игры (play/index.html): тот же тёмный стол и тёплое дерево, */
