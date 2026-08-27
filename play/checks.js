@@ -17,13 +17,22 @@ const REF = {
   // ⌀ по медиане и максимуму, мм · оборотов · есть ли ядро (подворот)
   hoso:  { d: 27.5, dmax: 29.0, turns: 1.34, core: true },
   futo:  { d: 50.5, dmax: 53.5, turns: 1.45, core: true },
-  ura:   { d: 35.3, dmax: 36.5, turns: 1.04, core: true },
+  ura:   { d: 33.0, dmax: 33.1, turns: 1.09, core: true },   // 27.08: получил голую полосу, ролл стал меньше
   fruit: { d: 49.5, dmax: 52.0, turns: 1.57, core: true },
   cake:  { d: 70.5, dmax: 71.0, turns: 2.06, core: false },
 };
 const TOL_D = 0.6, TOL_T = 0.05;      // мм и обороты
 const TOL_LEVEL = 3;                  // средняя яркость риса: |Δ| ≤ 3 (см. docs/geometry-audit.md)
-const ROUND_MAX = 8;                  // некруглость, % — циновка обжимает ролл (reality-check)
+const ROUND_MAX = 8;                  // некруглость при НЕЙТРАЛЬНОЙ руке, %
+// Рука проверяется отдельно и по достижимым значениям. Первая редакция гоняла всё только
+// при press = 1 — и не видела, что при достижимых 0,85–0,87 некруглость уходит на 14–15 %.
+// Диапазоны — из measureHand: press 0,85…1,30, air 0…0,22, wobble 0…0,11.
+const HANDS = [
+  { name: 'лёгкий прижим, быстрая тяга', h: { air: 0.20, wobble: 0.05, phase: 1.0, press: 0.87, v: 2.3, cv: 0.5, hold: 0.05 } },
+  { name: 'крепкий прижим',              h: { air: 0.00, wobble: 0.00, phase: 0.0, press: 1.30, v: 1.0, cv: 0.0, hold: 1.0 } },
+  { name: 'воздух по максимуму',         h: { air: 0.22, wobble: 0.11, phase: 2.0, press: 0.85, v: 3.0, cv: 1.5, hold: 0.0 } },
+];
+const ROUND_MAX_HAND = 20;            // при любой достижимой руке ролл всё же остаётся роллом
 // Цель касания берётся ИЗ КОДА, а не числом. Первая редакция этой проверки хардкодила
 // «≥ 24 px, потому что ореол 10» — и через час ореол стал 14, а проверка продолжила мерить
 // по старому. Это ровно те грабли, от которых она сама и защищает: константа, выведенная
@@ -93,6 +102,42 @@ function runChecks(detail) {
       ok(maxDrop < 0.35, `${n}: намазка обрывается стеной — скачок ${maxDrop.toFixed(2)} за один шаг`);
       ok(near(area, se, se * 0.03), `${n}: масса не сохранена — ∫ ${area.toFixed(3)} против ${se}`);
     }
+
+    // ── 3б. РУКА: ролл должен оставаться роллом при ЛЮБОМ достижимом почерке ──
+    // Ловит то, что видно только на живой раскладке: хвост, не накрытый листом, и разрыв шва.
+    for (const k of ['hoso', 'futo', 'ura']) {
+      for (const hh of HANDS) {
+        S.base = k; S.wrap = null; S.lists[k] = []; clean();
+        const Lk = BASES[k].L;
+        for (const [ing, u] of [['salmon', 2], ['salmon', 5], ['cucumber', 9], ['salmon', 14], ['salmon', 18]])
+          { S.sel = ing; placeAt(u / Lk, 0.5); }
+        S.hand = Object.assign({}, hh.h); touchModel(); layout();
+        const d = dia(), tag = `${BASES[k].name} · ${hh.name}`;
+        ok(d.wd.turns >= 1.0, `${tag}: витков ${d.wd.turns.toFixed(2)} — ролл НЕ ЗАМКНУЛСЯ`);
+        ok(d.round <= ROUND_MAX_HAND, `${tag}: некруглость ${d.round.toFixed(0)} %, потолок ${ROUND_MAX_HAND}`);
+        // ни один угол не должен остаться без листа
+        let bare = 0;
+        for (let b2 = 0; b2 < NB; b2++) if (d.wd.top[b2] <= d.m.g.r0 + 1e-6) bare++;
+        ok(bare === 0, `${tag}: ${bare} углов из ${NB} НЕ НАКРЫТЫ листом`);
+        // Хвост ЗА НАМАЗКОЙ — это голая нори, а не рис. Проверять надо по u, а не по углу:
+        // если ролл делает 1,34 оборота, а голая полоса — только 0,29 оборота, то часть
+        // хвоста законно несёт рис. Первая редакция этого не учла и ругалась на хосомаки зря.
+        const wdd = d.wd, seK = d.m.g.spreadEnd;
+        for (const deg of [0, 10, 20, 30]) {
+          const b2 = Math.round(deg / 360 * NB) % NB;
+          for (let kk = KMAX - 1; kk > 0; kk--) {
+            const i = kk * NB + b2;
+            if (wdd.rin[i] < 0) continue;
+            if (wdd.u0[i] / d.m.g.L > seK) {          // этот кусок листа уже голый
+              const th = (wdd.rout[i] - wdd.rin[i]) * U_MM;
+              ok(th < 1.0, `${tag}: голый хвост на ${deg}° несёт ${th.toFixed(2)} мм — должна быть нори 0,1`);
+            }
+            break;
+          }
+        }
+      }
+    }
+    S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
 
     // ── 4. ПАЗЛ ──
     S.base = 'futo'; clean();
