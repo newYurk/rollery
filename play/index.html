@@ -744,7 +744,7 @@ function materialAt(m, wd, vSlice, r, phi) {
 // (docs/geometry-audit.md, раздел «Условности отрисовки»).
 const LIGHT_X = -0.70, LIGHT_Y = -0.71;   // one light for the whole slice; chosen to agree with `vig` in renderSection (key from the top-left)
 const GRAIN_GAP_RGB = [201, 186, 160];    // the gap is a MIX toward a warm tone, never a subtraction — see below
-const LEVEL_FIX = 3.4;                    // keeps the mean rice brightness inside the +-3 acceptance band; re-solved 27.08 after grains became bodies (the dome and the specular add light the old 7.5 no longer had to make up for)
+const LEVEL_FIX = 5.2;                    // keeps the mean rice brightness inside the +-3 acceptance band; re-solved 27.08 after grains became bodies (the dome and the specular add light the old 7.5 no longer had to make up for)
 // У КАЖДОГО ЗЕРНА СВОЙ УГОЛ. Без этого на плоском листе все рисинки лежат вдоль оси x —
 // владелец: «кажется, что все рисинки лежат по горизонтали». Так и было: решётка задавала не
 // только центры, но и направление. Замер по фотографиям (Kanpyō-maki 001, Makizushi2): вдоль
@@ -779,7 +779,16 @@ function spreadColor(gx, gy, b, ct, st, lod) {
       ring = Math.max(1, Math.round(TAU * rr / GRAIN_ASPECT));   // зёрен по кольцу
       // каждое кольцо повёрнуто на свой случайный угол, иначе зёрна встают ровными рядами,
       // как кирпичная кладка: в настоящем ролле соседние витки не выровнены друг с другом
-      pa = ring * ((Math.atan2(gy, gx) / TAU) + 0.5) + 3.7 * hash(Math.floor(rr), 991); pc = rr;
+      // КОЛЬЦА НЕ ДОЛЖНЫ ЧИТАТЬСЯ. Полярная решётка сажает зёрна по целым радиусам, и границы
+      // между рядами складываются в СПЛОШНЫЕ ОКРУЖНОСТИ. На ролле радиусом в восемь зёрен это
+      // восемь концентрических линий — владелец увидела их и приняла за витки: «такое ощущение,
+      // что просто свернут, там спиралей, наверное, десять как минимум слоёв». Витков при этом 1,1.
+      // Лечится волной по радиусу: ряд перестаёт быть окружностью, границы рвутся, размер и
+      // плотность зерна не меняются. Волна гладкая и замкнутая по кругу, иначе на стыке шов.
+      const ang = Math.atan2(gy, gx), a8 = (ang / TAU + 0.5) * 8, i8 = Math.floor(a8), f8 = a8 - i8;
+      const h1 = hash(i8 & 7, 3331), h2 = hash((i8 + 1) & 7, 3331), sm = f8 * f8 * (3 - 2 * f8);
+      pa = ring * (ang / TAU + 0.5) + 3.7 * hash(Math.floor(rr), 991);
+      pc = rr + (h1 + (h2 - h1) * sm - 0.5) * 0.85;
       arcw = TAU * rr / ring;                               // длина дуги на одну клетку
       vx = gx / rr; vy = gy / rr;                           // радиальная ось (поперёк зерна)
       ux = -vy; uy = vx;                                    // касательная (вдоль зерна)
@@ -1200,11 +1209,16 @@ const sheetFloor = () => (TOUCH - 2 * HIT_PAD) * sheetLen(B()) / 2;
 // два ряда чипов с прокруткой дают лист выше, чем три ряда без неё, и правило само отдало бы
 // видимость палитры за пиксели листа. Порядок такой:
 //   1) жёсткий фильтр — лист не ниже пола пальца (ниже него класть начинки просто нечем);
-//   2) среди прошедших — больше рядов чипов (меньше начинок уехало за край);
+//   2) среди прошедших — БОЛЬШЕ ВИДНЫХ ЧИПОВ (сколько начинок помещается без прокрутки);
 //   3) при равенстве — больше ПОЛЕЗНОЙ площади листа (то, что закрывает накладка, вычтено).
 // Если пол не берёт никто — берём самый высокий лист: это единственное, что там ещё улучшишь.
+// ⚠ На второй ступени стояло «больше РЯДОВ» — и это ошибка, замеренная на 1440x900: там лист
+// шириной 1240 берёт все двадцать чипов в ОДИН ряд без прокрутки, а боковая колонка сужает
+// его до 896 и требует двух рядов. По числу рядов выигрывала колонка, и лист падал с 58,7 %
+// до 37,6 % ради ряда, который ничего не показывал сверх первого. Считать надо видимость,
+// а не строки: два ряда по шесть лучше одного ряда по шесть, но не лучше одного ряда по двадцать.
 const betterFit = floor => (a, c) => {
-  const rank = x => (x.sh >= floor ? [1, x.rows, x.area] : [0, 0, x.sh]);
+  const rank = x => (x.sh >= floor ? [1, x.vis, x.area] : [0, 0, x.sh]);
   const ra = rank(a), rc = rank(c);
   for (let i = 0; i < 3; i++) if (Math.abs(rc[i] - ra[i]) > 0.5) return rc[i] > ra[i] ? c : a;
   return a;
@@ -1276,11 +1290,12 @@ function layout() {
     // Одна раскладка: сколько остаётся листу при данной полосе и данном числе рядов чипов.
     // Площадь — ПОЛЕЗНАЯ: то, что закрывает накладка, вычитается по её же рисовальщику
     // (drawPreviewArea, ветка 'overlay'), иначе «накладка ничего не стоит» и она выигрывает всегда.
+    const perFitP = Math.max(1, Math.floor((inner + chipGap) / (chipSize + chipGap)));
     const fitP = (bnd, rowsC) => {
       const rem = ch - (panelH + 26 + belowSheet + bottomPad) - bnd - rowsC * chipRow;
       const sh = Math.max(90, rem);
       const eaten = (!bnd && showPrev) ? (k > 1 ? sw * (Math.min(56, (sw - 16 - 6 * (k - 1)) / k) + 16) : 102 * 102) : 0;
-      return { band: bnd, rows: rowsC, sh, area: sw * sh - eaten };
+      return { band: bnd, rows: rowsC, sh, vis: Math.min(n, rowsC * perFitP), area: sw * sh - eaten };
     };
     // Здесь стоял ЖЁСТКИЙ ПОРЯДОК УСТУПОК: первый план с остатком ≥ пола и выиграл. Из-за него
     // полоса предпросмотра оставалась всегда, пока лист формально дотягивал до пола, — на 390x844
@@ -1343,7 +1358,10 @@ function layout() {
       const eaten = (!bnd && !side && showPrev)
         ? (k > 1 ? sw * (Math.min(56, (sw - 16 - 6 * (k - 1)) / k) + 16) : 102 * 102)
         : 0;
-      return { band: bnd, side, rows, sw, sh, boxH: bh, area: sw * sh - eaten };
+      // Сколько чипов видно без прокрутки в ЭТОЙ раскладке — вторая ступень отбора.
+      const innerC = Math.max(chipSize, sw + 36 - 2 * pad);
+      const vis = Math.min(n, rows * Math.max(1, Math.floor((innerC + 8) / (chipSize + 8))));
+      return { band: bnd, side, rows, sw, sh, boxH: bh, vis, area: sw * sh - eaten };
     };
     // Где предпросмотру стоять — решает СРАВНЕНИЕ ПО СУЩЕСТВУ, а не доля высоты. Прежний потолок
     // «полоса не больше пятой части высоты» был угаданным числом и решал судьбу листа: на 1024x768
