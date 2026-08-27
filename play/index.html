@@ -957,15 +957,16 @@ function strokeWrapperTurns(c, m, wd, si, scale, half, LW, alpha) {
   c.save();
   c.globalCompositeOperation = 'source-atop';
   c.globalAlpha = alpha;
-  c.lineJoin = 'round'; c.lineCap = 'round';
+  c.lineJoin = 'round'; c.lineCap = 'butt';   // не 'round': шапки на торцах и давали крючок
   // Рисуем ТЕМ ЖЕ приёмом, что внешний контур: сначала контактная тень, потом лента.
   // Без тени внутренняя лента меряется на 3 device-px против 4 у внешней — и владелец
   // увидела это глазом, хотя ширина штриха задавалась одна и та же. Тень здесь не украшение:
   // внутренний виток зажат рисом с ОБЕИХ сторон, канавка контакта у него не хуже внешней.
   const SHADOW = LW + 1.7 * WRAP_MIN_CSS * DPR;
   for (let k = 0; k < wd.kmax - 1; k++) {
-    const p = new Path2D(); let first = true, drawn = 0;
+    const p = new Path2D(); let first = true, drawn = 0, bins = 0;
     for (let i = 0; i < NB; i += step) {
+      bins++;
       const idx = k * NB + i;
       const ro = wd.rout[idx];
       if (!(ro > 0) || wd.rin[idx] < 0) { first = true; continue; }   // лист в этом бине кончился — рвём линию
@@ -976,6 +977,11 @@ function strokeWrapperTurns(c, m, wd, si, scale, half, LW, alpha) {
       if (first) { p.moveTo(x, y); first = false; } else p.lineTo(x, y);
       drawn++;
     }
+    // ВИТОК ЗАМЫКАЕМ, ЕСЛИ ОН ПОЛНЫЙ. Иначе оба конца ломаной падают на угол 0 — на три часа —
+    // и круглые шапки (lineCap) рисуют там две шляпки на разных радиусах: получается «уступ и
+    // тёмный крючок», который владелец и увидела. Сверка по 45 срезам на фотографиях: контур
+    // всегда замкнутая непрерывная кривая, торцов обводки не бывает.
+    if (drawn === bins) p.closePath();
     if (drawn > 2) {
       c.strokeStyle = 'rgba(24,40,30,0.28)'; c.lineWidth = SHADOW; c.stroke(p);
       c.strokeStyle = rgbCss(B().wrapperRgb);  c.lineWidth = LW;     c.stroke(p);
@@ -1179,6 +1185,30 @@ function chipLabelPad(size, list) {
   let w = 0; for (const k of list) w = Math.max(w, ctx.measureText(ING[k].name).width);
   return Math.max(0, Math.ceil((w - size) / 2));
 }
+// ПОЛ ЛИСТА — ФОРМУЛА, А НЕ ЧИСЛО. На листе кладут начинки пальцем: hitPatch расширяет патч
+// на HIT_PAD с каждой стороны, значит экранная высота патча должна быть ≥ TOUCH − 2·HIT_PAD.
+// Обычный брусок (лосось/авокадо/креветка) — wU = 2 единицы; на листе длиной L единиц он
+// занимает 2/L высоты. Отсюда пол = (TOUCH − 2·HIT_PAD) · L / 2.
+// ⚠ ЧИСЛОМ ЭТУ ВЕЛИЧИНУ ПИСАТЬ НЕЛЬЗЯ. Здесь стояло 252 — оно выведено из ПОЛУЛИСТА хосомаки
+// (L = 21) и устарело ровно вдвое, как только лист стал единым (L = 42): пол должен был стать
+// 504, а остался 252, и на 390x844 брусок получал цель касания 36,8 px при норме 44.
+// Длина берётся у sheetLen(): в «Пазле» её меняет уровень, и лист там действительно длиннее.
+const HIT_PAD = 14;   // ореол вокруг патча, px с каждой стороны (см. hitPatch)
+const TOUCH = 44;     // норма цели касания
+const sheetFloor = () => (TOUCH - 2 * HIT_PAD) * sheetLen(B()) / 2;
+// ОТБОР РАСКЛАДОК ДВУХСТУПЕНЧАТЫЙ, и это не украшение. Чистый максимум площади ошибается:
+// два ряда чипов с прокруткой дают лист выше, чем три ряда без неё, и правило само отдало бы
+// видимость палитры за пиксели листа. Порядок такой:
+//   1) жёсткий фильтр — лист не ниже пола пальца (ниже него класть начинки просто нечем);
+//   2) среди прошедших — больше рядов чипов (меньше начинок уехало за край);
+//   3) при равенстве — больше ПОЛЕЗНОЙ площади листа (то, что закрывает накладка, вычтено).
+// Если пол не берёт никто — берём самый высокий лист: это единственное, что там ещё улучшишь.
+const betterFit = floor => (a, c) => {
+  const rank = x => (x.sh >= floor ? [1, x.rows, x.area] : [0, 0, x.sh]);
+  const ra = rank(a), rc = rank(c);
+  for (let i = 0; i < 3; i++) if (Math.abs(rc[i] - ra[i]) > 0.5) return rc[i] > ra[i] ? c : a;
+  return a;
+};
 // Раскладка экрана. Режимы: P — телефон портрет, L — телефон альбом, T — планшет, D — широкий десктоп.
 // Всё считается в рамке cw × ch внутри safe-area; лист — в приоритете, предпросмотр/цель — полосой, накладкой или в боковой колонке.
 function layout() {
@@ -1194,14 +1224,36 @@ function layout() {
     L.handle = { x: L.sheet.x - 12, y: L.sheet.y + sh + 8, w: sw + 24, h: handleH };
     const sx = L.sheet.x + sw + 28, swid = Math.max(200, cw - sw - 60);
     L.side = { x: sx, y: L.top + 8, w: swid, h: ch - panelH - 16 };
-    L.previewMode = showPrev ? 'side' : 'none'; L.previewSize = 96; L.targetCell = Math.min(72, (swid - 8 * (Math.min(k, 3) - 1)) / Math.min(k, 3));
-    let y = L.side.y + (showPrev ? (k > 1 ? Math.ceil(k / 3) * (L.targetCell + 8) : 96 + 8) + 24 : 0);
-    L.layBtn = { x: sx, y, w: swid, h: 40, max: 2 };
-    y += 2 * 40 + 8 + 12;
-    L.chips = { x: sx, y, w: swid, size: 36, rows: 2, labels: false, perRow: Math.ceil(n / 2) };
+    L.previewMode = showPrev ? 'side' : 'none'; L.targetCell = Math.min(72, (swid - 8 * (Math.min(k, 3) - 1)) / Math.min(k, 3));
+    // БЮДЖЕТ БОКОВОЙ КОЛОНКИ. Раньше y просто копился и ни с чем не сверялся, поэтому лишнее
+    // уезжало за низ экрана МОЛЧА: на 844x390 сумма выходила 328 при высоте колонки 312 —
+    // подпись выбранного чипа рисовалась на 16 px ниже рамки. На коротком ландшафте (667x375)
+    // за край уходили и сами чипы: в этой ветке chipScroll не выставлялся ВООБЩЕ, а drawChips
+    // отсекает ленту по своей рамке — двадцать начинок в колонке 291 px обрезались без всякого
+    // признака. Теперь всё, что кладём в колонку, обязано в неё влезть, уступки идут лестницей
+    // (по одной, в порядке возрастания потери), а в конце стоит зажим, а не пожелание.
+    const chipSizeL = 36, chipRowL = chipSizeL + 6, selLabelH = 16, gapAfterBtn = 12;
+    const perRowFit = Math.max(1, Math.floor((swid + 8) / (chipSizeL + 8)));
+    const prevBlock = ps => (showPrev ? (k > 1 ? Math.ceil(k / 3) * (L.targetCell + 8) : ps + 8) + 24 : 0);
+    const btnBlock = rb => rb * 40 + (rb - 1) * 8 + gapAfterBtn;
+    const need = (ps, rb, rc) => prevBlock(ps) + btnBlock(rb) + rc * chipRowL + selLabelH;
+    let prevSize = 96, btnRows = 2, chipRows = Math.max(1, Math.min(3, Math.ceil(n / perRowFit)));
+    if (need(prevSize, btnRows, chipRows) > L.side.h) btnRows = 1;          // 1) кнопки в один ряд по три
+    if (need(prevSize, btnRows, chipRows) > L.side.h) prevSize = 64;        // 2) кружок предпросмотра меньше
+    while (chipRows > 1 && need(prevSize, btnRows, chipRows) > L.side.h) chipRows--;   // 3) ряды — в прокрутку
+    L.previewSize = prevSize;
+    let y = L.side.y + prevBlock(prevSize);
+    L.layBtn = { x: sx, y, w: swid, h: 40, max: btnRows === 1 ? 3 : 2 };
+    y += btnBlock(btnRows);
+    // Зажим, а не проверка: сколько рядов помещается от текущего y до низа колонки, столько
+    // и рисуем. После этой строки y + высота ленты + подпись ≤ side.y + side.h тождественно.
+    chipRows = Math.min(chipRows, Math.max(1, Math.floor((L.side.y + L.side.h - y - selLabelH) / chipRowL)));
+    const perRowL = Math.ceil(n / chipRows);
+    L.chips = { x: sx, y, w: swid, size: chipSizeL, rows: chipRows, labels: false, perRow: perRowL };
+    L.chipScroll = perRowL * (chipSizeL + 8) - 8 > swid;   // не влезло — прокрутка с шевроном, не обрез
   } else if (mode === 'P') {
     const handleH = 40, chipSize = 44, chipGap = 8, chipRow = chipSize + 18;
-    let band = showPrev && ch >= 800 ? (k > 1 ? 118 : 136) : 0;
+    const bandFull = showPrev && ch >= 800 ? (k > 1 ? 118 : 136) : 0;
     // Ниже листа стопка жёсткая: лист→циновка 8, циновка 40, →кнопки 12, кнопки 44,
     // →чипы 12, чипы rows × 62, нижний отступ 12. Что не съедено ею — отдаётся листу.
     // (Прежний расчёт чипы не резервировал: его «chipsH = 64» уходило на зазоры ниже листа,
@@ -1216,25 +1268,30 @@ function layout() {
     // прокрутка здесь не запасной вариант, а потеря. Прежнее условие n > 7 не блокировало
     // никогда (минимум среди баз — 8 у рулета) и решало не то: остаток, а не влезание.
     const wantRows = Math.max(1, Math.min(2, Math.ceil(n / Math.max(1, Math.floor((inner + chipGap) / (chipSize + chipGap))))));
-    let sw = Math.min(cw - 32, 560);
-    // Пол листа. На листе кладут начинки пальцем: hitPatch расширяет патч на 10 px с каждой
-    // стороны, значит экранная высота патча должна быть ≥ 44 − 20 = 24 px. Обычный брусок
-    // (лосось/авокадо/креветка, wU = 2 ед.) на самом коротком листе — хосомаки, L = 21 ед. —
-    // занимает 2/21 = 0,095 высоты, отсюда 24 / 0,095 = 252 px. Ниже лист перестаёт быть
-    // пальцевым, и второй ряд чипов такой цены не стоит. Пропорцию лист держит сам:
-    // если высоты мало, он сужается (sw = rem / 0,8), а не отказывается от ряда, —
-    // иначе широкое и низкое окно (500 x 667) прячет начинки при свободной вертикали.
-    const floor = 252;
-    const room = (r, bnd) => ch - (panelH + 26 + belowSheet + bottomPad) - bnd - r * chipRow;
-    // Порядок уступок: сначала полоса предпросмотра (она не пропадает, а переезжает
-    // в накладку), и только потом второй ряд чипов (он уносит начинки за край).
-    const plans = band ? [[wantRows, band], [wantRows, 0], [1, 0]] : [[wantRows, 0], [1, 0]];
-    let rows = 1, rem = 0;
-    for (const [r, bnd] of plans) { rows = r; band = bnd; rem = room(r, bnd); if (rem >= floor) break; }
-    if (rem < 0.8 * sw) sw = Math.max(120, rem / 0.8);
-    const sh = Math.max(90, clamp(rem, 0.8 * sw, 1.15 * sw)), left = Math.max(0, rem - sh), perRow = Math.ceil(n / rows);
+    // Лист занимает рамку целиком: ширину даёт окно, высоту — то, что осталось после панели,
+    // полосы, циновки, кнопок и ленты. Кламп «0,8…1,15» отсюда убран вместе с ph в ветке T/D
+    // и по той же причине — пропорция листа больше не изображает физику (см. комментарий там).
+    const sw = Math.min(cw - 32, 560);
+    const FLOOR = sheetFloor();
+    // Одна раскладка: сколько остаётся листу при данной полосе и данном числе рядов чипов.
+    // Площадь — ПОЛЕЗНАЯ: то, что закрывает накладка, вычитается по её же рисовальщику
+    // (drawPreviewArea, ветка 'overlay'), иначе «накладка ничего не стоит» и она выигрывает всегда.
+    const fitP = (bnd, rowsC) => {
+      const rem = ch - (panelH + 26 + belowSheet + bottomPad) - bnd - rowsC * chipRow;
+      const sh = Math.max(90, rem);
+      const eaten = (!bnd && showPrev) ? (k > 1 ? sw * (Math.min(56, (sw - 16 - 6 * (k - 1)) / k) + 16) : 102 * 102) : 0;
+      return { band: bnd, rows: rowsC, sh, area: sw * sh - eaten };
+    };
+    // Здесь стоял ЖЁСТКИЙ ПОРЯДОК УСТУПОК: первый план с остатком ≥ пола и выиграл. Из-за него
+    // полоса предпросмотра оставалась всегда, пока лист формально дотягивал до пола, — на 390x844
+    // это 116-пиксельный кружок за 136 px листа. Теперь, как и в T/D, считаются все кандидаты
+    // и сравниваются по существу (betterFit): пол пальца → число рядов чипов → полезная площадь.
+    const candsP = [];
+    for (let r = wantRows; r >= 1; r--) { if (bandFull) candsP.push(fitP(bandFull, r)); candsP.push(fitP(0, r)); }
+    const plP = candsP.reduce(betterFit(FLOOR));
+    const band = plP.band, rows = plP.rows, sh = plP.sh, perRow = Math.ceil(n / rows);
     L.previewMode = showPrev ? (band ? 'band' : 'overlay') : 'none';
-    L.sheet = { x: ox + (cw - sw) / 2, y: L.top + 26 + band + left / 2, w: sw, h: sh };
+    L.sheet = { x: ox + (cw - sw) / 2, y: L.top + 26 + band, w: sw, h: sh };
     L.handle = { x: L.sheet.x - 18, y: L.sheet.y + sh + 8, w: sw + 36, h: handleH };
     L.layBtn = { x: L.rowBtn.x, y: L.handle.y + handleH + 12, w: L.rowBtn.w, h: btnH, max: 3 };
     L.chips = { x: ox + 12, y: L.layBtn.y + btnH + 12, w: stripW, size: chipSize, rows, labels: true, perRow, pad };
@@ -1243,40 +1300,45 @@ function layout() {
   } else {
     const handleH = 40, chipSize = 52, chipRow = 70, scol = mode === 'D' ? 320 : 260;
     const pad = chipLabelPad(chipSize, B().ingredients);
-    // Пропорцию листа задаёт ФИЗИКА (длина листа / его ширина), а не форма окна: раньше лист тянулся
-    // к квадрату (0,9…1,15), из-за чего хосомаки — реально широкий и низкий — выглядел как футомаки.
-    // K — во сколько раз разрешено отойти от честной пропорции, чтобы не появлялись чёрные поля.
-    // ⚠ 1,3 — ЧИСЛО ВЫБРАННОЕ, а не измеренное: при K = 1 хосомаки теряет ~16 % высоты.
-    // Пропорция берётся у ЗАМЕРЕННОГО листа (b.L: нори 10,5 или 21 см), а НЕ у sheetLen(): та растёт
-    // вместе с S.turns, который задаёт уровень пазла, и лист на пазле сплющивался в ленту —
-    // 1280x800, футомаки: 300x444 вместо 493x444 (−39 % площади) плюс прокрутка чипов на десктопе.
-    // Число витков — правило уровня, а не другой лист.
-    const K = 1.3, b0 = B(), ph = b0.L / b0.Wv;
+    // ПРОПОРЦИЯ ЛИСТА — ЭТО ПРОПОРЦИЯ РАМКИ, и больше ничего. Здесь стояло ph = L / Wv, то есть
+    // честная физика листа, и это было верно, пока лист был признаком ТИПА: хосомаки из полулиста
+    // реально широкий и низкий, футомаки из целого — почти квадратный. Типы отменены, обёртка
+    // стала обычным выбором на одном экране — и та же формула превратилась в дефект: смена
+    // обёртки или базы переставляла архитектуру экрана и меняла площадь листа в 2,4 раза
+    // (1024x768: 980x482 с накладкой против 485x412 с боковой колонкой — один тап).
+    // Решение владельца: «реальные размеры не обязательно должны совпадать… отмасштабировать
+    // пять сантиметров на весь экран и десять сантиметров на весь экран. Зачем пользователю знать
+    // какие-то реальные размеры?» Физика осталась в модели ЦЕЛИКОМ — длина листа, толщина обёртки,
+    // шаг витка, число оборотов, ⌀ считаются по-настоящему и ничего не потеряли; на экране лист
+    // просто занимает отведённую рамку. Скачок при смене обёртки теперь НОЛЬ ПО ПОСТРОЕНИЮ:
+    // в расчёте рамки не осталось ни одной величины, зависящей от обёртки или базы.
+    // Чем платим — лист не показывает пропорций: на ландшафтном окне рамка 0,42, честное — 1,1,
+    // то есть ось u (вдоль скрутки, она же решает узор) сплющена в 2,6 раза. Страховкой был бы
+    // фиксированный, от обёртки не зависящий коридор sh/sw ∈ [0,55; 1,40] — он стоит 20–24 %
+    // площади на 1024x768 и 1440x900 и ноль на остальных; сознательно НЕ включён, ждём практики.
     // Полоса цели над листом: цели идут одним рядом, поэтому размер клетки ограничен шириной окна.
     const fsBand = k > 1 ? Math.min(180, (cw - 60 - 8 * (k - 1)) / k) : 116;
     const bandH = showPrev ? Math.round(k > 1 ? fsBand + 40 : 136) : 0;
-    // Пол листа — тот же, что на телефоне, и по той же причине: на листе кладут начинки пальцем,
-    // hitPatch расширяет патч на 10 px с каждой стороны, значит экранная высота патча должна быть
-    // ≥ 44 − 20 = 24 px. Обычный брусок (wU = 2 ед.) на самом коротком листе — хосомаки, L = 21 ед. —
-    // занимает 2/21 высоты листа, отсюда 24 / (2/21) = 252 px. Ниже лист перестаёт быть пальцевым.
-    const FLOOR = 252;
+    // Пол листа — тот же, что на телефоне, и считается одной формулой на всех (sheetFloor).
+    const FLOOR = sheetFloor();
     // Одна раскладка при заданном месте предпросмотра и потолке рядов чипов.
     // Возвращает лист и его ПОЛЕЗНУЮ площадь: накладка часть листа закрывает, и эта часть
     // из площади вычитается — иначе «накладка ничего не стоит» и она выигрывала бы всегда.
     const fit = (bnd, side, maxRows) => {
       const bw = (mode === 'D' ? Math.min(cw - 44, 1240) : cw - 44) - (side ? scol + 24 : 0);
       if (bw < 240) return null;   // колонке негде стоять: узкое окно
-      let rows = 1, sw = 0, sh = 0, bh = 0;
+      // Рамка целиком: ширина листа — вся ширина блока, высота — весь остаток. Ширина больше
+      // не зависит от числа рядов (раньше зависела через target), поэтому считается один раз.
+      const sw = Math.max(120, bw);
+      let rows = 1, sh = 0, bh = 0;
       for (;;) {
         bh = ch - panelH - 26 - bnd - handleH - 8 - 12 - btnH - 12 - rows * chipRow - 12;
-        const target = clamp(bh / bw, ph / K, ph * K);
-        sw = Math.max(120, Math.min(bw, bh / target));
-        sh = Math.max(90, sw * target);
         // Ряд чипов проверяется на ИТОГОВУЮ полосу (sw + 36), а не на bw: они расходятся до 680 px
         // (1440x900, рулет: bw 1240 при sw 561), а лишний чип просто обрезался бы молча.
         if (rows >= maxRows || n * (chipSize + 8) - 8 <= Math.max(chipSize, sw + 36 - 2 * pad)) break;
         rows++;
       }
+      sh = Math.max(90, bh);
       // Что накладка съедает у листа — по её же рисовальщику (drawPreviewArea, ветка 'overlay').
       const eaten = (!bnd && !side && showPrev)
         ? (k > 1 ? sw * (Math.min(56, (sw - 16 - 6 * (k - 1)) / k) + 16) : 102 * 102)
@@ -1286,18 +1348,17 @@ function layout() {
     // Где предпросмотру стоять — решает СРАВНЕНИЕ ПО СУЩЕСТВУ, а не доля высоты. Прежний потолок
     // «полоса не больше пятой части высоты» был угаданным числом и решал судьбу листа: на 1024x768
     // 136 px полосы против порога 141 — полоса оставалась, лист складывался в колонку 325x276
-    // вместо 485x412 (−55 %). Теперь считаются три раскладки — полоса сверху, накладка на листе,
-    // боковая колонка, — и берётся та, где полезной площади листа больше.
-    const pick = maxRows => {
-      const cands = (showPrev ? [fit(bandH, false, maxRows), fit(0, true, maxRows), fit(0, false, maxRows)]
-                              : [fit(0, false, maxRows)]).filter(Boolean);
-      return cands.reduce((a, c) => (c.area > a.area + 0.5 ? c : a));
-    };
-    let pl = pick(2);
-    // Упёрлись в пол — уступаем в порядке «полоса → накладка → прокрутка чипов»: первые две уступки
-    // уже сделаны сравнением площадей, последняя здесь. Лист не сжимаем: второй ряд чипов стоит
-    // 70 px высоты, и на невысоком окне (900x520) он вдвое дешевле отдаётся в прокрутку.
-    if (pl.sh < FLOOR) { const p1 = pick(1); if (p1.sh > pl.sh + 0.5) pl = p1; }
+    // вместо 485x412 (−55 %). Считаются три раскладки — полоса сверху, накладка на листе, боковая
+    // колонка, — каждая с потолком в два ряда чипов и с одним, и все шесть сравниваются разом.
+    // Раньше здесь был чистый максимум площади плюс отдельная заплата «если ниже пола — попробуй
+    // один ряд». Максимум площади в этом месте ошибается: один ряд с прокруткой всегда даёт лист
+    // выше двух рядов без неё, и правило само отдавало бы видимость палитры. Отбор — betterFit.
+    const cands = [];
+    for (const maxRows of [2, 1]) {
+      if (showPrev) cands.push(fit(bandH, false, maxRows), fit(0, true, maxRows), fit(0, false, maxRows));
+      else cands.push(fit(0, false, maxRows));
+    }
+    const pl = cands.filter(Boolean).reduce(betterFit(FLOOR));
     const band = pl.band, sideOn = pl.side, rows = pl.rows, sw = pl.sw, sh = pl.sh, boxH = pl.boxH;
     const perRow = rows === 1 ? n : Math.ceil(n / rows);
     // Остаток по вертикали делим пополам: лист физически широкий и низкий, весь экран ему не нужен,
@@ -2005,14 +2066,21 @@ function tween(from, to, dur, apply, done) {
 const drag = { id: null, kind: null, x0: 0, y0: 0, patch: null, ou: 0, ov: 0, moved: false, p0: 0, lastY: 0, lastT: 0 };
 const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 function sheetUV(x, y) { const s = L.sheet; return { u: 1 - (y - s.y) / s.h, v: (x - s.x) / s.w }; }
+// Ореол вокруг патча — HIT_PAD, и он же стоит в формуле пола листа (sheetFloor): это ОДНО число,
+// а не два похожих. Было 10, стало 14. Причина: пока лист был полулистом хосомаки (L = 21),
+// брусок в 2 единицы занимал 0,095 высоты и 10 px ореола хватало. На едином листе (L = 42)
+// та же начинка — 0,048 высоты, на 390x844 это 16,8 px, и цель касания выходила 36,8 при норме 44.
+// Плата названа честно: соседние бруски на экране в ~20 px, ореолы перекрываются на ~8 px;
+// перебор идёт с конца списка, поэтому выигрывает верхний — разрешается детерминированно,
+// но соседа под стопкой схватить можно.
 function hitPatch(x, y) {
   const list = patches();
   for (let i = list.length - 1; i >= 0; i--) {
     const p = list[i], d = ING[p.kind];
-    if (p.rot) { const t = patchScreen(p), dx = x - t.cx, dy = y - t.cy, c = Math.cos(t.ang), sn = Math.sin(t.ang); const ax = dx * c + dy * sn, ay = -dx * sn + dy * c; if (Math.abs(ax) <= t.lenPx / 2 + 10 && Math.abs(ay) <= t.wPx / 2 + 10) return p; continue; }
+    if (p.rot) { const t = patchScreen(p), dx = x - t.cx, dy = y - t.cy, c = Math.cos(t.ang), sn = Math.sin(t.ang); const ax = dx * c + dy * sn, ay = -dx * sn + dy * c; if (Math.abs(ax) <= t.lenPx / 2 + HIT_PAD && Math.abs(ay) <= t.wPx / 2 + HIT_PAD) return p; continue; }
     const r = patchRect(p);
     if (d.wave) { r.y -= d.wave.amp * L.sheet.h; r.h += 2 * d.wave.amp * L.sheet.h; }
-    const pad = 10; if (x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad) return p;
+    const pad = HIT_PAD; if (x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad) return p;
   }
   return null;
 }
