@@ -21,7 +21,7 @@ const REF = {
   fruit: { d: 52.9, dmax: 55.5, turns: 1.54, core: true },   // 27.08: то же
   cake:  { d: 70.5, dmax: 71.0, turns: 2.06, core: false },
 };
-const TOL_D = 0.6, TOL_T = 0.05;      // мм и обороты
+const TOL_D = 0.6, TOL_T = 0.05;      // мм и обороты; TOL_D держим УЗКИМ намеренно — он ловит изменение, а не задаёт норму
 const TOL_LEVEL = 3;                  // средняя яркость риса: |Δ| ≤ 3 (см. docs/geometry-audit.md)
 const ROUND_MAX = 8;                  // некруглость при НЕЙТРАЛЬНОЙ руке, %
 // Рука проверяется отдельно и по достижимым значениям. Первая редакция гоняла всё только
@@ -48,6 +48,14 @@ function runChecks(detail) {
   const keep = { base: S.base, wrap: S.wrap, shape: S.shape, turns: S.turns, hand: S.hand, mode: S.mode,
                  lists: JSON.parse(JSON.stringify(S.lists)), W, H, DPR };
   const ok = (cond, msg) => { if (!cond) fails.push(msg); return cond; };
+  // ДИАМЕТР — ДЕТЕКТОР ИЗМЕНЕНИЙ, А НЕ ТРЕБОВАНИЕ К ПРОДУКТУ. Владелец 27.08: «диаметры мне вообще
+  // особо не важны… если он стал больше, но ничего не разрывается, всё в порядке». Это верно: ролл
+  // на пять миллиметров толще не хуже. Но диаметр шевелится, стоит тронуть что угодно в намотке, и
+  // потому остаётся самой дешёвой сигнализацией — за сегодня сработал трижды. Две разные роли, и
+  // раньше они были смешаны: расхождение по диаметру роняло проверку наравне с дырой в ролле.
+  // Теперь оно только СООБЩАЕТ. Жёсткими остались условия, при которых ролл действительно испорчен:
+  // замкнулся ли (обороты), нет ли непокрытых углов, лежат ли начинки внутри, влезает ли раскладка.
+  const drift = (cond, msg) => { if (!cond) notes.push(msg); return cond; };
   const near = (a, b, t) => Math.abs(a - b) <= t;
   const clean = () => { S.shape = 'round'; S.turns = null; S.mode = 'lay';
     S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 }; };
@@ -64,8 +72,8 @@ function runChecks(detail) {
     for (const k in REF) {
       S.base = k; S.wrap = null; S.lists[k] = []; clean(); touchModel(); layout();
       const r = REF[k], d = dia(), n = BASES[k].name;
-      ok(near(d.med, r.d, TOL_D), `${n}: ⌀ по медиане ${d.med.toFixed(1)} мм, эталон ${r.d}`);
-      ok(near(d.max, r.dmax, TOL_D * 2), `${n}: ⌀ по максимуму ${d.max.toFixed(1)} мм, эталон ${r.dmax}`);
+      drift(near(d.med, r.d, TOL_D), `${n}: ⌀ по медиане ${d.med.toFixed(1)} мм, эталон ${r.d}`);
+      drift(near(d.max, r.dmax, TOL_D * 2), `${n}: ⌀ по максимуму ${d.max.toFixed(1)} мм, эталон ${r.dmax}`);
       ok(near(d.wd.turns, r.turns, TOL_T), `${n}: витков ${d.wd.turns.toFixed(2)}, эталон ${r.turns}`);
       ok(!!d.m.core === r.core, `${n}: ядро ${d.m.core ? 'есть' : 'НЕТ'}, ожидалось ${r.core ? 'есть' : 'нет'}`);
       ok(d.round <= ROUND_MAX, `${n}: некруглость ${d.round.toFixed(0)} %, потолок ${ROUND_MAX}`);
@@ -216,7 +224,8 @@ function runChecks(detail) {
   }
 
   const head = fails.length ? `ПРОВАЛ · ${fails.length}` : 'ВСЁ ЦЕЛО';
-  const text = head + (fails.length ? '\n  ' + fails.join('\n  ') : '');
+  const text = head + (fails.length ? '\n  ' + fails.join('\n  ') : '') +
+    (notes.length ? `\n\nСДВИГ ⌀ · ${notes.length} — не провал, но объясни чем:\n  ` + notes.join('\n  ') : '');
   return detail ? { ok: !fails.length, fails, notes, text } : text;
 }
 
