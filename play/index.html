@@ -2243,6 +2243,21 @@ function puzzleStart(level, seed) {
   S.turns = lv.turns; S.selPatch = null; S.shape = lv.shape || 'round';
   S.puzzle = { level, seed, lv, target: null, vs: puzzleSlices(lv.pieces), result: null };
   S.puzzle.target = genTarget(lv, seed * 7919 + level * 131 + (S.base === 'cake' ? 17 : 0));
+  // СРЕЗЫ ОБЯЗАНЫ ПРОХОДИТЬ ЧЕРЕЗ КАЖДУЮ НАЧИНКУ. Иначе часть цели невидима, и её можно
+  // класть куда угодно: замерено на уровне 5 — клубника занимала v 0,331…0,456, а резы
+  // стояли на 0,167 / 0,5 / 0,833, и сдвиг её на 10 мм давал ЧЕСТНЫЕ 100 %. Лосось и огурец
+  // на тех же 10 мм давали 51 % и 59 % — то есть метрика исправна, просто не туда смотрела.
+  // Локальные по оси начинки (dv < 1) — клубника, креветка — прячутся между резами.
+  for (const t of S.puzzle.target) {
+    const d = ING[t.kind]; if (!d || d.dv >= 1) continue;
+    const half = d.dv / 2, lo = t.v - half, hi = t.v + half;
+    if (S.puzzle.vs.some(v => v >= lo && v <= hi)) continue;
+    // ни один рез не задевает — двигаем ближайший внутрь начинки, а не добавляем новый:
+    // число кусочков задано уровнем и менять его нельзя.
+    let bi = 0, bd = 9;
+    for (let i = 0; i < S.puzzle.vs.length; i++) { const dd = Math.abs(S.puzzle.vs[i] - t.v); if (dd < bd) { bd = dd; bi = i; } }
+    S.puzzle.vs[bi] = clamp(t.v, 0.03, 0.97);
+  }
   S.lists[S.base] = []; touchModel(); layout();
   try { localStorage.setItem('rollery.puzzle', JSON.stringify({ level, seed, max: Math.max(level, puzzleMax()) })); } catch (e) {}
   if (S.mode !== 'lay') action('back'); dirty = true; requestFrame();

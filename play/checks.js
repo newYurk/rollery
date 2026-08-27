@@ -149,6 +149,19 @@ function runChecks(detail) {
       const mir = puzzleEvaluate(); const mv = (mir.sim !== undefined ? mir.sim : mir) * 100;
       puzzleStop();
       ok(sv >= 99, `пазл: точная копия ${sv.toFixed(0)} %, ожидалось 100`);
+      // Каждая начинка цели должна быть видна хотя бы одним срезом. Иначе её можно класть
+      // куда угодно: замерено на уровне 5 — клубника занимала v 0,331…0,456 при срезах
+      // 0,167 / 0,5 / 0,833, и сдвиг её на 10 мм давал ЧЕСТНЫЕ 100 %.
+      for (let lv = 0; lv < 16; lv++) {
+        puzzleStart(lv, 5);
+        for (const t of S.puzzle.target) {
+          const dd = ING[t.kind]; if (!dd || dd.dv >= 1) continue;
+          const h = dd.dv / 2;
+          ok(S.puzzle.vs.some(v => v >= t.v - h && v <= t.v + h),
+             `пазл ур.${lv}: «${dd.name}» не задета ни одним срезом — её можно класть куда угодно`);
+        }
+        puzzleStop();
+      }
       ok(mv <= 25, `пазл: зеркальная ${mv.toFixed(0)} %, потолок 25`);
     } catch (e) { fails.push('пазл: ' + e.message); }
 
