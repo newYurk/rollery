@@ -774,10 +774,13 @@ function strokeWrapperTurns(c, m, wd, si, scale, half, LW, alpha) {
   const step = Math.max(1, Math.round(NB / (TAU * m.Rmax * scale / 2)));
   c.save();
   c.globalCompositeOperation = 'source-atop';
-  c.globalAlpha = alpha * 0.9;                   // чуть тише внешней: она под рисом, не на свету
+  c.globalAlpha = alpha;
   c.lineJoin = 'round'; c.lineCap = 'round';
-  c.strokeStyle = rgbCss(B().wrapperRgb);
-  c.lineWidth = LW;
+  // Рисуем ТЕМ ЖЕ приёмом, что внешний контур: сначала контактная тень, потом лента.
+  // Без тени внутренняя лента меряется на 3 device-px против 4 у внешней — и владелец
+  // увидела это глазом, хотя ширина штриха задавалась одна и та же. Тень здесь не украшение:
+  // внутренний виток зажат рисом с ОБЕИХ сторон, канавка контакта у него не хуже внешней.
+  const SHADOW = LW + 1.7 * WRAP_MIN_CSS * DPR;
   for (let k = 0; k < wd.kmax - 1; k++) {
     const p = new Path2D(); let first = true, drawn = 0;
     for (let i = 0; i < NB; i += step) {
@@ -791,7 +794,10 @@ function strokeWrapperTurns(c, m, wd, si, scale, half, LW, alpha) {
       if (first) { p.moveTo(x, y); first = false; } else p.lineTo(x, y);
       drawn++;
     }
-    if (drawn > 2) c.stroke(p);
+    if (drawn > 2) {
+      c.strokeStyle = 'rgba(24,40,30,0.28)'; c.lineWidth = SHADOW; c.stroke(p);
+      c.strokeStyle = rgbCss(B().wrapperRgb);  c.lineWidth = LW;     c.stroke(p);
+    }
   }
   c.restore();
 }
