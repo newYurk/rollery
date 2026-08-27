@@ -838,6 +838,7 @@ function materialAt(m, wd, vSlice, r, phi) {
 // (docs/geometry-audit.md, раздел «Условности отрисовки»).
 const LIGHT_X = -0.70, LIGHT_Y = -0.71;   // one light for the whole slice; chosen to agree with `vig` in renderSection (key from the top-left)
 const GRAIN_GAP_RGB = [201, 186, 160];    // the gap is a MIX toward a warm tone, never a subtraction — see below
+const GRAIN_C = new Float32Array(2);      // смещение от точки к центру НАЙДЕННОГО зерна, в единицах зерна
 const DEEP_DARK = 29;                     // насколько темнее зерно, видимое в просвет между верхними
 const LEVEL_FIX = 5.8;                    // keeps the mean rice brightness inside the +-3 acceptance band; re-solved 27.08 after grains became bodies (the dome and the specular add light the old 7.5 no longer had to make up for)
 // У КАЖДОГО ЗЕРНА СВОЙ УГОЛ. Без этого на плоском листе все рисинки лежат вдоль оси x —
@@ -954,6 +955,7 @@ function spreadColor(gx, gy, b, ct, st, lod) {
     }
     // Зерно — не многоугольник, а ТЕЛО: высота идёт по эллипсоиду и обрывается на кромке. Всё, что
     // дальше R, — щель между зёрнами, и она затенена, а не обведена линией. Линия давала плитку.
+    GRAIN_C[0] = ex; GRAIN_C[1] = ey;                       // чей это пиксель, решает вызывающий — по центру
     const qraw = Math.sqrt(q1), q = Math.min(1, qraw);
     const dome = Math.sqrt(Math.max(0, 1 - q * q));         // высота над листом, 1 в центре зерна
     const en = Math.hypot(ex, ey) || 1;
@@ -1217,7 +1219,7 @@ function renderSection(size, vSlice, m, Rref) {
       // Ветки разведены явно (а не тернарником), чтобы лишняя работа не считалась там, где не нужна:
       // касательная к витку нужна только рису несладкой базы, крему рулета она не нужна вовсе.
       if (mat.cls === 'wrap') rgb = wrapperColor(px, py, b);
-      else if (mat.cls === 'patch') {
+      else if (sweet && mat.cls === 'patch') {
         rgb = patchColor(mat.mt, px, py);
         // Начинка у несладких баз: хрома ×1,25 и тонкий тёмный кант по кромке. ПОЧЕМУ обёрткой, а не внутри
         // patchColor: та обязана остаться чистой функцией цвета материала — её зовут и вид листа, и альбом,
@@ -1232,6 +1234,17 @@ function renderSection(size, vSlice, m, Rref) {
         }
       } else if (sweet) rgb = spreadColor(dx / GRAIN, dy / GRAIN, b);   // крем: ct/st и LOD в его ветке не участвуют
       else {
+        // РИС ДОЛЖЕН ОБНИМАТЬ КУСОК, А НЕ ПОДЛЕЗАТЬ ПОД НЕГО. Владелец 27.08: «что сделать, чтобы рис
+        // был вокруг кусков, а не как сейчас просто накладывался». Причина была не в форме начинок:
+        // рис и кусок считались НЕЗАВИСИМО, materialAt отвечал по точке, и граница выходила идеальной
+        // геометрической линией. Зерно при этом — целое тело, и эта линия резала его пополам: кусок
+        // читался наклейкой поверх среза.
+        // В жизни граница проходит ПО ЗЁРНАМ: нож рассекает рисинки целиком, одни прилегают к куску,
+        // другие чуть заходят на него, и контур получается зубчатым в масштабе зерна, а не гладким.
+        // Правило ровно это и говорит: зерно принадлежит тому материалу, где лежит ЕГО ЦЕНТР. Решётка
+        // считается всегда, центр возвращается в GRAIN_C, и материал спрашивается ещё раз — уже в
+        // центре. Оба перехода честные: рис заходит на кусок, кусок вытесняет рис. Обёртку и ядро
+        // правило не трогает — нори это лист, его кромка обязана остаться гладкой.
         // НА ОСИ У ВИТКА НЕТ КАСАТЕЛЬНОЙ. Ровно в центре (-dy, dx)/|r| не определена и на соседних пикселях
         // разворачивается на целый оборот: анизотропная метрика скачет, и в середине среза вылезает
         // «цветок» из четырёх лепестков. Он был и раньше, но еле виден; рельеф зерна его проявил.
@@ -1240,6 +1253,26 @@ function renderSection(size, vSlice, m, Rref) {
         const gr = 1 / Math.max(1e-6, rho), tw = smooth(0.2 * GRAIN, 1.0 * GRAIN, rho);
         const tx = lerp(1, -dy * gr, tw), ty = lerp(0, dx * gr, tw), tn = 1 / Math.max(1e-6, Math.hypot(tx, ty));
         rgb = spreadColor(dx / GRAIN, dy / GRAIN, b, tx * tn, ty * tn, lod * tw);
+        // НА СКОЛЬКО СМЕЩАТЬ. Первая проба отдавала зерно целиком тому, где его центр, — и кусок
+        // выходил обгрызенным на все восемь миллиметров, а рисунок на нём вырождался в пятна: цвет
+        // брался в центре зерна, полоски лосося и тамаго квантовались. Но нож рассекает рисинки, а не
+        // обходит их: настоящая граница дрожит в масштабе МИЛЛИМЕТРА. Поэтому решение принимается не
+        // в центре зерна, а на трети пути к нему — амплитуда дрожания выходит около 1,4 мм, — а
+        // текстура куска по-прежнему берётся В САМОЙ ТОЧКЕ, если точка внутри куска.
+        // ⚑ inferred: замера зубчатости границы рис/начинка по фотографиям нет; 0,35 подобрано на глаз
+        // при сравнении с фотографиями срезов и держится как условность отрисовки, а не как величина.
+        const GRAIN_BITE = 0.35;
+        const cx = dx + GRAIN_C[0] * GRAIN * GRAIN_BITE, cy = dy + GRAIN_C[1] * GRAIN * GRAIN_BITE;
+        let cphi = Math.atan2(cy, cx); if (cphi < 0) cphi += TAU;
+        const cmat = materialAt(m, wd, vSlice, Math.hypot(cx, cy) * shapeK(cphi, si), cphi);
+        const src = (cmat.cls === 'patch' || cmat.cls === 'spread') ? cmat : mat;
+        if (src.cls === 'patch') {
+          const smt = mat.cls === 'patch' ? mat.mt : src.mt;
+          rgb = patchColor(smt, px, py);
+          const lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+          const kk = 1 - 0.16 * smooth(0.82, 1.0, Math.hypot(smt.lu * 2, smt.lz * 2 - 1));
+          rgb = [(lum + (rgb[0] - lum) * 1.25) * kk, (lum + (rgb[1] - lum) * 1.25) * kk, (lum + (rgb[2] - lum) * 1.25) * kk];
+        }
       }
       if (mat.sm && mat.sm.rOut >= topAt(wd, phi) - 1e-4) alpha = clamp(0.5 + (mat.sm.rOut - r) * scale);   // внешняя кромка
     }
