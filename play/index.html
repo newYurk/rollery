@@ -466,8 +466,12 @@ function spreadAt(u, g) {
     const p = Math.min(CREAM_P, se * 0.5);
     // нормировка: крема кладут отмеренную порцию, от способа размазать его не прибавляется
     const k = se / (p * (CREAM_A0 + CREAM_PK) / 2 + (se - p) * (CREAM_PK + CREAM_FAR) / 2);
-    return k * (u < p ? CREAM_A0 + (CREAM_PK - CREAM_A0) * (u / p)
-                      : CREAM_PK + (CREAM_FAR - CREAM_PK) * ((u - p) / (se - p)));
+    // И крем сходит на нет у дальнего края: стеной он тоже не стоит.
+    const e = Math.min(RIM_EDGE, (se - p) * 0.25);
+    const kk = k * se / (se - e * CREAM_FAR / 2);   // масса та же
+    if (u >= se - e) return kk * CREAM_FAR * (se - u) / e;
+    return kk * (u < p ? CREAM_A0 + (CREAM_PK - CREAM_A0) * (u / p)
+                       : CREAM_PK + (CREAM_FAR - CREAM_PK) * ((u - p) / (se - e - p)));
   }
   const s0 = b.spreadStart === undefined ? SPREAD_START : b.spreadStart;
   if (u < s0) return 0;                               // голая полоса у ближнего края
@@ -744,7 +748,7 @@ function materialAt(m, wd, vSlice, r, phi) {
 // (docs/geometry-audit.md, раздел «Условности отрисовки»).
 const LIGHT_X = -0.70, LIGHT_Y = -0.71;   // one light for the whole slice; chosen to agree with `vig` in renderSection (key from the top-left)
 const GRAIN_GAP_RGB = [201, 186, 160];    // the gap is a MIX toward a warm tone, never a subtraction — see below
-const LEVEL_FIX = 5.2;                    // keeps the mean rice brightness inside the +-3 acceptance band; re-solved 27.08 after grains became bodies (the dome and the specular add light the old 7.5 no longer had to make up for)
+const LEVEL_FIX = 5.8;                    // keeps the mean rice brightness inside the +-3 acceptance band; re-solved 27.08 after grains became bodies (the dome and the specular add light the old 7.5 no longer had to make up for)
 // У КАЖДОГО ЗЕРНА СВОЙ УГОЛ. Без этого на плоском листе все рисинки лежат вдоль оси x —
 // владелец: «кажется, что все рисинки лежат по горизонтали». Так и было: решётка задавала не
 // только центры, но и направление. Замер по фотографиям (Kanpyō-maki 001, Makizushi2): вдоль
