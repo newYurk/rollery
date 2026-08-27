@@ -98,6 +98,13 @@ const BASES = {
   fruit: { name: 'Фруктовые', emoji: '🍓', kind: 'sweet', wrapKey: 'egg', wrapper: '#e8b551', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
     T: 2.0, w: 0.30, sheetCm: 21, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 5, Wv: 38,
     ingredients: ['strawberry', 'kiwi', 'mango', 'banana', 'pinkcream', 'choco', 'jam', 'nut'] },
+  // ⚑ ПОЧЕМУ РУЛЕТ ВООБЩЕ СГИБАЕТСЯ. Модель гнёт бисквит до r0 = 1,25 мм, и при толщине
+  // 8,5 мм это 77 % деформации крайнего волокна — несрезанный бисквит на таком радиусе
+  // трескается. В жизни это возможно потому, что перед скруткой у ближней кромки делают
+  // ТРИ НАДРЕЗА с шагом 1 см (cotta, DelishKitchen, macaroni, Cake.jp — четыре источника).
+  // То есть следствие приёма у нас уже смоделировано, а сам приём — нет, и до сегодня
+  // тугая сердцевина стояла без обоснования. Геометрию надрезов не рисуем: для этого нужна
+  // ПЕРЕМЕННАЯ толщина обёртки вдоль листа, которой в модели нет (issue #5).
   cake:  { name: 'Рулет', emoji: '🍰', kind: 'sweet', cream: true, wrapFixed: true, wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
     T: 1.0, w: 1.7, turns: 2.5, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,
     ingredients: ['strawberry', 'kiwi', 'banana', 'mango', 'choco', 'jam', 'nut', 'pinkcream'] },
