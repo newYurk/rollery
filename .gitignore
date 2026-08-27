@@ -23,6 +23,9 @@ sim/**/out-*/
 sim/**/runs/
 sim/**/frames_*/
 sim/**/checks/out*/
+!sim/**/checks/*.py
+!sim/**/checks/*.sh
+sim/**/checks/attack_*.json
 sim/**/rerun/
 sim/*_out*.json
 sim/lab/runs/
