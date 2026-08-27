@@ -227,7 +227,7 @@ const NPIECES = 6;
 function load() {
   try {
     const m = JSON.parse(localStorage.getItem('rollery.model.v2') || 'null');
-    if (m && m.lists) { S.base = m.base in BASES ? m.base : 'hoso'; S.lists = m.lists; }
+    if (m && m.lists) { S.base = m.base in BASES ? m.base : 'hoso'; S.lists = m.lists; S.wrap = (m.wrap && WRAPPERS[m.wrap]) ? m.wrap : null; }
     for (const k in BASES) if (!S.lists[k]) S.lists[k] = [];
     S.preview = localStorage.getItem('rollery.preview') === '1';
     S.mute = localStorage.getItem('rollery.mute') === '1';
@@ -241,7 +241,7 @@ function load() {
 }
 function save() {
   try {
-    localStorage.setItem('rollery.model.v2', JSON.stringify({ base: S.base, lists: S.lists }));
+    localStorage.setItem('rollery.model.v2', JSON.stringify({ base: S.base, lists: S.lists, wrap: S.wrap }));
     localStorage.setItem('rollery.preview', S.preview ? '1' : '0');
     localStorage.setItem('rollery.mute', S.mute ? '1' : '0');
     localStorage.setItem('rollery.shape', S.shape);
@@ -1527,11 +1527,16 @@ function drawChips() {
   if (!c.labels) { ctx.fillStyle = '#f3e7ca'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(ING[S.sel].name, c.x + c.w / 2, c.y + c.rows * rowH + 2); }
 }
 let icons = [];
+let wrapNote = '', wrapNoteT = 0;   // имя выбранной обёртки: на кнопке оно не помещается
 function drawTopBar(hint) {
   const T0 = SAFE.top, ox = L.ox, cw = L.cw, narrow = cw < 480;
   ctx.fillStyle = '#f3e7ca'; ctx.font = font(17, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText('Ролльня', ox + 16, 24 + T0);
+  // Обёртка — кнопка-образец: глиф не эмодзи, а кружок цвета самой обёртки, так видно выбор
+  // не читая. Перебором, а не списком: раскладку только что перебрали, и лишний ряд сейчас
+  // рискован. Настоящий выбор — образцы на циновке вплотную к листу, issue #13.
   const items = [['base', B().emoji], ['shape', SHAPES[S.shape].glyph], ['album', '★'], ['puzzle', '🧩'], ['preview', '👁'], ['mute', S.mute ? '🔇' : '🔊']];
+  if (!B().wrapFixed) items.splice(1, 0, ['sheet', '●']);
   if (S.puzzle || S.mode === 'revealed' || S.mode === 'plate') items.splice(3, 0, ['share', '🔗']);
   const iconsW = items.length * ((narrow ? 34 : 40) + (narrow ? 4 : 6));
   ctx.save(); ctx.beginPath(); ctx.rect(ox, T0, cw - iconsW - 20, 50); ctx.clip();
@@ -1541,11 +1546,17 @@ function drawTopBar(hint) {
   for (const [id, glyph] of items) {
     const w = narrow ? 34 : 40; x -= w; icons.push({ id, x, y: 4 + T0, w, h: 40 });
     rr(x, 6 + T0, w, 36, 10); ctx.fillStyle = ((id === 'preview' && S.preview) || (id === 'puzzle' && S.puzzle) || (id === 'album' && S.mode === 'album')) ? '#4a4331' : '#26261f'; ctx.fill();
-    ctx.font = id === 'share' ? '16px system-ui' : id === 'album' ? font(19, 600) : '18px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = id === 'album' ? '#e0b25a' : '#f3e7ca';
+    ctx.font = id === 'share' ? '16px system-ui' : id === 'album' ? font(19, 600) : id === 'sheet' ? font(22, 700) : '18px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = id === 'album' ? '#e0b25a' : id === 'sheet' ? (WRAPPERS[B().wrapKey] || WRAPPERS.nori).color : '#f3e7ca';
     ctx.globalAlpha = (id === 'preview' && !S.preview) ? 0.45 : 1; ctx.fillText(glyph, x + w / 2, 25 + T0); ctx.globalAlpha = 1;
     x -= narrow ? 4 : 6;
   }
   const arrows = S.puzzle && S.mode === 'lay';
+  // Имя выбранной обёртки на пару секунд поверх подсказки: на кнопке-образце оно не помещается
+  // («Шоколадный блин» — 72,5 px при кнопке 34), а знать, что выбрал, надо.
+  if (wrapNote && performance.now() - wrapNoteT < 2600) hint = wrapNote;
+  else if (wrapNote) wrapNote = '';
   if (hint) {
     ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const maxW = cw - 24 - (arrows ? 88 : 0), parts = hint.split(' · '), lines = []; let cur = '';
@@ -2319,6 +2330,15 @@ function action(id) {
     case 'albumopen_share': albumShare(S.albumOpen); break;
     case 'albumopen_del': albumRemove(S.albumOpen); break;
     case 'albumopen_close': S.albumOpen = -1; dirty = true; break;
+    // ⚠ Имя 'wrap' уже занято: так называется «обернуть НАЧИНКУ в нори». Первый совпавший
+    // case выигрывает, поэтому моя ветка была недостижима и кнопка молча ничего не делала.
+    case 'sheet': {
+      const ks = Object.keys(WRAPPERS), cur = B().wrapKey || 'nori';
+      S.wrap = ks[(ks.indexOf(cur) + 1) % ks.length];
+      wrapNote = WRAPPERS[S.wrap].name + ' · ' + WRAPPERS[S.wrap].mm + ' мм';
+      wrapNoteT = performance.now();
+      save(); touchModel(); layout(); dirty = true; break;
+    }
     case 'shape': { const ks = Object.keys(SHAPES); S.shape = ks[(ks.indexOf(S.shape) + 1) % ks.length]; save(); if (S.puzzle && S.puzzle.result) S.puzzle.result = null; dirty = true; break; }
     case 'next': if (S.puzzle && S.puzzle.result && S.puzzle.result.pass) puzzleStart(Math.max(0, S.puzzle.level + 1), S.puzzle.seed + 1); break;
     case 'lvprev': if (S.puzzle && S.puzzle.level > 0) puzzleStart(S.puzzle.level - 1, S.puzzle.seed); else if (S.puzzle && S.puzzle.level < 0) puzzleStart(0, 1); break;
