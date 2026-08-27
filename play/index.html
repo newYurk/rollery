@@ -358,8 +358,26 @@ function stackTopAt(u, v, list, g) {
   return H;
 }
 // Начинка толще намазки при надавливании циновкой сжимается: слой растёт только на β от избытка.
-const TAPER = 0.08;   // рис сходит на нет перед голой кромкой (доля листа, ≈ 1,5 см)
-function spreadAt(u, g) { const b = g || B(); if (b.oneTurn) return 1; const se = b.spreadEnd; return u >= se ? 0 : u > se - TAPER ? (se - u) / TAPER : 1; }
+// ДАЛЬНИЙ КРАЙ: БОРТИК, А НЕ СХОД НА НЕТ. Здесь стоял `TAPER` — рис плавно сходил к нулю перед
+// голой полосой. Источники говорят обратное, и в один голос: перед норисиро рис намеренно
+// ПОДНИМАЮТ — 「ふちを高く」, три независимых источника (oisiiryouri шаг 8, Kurashiru, Tokiwa).
+// Причина названа прямо: 「向こう側を高くしておくと、合わせ目のすし飯がうすくならずに、具が中心にきます」 —
+// чтобы на стыке рис не оказался тонким и начинка осталась по центру. Мы моделировали ровно тот
+// дефект, который повара исправляют. Разбор — docs/reality-check.md, раздел 2.
+// МАССА РИСА СОХРАНЯЕТСЯ. Повар кладёт отмеренную порцию (SUZUMO: 80 г хосомаки, 160 г футомаки),
+// и бортик он НАБИРАЕТ из той же грядки, а не досыпает. Поэтому профиль нормирован: средняя по
+// грядке равна 1, грядка проседает на 1 %, бортик поднимается на 29 %.
+// ⚑ inferred: высоты бортика в миллиметрах нет НИ В ОДНОМ источнике (docs/reality-check.md: «Высота
+// бортика нигде не дана в миллиметрах — источника нет»). RIM_W и RIM_H — оценка, не замер.
+const RIM_W = 0.05;   // доля листа под бортиком: ≈ 10 мм на футомаки, ≈ 5 мм на хосомаки
+const RIM_H = 1.30;   // во сколько раз бортик выше грядки
+function spreadAt(u, g) {
+  const b = g || B(); if (b.oneTurn) return 1;
+  const se = b.spreadEnd; if (u >= se) return 0;
+  const w = Math.min(RIM_W, se * 0.5);
+  const k = se / (se + w * (RIM_H - 1) / 2);          // нормировка: масса риса та же, что у ровной грядки
+  return u > se - w ? k * (1 + (RIM_H - 1) * (u - (se - w)) / w) : k;
+}
 const betaEff = g => clamp((g ? g.beta : B().beta) * (g ? g.press : (S.hand ? S.hand.press : 1)), 0.15, 0.95);
 // Намотка листа переменной толщины: по угловым бинам, виток за витком. sMax — сколько листа съедено (для анимации скрутки).
 const PROF_DS = 0.02, SMOOTH_R = 0.9;   // шаг профиля толщины и радиус сглаживания (единицы ≈ 5 мм)
@@ -1484,9 +1502,15 @@ function drawLay() {
   rr(s.x - 5, s.y - 5, s.w + 10, s.h + 10, 6); ctx.fillStyle = B().wrapper; ctx.fill();
   const mdl = getModel(), wd0 = windFor(mdl, 0.5), Lm = mdl.g.L;
   const uClose = wd0.sClose >= 0 ? wd0.sClose / Lm : B().spreadEnd, uEnd = wd0.sEnd < Lm ? wd0.sEnd / Lm : 1;
-  const bare = (1 - uClose) * s.h, taperPx = B().oneTurn ? 0 : TAPER * s.h;
+  const bare = (1 - uClose) * s.h, rimPx = B().oneTurn ? 0 : RIM_W * s.h;
   ctx.save(); rr(s.x, s.y + bare, s.w, s.h - bare, 4); ctx.clip(); ctx.drawImage(getSpreadTex(s.w, s.h), s.x, s.y, s.w, s.h);
-  if (taperPx) { const gr = ctx.createLinearGradient(0, s.y + bare, 0, s.y + bare + taperPx); gr.addColorStop(0, B().wrapper); gr.addColorStop(1, rgbCss(B().wrapperRgb, 0)); ctx.fillStyle = gr; ctx.fillRect(s.x, s.y + bare, s.w, taperPx); }
+  // Бортик виден как валик: светлая макушка сразу под голой полосой и тень с внутренней стороны.
+  if (rimPx) {
+    const gr = ctx.createLinearGradient(0, s.y + bare, 0, s.y + bare + rimPx);
+    gr.addColorStop(0, 'rgba(255,252,242,0.55)'); gr.addColorStop(0.45, 'rgba(255,252,242,0.16)');
+    gr.addColorStop(1, 'rgba(150,132,104,0.14)');
+    ctx.fillStyle = gr; ctx.fillRect(s.x, s.y + bare, s.w, rimPx);
+  }
   ctx.restore();
   const zOf = pt => { const i = patches().indexOf(pt), q = i >= 0 ? mdl.list[i] : null; return q ? q.z0 : 0; };   // стопка — из модели, порядок клона тот же
   for (const pt of patches()) if (pt !== drag.patch) drawPatchTop(pt, uEnd < 1 && pt.u > uEnd ? 0.35 : 1, zOf(pt));
