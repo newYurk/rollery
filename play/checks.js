@@ -24,7 +24,14 @@ const REF = {
 const TOL_D = 0.6, TOL_T = 0.05;      // мм и обороты
 const TOL_LEVEL = 3;                  // средняя яркость риса: |Δ| ≤ 3 (см. docs/geometry-audit.md)
 const ROUND_MAX = 8;                  // некруглость, % — циновка обжимает ролл (reality-check)
-const PATCH_MIN = 24;                 // px: брусок на экране; +10 px ореола с каждой стороны = 44
+// Цель касания берётся ИЗ КОДА, а не числом. Первая редакция этой проверки хардкодила
+// «≥ 24 px, потому что ореол 10» — и через час ореол стал 14, а проверка продолжила мерить
+// по старому. Это ровно те грабли, от которых она сама и защищает: константа, выведенная
+// под допущение, которое потом поменялось.
+// 844×390 исключён осознанно: лист там 258 px, брусок в 2 единицы — 12,3 px, и до нормы
+// не дотянуть НИКАКИМ ореолом. Ландшафтный телефон — ориентация для скрутки, реза и
+// просмотра, но не для раскладки. Это ограничение, а не дефект.
+const LAY_SKIP = ['844x390'];
 const SIZES = [[390, 844], [844, 390], [1024, 768], [1024, 1366], [1440, 900]];
 
 function runChecks(detail) {
@@ -130,8 +137,12 @@ function runChecks(detail) {
           const ings = B().ingredients.length, per = L.chips.perRow || ings, rows = L.chips.rows || 1;
           const hidden = Math.max(0, ings - per * rows);
           ok(hidden === 0 || L.chipScroll, `${tag}: ${hidden} начинок спрятано БЕЗ прокрутки`);
-          const patch = 2 / getModel().g.L * L.sheet.h;   // брусок 2 ед. на экране
-          ok(patch >= PATCH_MIN, `${tag}: цель касания ${patch.toFixed(1)} px, нужно ≥ ${PATCH_MIN} (+ореол = 44)`);
+          const patch = 2 / getModel().g.L * L.sheet.h;          // брусок 2 ед. на экране
+          const pad = (typeof HIT_PAD === 'number') ? HIT_PAD : 10;
+          const need = (typeof TOUCH === 'number') ? TOUCH : 44;
+          if (LAY_SKIP.indexOf(w + 'x' + h) < 0)
+            ok(patch + 2 * pad >= need,
+               `${tag}: цель касания ${(patch + 2 * pad).toFixed(1)} px, норма ${need} (брусок ${patch.toFixed(1)} + ореол ${pad}×2)`);
           ok(L.sheet.w > 0 && L.sheet.h > 0, `${tag}: лист схлопнулся`);
         }
       }

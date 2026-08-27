@@ -2414,5 +2414,7 @@ if (linked) puzzleFromLink(linked); else if (location.search.includes('puzzle'))
 window.addEventListener('hashchange', () => { const pz = decodePuzzle(location.hash); if (pz) puzzleFromLink(pz); });
 requestFrame();
 </script>
+<!-- Регрессионная проверка: play/index.html?check — грузится только по требованию -->
+<script>if(location.search.indexOf('check')>=0){const t=document.createElement('script');t.src='checks.js';document.head.appendChild(t);}</script>
 </body>
 </html>
