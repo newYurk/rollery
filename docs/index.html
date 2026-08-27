@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ролльня — документы</title>
+<style>
+  :root{ --bg:#171713; --ink:#f3e7ca; --dim:#9a9280; --line:#2b2a22; --hot:#e0b25f }
+  *{ box-sizing:border-box }
+  html{ background:var(--bg) }
+  body{ margin:0; color:var(--ink); font:16px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;
+    -webkit-text-size-adjust:100%; padding:max(28px,env(safe-area-inset-top)) 20px 40px;
+    display:flex; justify-content:center }
+  main{ width:100%; max-width:40rem }
+  a.back{ color:var(--dim); text-decoration:none; font-size:13px }
+  a.back:hover{ color:var(--hot) }
+  h1{ font-size:clamp(21px,5vw,27px); letter-spacing:.05em; margin:.8em 0 .15em; font-weight:600 }
+  .sub{ color:var(--dim); margin:0 0 1.6rem; font-size:13.5px }
+  h2{ font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim);
+    font-weight:500; margin:1.9rem 0 .7rem }
+  ul{ list-style:none; margin:0; padding:0 }
+  li{ border-bottom:1px solid var(--line) }
+  li:last-child{ border-bottom:0 }
+  a.doc{ display:block; text-decoration:none; color:inherit; padding:11px 2px }
+  a.doc:hover, a.doc:focus-visible{ background:#1d1c17 }
+  a.doc:focus-visible{ outline:2px solid var(--hot); outline-offset:-2px }
+  a.doc b{ color:var(--hot); font-weight:600; font-size:15px }
+  a.doc span{ display:block; color:var(--dim); font-size:13px; margin-top:.15em }
+  footer{ margin-top:2.2rem; color:#7d7768; font-size:12.5px; line-height:1.7 }
+  footer a{ color:#7d7768 }
+</style>
+
+<main>
+  <a class="back" href="../">← Ролльня</a>
+  <h1>Документы</h1>
+  <p class="sub">Как устроена модель и чем подтверждено каждое число.</p>
+
+  <h2>Начать отсюда</h2>
+  <ul>
+    <li><a class="doc" href="reports/kinematics.html"><b>Кинематика скрутки</b>
+      <span>Иллюстрированный отчёт: какая модель циновки выжила, откуда взялись толщины, что опровергнуто. Открывается прямо здесь.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/geometry-audit.md"><b>Аудит геометрии</b>
+      <span>Толщины по источникам, размер зерна, разбор ошибок в срезе.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/reality-check.md"><b>Сверка с настоящими маки</b>
+      <span>Техника укладки риса, что делают руками, чем это отличается от модели.</span></a></li>
+  </ul>
+
+  <h2>Модель и механика</h2>
+  <ul>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/design-core.md"><b>Ядро замысла</b><span>С чего всё началось.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/mechanics.md"><b>Механика</b><span>Что игрок делает и что из этого следует.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/shapes.md"><b>Формы и нарезка</b><span>Круглый, квадратный, треугольный ролл; как режут начинки.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/inverse-design.md"><b>Обратное проектирование</b><span>По целевому срезу — найти раскладку. Спецификация с разбором.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/kazari-plan.md"><b>Кадзари макидзуси</b><span>Направление: узор в срезе как рисунок.</span></a></li>
+  </ul>
+
+  <h2>Проверки и источники</h2>
+  <ul>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/papers.md"><b>Научные работы</b><span>28 источников с проверенными DOI и честным разделом «чего в литературе нет».</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/simulation-research.md"><b>Симуляционный эталон</b><span>Зачем считается MLS-MPM и что он проверяет.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/sim/KINEMATICS.md"><b>Спецификация кинематики</b><span>Постановка и одиннадцать поправок к ней — включая опровергнутые.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/ui-review.md"><b>Ревью интерфейса</b><span>Разбор вёрстки и адаптива.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/ideas.md"><b>Идеи и отложенное</b><span>Что решено вернуть позже и почему.</span></a></li>
+  </ul>
+
+  <footer>
+    Тексты открываются на GitHub — там markdown читается как надо.<br>
+    Всё вместе: <a href="https://github.com/newYurk/rollery">github.com/newYurk/rollery</a>
+  </footer>
+</main>

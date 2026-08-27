@@ -10,7 +10,9 @@
 
 **Отчёт по симуляции скрутки** (кадры фаз, срезы, числа, что опровергнуто): https://claude.ai/code/artifact/433ac466-b27c-4bec-b7be-ebc035f196fa — источник `docs/reports/kinematics.html`.
 
-**Стенд для теста:** https://newyurk.github.io/rollery/ — телефон (портрет), планшет, десктоп. Режим «Пазл» — иконка 🧩 или https://newyurk.github.io/rollery/?puzzle. Код: `index.html`, один файл, Canvas 2D, без сборки.
+**Стенд для теста:** https://newyurk.github.io/rollery/play/ — телефон (портрет), планшет, десктоп. Режим «Пазл» — иконка 🧩 или https://newyurk.github.io/rollery/play/?puzzle. Код: `index.html`, один файл, Canvas 2D, без сборки.
+
+**Корень `https://newyurk.github.io/rollery/` — страница с тремя дверями:** игра, лаборатория (локальная, только при запущенном `sim/lab/lab.sh`), документы. Старые ссылки тестеров продолжают работать: корень с `?puzzle` или с рецептом в `#` перенаправляет прямо в игру вместе с параметрами.
 
 **Источник:** тред Perplexity 25.08.2026 — https://www.perplexity.ai/search/80a4af28-bd3c-44a3-836d-2ee462fc7355. Выжимка — `docs/design-core.md` (тред может пропасть; выжимка — не оригинал, но всё существенное там).
 
