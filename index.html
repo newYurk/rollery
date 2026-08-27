@@ -194,18 +194,25 @@ function save() {
 // ---------------------------------------------------------------- модель листа
 // Размеры патча: у обёрточных нори-патчей размеры и высота переопределены под начинку.
 function sheetLen(b) { if (!S.turns) return b.L; const P0 = b.T + b.w, th = TAU * S.turns; return R0 * th + P0 * th * th / (2 * TAU); }
-function dims(p) { const d = ING[p.kind], b = B(); return { du: (p.wU ?? d.wU) / sheetLen(b), dv: p.dv ?? d.dv, h: (p.hU ?? d.hU) / b.T }; }
+// ПАРАМЕТР g — ПАСПОРТ МОДЕЛИ, а не глобальное «сейчас».
+// Модель строится один раз и потом живёт своей жизнью: её карту материалов спрашивают из «Пазла»
+// (цель против игрока), из альбома, из будущего inverse design. Пока геометрия читала S.base / S.turns
+// напрямую, построенная модель хосомаки после переключения базы на рулет считалась по параметрам рулета
+// (замерено: 8 % пикселей карты уезжало). Поэтому всё, что зависит от базы, проходит через g;
+// g === undefined — старое поведение «по текущей базе», чтобы не ломать вызовы из UI.
+function gL(g) { return g ? g.L : sheetLen(B()); }
+function dims(p, g) { const d = ING[p.kind], T = g ? g.T : B().T; return { du: (p.wU ?? d.wU) / gL(g), dv: p.dv ?? d.dv, h: (p.hU ?? d.hU) / T }; }
 // Патч может лежать под углом rot к оси ролла: 0 — вдоль, 90° — поперёк, 45° — по диагонали.
 // Тогда в каждом ломтике он оказывается на другом месте листа — рисунок меняется от кусочка к кусочку.
-function bounds(p) {
-  const d = ING[p.kind], m = dims(p), b = B(), amp = d.wave ? d.wave.amp : 0, rot = p.rot || 0, c = Math.abs(Math.cos(rot)), sn = Math.abs(Math.sin(rot));
-  const w = m.du * sheetLen(b), len = m.dv * b.Wv, hu = (w * c + len * sn) / 2 / sheetLen(b), hv = (w * sn + len * c) / 2 / b.Wv;
+function bounds(p, g) {
+  const d = ING[p.kind], m = dims(p, g), L = gL(g), Wv = g ? g.Wv : B().Wv, amp = d.wave ? d.wave.amp : 0, rot = p.rot || 0, c = Math.abs(Math.cos(rot)), sn = Math.abs(Math.sin(rot));
+  const w = m.du * L, len = m.dv * Wv, hu = (w * c + len * sn) / 2 / L, hv = (w * sn + len * c) / 2 / Wv;
   return { u0: p.u - hu - amp, u1: p.u + hu + amp, v0: p.v - hv, v1: p.v + hv };
 }
 // Отрезок листа (в единицах длины, вдоль u), который патч занимает в ломтике v; null — патча в этом ломтике нет.
-function patchSRange(p, v) {
-  const d = ING[p.kind], m = dims(p), b = B(), L = sheetLen(b), rot = p.rot || 0, c = Math.cos(rot), sn = Math.sin(rot);
-  const w = m.du * L, len = m.dv * b.Wv, dv_ = (v - p.v) * b.Wv;
+function patchSRange(p, v, g) {
+  const d = ING[p.kind], m = dims(p, g), L = gL(g), Wv = g ? g.Wv : B().Wv, rot = p.rot || 0, c = Math.cos(rot), sn = Math.sin(rot);
+  const w = m.du * L, len = m.dv * Wv, dv_ = (v - p.v) * Wv;
   let lo = -1e9, hi = 1e9;
   if (Math.abs(c) > 1e-6) { const a = (-w / 2 - dv_ * sn) / c, e = (w / 2 - dv_ * sn) / c; lo = Math.max(lo, Math.min(a, e)); hi = Math.min(hi, Math.max(a, e)); }
   else if (Math.abs(dv_) > w / 2) return null;
@@ -215,20 +222,45 @@ function patchSRange(p, v) {
   let uc = p.u; if (d.wave) uc += d.wave.amp * Math.sin(TAU * d.wave.freq * v + p.phase);
   return [uc * L + lo, uc * L + hi, uc, w, len, c, sn, dv_];
 }
-function overlap(a, b) {
-  const A = bounds(a), Bb = bounds(b);
-  return A.u0 < Bb.u1 && Bb.u0 < A.u1 && A.v0 < Bb.v1 && Bb.v0 < A.v1;
+// Патч в ФИЗИЧЕСКИХ координатах листа (su = u·L вдоль скрутки, sv = v·Wv вдоль оси):
+// центр, единичная ось ПОПЕРЁК куска (та же, по которой patchSRange считает across) и полуразмеры.
+function patchBox(p, g) {
+  const m = dims(p, g), L = gL(g), Wv = g ? g.Wv : B().Wv, rot = p.rot || 0;
+  return { cx: p.u * L, cy: p.v * Wv, ax: Math.cos(rot), ay: Math.sin(rot), hw: m.du * L / 2, hl: m.dv * Wv / 2 };
+}
+// Разделяющая ось (SAT) для двух прямоугольников: если хоть на одной из четырёх осей проекции
+// разошлись — пересечения нет.
+function boxHit(A, Bb) {
+  const dx = Bb.cx - A.cx, dy = Bb.cy - A.cy;
+  for (let i = 0; i < 4; i++) {
+    const src = i < 2 ? A : Bb, nx = i & 1 ? -src.ay : src.ax, ny = i & 1 ? src.ax : src.ay;
+    const ra = A.hw * Math.abs(A.ax * nx + A.ay * ny) + A.hl * Math.abs(A.ax * ny - A.ay * nx);
+    const rb = Bb.hw * Math.abs(Bb.ax * nx + Bb.ay * ny) + Bb.hl * Math.abs(Bb.ax * ny - Bb.ay * nx);
+    if (Math.abs(dx * nx + dy * ny) > ra + rb) return false;
+  }
+  return true;
+}
+// ПОЧЕМУ не один AABB. Габарит повёрнутого куска вдвое шире самого куска: две диагональные полоски,
+// разведённые на сантиметр, габаритами пересекаются, и restack клал одну НА другую. Ролл после этого
+// бугрился там, где начинки нет. Теперь AABB — только дешёвая отсечка (не пересеклись габариты —
+// не пересеклись и прямоугольники), а решает SAT. Неповёрнутые патчи идут прежним путём, без потери скорости.
+function overlap(a, b, g) {
+  const A = bounds(a, g), Bb = bounds(b, g);
+  if (!(A.u0 < Bb.u1 && Bb.u0 < A.u1 && A.v0 < Bb.v1 && Bb.v0 < A.v1)) return false;
+  if (!a.rot && !b.rot) return true;                        // габарит и есть прямоугольник
+  if (ING[a.kind].wave || ING[b.kind].wave) return true;    // волнистая паста — не прямоугольник, для неё габарит и остаётся
+  return boxHit(patchBox(a, g), patchBox(b, g));
 }
 // Стопка: что положено позже, лежит выше. Стопка вдавлена в намазку сверху: её верх — на поверхности
 // намазки (z=1), пока стопка не выше намазки; выше — торчит и утолщает ролл.
 // Возвращает верх намазки в долях её толщины (≥1).
-function restack(list) {
+function restack(list, g) {
   const n = list.length, adj = list.map(() => []), paint = list.map(p => !!ING[p.kind].paint);
-  for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) if (!paint[i] && !paint[j] && overlap(list[i], list[j])) { adj[i].push(j); adj[j].push(i); }
+  for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) if (!paint[i] && !paint[j] && overlap(list[i], list[j], g)) { adj[i].push(j); adj[j].push(i); }
   for (let i = 0; i < n; i++) {
     const p = list[i]; let base = 0;
     for (const j of adj[i]) if (j < i) base = Math.max(base, list[j].z1);
-    p.z0 = base; p.z1 = base + dims(p).h;
+    p.z0 = base; p.z1 = base + dims(p, g).h;
   }
   const seen = new Array(n).fill(false); let top = 1;
   for (let i = 0; i < n; i++) {
@@ -237,19 +269,19 @@ function restack(list) {
     const comp = [i]; seen[i] = true;
     for (let k = 0; k < comp.length; k++) for (const j of adj[comp[k]]) if (!seen[j]) { seen[j] = true; comp.push(j); }
     let ctop = 0; for (const k of comp) ctop = Math.max(ctop, list[k].z1);
-    const shift = Math.max(0, 1 - B().kappa * ctop);   // рис под стопкой сжат частично (κ), не выдавлен целиком
+    const shift = Math.max(0, 1 - (g ? g.kappa : B().kappa) * ctop);   // рис под стопкой сжат частично (κ), не выдавлен целиком
     for (const k of comp) { list[k].z0 += shift; list[k].z1 += shift; top = Math.max(top, list[k].z1); }
   }
   return top;
 }
 // Какой материал лежит в точке листа (u, v, z). null — намазка.
-function matAt(u, v, z, list) {
-  const L = sheetLen(B());
+function matAt(u, v, z, list, g) {
+  const L = gL(g);
   for (let pass = 0; pass < 2; pass++) for (let i = list.length - 1; i >= 0; i--) {
     const p = list[i], d = ING[p.kind];
     if (p.inCore || !!d.paint !== (pass === 1)) continue;
     if (!d.paint && (z < p.z0 || z > p.z1)) continue;
-    const rg = patchSRange(p, v); if (!rg) continue;
+    const rg = patchSRange(p, v, g); if (!rg) continue;
     const sU = u * L; if (sU < rg[0] || sU > rg[1]) continue;
     const du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
     const lu = across / rg[3];
@@ -272,33 +304,33 @@ function cutSpan(d, lu) {
   if (d.lens) { const h = Math.pow(q, 0.55) / 2; return [0.5 - h, 0.5 + h]; }     // ломтик — линза
   return [0, 1];                                                                 // брусок и лист
 }
-function covers(p, u, v) { return heightAt(p, u, v) > 0; }
+function covers(p, u, v, g) { return heightAt(p, u, v, g) > 0; }
 // Высота начинки над листом в точке (u, v), с учётом ФОРМЫ сечения (нарезки), в долях полной высоты.
 // Брусок держит высоту по всей ширине; кружок и ломтик — только в середине. От этого зависит,
 // насколько ролл раздувается в этом месте и сколько риса вытесняется: круглый брусок вытесняет меньше.
-function heightAt(p, u, v) {
+function heightAt(p, u, v, g) {
   if (p.inCore) return 0;
-  const rg = patchSRange(p, v); if (!rg) return 0;
-  const sU = u * sheetLen(B());
+  const rg = patchSRange(p, v, g); if (!rg) return 0;
+  const sU = u * gL(g);
   if (sU < rg[0] || sU > rg[1]) return 0;
   const lu = (sU - (rg[0] + rg[1]) / 2) / Math.max(1e-6, rg[1] - rg[0]);   // −0.5…0.5 поперёк куска
   return cutSpan(ING[p.kind], lu)[1];                      // верх ТОЙ ЖЕ фигуры, что рисует matAt
 }
 // Толщина «намазка + стопка» в точке листа (без обёртки), в единицах: рис под начинкой выдавлен, когда стопка выше намазки.
-function stackTopAt(u, v, list) {
+function stackTopAt(u, v, list, g) {
   let H = 0;
   for (const p of list) {
     if (ING[p.kind].paint) continue;
-    const f = heightAt(p, u, v); if (f <= 0) continue;
+    const f = heightAt(p, u, v, g); if (f <= 0) continue;
     H = Math.max(H, p.z0 + (p.z1 - p.z0) * f);             // форма куска задаёт профиль бугра
   }
   return H;
 }
 // Начинка толще намазки при надавливании циновкой сжимается: слой растёт только на β от избытка.
 const TAPER = 0.08;   // рис сходит на нет перед голой кромкой (доля листа, ≈ 1,5 см)
-function spreadAt(u) { const b = B(); if (b.oneTurn) return 1; const se = b.spreadEnd; return u >= se ? 0 : u > se - TAPER ? (se - u) / TAPER : 1; }
-const betaEff = () => clamp(B().beta * (S.hand ? S.hand.press : 1), 0.15, 0.95);
-function bandAt(u, v, g, list) { const r = spreadAt(u), H = stackTopAt(u, v, list); return (r + betaEff() * Math.max(0, H - r)) * g.T; }
+function spreadAt(u, g) { const b = g || B(); if (b.oneTurn) return 1; const se = b.spreadEnd; return u >= se ? 0 : u > se - TAPER ? (se - u) / TAPER : 1; }
+const betaEff = g => clamp((g ? g.beta : B().beta) * (g ? g.press : (S.hand ? S.hand.press : 1)), 0.15, 0.95);
+function bandAt(u, v, g, list) { const r = spreadAt(u, g), H = stackTopAt(u, v, list, g); return (r + betaEff(g) * Math.max(0, H - r)) * g.T; }
 // Намотка листа переменной толщины: по угловым бинам, виток за витком. sMax — сколько листа съедено (для анимации скрутки).
 const PROF_DS = 0.02, SMOOTH_R = 0.9;   // шаг профиля толщины и радиус сглаживания (единицы ≈ 5 мм)
 // Профиль толщины листа вдоль u, сглаженный: лист и рис не дают бугру быть уступом.
@@ -318,10 +350,10 @@ function wind(vSlice, sMax, g, list) {
   const top = new Float32Array(NB).fill(g.r0), prof = thicknessProfile(vSlice, g, list);
   // Спиральные базы (без подворота): начало листа прижато и сходит на нет — сердцевина растёт на толщину слоя
   // за первый оборот; все витки наследуют этот подъём, и выходит настоящая спираль без шва на угле 0.
-  if (!B().oneTurn && !(g.sStart > 0)) { const t0 = prof[0] + g.w; for (let b = 0; b < NB; b++) top[b] = g.r0 + t0 * (b / NB); }
+  if (!g.oneTurn && !(g.sStart > 0)) { const t0 = prof[0] + g.w; for (let b = 0; b < NB; b++) top[b] = g.r0 + t0 * (b / NB); }
   let s = g.sStart || 0, k = 0, b = 0, phiEnd = -1, lastIdx = -1, Rout = g.r0, bins = 0, sClose = -1, sEnd = g.L;
   if (sMax < s) Rout = g.r0 * Math.sqrt(Math.max(0.05, sMax / s));   // ядро ещё сминается
-  const one = !!B().oneTurn, flap = B().flap || 0;
+  const one = !!g.oneTurn, flap = g.flap || 0;
   while (s < Math.min(sMax, sEnd) && k < KMAX) {
     const idx = k * NB + b, u = s / g.L;
     if (one && k >= 1 && sClose < 0) { sClose = s; sEnd = Math.min(g.L, s + flap); }   // ролл замкнулся: лишний лист обрезан, нори сомкнулась стык в стык
@@ -344,7 +376,7 @@ function wind(vSlice, sMax, g, list) {
   }
   // Прижим циновкой: ролл подгоняется к круглому сечению — слои сжимаются пропорционально,
   // поэтому клин у шва и бугры от начинок не оставляют ступенек на контуре.
-  const round = clamp(0.55 * (S.hand ? S.hand.press : 1), 0, 0.85);
+  const round = clamp(0.55 * (g.press === undefined ? (S.hand ? S.hand.press : 1) : g.press), 0, 0.85);
   let sum = 0, cnt = 0;
   for (let b2 = 0; b2 < NB; b2++) if (top[b2] > g.r0) { sum += top[b2]; cnt++; }
   if (cnt) {
@@ -365,7 +397,14 @@ function sampleWind(wd, r, phi) {
     const idx = k * NB + b, ri = wd.rin[idx]; if (ri < 0) break;
     const ro = wd.rout[idx]; let ri2 = ri, ro2 = ro, f = frac;
     if (idx === wd.lastIdx) { const fe = (wd.phiEnd - b * DPHI) / DPHI; if (frac > fe) continue; f = fe > 1e-6 ? frac / fe : 0; }
-    else { const nidx = b + 1 < NB ? idx + 1 : (k + 1) * NB; if (nidx < wd.rin.length && wd.rin[nidx] >= 0) { ri2 = wd.rin[nidx]; ro2 = wd.rout[nidx]; } }
+    // Сосед для интерполяции берётся по ПОРЯДКУ НАМОТКИ. Внутри витка это верно. Два случая, где нет:
+    //   1) на последнем бине витка сосед — бин 0 СЛЕДУЮЩЕГО витка, то есть поверхность на оборот дальше
+    //      по листу. Там innerAt (он на шве не интерполирует) и sampleWind расходились, и у угла 0
+    //      между сердцевиной и намазкой открывалась дыра шириной с воздух в намотке — «out», то есть
+    //      цвет обёртки посреди риса. Через шов не интерполируем вовсе: четверть градуса роли не играет.
+    //   2) сосед отскочил больше чем на полтолщины СВОЕГО слоя — признак, что лист в этом бине кончился
+    //      (хвост сведён на нет), а не что виток продолжается; тянуть исчезающе тонкую ленту в него нельзя.
+    else { const nidx = b + 1 < NB ? idx + 1 : -1; if (nidx > 0 && wd.rin[nidx] >= 0 && Math.abs(wd.rin[nidx] - ri) <= 0.5 * (ro - ri)) { ri2 = wd.rin[nidx]; ro2 = wd.rout[nidx]; } }
     const rIn = ri + (ri2 - ri) * f, rOut = ro + (ro2 - ro) * f;
     if (r >= rIn && r < rOut) return { u: wd.u0[idx] + (wd.u1[idx] - wd.u0[idx]) * f, zr: r - rIn, t: rOut - rIn, rOut };
   }
@@ -380,12 +419,12 @@ const modelCaches = new Map();
 // пополам: дальняя половина — нижний слой, ближняя ложится сверху перевёрнутой (её нори — внутренний крючок).
 // Площадь ядра = рис + начинки; ядро — диск той же площади; остаток листа наматывается вокруг него.
 function computeCore(list, g) {
-  const base = B(); if (!base.oneTurn) return null;   // рулет — спираль без подворота
+  if (!g.oneTurn) return null;   // рулет — спираль без подворота
   // кластер у края — по центру и ширине начинки (повёрнутый габарит не считается: диагональная полоска не «затягивает» полстола в ядро)
-  const L = g.L, T = g.T, items = list.filter(p => !ING[p.kind].paint).map(p => { const w = dims(p).du * L; return { p, s0: p.u * L - w / 2, s1: p.u * L + w / 2 }; }).sort((a, b) => a.s0 - b.s0);
+  const L = g.L, T = g.T, items = list.filter(p => !ING[p.kind].paint).map(p => { const w = dims(p, g).du * L; return { p, s0: p.u * L - w / 2, s1: p.u * L + w / 2 }; }).sort((a, b) => a.s0 - b.s0);
   let end = 0;
   if (items.length && items[0].s0 <= 5) { end = items[0].s1; for (let i = 1; i < items.length; i++) { if (items[i].s0 - end > 2.5) break; end = Math.max(end, items[i].s1); } }
-  const sFold = Math.min(0.45 * L, Math.max(base.tuckMin || 0, end + 1.0)), half = sFold / 2;
+  const sFold = Math.min(0.45 * L, Math.max(g.tuckMin || 0, end + 1.0)), half = sFold / 2;
   const core = { sFold, Wc: half, items: [], HA: T, HB: T };
   const inside = list.filter(p => p.u * L < sFold);
   for (const p of inside) { const far = p.u * L >= half; if (!ING[p.kind].paint) { if (far) core.HB = Math.max(core.HB, p.z1 * T); else core.HA = Math.max(core.HA, p.z1 * T); } }
@@ -404,9 +443,9 @@ function computeCore(list, g) {
   // Нори внутрь не заходит: лист смыкается стык в стык снаружи. Внутри ядра — только рис и начинки
   // (нори внутри появляется, лишь если игрок сам её положил — обёрткой вокруг начинки или слоем).
   core.Hc = core.HA + core.HB + 2 * g.w;
-  // почерк: сильный прижим уплотняет ядро, быстрая тяга оставляет в нём воздух
-  const hd = S.hand || { press: 1, air: 0 };
-  core.R = Math.sqrt(core.Wc * core.Hc / Math.PI) * clamp(1 - 0.22 * (hd.press - 1) + 0.35 * hd.air, 0.9, 1.12);
+  // почерк: сильный прижим уплотняет ядро, быстрая тяга оставляет в нём воздух (из паспорта модели, не из текущего S.hand)
+  const press = g.press === undefined ? (S.hand ? S.hand.press : 1) : g.press, airRaw = g.air / g.T;
+  core.R = Math.sqrt(core.Wc * core.Hc / Math.PI) * clamp(1 - 0.22 * (press - 1) + 0.35 * airRaw, 0.9, 1.12);
   return core;
 }
 // Диск → квадрат (обратное эллиптическое отображение Фонга): формы ядра почти не искажаются.
@@ -424,7 +463,7 @@ function coreMaterial(m, r, phi, vSlice) {
   for (let pass = 0; pass < 2; pass++) for (let i = c.items.length - 1; i >= 0; i--) {
     const it = c.items[i]; if (it.paint !== (pass === 1)) continue;
     if (y < it.y0 || y > it.y1) continue;
-    const rg = patchSRange(it.p, vSlice); if (!rg) continue;
+    const rg = patchSRange(it.p, vSlice, m.g); if (!rg) continue;
     const x0 = it.far ? rg[0] - half : half - rg[1], x1 = it.far ? rg[1] - half : half - rg[0];
     if (x < x0 || x > x1) continue;
     const sU = it.far ? half + x : half - x, du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
@@ -435,13 +474,27 @@ function coreMaterial(m, r, phi, vSlice) {
   }
   return { cls: 'core' };
 }
+// Ключ кэша модели. Строится КАНОНИЧЕСКИ и только из настоящих входов патча —
+// kind, u, v, rot, wU, hU, dv, phase. Служебные поля (z0/z1 от restack, inCore от computeCore)
+// в ключ не входят: раньше здесь стоял JSON.stringify(list), и одна и та же на вид раскладка
+// давала РАЗНЫЕ ключи до и после restack — модель пересчитывалась заново и занимала второе место в кэше.
+const numKey = x => (+x || 0).toFixed(5);
+const patchKey = p => p.kind + ',' + numKey(p.u) + ',' + numKey(p.v) + ',' + numKey(p.rot) + ','
+  + (p.wU == null ? '' : numKey(p.wU)) + ',' + (p.hU == null ? '' : numKey(p.hU)) + ','
+  + (p.dv == null ? '' : numKey(p.dv)) + ',' + numKey(p.phase);
+const listKey = list => list.map(patchKey).join(';');
 function buildModel(list) {
   const hd = S.hand || { air: 0, wobble: 0, phase: 0, press: 1 };
-  const key = S.base + '|' + S.shape + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|' + JSON.stringify(list);
+  const key = S.base + '|' + S.shape + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|' + listKey(list);
   let m = modelCaches.get(key); if (m) return m;
   if (modelCaches.size > 16) modelCaches.clear();
-  restack(list); const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), sStart: 0, air: hd.air * b.T, wobble: hd.wobble, phase: hd.phase };
-  m = { key, g, shape: S.shape, list: JSON.parse(JSON.stringify(list)), wds: new Map(), Rmax: 0, core: null };
+  // Клон ДО restack: стопку считаем на собственной копии, чужой список не трогаем.
+  const own = JSON.parse(JSON.stringify(list));
+  // g — ПАСПОРТ модели: всё, что геометрия раньше подсматривала в S и B(), теперь снято здесь один раз.
+  const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), Wv: b.Wv, sStart: 0, air: hd.air * b.T, wobble: hd.wobble, phase: hd.phase,
+    press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, oneTurn: !!b.oneTurn, flap: b.flap || 0, tuckMin: b.tuckMin || 0 };
+  restack(own, g);
+  m = { key, g, shape: S.shape, list: own, wds: new Map(), Rmax: 0, core: null };
   m.core = computeCore(m.list, g);
   if (m.core) { g.r0 = m.core.R; g.sStart = m.core.sFold; }
   for (const v of SLICES) { const wd = wind(v, g.L, g, m.list); m.wds.set(v.toFixed(4), wd); m.Rmax = Math.max(m.Rmax, wd.Rout); }
@@ -453,13 +506,16 @@ function windFor(m, v) { const key = v.toFixed(4); let wd = m.wds.get(key); if (
 function materialAt(m, wd, vSlice, r, phi) {
   const g = m.g;
   const rin0 = innerAt(wd, phi), coreR = rin0 >= 0 ? rin0 : g.r0;
-  if (r < coreR) { if (m.core) return coreMaterial(m, r, phi, vSlice); const mt = matAt(0.002, vSlice, Math.max(1, bandAt(0.002, vSlice, g, m.list) / g.T) - 0.02, m.list); return mt ? { cls: 'patch', mt } : { cls: 'core' }; }
+  // Внутри сердцевины материал берётся ТОЛЬКО у подворота (m.core). У спиральных баз ядра нет —
+  // там полая трубка, и спрашивать лист при u = 0,002 нельзя: начинка у ближнего края проявлялась
+  // внутри дырки, где листа физически нет.
+  if (r < coreR) return m.core ? coreMaterial(m, r, phi, vSlice) : { cls: 'core' };
   const sm = sampleWind(wd, r, phi);
   if (!sm) return { cls: 'out' };
   let zn = (sm.t - g.w - sm.zr) / g.T;
   if (zn < 0) return { cls: 'wrap', sm };
-  const H = stackTopAt(sm.u, vSlice, m.list), bandN = (sm.t - g.w - (m.g.air || 0)) / g.T; if (bandN > 1e-6) zn *= Math.max(1, H) / bandN;   // сжатый слой → собственные z стопки
-  const mt = matAt(sm.u, vSlice, zn, m.list);
+  const H = stackTopAt(sm.u, vSlice, m.list, g), bandN = (sm.t - g.w - (m.g.air || 0)) / g.T; if (bandN > 1e-6) zn *= Math.max(1, H) / bandN;   // сжатый слой → собственные z стопки
+  const mt = matAt(sm.u, vSlice, zn, m.list, g);
   return mt ? { cls: 'patch', mt, sm } : { cls: 'spread', sm };
 }
 
@@ -666,7 +722,7 @@ function strokeWrapperRim(c, m, wd, si, scale, half) {
   c.restore();
 }
 function renderSection(size, vSlice, m, Rref) {
-  const g = m.g, b = B(), wd = windFor(m, vSlice), si = shapeInfo(m.shape || S.shape, m.Rmax, (S.hand || {}).press);
+  const g = m.g, b = B(), wd = windFor(m, vSlice), si = shapeInfo(m.shape || S.shape, m.Rmax, m.g.press);
   const off = document.createElement('canvas'); off.width = off.height = size;
   const c = off.getContext('2d'); const img = c.createImageData(size, size); const d = img.data;
   const half = size / 2, R = Rref || m.Rmax, scale = (half - 1.5) / (R * si.margin);
@@ -729,7 +785,7 @@ function renderSection(size, vSlice, m, Rref) {
 // Карта материалов среза для сравнения: 0 — вне, 1 — рис/сердцевина, 2 — обёртка, 3+ — начинка по индексу вида.
 const KIND_IDS = Object.keys(ING);
 function materialMap(size, vSlice, m, Rref) {
-  const si = shapeInfo(m.shape || S.shape, m.Rmax, (S.hand || {}).press), wd = windFor(m, vSlice), out = new Uint8Array(size * size), half = size / 2, scale = (half - 1) / (Rref * si.margin);
+  const si = shapeInfo(m.shape || S.shape, m.Rmax, m.g.press), wd = windFor(m, vSlice), out = new Uint8Array(size * size), half = size / 2, scale = (half - 1) / (Rref * si.margin);
   for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
     const dx = (px + 0.5 - half) / scale, dy = (py + 0.5 - half) / scale;
     let phi = Math.atan2(dy, dx); if (phi < 0) phi += TAU;
@@ -1034,12 +1090,14 @@ function patchScreen(p) {
   const lenPx = len * Math.hypot(c * pxV, sn * pxU), wPx = w * Math.hypot(sn * pxV, c * pxU);
   return { cx, cy, ang, lenPx, wPx };
 }
-function drawPatchTop(p, alpha = 1) {
+// z0 — высота патча в стопке; она ЖИВЁТ В МОДЕЛИ (buildModel считает restack на своей копии
+// и вход не мутирует), поэтому вызывающий передаёт её сюда, а не читает из самого патча.
+function drawPatchTop(p, alpha = 1, z0 = 0) {
   const d = ING[p.kind], m = dims(p), s = L.sheet;
   if (p.rot) {
     const t = patchScreen(p);
     ctx.save(); ctx.globalAlpha = alpha * (p.kind === 'nori' ? 0.82 : d.paint ? 0.92 : 1);
-    ctx.shadowColor = d.paint ? 'transparent' : 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 4 + p.z0 * 6; ctx.shadowOffsetY = 2 + p.z0 * 3;
+    ctx.shadowColor = d.paint ? 'transparent' : 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 4 + z0 * 6; ctx.shadowOffsetY = 2 + z0 * 3;
     ctx.translate(t.cx, t.cy); ctx.rotate(t.ang);
     if (d.paint) { ctx.fillStyle = d.color; rr(-t.lenPx / 2, -t.wPx / 2, t.lenPx, t.wPx, 3); ctx.fill(); }
     else drawPatchShape(d, -t.lenPx / 2, -t.wPx / 2, t.lenPx, t.wPx, false);
@@ -1051,7 +1109,7 @@ function drawPatchTop(p, alpha = 1) {
     ctx.restore(); return;
   }
   ctx.save(); ctx.globalAlpha = alpha * (p.kind === 'nori' ? 0.82 : 1);
-  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 4 + p.z0 * 6; ctx.shadowOffsetY = 2 + p.z0 * 3;
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 4 + z0 * 6; ctx.shadowOffsetY = 2 + z0 * 3;
   if (d.wave) {
     const lw = m.du * s.h, x0 = s.x + (p.v - m.dv / 2) * s.w, x1 = s.x + (p.v + m.dv / 2) * s.w;
     ctx.beginPath();
@@ -1190,13 +1248,14 @@ function drawLay() {
   ctx.save(); rr(s.x, s.y + bare, s.w, s.h - bare, 4); ctx.clip(); ctx.drawImage(getSpreadTex(s.w, s.h), s.x, s.y, s.w, s.h);
   if (taperPx) { const gr = ctx.createLinearGradient(0, s.y + bare, 0, s.y + bare + taperPx); gr.addColorStop(0, B().wrapper); gr.addColorStop(1, rgbCss(B().wrapperRgb, 0)); ctx.fillStyle = gr; ctx.fillRect(s.x, s.y + bare, s.w, taperPx); }
   ctx.restore();
-  for (const pt of patches()) if (pt !== drag.patch) drawPatchTop(pt, uEnd < 1 && pt.u > uEnd ? 0.35 : 1);
+  const zOf = pt => { const i = patches().indexOf(pt), q = i >= 0 ? mdl.list[i] : null; return q ? q.z0 : 0; };   // стопка — из модели, порядок клона тот же
+  for (const pt of patches()) if (pt !== drag.patch) drawPatchTop(pt, uEnd < 1 && pt.u > uEnd ? 0.35 : 1, zOf(pt));
   if (uEnd < 1) {   // лишний лист обрезан: ролл замкнулся раньше; что выше линии — не попадёт в ролл
     const yEnd = s.y + (1 - uEnd) * s.h; ctx.fillStyle = 'rgba(23,23,19,0.35)'; ctx.fillRect(s.x - 5, s.y - 5, s.w + 10, yEnd - s.y + 5);
     ctx.setLineDash([6, 4]); ctx.strokeStyle = 'rgba(243,231,202,0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x, yEnd); ctx.lineTo(s.x + s.w, yEnd); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(243,231,202,0.7)'; ctx.font = font(10); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('лишний нори — обрезан, ролл замкнулся раньше', s.x + s.w / 2, s.y + 6);
   }
-  if (drag.patch) drawPatchTop(drag.patch, 0.85);
+  if (drag.patch) drawPatchTop(drag.patch, 0.85, zOf(drag.patch));
   const sel = S.selPatch && patches().includes(S.selPatch) ? S.selPatch : (S.selPatch = null);
   if (sel && p === 0) {
     ctx.setLineDash([5, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
