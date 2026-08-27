@@ -17,7 +17,7 @@
   main{ width:100%; max-width:34rem }
   h1{ font-size:clamp(22px,5.4vw,30px); letter-spacing:.06em; margin:0 0 .2em; font-weight:600 }
   .sub{ color:var(--dim); margin:0 0 1.8rem; font-size:clamp(13px,3.2vw,15px) }
-  a.card{ display:block; text-decoration:none; color:inherit; border:1px solid var(--line);
+  .card{ display:block; text-decoration:none; color:inherit; border:1px solid var(--line);
     border-radius:10px; padding:15px 17px; margin-bottom:11px; background:#1d1c17;
     transition:border-color .15s ease, background .15s ease }
   a.card:hover, a.card:focus-visible{ border-color:var(--hot); background:#232118 }
@@ -26,6 +26,12 @@
     font-size:clamp(15px,3.6vw,17px) }
   .card span{ color:var(--dim); font-size:clamp(12.5px,3vw,14px); display:block }
   .card em{ font-style:normal; color:#7d7768 }
+  .card.lab{ cursor:default }
+  .card.lab b{ color:var(--hot) }
+  .addr{ margin-top:.5em; font-size:13.5px }
+  .addr a{ color:var(--hot); text-decoration:none; border-bottom:1px solid rgba(224,178,95,.35) }
+  .addr a:hover, .addr a:focus-visible{ border-bottom-color:var(--hot) }
+  .addr i{ font-style:normal; color:#7d7768; font-size:12.5px; display:block; margin-top:.1em }
   footer{ margin-top:1.5rem; color:var(--dim); font-size:12.5px; line-height:1.7 }
   footer a{ color:var(--dim) }
   /* Телефон в ландшафте: высоты ~390 px, страница переставала помещаться целиком */
@@ -45,11 +51,15 @@
       Режим «Пазл» — иконка 🧩 внутри или <em>play/?puzzle</em></span>
   </a>
 
-  <a class="card" id="lab" href="http://127.0.0.1:8770/">
-    <b>Лаборатория &rarr;</b>
+  <div class="card lab">
+    <b>Лаборатория</b>
     <span>Прогоны симуляции: варианты кинематики, раскладки, ползунки.
-      <em>Открывается на компьютере, где запущен <code>sim/lab/lab.sh</code></em></span>
-  </a>
+      Пока запущен <code>sim/lab/lab.sh</code>:</span>
+    <span class="addr"><a href="http://10.0.0.46:8770/">10.0.0.46:8770</a>
+      <i>с телефона и с компьютера, в домашней сети &middot; сменится Wi-Fi — сменится и адрес</i></span>
+    <span class="addr"><a href="http://127.0.0.1:8770/">127.0.0.1:8770</a>
+      <i>только с этого компьютера, адрес не меняется</i></span>
+  </div>
 
   <a class="card" href="docs/">
     <b>Документы &rarr;</b>
