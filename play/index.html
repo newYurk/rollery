@@ -626,19 +626,37 @@ const modelCaches = new Map();
 // пополам: дальняя половина — нижний слой, ближняя ложится сверху перевёрнутой (её нори — внутренний крючок).
 // Площадь ядра = рис + начинки; ядро — диск той же площади; остаток листа наматывается вокруг него.
 function computeCore(list, g) {
-  // ⚑ ПОДВОРОТ СЕЙЧАС ВЫКЛЮЧЕН У ВСЕХ БАЗ, и это не опечатка, а незакрытый долг.
-  // Флаг `tuck` не ставит никто, поэтому сюда всегда возвращается null. Пробовал включить
-  // 27.08: ролл выходит кособоким — торчит язык листа, начинки сбиваются в ком у ядра,
-  // разброс медиана/максимум 47,4 против 59,0 мм там, где настоящий футомаки круглый.
-  // Причина в том, что computeCore писался под модель «замыкается за один оборот»: ядро
-  // съедает начало листа, а остаток в 1,5 оборота ложится поверх неровно. Чинить это —
-  // отдельная работа с проверкой по симуляции, а не установка флага. Разбор — docs/reality-check.md.
-  if (!g.tuck) return null;
+  if (!g.tuck) return null;   // рулет — спираль без подворота
   // кластер у края — по центру и ширине начинки (повёрнутый габарит не считается: диагональная полоска не «затягивает» полстола в ядро)
   const L = g.L, T = g.T, items = list.filter(p => !ING[p.kind].paint).map(p => { const w = dims(p, g).du * L; return { p, s0: p.u * L - w / 2, s1: p.u * L + w / 2 }; }).sort((a, b) => a.s0 - b.s0);
   let end = 0;
   if (items.length && items[0].s0 <= 5) { end = items[0].s1; for (let i = 1; i < items.length; i++) { if (items[i].s0 - end > 2.5) break; end = Math.max(end, items[i].s1); } }
-  const sFold = Math.min(0.45 * L, Math.max(g.tuckMin || 0, end + 1.0)), half = sFold / 2;
+  // ПОДВОРОТ НЕ МОЖЕТ СЪЕСТЬ ЛИСТ. Цепочка выше тянется, пока соседние начинки ближе 2,5 ед.
+  // (12,5 мм) друг к другу, — и на плотной раскладке она доходила до потолка 0,45·L. Замерено
+  // на раскладке владельца: 5 начинок из 6 уезжали в ядро, подворот съедал 95 мм из 210, и ролл
+  // делал 0,74 оборота — то есть НЕ ЗАМЫКАЛСЯ вовсе, нори не встречала саму себя.
+  // Физическое условие простое: того, что осталось от листа, должно хватить хотя бы на один
+  // оборот вокруг получившегося ядра. Радиус ядра сам зависит от подворота, поэтому решаем
+  // сжатием: пробуем, не сходится — укорачиваем, пока не уложимся или не упрёмся в tuckMin.
+  const hcAt = (sf) => {                       // высота ядра при таком подвороте
+    let ha = T, hb = T;
+    for (const p of list) { if (ING[p.kind].paint || p.u * L >= sf) continue;
+      if (p.u * L >= sf / 2) hb = Math.max(hb, p.z1 * T); else ha = Math.max(ha, p.z1 * T); }
+    return ha + hb + 2 * g.w;
+  };
+  const rAt = (sf) => Math.sqrt((sf / 2) * hcAt(sf) / Math.PI);
+  // Сколько листа нужно на n оборотов вокруг ядра радиуса R с шагом P: длина архимедовой
+  // спирали, TAU·(R·n + P·n²/2). Одного оборота МАЛО — нужен нахлёст, иначе нори не садится
+  // сама на себя. Повара дают 1,0–1,35 (docs/reality-check.md); берём 1,15 как низ этого окна.
+  const MIN_TURNS = 1.15, P = T + g.w;
+  const needFor = (sf) => TAU * (rAt(sf) * MIN_TURNS + P * MIN_TURNS * MIN_TURNS / 2);
+  let sFold = Math.min(0.45 * L, Math.max(g.tuckMin || 0, end + 1.0));
+  const floor = Math.max(g.tuckMin || 0, 2);
+  for (let i = 0; i < 12 && sFold > floor; i++) {
+    if (L - sFold >= needFor(sFold)) break;     // остатка хватает на оборот с нахлёстом
+    sFold = Math.max(floor, sFold * 0.88);
+  }
+  const half = sFold / 2;
   const core = { sFold, Wc: half, items: [], HA: T, HB: T };
   const inside = list.filter(p => p.u * L < sFold);
   for (const p of inside) { const far = p.u * L >= half; if (!ING[p.kind].paint) { if (far) core.HB = Math.max(core.HB, p.z1 * T); else core.HA = Math.max(core.HA, p.z1 * T); } }
