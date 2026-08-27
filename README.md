@@ -3,7 +3,7 @@
 A one-file prototype of a roll-making game: lay fillings on a flat sheet, roll it up, cut it —
 and the cross-section you see is a deterministic unrolling of what you actually placed.
 
-**Play it:** https://newyurk.github.io/rollery/play/play/ — phone (portrait), tablet or desktop.
+**Play it:** https://newyurk.github.io/rollery/play/ — phone (portrait), tablet or desktop.
 **Puzzle mode:** https://newyurk.github.io/rollery/play/?puzzle — reproduce the shown cross-section.
 
 ## Model
