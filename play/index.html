@@ -838,6 +838,7 @@ function materialAt(m, wd, vSlice, r, phi) {
 // (docs/geometry-audit.md, раздел «Условности отрисовки»).
 const LIGHT_X = -0.70, LIGHT_Y = -0.71;   // one light for the whole slice; chosen to agree with `vig` in renderSection (key from the top-left)
 const GRAIN_GAP_RGB = [201, 186, 160];    // the gap is a MIX toward a warm tone, never a subtraction — see below
+const DEEP_DARK = 29;                     // насколько темнее зерно, видимое в просвет между верхними
 const LEVEL_FIX = 5.8;                    // keeps the mean rice brightness inside the +-3 acceptance band; re-solved 27.08 after grains became bodies (the dome and the specular add light the old 7.5 no longer had to make up for)
 // У КАЖДОГО ЗЕРНА СВОЙ УГОЛ. Без этого на плоском листе все рисинки лежат вдоль оси x —
 // владелец: «кажется, что все рисинки лежат по горизонтали». Так и было: решётка задавала не
@@ -900,6 +901,7 @@ function spreadColor(gx, gy, b, ct, st, lod) {
     const polar = ct !== undefined;
     const ci = polar ? 0 : Math.floor(pa), cj = Math.floor(pc);
     let q1 = 9, hit = 0, ex = 0, ey = 0;
+    let q2 = 9, hit2 = 0, ex2 = 0, ey2 = 0;
     for (let oj = -1; oj <= 1; oj++) {
       const j2 = cj + oj;
       // РЯД — САМОСТОЯТЕЛЬНОЕ КОЛЬЦО, И ВСЁ О НЁМ СЧИТАЕТСЯ ОТ ЕГО НОМЕРА. Здесь был настоящий
@@ -932,6 +934,22 @@ function spreadColor(gx, gy, b, ct, st, lod) {
         const rg = 0.56 + 0.07 * (h - 0.5), ra = rg * GRAIN_ASPECT;
         const qq = al * al / (ra * ra) + ac2 * ac2 / (rg * rg);
         if (qq < q1) { q1 = qq; hit = h; ex = dxr; ey = dyr; }
+        // ПОД ЩЕЛЬЮ ЛЕЖИТ СЛЕДУЮЩЕЕ ЗЕРНО, А НЕ ПУСТОТА. Владелец 27.08: «в просветах свёрнутого
+        // риса пустота». Так и было: `q` клампился в единицу, купол обнулялся, и ВСЕ пиксели щели
+        // получали один и тот же плоский тёплый цвет — дырка между зёрнами вместо плотной массы.
+        // В настоящем ролле рис уложен в несколько зёрен толщиной, и в просвет видно то, что лежит
+        // ниже. Здесь второй слой той же решётки: те же ряды, сдвиг на полклетки, свои хеши. Он
+        // считается в этом же проходе (лишнего обхода соседей нет) и проявляется только там, где
+        // верхнее зерно кончилось.
+        const hb = hash(iw, j2 + 4441);
+        const bx = cij + oi + 0.68 + 0.64 * hb - paj, bc = j2 + 0.68 + 0.64 * hash(iw, j2 + 4759) - pc;
+        const dxb = bx * arcj * ux + bc * vx, dyb = bx * arcj * uy + bc * vy;
+        const tb = (hash(iw, j2 + 8819) * GDIR_N) | 0, cB = GDIR[2 * tb], sB = GDIR[2 * tb + 1];
+        const bxa = ux * cB - uy * sB, bya = ux * sB + uy * cB;
+        const bl = dxb * bxa + dyb * bya, bc2 = -dxb * bya + dyb * bxa;
+        const rb = 0.56 + 0.07 * (hb - 0.5), rab = rb * GRAIN_ASPECT;
+        const qb = bl * bl / (rab * rab) + bc2 * bc2 / (rb * rb);
+        if (qb < q2) { q2 = qb; hit2 = hb; ex2 = dxb; ey2 = dyb; }
       }
     }
     // Зерно — не многоугольник, а ТЕЛО: высота идёт по эллипсоиду и обрывается на кромке. Всё, что
@@ -951,7 +969,17 @@ function spreadColor(gx, gy, b, ct, st, lod) {
     const spec = Math.pow(Math.max(0, lam * q * 0.75 + dome * 0.55), 9);
     t += 26 * spec * k;
     const gap = qraw > 1 ? Math.min(1, (qraw - 1) / 0.32) : 0;
-    return mix([c[0] + t, c[1] + t, c[2] + t * 0.6], GRAIN_GAP_RGB, Math.min(0.72, gap * 0.8) * k);
+    const topRgb = [c[0] + t, c[1] + t, c[2] + t * 0.6];
+    if (gap <= 0) return topRgb;
+    // Зерно из нижнего слоя: тот же расчёт тела и блика, но света меньше — оно в тени соседей, —
+    // и к тёплому тону щели подмешано ровно столько, чтобы просвет читался щелью, а не вторым
+    // рядом вровень с первым. DEEP_DARK подобран под ту же приёмку: |Δ средней яркости| <= 3.
+    const qr2 = Math.sqrt(q2), q2c = Math.min(1, qr2);
+    const dome2 = Math.sqrt(Math.max(0, 1 - q2c * q2c));
+    const en2 = Math.hypot(ex2, ey2) || 1, lam2 = -(ex2 * LIGHT_X + ey2 * LIGHT_Y) / en2;
+    const t2 = (hit2 - 0.5) * 6 + (13 * lam2 * q2c + 9 * (dome2 - 0.62) + LEVEL_FIX - DEEP_DARK) * k;
+    const deep = mix([c[0] + t2, c[1] + t2, c[2] + t2 * 0.6], GRAIN_GAP_RGB, 0.22);
+    return mix(topRgb, deep, Math.min(0.9, gap * 0.95) * k);
   }
   const t = (hash(Math.floor(gx * 2), Math.floor(gy * 2)) - 0.5) * 4;     // крем и соус — мелкая рябь
   return [c[0] + t, c[1] + t, c[2] + t];
