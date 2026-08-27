@@ -625,8 +625,23 @@ function materialAt(m, wd, vSlice, r, phi) {
 // источника у них нет, замером они не являются и в таблицу физических толщин переезжать не имеют права
 // (docs/geometry-audit.md, раздел «Условности отрисовки»).
 const LIGHT_X = -0.70, LIGHT_Y = -0.71;   // one light for the whole slice; chosen to agree with `vig` in renderSection (key from the top-left)
-const GRAIN_GAP_RGB = [201, 186, 160];    // the gap is a MIX toward a warm tone, never a subtraction — see below
-const LEVEL_FIX = 0.7;                    // keeps the mean rice brightness inside the +-3 acceptance band; re-solved 27.08 after grains became bodies (the dome and the specular add light the old 7.5 no longer had to make up for)
+const GRAIN_GAP_RGB = [96, 86, 72];      // ПОД вторым слоем — там уже настоящая пустота
+const DEEP = 0.70;                       // во сколько раз темнее зерно нижнего слоя; inferred    // still a MIX, never a subtraction (that goes blue) — but a dark warm one: photos show shadow between grains, not a light seam
+const LEVEL_FIX = 6.4;                    // keeps the mean rice brightness inside the +-3 acceptance band; re-solved 27.08 after grains became bodies (the dome and the specular add light the old 7.5 no longer had to make up for)
+// НАПРАВЛЕНИЯ ЗЁРЕН. Сверка с фотографиями (Kanpyō-maki 001, Makizushi2, Wikimedia) показала
+// главный дефект отрисовки: решётка укладывала КАЖДОЕ зерно вдоль намотки, и срез читался как
+// годовые кольца, а не как рис. Замер по структурному тензору: в стенде 74 % зёрен в пределах 30°
+// от касательной, на фото 50–56 %; радиальных (≥60°) в стенде 10 %, на фото 18–20 %. Случайная
+// укладка дала бы 33/33 — то есть уклон к касательной ЕСТЬ, он просто вдвое слабее нашего.
+// Поэтому: 35 % зёрен ложатся почти вдоль намотки (±25°), остальные — как попало (±90°).
+// Это даёт 57 % в пределах 30° и 22 % радиальных — обе доли попадают в замер по фото.
+// Таблица нужна, чтобы не звать синус с косинусом по девять раз на пиксель.
+const GDIR_N = 64, GDIR = new Float32Array(GDIR_N * 2);
+for (let i = 0; i < GDIR_N; i++) {
+  const u = (i + 0.5) / GDIR_N;
+  const d = u < 0.35 ? (u / 0.35 - 0.5) * 0.87 : ((u - 0.35) / 0.65 - 0.5) * Math.PI;
+  GDIR[2 * i] = Math.cos(d); GDIR[2 * i + 1] = Math.sin(d);
+}
 function spreadColor(gx, gy, b, ct, st, lod) {
   const c = b.spreadRgb;
   if (S.base !== 'cake') {                                  // крупа — у всех несладких баз
@@ -655,21 +670,26 @@ function spreadColor(gx, gy, b, ct, st, lod) {
       ux = -vy; uy = vx;                                    // касательная (вдоль зерна)
     }
     const ci = Math.floor(pa), cj = Math.floor(pc);
-    let d1 = 9, hit = 0, ba = 0, bc = 0;
+    // Решётка задаёт ЦЕНТРЫ (то есть плотность и размер — они по замеру совпадают с фото),
+    // а форма каждого зерна — эллипс со СВОИМ углом. Ближайшее ищется по эллиптической мере,
+    // иначе повёрнутое зерно достаёт дальше, чем «его» клетка.
+    let q1 = 9, hit = 0, ex = 0, ey = 0;
     for (let oj = -1; oj <= 1; oj++) for (let oi = -1; oi <= 1; oi++) {
       const iw = ring > 1 ? ((ci + oi) % ring + ring) % ring : ci + oi;   // кольцо замкнуто
       const j2 = cj + oj, h = hash(iw, j2);
       const ax = ci + oi + 0.18 + 0.64 * h - pa, ac = j2 + 0.18 + 0.64 * hash(iw, j2 + 313) - pc;
-      const dd = ax * ax + ac * ac;
-      if (dd < d1) { d1 = dd; hit = h; ba = ax; bc = ac; }
+      const dxr = ax * arcw * ux + ac * vx, dyr = ax * arcw * uy + ac * vy;   // смещение в настоящих осях
+      const ti = (hash(iw, j2 + 7717) * GDIR_N) | 0, cA = GDIR[2 * ti], sA = GDIR[2 * ti + 1];
+      const lx = ux * cA - uy * sA, ly = ux * sA + uy * cA;                   // длинная ось ЭТОГО зерна
+      const al = dxr * lx + dyr * ly, ac2 = -dxr * ly + dyr * lx;
+      const rg = 0.60 + 0.07 * (h - 0.5), ra = rg * GRAIN_ASPECT;             // зёрна не одного размера
+      const qq = al * al / (ra * ra) + ac2 * ac2 / (rg * rg);
+      if (qq < q1) { q1 = qq; hit = h; ex = dxr; ey = dyr; }
     }
     // Зерно — не многоугольник, а ТЕЛО: высота идёт по эллипсоиду и обрывается на кромке. Всё, что
     // дальше R, — щель между зёрнами, и она затенена, а не обведена линией. Линия давала плитку.
-    const R = 0.54 + 0.08 * hit;                            // зёрна не одного размера
-    const r = Math.sqrt(d1), q = Math.min(1, r / R);
+    const qraw = Math.sqrt(q1), q = Math.min(1, qraw);
     const dome = Math.sqrt(Math.max(0, 1 - q * q));         // высота над листом, 1 в центре зерна
-    // Свет считается в ЭКРАННЫХ осях, поэтому смещение возвращается из системы зерна обратно.
-    const ex = ba * arcw * ux + bc * vx, ey = ba * arcw * uy + bc * vy;
     const en = Math.hypot(ex, ey) || 1;
     const lam = -(ex * LIGHT_X + ey * LIGHT_Y) / en;        // ba,bc смотрят ОТ точки К центру
     const k = lod === undefined ? 1 : lod;
@@ -679,11 +699,43 @@ function spreadColor(gx, gy, b, ct, st, lod) {
     // Приёмка прежняя: |Δ средней| <= 3.
     let t = (hit - 0.5) * 6 + (13 * lam * q + 9 * (dome - 0.62) + LEVEL_FIX) * k;
     if (hit > 0.955) t -= 9;                                // редкое зерно потемнее
-    // Блик: варёный рис глянцевый. Узкий, только на освещённом склоне ближе к макушке.
+    // Блик: варёный рис глянцевый. По фото блики жёсткие, до +55 % от местной средней.
     const spec = Math.pow(Math.max(0, lam * q * 0.75 + dome * 0.55), 9);
-    t += 26 * spec * k;
-    const gap = q >= 1 ? Math.min(1, (r - R) / (0.30 * R)) : 0;
-    return mix([c[0] + t, c[1] + t, c[2] + t * 0.6], GRAIN_GAP_RGB, Math.min(0.72, gap * 0.8) * k);
+    t += 62 * spec * k;
+    // ЩЕЛЬ — ЭТО ТЕНЬ. Замер по фото: провал до −36…−44 % от местной средней, местный контраст
+    // 0,085 против 0,036 у стенда — в 2,4 раза. Прежний тёплый светлый подмес давал −11 %.
+    const gap = qraw > 1 ? Math.min(1, (qraw - 1) / 0.30) : 0;
+    if (gap <= 0 || k <= 0) return [c[0] + t, c[1] + t, c[2] + t * 0.6];
+    // ── В ЩЕЛИ ВИДНО ЗЕРНО СЛЕДУЮЩЕГО СЛОЯ ──
+    // Рис лежит не в один слой, и между двумя верхними зёрнами видно не пустоту, а зерно снизу:
+    // затенённое, но со своей формой и своим бликом. Раньше щель заливалась ровным тёмным тоном, и
+    // рис читался как одна плёнка с дырками. Второй слой — та же решётка, сдвинутая на полклетки и
+    // с другой солью хеша; своё направление у каждого зерна берётся из той же таблицы.
+    const pa2 = pa + 0.5, pc2 = pc + 0.5, ci2 = Math.floor(pa2), cj2 = Math.floor(pc2);
+    let q1b = 9, hitb = 0, exb = 0, eyb = 0;
+    for (let oj = -1; oj <= 1; oj++) for (let oi = -1; oi <= 1; oi++) {
+      const iw = ring > 1 ? ((ci2 + oi) % ring + ring) % ring : ci2 + oi;
+      const j2 = cj2 + oj, h = hash(iw, j2 + 4409);
+      const ax = ci2 + oi + 0.18 + 0.64 * h - pa2, ac = j2 + 0.18 + 0.64 * hash(iw, j2 + 4721) - pc2;
+      const dxr = ax * arcw * ux + ac * vx, dyr = ax * arcw * uy + ac * vy;
+      const ti = (hash(iw, j2 + 8837) * GDIR_N) | 0, cA = GDIR[2 * ti], sA = GDIR[2 * ti + 1];
+      const lx = ux * cA - uy * sA, ly = ux * sA + uy * cA;
+      const al = dxr * lx + dyr * ly, ac2 = -dxr * ly + dyr * lx;
+      const rg = 0.60 + 0.07 * (h - 0.5), ra = rg * GRAIN_ASPECT;
+      const qq = al * al / (ra * ra) + ac2 * ac2 / (rg * rg);
+      if (qq < q1b) { q1b = qq; hitb = h; exb = dxr; eyb = dyr; }
+    }
+    const qrb = Math.sqrt(q1b), qb = Math.min(1, qrb);
+    const domeb = Math.sqrt(Math.max(0, 1 - qb * qb));
+    const enb = Math.hypot(exb, eyb) || 1;
+    const lamb = -(exb * LIGHT_X + eyb * LIGHT_Y) / enb;
+    // Нижний слой лежит глубже: света туда доходит меньше, рельеф мягче, блика нет.
+    // ⚑ inferred: DEEP подобран так, чтобы провал в щели дал −33…−38 % от местной средней, как на фото.
+    const tb = (hitb - 0.5) * 5 + (9 * lamb * qb + 6 * (domeb - 0.62) + LEVEL_FIX) * k;
+    const gapb = qrb > 1 ? Math.min(1, (qrb - 1) / 0.30) : 0;
+    const under = mix([(c[0] + tb) * DEEP, (c[1] + tb) * DEEP, (c[2] + tb * 0.6) * DEEP],
+                      GRAIN_GAP_RGB, gapb * 0.75);   // и под вторым слоем однажды кончается рис
+    return mix([c[0] + t, c[1] + t, c[2] + t * 0.6], under, Math.min(0.92, gap * 0.95) * k);
   }
   const t = (hash(Math.floor(gx * 2), Math.floor(gy * 2)) - 0.5) * 4;     // крем и соус — мелкая рябь
   return [c[0] + t, c[1] + t, c[2] + t];
