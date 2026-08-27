@@ -71,7 +71,19 @@ const BASES = {
   ura:  { name: 'Урамаки', emoji: '🌀', kind: 'savoury', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
     T: 2.0, w: 0.02, sheetCm: 10.5, spreadEnd: 1.0, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 4, Wv: 38, inverted: true,
     ingredients: ['salmon', 'cucumber', 'avocado', 'shrimp', 'tamago', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
-  cake:  { name: 'Рулет', emoji: '🍰', kind: 'sweet', wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
+  // ФРУКТОВЫЕ МАКИ — сладкое, но НЕ рулет. Формат настоящий и с родословной:
+  //   Франция — «Makis de crêpes»: блин на циновку, рисовый пудинг, фрукты, крутят как маки;
+  //   Испания — «тирами-суши» и «мисс-фреса» (клубника, застывшая желатином В ЛИСТ);
+  //   Япония, Вакаяма — フルーツ寿司: настоящий суши-рис, нэта фруктовая.
+  // Ключевое для нас: это НЕ новая механика. Тот же лист, та же намазка, тот же подворот —
+  // подменены только материалы. Поэтому база собрана из готового: рис тот же, что у суши,
+  // а различие — обёртка и начинки. Русские «сладкие роллы» (крем-чиз вместо риса,
+  // шоколадный блин вместо нори) — тот же формат, приехавший через доставку.
+  // ⚑ inferred: толщина тонкого омлета 薄焼き卵 1,5 мм — оценка, замера в источниках нет.
+  fruit: { name: 'Фруктовые', emoji: '🍓', kind: 'sweet', wrapKey: 'egg', wrapper: '#e8b551', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+    T: 2.0, w: 0.30, sheetCm: 21, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 5, Wv: 38,
+    ingredients: ['strawberry', 'kiwi', 'mango', 'banana', 'pinkcream', 'choco', 'jam', 'nut'] },
+  cake:  { name: 'Рулет', emoji: '🍰', kind: 'sweet', cream: true, wrapFixed: true, wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
     T: 1.0, w: 1.7, turns: 2.5, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,
     ingredients: ['strawberry', 'kiwi', 'banana', 'mango', 'choco', 'jam', 'nut', 'pinkcream'] },
 };
@@ -154,6 +166,7 @@ const S = {
   // wobble — неравномерность толщины по длине (рывки), press — множитель прижима (удержание в конце).
   // Нейтральные значения {0, 0, 1} дают ровно ту же намотку, что и раньше.
   hand: { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 },
+  wrap: null,     // во что заворачиваем: null = по умолчанию для базы, см. WRAPPERS
   turns: null,                 // число витков (пазл задаёт длину листа); null — по базе
   shape: 'round',              // форма прессовки: round | square | triangle
   puzzle: null,                // режим «Пазл»: { level, seed, target, vs, result }
@@ -163,7 +176,43 @@ const S = {
   saved: 0,                    // время подсветки «сохранено»
 };
 const patches = () => S.lists[S.base];
-const B = () => BASES[S.base];
+// ВО ЧТО ЗАВОРАЧИВАТЬ — ТЕПЕРЬ ВЫБОР, А НЕ СВОЙСТВО ТИПА. Решение владельца 27.08: «вместо
+// нори мы можем положить блинную, рисовую бумагу… во что заворачивать мы можем выбирать».
+// Формат не выдуман: во Франции «Makis de crêpes» кладут блин вместо нори, в Испании — лист
+// из застывшей клубники, в Вакаяме フルーツ寿司 крутят на настоящем суши-рисе.
+// Толщина решает многое: она входит в шаг витка (T + w), то есть меняет число оборотов и ⌀.
+// ⚑ inferred: замер есть только у нори. Остальные — оценка по продукту, отмечено honestly.
+const WRAPPERS = {
+  nori:  { name: 'Нори',            mm: 0.10, color: '#22342b', src: 'FAO, Nisizawa: лист 21×19 см ≈ 3 г' },
+  rice:  { name: 'Рисовая бумага',  mm: 0.50, color: '#efe6d4', src: 'inferred' },
+  soy:   { name: 'Соевая',          mm: 0.20, color: '#e3c069', src: 'inferred' },
+  egg:   { name: 'Омлет',           mm: 1.50, color: '#e8b551', src: 'inferred (薄焼き卵)' },
+  crepe: { name: 'Блин',            mm: 2.00, color: '#d8a05c', src: 'inferred; якорь — лаваш 2,0 мм, Rodríguez-Noriega, Foods 10(7):1473' },
+  choco: { name: 'Шоколадный блин', mm: 2.00, color: '#4a2c20', src: 'inferred, как блин' },
+};
+for (const k in WRAPPERS) WRAPPERS[k].rgb = hexRgb(WRAPPERS[k].color);
+// Начинки общие для всех: один экран, сладкое и несладкое рядом. Деление на типы отложено
+// до игровых стратегий — владелец 27.08: «а потом мы уже… либо разделим на типы».
+const ALL_INGREDIENTS = ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet',
+  'ricePink', 'riceYellow', 'riceGreen', 'riceBlack',
+  'strawberry', 'kiwi', 'mango', 'banana', 'choco', 'jam', 'nut', 'pinkcream'];
+// Активная база = тип (лист, грядка) + выбранная обёртка поверх него.
+let _bCache = null, _bKey = '';
+const B = () => {
+  const base = BASES[S.base];
+  // У рулета «обёртка» — это САМ БИСКВИТ, из него ролл и состоит. Подменить его на нори значит
+  // разрушить базу: длина листа у рулета выводится из числа витков и толщины бисквита.
+  const wk = base.wrapFixed ? null : (S.wrap && WRAPPERS[S.wrap] ? S.wrap : (base.wrapKey || 'nori'));
+  const key = S.base + '|' + wk;
+  if (_bKey !== key) {
+    const ings = ALL_INGREDIENTS.filter(i => ING[i]);
+    _bCache = wk ? Object.assign({}, base, { w: WRAPPERS[wk].mm / U_MM, wrapper: WRAPPERS[wk].color,
+                                             wrapperRgb: WRAPPERS[wk].rgb, wrapKey: wk, ingredients: ings })
+                 : Object.assign({}, base, { ingredients: ings });
+    _bKey = key;
+  }
+  return _bCache;
+};
 const NPIECES = 6;
 
 function load() {
@@ -624,14 +673,16 @@ const patchKey = p => p.kind + ',' + numKey(p.u) + ',' + numKey(p.v) + ',' + num
 const listKey = list => list.map(patchKey).join(';');
 function buildModel(list) {
   const hd = S.hand || { air: 0, wobble: 0, phase: 0, press: 1 };
-  const key = S.base + '|' + S.shape + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|' + listKey(list);
+  // Обёртка входит в ключ: она меняет шаг витка (T + w), а с ним число оборотов и ⌀.
+  // Без неё блин 2 мм давал ровно то же, что нори 0,1 мм — модель бралась из кэша.
+  const key = S.base + '|' + (B().wrapKey || '-') + '|' + S.shape + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|' + listKey(list);
   let m = modelCaches.get(key); if (m) return m;
   if (modelCaches.size > 16) modelCaches.clear();
   // Клон ДО restack: стопку считаем на собственной копии, чужой список не трогаем.
   const own = JSON.parse(JSON.stringify(list));
   // g — ПАСПОРТ модели: всё, что геометрия раньше подсматривала в S и B(), теперь снято здесь один раз.
   const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), Wv: b.Wv, sStart: 0, air: hd.air * b.T, wobble: hd.wobble, phase: hd.phase,
-    press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, sweet: b.kind === 'sweet', tuck: !!b.tuck, flap: b.flap || 0, tuckMin: b.tuckMin || 0 };
+    press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, sweet: !!b.cream, tuck: !!b.tuck, flap: b.flap || 0, tuckMin: b.tuckMin || 0 };
   restack(own, g);
   m = { key, g, shape: S.shape, list: own, wds: new Map(), Rmax: 0, core: null };
   m.core = computeCore(m.list, g);
