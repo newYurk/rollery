@@ -55,13 +55,21 @@ function hash(x, y) {
 const BASES = {
   // Две несладкие базы — это ОДНА техника с разным листом, а не разные игры. Числа не на глаз:
   // SUZUMO SVS-FCA, спецификация машины формовки рисового пласта, задаёт обе прямо —
+  // ГОЛАЯ ПОЛОСА — ПО-ЧЕЛОВЕЧЕСКИ, А НЕ ПО-МАШИННОМУ. Стояло 0,76 у обеих баз, и это число
+  // МАШИНЫ SUZUMO SVS-FCA: 80/105 и 160/210, оба ровно 0,762. Совпадение до третьего знака
+  // выглядело подтверждением, но подтверждало оно спецификацию станка, а не руку повара.
+  // Руками оставляют заметно меньше: хосомаки 10–15 мм (白ごはん.com, Chopstick 15, No Recipes 10,
+  // oisiiryouri 5), футомаки 20–25 мм (oisiiryouri, sirogohan, Сираи, Haseko). Беру середины:
+  // 12,5 мм на полулисте → 0,88 и 22,5 мм на целом → 0,89. Ручные величины сходятся так же
+  // близко, как машинные, только на другом числе.
+  // Игра моделирует РУКИ. Если решим иначе — правится этими двумя числами.
   // small roll 7 мм x 80 мм (хосомаки) и large 12 мм x 160 мм (футомаки). Лист нори 21x19 см (FAO):
   // хосомаки крутят из ПОЛУЛИСТА (10,5 см), футомаки — из целого. Отсюда и разные ⌀, и число витков.
   hoso: { name: 'Хосомаки', emoji: '🍣', kind: 'savoury', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
-    T: 1.4, w: 0.02, sheetCm: 10.5, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 3, Wv: 38,
+    T: 1.4, w: 0.02, sheetCm: 10.5, spreadEnd: 0.88, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 3, Wv: 38,
     ingredients: ['cucumber', 'salmon', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   futo: { name: 'Футомаки', emoji: '🍥', kind: 'savoury', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
-    T: 2.4, w: 0.02, sheetCm: 21, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 6, Wv: 38,
+    T: 2.4, w: 0.02, sheetCm: 21, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 6, Wv: 38,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   // УРАМАКИ — третий несладкий тип. ⚠ ЕГО ГЛАВНОЕ СВОЙСТВО ПОКА НЕ СМОДЕЛИРОВАНО:
   // у урамаки нори ВНУТРИ, а рис СНАРУЖИ, то есть обёртка не внешний слой намотки.
@@ -88,7 +96,7 @@ const BASES = {
   // шоколадный блин вместо нори) — тот же формат, приехавший через доставку.
   // ⚑ inferred: толщина тонкого омлета 薄焼き卵 1,5 мм — оценка, замера в источниках нет.
   fruit: { name: 'Фруктовые', emoji: '🍓', kind: 'sweet', wrapKey: 'egg', wrapper: '#e8b551', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
-    T: 2.0, w: 0.30, sheetCm: 21, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 5, Wv: 38,
+    T: 2.0, w: 0.30, sheetCm: 21, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 5, Wv: 38,
     ingredients: ['strawberry', 'kiwi', 'mango', 'banana', 'pinkcream', 'choco', 'jam', 'nut'] },
   cake:  { name: 'Рулет', emoji: '🍰', kind: 'sweet', cream: true, wrapFixed: true, wrapper: '#d8a05c', spread: '#fff8ef', mat: '#ece2d2', matLine: '#dfd3c0',
     T: 1.0, w: 1.7, turns: 2.5, kappa: 0.5, spreadEnd: 0.95, beta: 0.7, Wv: 40,

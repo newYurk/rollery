@@ -15,10 +15,10 @@
 
 const REF = {
   // ⌀ по медиане и максимуму, мм · оборотов · есть ли ядро (подворот)
-  hoso:  { d: 27.5, dmax: 29.0, turns: 1.34, core: true },
-  futo:  { d: 50.5, dmax: 53.5, turns: 1.45, core: true },
+  hoso:  { d: 28.9, dmax: 30.4, turns: 1.32, core: true },   // 27.08: норисиро по-человечески, 25 → 13 мм
+  futo:  { d: 53.9, dmax: 56.7, turns: 1.42, core: true },   // 27.08: норисиро 50 → 23 мм
   ura:   { d: 33.0, dmax: 33.1, turns: 1.09, core: true },   // 27.08: получил голую полосу, ролл стал меньше
-  fruit: { d: 49.5, dmax: 52.0, turns: 1.57, core: true },
+  fruit: { d: 52.9, dmax: 55.5, turns: 1.54, core: true },   // 27.08: то же
   cake:  { d: 70.5, dmax: 71.0, turns: 2.06, core: false },
 };
 const TOL_D = 0.6, TOL_T = 0.05;      // мм и обороты
