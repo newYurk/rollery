@@ -869,11 +869,22 @@ const patchKey = p => p.kind + ',' + numKey(p.u) + ',' + numKey(p.v) + ',' + num
   + (p.wU == null ? '' : numKey(p.wU)) + ',' + (p.hU == null ? '' : numKey(p.hU)) + ','
   + (p.dv == null ? '' : numKey(p.dv)) + ',' + numKey(p.phase);
 const listKey = list => list.map(patchKey).join(';');
-function buildModel(list) {
+// ОБЛЕГЧЁННЫЙ ПУТЬ ДЛЯ ПОИСКА (inverse design).
+// Замерено 26.08 (docs/inverse-design.md, «Замер: где на самом деле узкое место поиска»):
+// одна итерация поиска стоит 8 мс, из них buildModel — 7,49 мс, то есть 88 %. Растр карты
+// класcов — 12 %, и грубый растр 32×32 против 64×64 экономит всего 7 %: запланированную
+// оптимизацию «грубый растр для поиска» надо ВЫБРОСИТЬ, она ничего не даёт.
+// Внутри buildModel математики почти нет — есть объём работы: Rmax считается по ВСЕМ
+// шестнадцати ломтикам из SLICES, а поиску нужен ОДИН. Отсюда ~17× в чистом JS, больше,
+// чем реалистичный выигрыш от переписывания на WASM (2–10× для такого кода).
+// `only` — номер ломтика; undefined означает прежнее поведение по всем SLICES.
+// ⚑ Ключ кеша ОБЯЗАН это видеть: сегодня 28.08 я уже поймал себя на кеше, слепом к новому
+// параметру (подбор SPREAD_W дал шесть одинаковых чисел подряд). Грабли известные — п. 2 навыка.
+function buildModel(list, only) {
   const hd = S.hand || { air: 0, wobble: 0, phase: 0, press: 1 };
   // Обёртка входит в ключ: она меняет шаг витка (T + w), а с ним число оборотов и ⌀.
   // Без неё блин 2 мм давал ровно то же, что нори 0,1 мм — модель бралась из кэша.
-  const key = S.base + '|' + (B().wrapKey || '-') + '|' + S.shape + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|' + listKey(list);
+  const key = S.base + '|' + (B().wrapKey || '-') + '|' + S.shape + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|s:' + (only === undefined ? 'all' : only.toFixed(4)) + '|' + listKey(list);
   let m = modelCaches.get(key); if (m) return m;
   if (modelCaches.size > 16) modelCaches.clear();
   // Клон ДО restack: стопку считаем на собственной копии, чужой список не трогаем.
@@ -888,10 +899,16 @@ function buildModel(list) {
   // Rmax — по всем стандартным ломтикам (общий масштаб ролла), но ЛЁГКИМ проходом: сами витки
   // строит windFor тому ломтику, который спросят. Модель перестала весить 3 МБ намоток, а поиску,
   // которому нужен один срез из шестнадцати, не приходится мотать остальные пятнадцать.
-  for (const v of SLICES) m.Rmax = Math.max(m.Rmax, windRout(v, g.L, g, m.list));
+  const scan = only === undefined ? SLICES : [only];
+  for (const v of scan) m.Rmax = Math.max(m.Rmax, windRout(v, g.L, g, m.list));
   modelCaches.set(key, m); return m;
 }
 function getModel() { return buildModel(patches()); }
+// Модель для ОДНОГО среза: тот же расчёт, но Rmax берётся только по нему.
+// Для поиска этого достаточно — сравниваются карты классов на одном и том же ломтике,
+// и общий масштаб ролла им нужен один, а не самый толстый из шестнадцати.
+// НЕ для отрисовки: там Rmax обязан быть общим, иначе ломтики поедут по масштабу.
+function modelForSlice(list, v) { return buildModel(list, v); }
 function windFor(m, v) { const key = v.toFixed(4); let wd = m.wds.get(key); if (!wd) { wd = wind(v, m.g.L, m.g, m.list); m.wds.set(key, wd); } return wd; }
 // Материал в точке среза (r, φ): 'out' | 'core' | 'wrap' | 'spread' | { патч }.
 function materialAt(m, wd, vSlice, r, phi) {
