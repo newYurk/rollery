@@ -65,10 +65,10 @@ const BASES = {
   // Игра моделирует РУКИ. Если решим иначе — правится этими двумя числами.
   // small roll 7 мм x 80 мм (хосомаки) и large 12 мм x 160 мм (футомаки). Лист нори 21x19 см (FAO):
   // хосомаки крутят из ПОЛУЛИСТА (10,5 см), футомаки — из целого. Отсюда и разные ⌀, и число витков.
-  hoso: { name: 'Хосомаки', emoji: '🍣', kind: 'savoury', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+  hoso: { name: 'Хосомаки', emoji: '🍣', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
     T: 1.4, w: 0.02, sheetCm: 10.5, spreadEnd: 0.88, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 3, Wv: 38,
     ingredients: ['cucumber', 'salmon', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
-  futo: { name: 'Футомаки', emoji: '🍥', kind: 'savoury', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+  futo: { name: 'Футомаки', emoji: '🍥', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
     T: 2.4, w: 0.02, sheetCm: 21, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 6, Wv: 38,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   // УРАМАКИ — третий несладкий тип. ⚠ ЕГО ГЛАВНОЕ СВОЙСТВО ПОКА НЕ СМОДЕЛИРОВАНО:
@@ -83,7 +83,7 @@ const BASES = {
   // Поставлено 0,76, как у остальных суши-баз: дыры исчезают, оборотов 1,02–1,09.
   // Это по-прежнему заглушка. Настоящий урамаки — нори ВНУТРИ, рис снаружи, и нори обходит
   // только начинку, то есть радиус вдвое меньше. Правила — issue #3.
-  ura:  { name: 'Урамаки', emoji: '🌀', kind: 'savoury', wrapper: '#22342b', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+  ura:  { name: 'Урамаки', emoji: '🌀', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
     T: 2.0, w: 0.02, sheetCm: 10.5, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 4, Wv: 38, inverted: true,
     ingredients: ['salmon', 'cucumber', 'avocado', 'shrimp', 'tamago', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   // ФРУКТОВЫЕ МАКИ — сладкое, но НЕ рулет. Формат настоящий и с родословной:
@@ -95,7 +95,7 @@ const BASES = {
   // а различие — обёртка и начинки. Русские «сладкие роллы» (крем-чиз вместо риса,
   // шоколадный блин вместо нори) — тот же формат, приехавший через доставку.
   // ⚑ inferred: толщина тонкого омлета 薄焼き卵 1,5 мм — оценка, замера в источниках нет.
-  fruit: { name: 'Фруктовые', emoji: '🍓', kind: 'sweet', wrapKey: 'egg', wrapper: '#e8b551', spread: '#f4ecda', mat: '#c9a96c', matLine: '#b28f56',
+  fruit: { name: 'Фруктовые', emoji: '🍓', kind: 'sweet', wrapKey: 'egg', wrapper: '#e8b551', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
     T: 2.0, w: 0.30, sheetCm: 21, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 5, Wv: 38,
     ingredients: ['strawberry', 'kiwi', 'mango', 'banana', 'pinkcream', 'choco', 'jam', 'nut'] },
   // ⚑ ПОЧЕМУ РУЛЕТ ВООБЩЕ СГИБАЕТСЯ. Модель гнёт бисквит до r0 = 1,25 мм, и при толщине
@@ -836,9 +836,11 @@ function materialAt(m, wd, vSlice, r, phi) {
 // Рельеф зерна, направление света и щель между зёрнами — УСЛОВНОСТИ ОТРИСОВКИ, помечены `inferred`:
 // источника у них нет, замером они не являются и в таблицу физических толщин переезжать не имеют права
 // (docs/geometry-audit.md, раздел «Условности отрисовки»).
+const GRAIN = 0.7;
+const GRAIN_ASPECT = 2.2;
 const LIGHT_X = -0.70, LIGHT_Y = -0.71;   // one light for the whole slice; chosen to agree with `vig` in renderSection (key from the top-left)
 const GRAIN_GAP_RGB = [201, 186, 160];    // the gap is a MIX toward a warm tone, never a subtraction — see below
-const GRAIN_C = new Float32Array(2);      // смещение от точки к центру НАЙДЕННОГО зерна, в единицах зерна
+const GRAIN_C = new Float32Array(3);   // [0],[1] — смещение к центру зерна; [2] — q (1 на кромке)      // смещение от точки к центру НАЙДЕННОГО зерна, в единицах зерна
 const DEEP_DARK = 29;                     // насколько темнее зерно, видимое в просвет между верхними
 const LEVEL_FIX = 5.8;                    // keeps the mean rice brightness inside the +-3 acceptance band; re-solved 27.08 after grains became bodies (the dome and the specular add light the old 7.5 no longer had to make up for)
 // У КАЖДОГО ЗЕРНА СВОЙ УГОЛ. Без этого на плоском листе все рисинки лежат вдоль оси x —
@@ -847,12 +849,35 @@ const LEVEL_FIX = 5.8;                    // keeps the mean rice brightness insi
 // касательной ≤30° лежат 50–56 % зёрен, радиально ≥60° — 18–20 %; случайная укладка дала бы 33/33.
 // Значит уклон к намотке есть, но слабый. Здесь: 35 % зёрен идут вдоль (±25°), остальные как попало.
 // Таблица — чтобы не звать синус и косинус по девять раз на пиксель.
-const GDIR_N = 64, GDIR = new Float32Array(GDIR_N * 2);
-for (let i = 0; i < GDIR_N; i++) {
-  const u = (i + 0.5) / GDIR_N;
-  const d = u < 0.35 ? (u / 0.35 - 0.5) * 0.87 : ((u - 0.35) / 0.65 - 0.5) * Math.PI;
-  GDIR[2 * i] = Math.cos(d); GDIR[2 * i + 1] = Math.sin(d);
-}
+const WRAP_BULGE = 0.12;   // 0,6 мм — насколько лист выгибается над выступающим зерном (inferred)
+const RICE_FLAT = 0.55;
+const GDIR_N = 512, GDIR = new Float32Array(GDIR_N * 3);
+let GRAIN_SEC_MEAN = 1.0;
+(function () {
+  let sd = 12345; const rr = () => (sd = (sd * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  let acc = 0;
+  for (let i = 0; i < GDIR_N; i++) {
+    const z = 2 * rr() - 1, th = rr() * TAU, rxy = Math.sqrt(Math.max(0, 1 - z * z));
+    let nA = rxy * Math.cos(th), nT = rxy * Math.sin(th), nR = z * RICE_FLAT;
+    const n = Math.hypot(nA, nT, nR) || 1; nA /= n; nT /= n; nR /= n;
+    const c2 = nA * nA;
+    const asp = GRAIN_ASPECT / Math.sqrt(GRAIN_ASPECT * GRAIN_ASPECT * c2 + (1 - c2));
+    const m = Math.hypot(nT, nR) || 1;
+    GDIR[3 * i] = nT / m; GDIR[3 * i + 1] = nR / m; GDIR[3 * i + 2] = asp; acc += asp;
+  }
+  GRAIN_SEC_MEAN = acc / GDIR_N;
+})();
+const RICE = {
+  toneVar: 15, shade: 17, domeA: 18, level: 8.4,
+  specLam: 0.8, specDome: 0.52, specP: 11, specA: 46,
+  specBlue: 1.0, spark: 52, sparkF: 14, sparkT: 0.93,
+  grit: 5.5, gritF: 13, lump: 0.22, blueK: 0.85,
+  gapW: 0.13, gapMix: 0.42, gapMax: 0.92, gapK: 1.0,
+  deepDark: 38, sesP: 0.988, sesR: 0.35, sesA: 1.25,
+  rgBase: 0.665, rgVar: 0.1, sizeVar: 0.15, edge: 18,
+  edgeW: 0.34, hueVar: 8, lightJit: 0.85, quant: 0,
+  rim: 0, wrapBite: 0.6, gapRgb: [88, 84, 78], sesRgb: [222, 205, 160],
+};
 function spreadColor(gx, gy, b, ct, st, lod) {
   const c = b.spreadRgb;
   if (S.base !== 'cake') {                                  // крупа — у всех несладких баз
@@ -868,6 +893,7 @@ function spreadColor(gx, gy, b, ct, st, lod) {
     // остаётся гладкая спираль. Поэтому на срезе решётка полярная: поперёк зерна — радиус,
     // вдоль — ДУГА. На кольце ровно n зёрен, n округлено, поэтому шва на угле 0 нет.
     let pa, pc, ring = 0, arcw = 1, ux = 1, uy = 0, vx = 0, vy = 1;
+    const polar = ct !== undefined;
     if (ct === undefined) {                                 // плоский лист: зерно вдоль оси x
       pa = gx / GRAIN_ASPECT; pc = gy; arcw = GRAIN_ASPECT;
     } else {
@@ -899,9 +925,8 @@ function spreadColor(gx, gy, b, ct, st, lod) {
       vx = gx / rr; vy = gy / rr;                           // радиальная ось (поперёк зерна)
       ux = -vy; uy = vx;                                    // касательная (вдоль зерна)
     }
-    const polar = ct !== undefined;
     const ci = polar ? 0 : Math.floor(pa), cj = Math.floor(pc);
-    let q1 = 9, hit = 0, ex = 0, ey = 0;
+    let q1 = 9, hit = 0, ex = 0, ey = 0, ses = false;
     let q2 = 9, hit2 = 0, ex2 = 0, ey2 = 0;
     for (let oj = -1; oj <= 1; oj++) {
       const j2 = cj + oj;
@@ -919,7 +944,7 @@ function spreadColor(gx, gy, b, ct, st, lod) {
       let ringj = ring, arcj = arcw, paj = pa, cij = ci;
       if (polar) {
         const rj = Math.max(0.5, j2 + 0.5);
-        ringj = Math.max(1, Math.round(TAU * rj / GRAIN_ASPECT));
+        ringj = Math.max(1, Math.round(TAU * rj / GRAIN_SEC_MEAN));
         arcj = TAU * rj / ringj;                            // длина дуги на одну клетку этого ряда
         paj = ringj * pa - 3.7 * hash(j2, 991);             // свой поворот у каждого ряда
         cij = Math.floor(paj);
@@ -929,12 +954,22 @@ function spreadColor(gx, gy, b, ct, st, lod) {
         const h = hash(iw, j2);
         const ax = cij + oi + 0.18 + 0.64 * h - paj, ac = j2 + 0.18 + 0.64 * hash(iw, j2 + 313) - pc;
         const dxr = ax * arcj * ux + ac * vx, dyr = ax * arcj * uy + ac * vy;   // смещение в настоящих осях
-        const ti = (hash(iw, j2 + 7717) * GDIR_N) | 0, cA = GDIR[2 * ti], sA = GDIR[2 * ti + 1];
+        const ti = (hash(iw, j2 + 7717) * GDIR_N) | 0, cA = GDIR[3 * ti], sA = GDIR[3 * ti + 1];
         const lx = ux * cA - uy * sA, ly = ux * sA + uy * cA;                   // длинная ось ЭТОГО зерна
         const al = dxr * lx + dyr * ly, ac2 = -dxr * ly + dyr * lx;
-        const rg = 0.56 + 0.07 * (h - 0.5), ra = rg * GRAIN_ASPECT;
-        const qq = al * al / (ra * ra) + ac2 * ac2 / (rg * rg);
-        if (qq < q1) { q1 = qq; hit = h; ex = dxr; ey = dyr; }
+        const sez = polar && hash(iw, j2 + 5501) > RICE.sesP;
+        const rg = (RICE.rgBase + RICE.rgVar * (h - 0.5)) * (sez ? RICE.sesR : 1)
+                 * (RICE.sizeVar ? 1 - RICE.sizeVar * fract(h * 43.7) : 1);
+        const ra = rg * (polar ? GDIR[3 * ti + 2] : GRAIN_ASPECT) * (sez ? RICE.sesA : 1);
+        let qq = al * al / (ra * ra) + ac2 * ac2 / (rg * rg);
+        if (RICE.lump > 0) {                                   // кромка зерна не эллипс, а комок
+          const iq = 1 / Math.max(1e-4, Math.sqrt(qq)), X = al / ra * iq, Y = ac2 / rg * iq;
+          const k2 = X * X - Y * Y, s2 = 2 * X * Y, k3 = X * k2 - Y * s2, s3 = X * s2 + Y * k2;
+          const w = 1 + RICE.lump * ((fract(h * 7.13) - 0.5) * k2 + (fract(h * 13.77) - 0.5) * s2
+                                   + (fract(h * 23.31) - 0.5) * k3 + (fract(h * 31.7) - 0.5) * s3);
+          qq /= w * w;
+        }
+        if (qq < q1) { q1 = qq; hit = h; ex = dxr; ey = dyr; ses = sez; }
         // ПОД ЩЕЛЬЮ ЛЕЖИТ СЛЕДУЮЩЕЕ ЗЕРНО, А НЕ ПУСТОТА. Владелец 27.08: «в просветах свёрнутого
         // риса пустота». Так и было: `q` клампился в единицу, купол обнулялся, и ВСЕ пиксели щели
         // получали один и тот же плоский тёплый цвет — дырка между зёрнами вместо плотной массы.
@@ -945,43 +980,72 @@ function spreadColor(gx, gy, b, ct, st, lod) {
         const hb = hash(iw, j2 + 4441);
         const bx = cij + oi + 0.68 + 0.64 * hb - paj, bc = j2 + 0.68 + 0.64 * hash(iw, j2 + 4759) - pc;
         const dxb = bx * arcj * ux + bc * vx, dyb = bx * arcj * uy + bc * vy;
-        const tb = (hash(iw, j2 + 8819) * GDIR_N) | 0, cB = GDIR[2 * tb], sB = GDIR[2 * tb + 1];
+        const tb = (hash(iw, j2 + 8819) * GDIR_N) | 0, cB = GDIR[3 * tb], sB = GDIR[3 * tb + 1];
         const bxa = ux * cB - uy * sB, bya = ux * sB + uy * cB;
         const bl = dxb * bxa + dyb * bya, bc2 = -dxb * bya + dyb * bxa;
-        const rb = 0.56 + 0.07 * (hb - 0.5), rab = rb * GRAIN_ASPECT;
+        const rb = RICE.rgBase + RICE.rgVar * (hb - 0.5), rab = rb * (polar ? GDIR[3 * tb + 2] : GRAIN_ASPECT);
         const qb = bl * bl / (rab * rab) + bc2 * bc2 / (rb * rb);
         if (qb < q2) { q2 = qb; hit2 = hb; ex2 = dxb; ey2 = dyb; }
       }
     }
     // Зерно — не многоугольник, а ТЕЛО: высота идёт по эллипсоиду и обрывается на кромке. Всё, что
     // дальше R, — щель между зёрнами, и она затенена, а не обведена линией. Линия давала плитку.
-    GRAIN_C[0] = ex; GRAIN_C[1] = ey;                       // чей это пиксель, решает вызывающий — по центру
     const qraw = Math.sqrt(q1), q = Math.min(1, qraw);
+    GRAIN_C[0] = ex; GRAIN_C[1] = ey; GRAIN_C[2] = qraw;    // чей это пиксель, решает вызывающий — по центру
     const dome = Math.sqrt(Math.max(0, 1 - q * q));         // высота над листом, 1 в центре зерна
     const en = Math.hypot(ex, ey) || 1;
-    const lam = -(ex * LIGHT_X + ey * LIGHT_Y) / en;        // ba,bc смотрят ОТ точки К центру
+    // СВЕТ У КАЖДОГО ЗЕРНА СВОЙ. Один источник на весь срез ставит блик всем зёрнам в одно и то же
+    // место, и поле читается штампом. На фотографии зёрна лежат под разными углами и бликуют
+    // вразнобой: это не второй источник, а нормаль верхушки зерна, которую купол не моделирует.
+    let LX = LIGHT_X, LY = LIGHT_Y;
+    if (RICE.lightJit > 0) {
+      const gi = (fract(hit * 97.3) * GDIR_N) | 0;
+      LX += RICE.lightJit * GDIR[3 * gi]; LY += RICE.lightJit * GDIR[3 * gi + 1];
+      const ln = Math.hypot(LX, LY) || 1; LX /= ln; LY /= ln;
+    }
+    const lam = -(ex * LX + ey * LY) / en;                  // ba,bc смотрят ОТ точки К центру
     const k = lod === undefined ? 1 : lod;
     // ПОЧЕМУ LOD. На плоском листе зерно занимает единицы пикселей, и полный рельеф превращает
     // намазку в сетку. Амплитуда гаснет, когда зерно мельче ~6 device-px.
     // ПОЧЕМУ LEVEL_FIX. Рельеф и затенённые щели темнее намазки; без компенсации рис молча темнеет.
     // Приёмка прежняя: |Δ средней| <= 3.
-    let t = (hit - 0.5) * 6 + (13 * lam * q + 9 * (dome - 0.62) + LEVEL_FIX) * k;
+    const lvl = RICE.level * k;                             // DC-компенсация яркости — нейтральная, без наклона в тепло
+    let t = (hit - 0.5) * RICE.toneVar + (RICE.shade * lam * q + RICE.domeA * (dome - 0.62)) * k;
     if (hit > 0.955) t -= 9;                                // редкое зерно потемнее
+    // МЕЛКАЯ ФАКТУРА ПОВЕРХНОСТИ. Разрезанное зерно не гладкое: срез крахмалистый, в мелких кавернах.
+    // Без неё зерно читается как отлитая из пластика фасолина — и заодно теряет масштаб.
+    if (RICE.grit > 0) t += RICE.grit * (hash(Math.floor(gx * RICE.gritF) + 313, Math.floor(gy * RICE.gritF) + 757) - 0.5) * dome * k;
+    if (RICE.quant > 0) t = Math.round(t / RICE.quant) * RICE.quant;
+    if (RICE.edge > 0) t -= RICE.edge * smooth(1 - RICE.edgeW, 1, q) * k;    // мягкий контур зерна
+    if (RICE.rim > 0) t += RICE.rim * Math.pow(q, 6) * (1 - Math.max(0, lam)) * k;  // просвет на кромке
     // Блик: варёный рис глянцевый. Узкий, только на освещённом склоне ближе к макушке.
-    const spec = Math.pow(Math.max(0, lam * q * 0.75 + dome * 0.55), 9);
-    t += 26 * spec * k;
-    const gap = qraw > 1 ? Math.min(1, (qraw - 1) / 0.32) : 0;
-    const topRgb = [c[0] + t, c[1] + t, c[2] + t * 0.6];
+    const spec = Math.pow(Math.max(0, lam * q * RICE.specLam + dome * RICE.specDome), RICE.specP);
+    let sAdd = RICE.specA * spec * k;
+    if (RICE.spark > 0) {                                   // мокрое зерно бликует мелкой крошкой
+      const fx = gx * RICE.sparkF, fy = gy * RICE.sparkF, ix = Math.floor(fx), iy = Math.floor(fy);
+      const sp = hash(ix + 911, iy + 37);
+      if (sp > RICE.sparkT) {
+        const dx0 = fx - ix - 0.2 - 0.6 * hash(ix + 17, iy + 53), dy0 = fy - iy - 0.2 - 0.6 * hash(ix + 71, iy + 29);
+        const dd = (dx0 * dx0 + dy0 * dy0) / 0.09;
+        if (dd < 1) sAdd += RICE.spark * dome * k * (1 - dd) * (1 - dd);
+      }
+    }
+    const gap = qraw > 1 ? Math.min(1, (qraw - 1) / RICE.gapW) : 0;
+    const bc = ses ? RICE.sesRgb : c;
+    // ЗЁРНА НЕ ОДНОГО ЦВЕТА. На фотографиях соседние рисинки заметно расходятся по теплу: одна отдаёт
+    // в холодный белый, другая в кремовый. Один общий тон читается как пластик.
+    const hv = RICE.hueVar ? RICE.hueVar * (fract(hit * 61.7) - 0.5) : 0;
+    const topRgb = [bc[0] + t + lvl + sAdd + hv, bc[1] + t + lvl + sAdd, bc[2] + t * RICE.blueK + lvl + sAdd * RICE.specBlue - hv];
     if (gap <= 0) return topRgb;
     // Зерно из нижнего слоя: тот же расчёт тела и блика, но света меньше — оно в тени соседей, —
     // и к тёплому тону щели подмешано ровно столько, чтобы просвет читался щелью, а не вторым
     // рядом вровень с первым. DEEP_DARK подобран под ту же приёмку: |Δ средней яркости| <= 3.
     const qr2 = Math.sqrt(q2), q2c = Math.min(1, qr2);
     const dome2 = Math.sqrt(Math.max(0, 1 - q2c * q2c));
-    const en2 = Math.hypot(ex2, ey2) || 1, lam2 = -(ex2 * LIGHT_X + ey2 * LIGHT_Y) / en2;
-    const t2 = (hit2 - 0.5) * 6 + (13 * lam2 * q2c + 9 * (dome2 - 0.62) + LEVEL_FIX - DEEP_DARK) * k;
-    const deep = mix([c[0] + t2, c[1] + t2, c[2] + t2 * 0.6], GRAIN_GAP_RGB, 0.22);
-    return mix(topRgb, deep, Math.min(0.9, gap * 0.95) * k);
+    const en2 = Math.hypot(ex2, ey2) || 1, lam2 = -(ex2 * LX + ey2 * LY) / en2;
+    const t2 = (hit2 - 0.5) * RICE.toneVar + (RICE.shade * lam2 * q2c + RICE.domeA * (dome2 - 0.62) - RICE.deepDark) * k;
+    const deep = mix([c[0] + t2 + lvl, c[1] + t2 + lvl, c[2] + t2 * RICE.blueK + lvl], RICE.gapRgb, RICE.gapMix);
+    return mix(topRgb, deep, Math.min(RICE.gapMax, gap * RICE.gapK) * k);
   }
   const t = (hash(Math.floor(gx * 2), Math.floor(gy * 2)) - 0.5) * 4;     // крем и соус — мелкая рябь
   return [c[0] + t, c[1] + t, c[2] + t];
@@ -1055,8 +1119,6 @@ const R_THIN = 3.2, R_THICK = 5.0;   // тоньше — квадратится 
 // Варёное зерно косихикари — 7,7 x 3,5 мм (Matsui T., Hokuriku Crop Science 36:21-23, 2001: сырое
 // 4,7 x 2,8 мм, при варке длина x1,64, ширина x1,25). Поперечник = 3,5 мм = 0,7 ед. Прежние 2,5 мм
 // были толщиной зерна, а не шириной. Слой риса 7 мм — это ровно ДВА зерна поперёк.
-const GRAIN = 0.7;
-const GRAIN_ASPECT = 2.2;   // 7,7 / 3,5 — варёное зерно вытянуто СИЛЬНЕЕ сырого (L/W 2,18 против 1,67)
 const shapeCache = {};
 function shapeInfo(name, Rout, press) {
   const sh = SHAPES[name] || SHAPES.round;
@@ -1129,24 +1191,68 @@ function strokeWrapperTurns(c, m, wd, si, scale, half, LW, alpha) {
   // увидела это глазом, хотя ширина штриха задавалась одна и та же. Тень здесь не украшение:
   // внутренний виток зажат рисом с ОБЕИХ сторон, канавка контакта у него не хуже внешней.
   const SHADOW = LW + 1.7 * WRAP_MIN_CSS * DPR;
+  // НОРИ РАЗДЕЛЯЕТ РИСИНКИ, А НЕ РАЗРЕЗАЕТ ИХ ПОПОЛАМ (владелец 27.08). Лента внутреннего витка
+  // обводилась гладкой кривой поверх готовой картинки, и кривая шла ПО ТЕЛАМ зёрен: половина рисинки
+  // по одну сторону листа, половина по другую.
+  // ПОЧЕМУ НЕ GRAIN_BITE. Правило границы рис/начинка смещает точку К ЦЕНТРУ ближайшего зерна, а поле
+  // GRAIN_C РАЗРЫВНО: на границе клеток ближайшее зерно меняется скачком. Начинке это безвредно, она
+  // сплошная. Ленте в 0,1 мм — нет: кромки уехали бы в разные стороны и вместо ленты вышел бы пунктир.
+  // ПОЧЕМУ НЕ ВОЛНА ПО КАЖДОМУ ЗЕРНУ. Владелец: «из-за натяжения не будет ли странно волны смотреться?»
+  // В docs/reality-check.md уже доказано, почему на внешнем слое не бывает гармошки: складка требует
+  // ИЗБЫТКА ДЛИНЫ листа на своём радиусе, а при монотонной намотке ему взяться неоткуда. На масштабе
+  // зерна довод тот же: провал в щель между зёрнами — это тоже избыток длины, значит его нет. А вот
+  // выпуклость над выступающим зерном избытка не требует: это кратчайший обход препятствия.
+  // Форма поэтому ровно одна — НАТЯНУТАЯ НИТКА ЧЕРЕЗ КОЛЫШКИ: лист опирается на выступающие зёрна и
+  // идёт ПРЯМО над промежутками. Отсюда три правила ниже: смещение только наружу, бегущий максимум по
+  // окну в ползерна (опора на самое выступающее зерно окрестности) и малая амплитуда.
+  // press — это и есть натяжение: сильный прижим ⇒ линия глаже.
+  // ⚑ inferred: замера прогиба листа между зёрнами нет; 0,5 мм взято по фотографиям на глаз.
+  const bite = RICE.wrapBite > 0 && S.base !== 'cake' ? RICE.wrapBite : 0;
+  const tension = bite ? clamp((1.30 - (m.g.press == null ? 1 : m.g.press)) / 0.45, 0.12, 1) : 0;
   for (let k = 0; k < wd.kmax - 1; k++) {
-    const p = new Path2D(); let first = true, drawn = 0, bins = 0;
+    const pts = [];
     for (let i = 0; i < NB; i += step) {
-      bins++;
       const idx = k * NB + i;
       const ro = wd.rout[idx];
-      if (!(ro > 0) || wd.rin[idx] < 0) { first = true; continue; }   // лист в этом бине кончился — рвём линию
-      if (idx === wd.lastIdx) { first = true; continue; }             // хвост: дальше витка нет
+      // лист в этом бине кончился — рвём линию; хвост: дальше витка нет
+      let ok = (ro > 0) && wd.rin[idx] >= 0 && idx !== wd.lastIdx;
       // «КРОМЕ ПОСЛЕДНЕГО» — ЭТО ПРО БИН, А НЕ ПРО ВИТОК. Условие стояло на весь виток k, и при
       // неполном верхнем витке (1,12 оборота у футомаки) нижний обводился ВЕСЬ, включая те 317°,
       // где над ним ничего нет и где он сам и есть внешний контур. Линия ложилась на обводку рима,
       // удваивая её тень, а на 0°…43° отходила внутрь и замыкалась через шов радиальным отрезком —
       // получался «язык», отходящий от круга на трёх часах. Обводим бин, только если над ним
       // действительно есть виток.
-      if (wd.rin[idx + NB] < 0) { first = true; continue; }
-      const phi = i * DPHI;
-      const rpx = ro / shapeK(phi, si) * scale;
-      const x = half + Math.cos(phi) * rpx, y = half + Math.sin(phi) * rpx;
+      if (ok && wd.rin[idx + NB] < 0) ok = false;
+      if (!ok) { pts.push(null); continue; }
+      const phi = i * DPHI, rho = ro / shapeK(phi, si);
+      let bulge = 0;
+      if (bite) {
+        const dx0 = Math.cos(phi) * rho, dy0 = Math.sin(phi) * rho, tn = 1 / Math.max(1e-6, rho);
+        spreadColor(dx0 / GRAIN, dy0 / GRAIN, B(), -dy0 * tn, dx0 * tn, 1);
+        // 1 - q², а не sqrt(1 - q²): у корня на кромке зерна бесконечная производная, и лента
+        // получала прямоугольные ступеньки. Квадрат гладкий (C¹) и даёт ту же выпуклость.
+        const qg = Math.min(1, GRAIN_C[2]);
+        bulge = Math.max(0, 1 - qg * qg);                 // только НАРУЖУ: провал держит натяжение
+      }
+      pts.push({ phi, rho, bulge });
+    }
+    if (bite) {
+      const n = pts.length;
+      // окно опоры — полширины зерна по дуге ряда
+      const rMid = pts.find(q => q) ? pts.find(q => q).rho : 1;
+      const win = Math.max(1, Math.round(0.5 * GRAIN / Math.max(1e-6, rMid * DPHI * step)));
+      const mx = new Array(n).fill(0);
+      for (let i = 0; i < n; i++) { let v = 0;
+        for (let d = -win; d <= win; d++) { const q = pts[((i + d) % n + n) % n]; if (q && q.bulge > v) v = q.bulge; }
+        mx[i] = v; }
+      for (let i = 0; i < n; i++) { const a = mx[(i - 1 + n) % n], b2 = mx[i], c2 = mx[(i + 1) % n];
+        if (pts[i]) pts[i].bulge = 0.25 * a + 0.5 * b2 + 0.25 * c2; }
+    }
+    const p = new Path2D(); let first = true, drawn = 0, bins = pts.length;
+    for (const q of pts) {
+      if (!q) { first = true; continue; }
+      const rpx = (q.rho + bite * tension * WRAP_BULGE * q.bulge) * scale;
+      const x = half + Math.cos(q.phi) * rpx, y = half + Math.sin(q.phi) * rpx;
       if (first) { p.moveTo(x, y); first = false; } else p.lineTo(x, y);
       drawn++;
     }
