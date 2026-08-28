@@ -596,10 +596,24 @@ function thicknessProfile(vSlice, g, list) {
       for (let i = 0; i < M; i++) { buf[i] = acc / (2 * R + 1); acc += cur[Math.min(M - 1, i + R + 1)] - cur[Math.max(0, i - R)]; }
       const sw = cur; cur = buf; buf = sw;
     }
+    // КАНАВКА (くぼみ): рис НЕ возвращается в углубление под куском.
+    // Ито-Ёкадо: 「酢飯の中央より少しだけ手前に3本のくぼみをつくり」 — под каждую полосу начинки
+    // повар ВЫДАВЛИВАЕТ углубление ЗАРАНЕЕ, и кусок садится В рис, а не НА рис. Этим и объясняется
+    // то, что у настоящего маки над начинкой нет бугра (docs/reality-check.md, раздел 2).
+    // Без этого запрета раздача симметрична, и столбик получает обратно почти весь свой же
+    // вытесненный рис: замерено 28.08 — над куском 1,86 против 1,06 вдали, то есть бугор +76 %.
+    // Поэтому принимающими считаются только столбики, где грядка есть И начинки нет; сумма
+    // нормируется заново, так что объём по-прежнему сходится точно.
     let kept = 0;
-    for (let i = 0; i < M; i++) if (bed[i] > 1e-9) kept += cur[i];
-    if (kept > 1e-12) { const k = total / kept;
-      for (let i = 0; i < M; i++) add[i] = bed[i] > 1e-9 ? cur[i] * k : 0; }
+    const free = i => bed[i] > 1e-9 && H[i] <= 1e-9;
+    for (let i = 0; i < M; i++) if (free(i)) kept += cur[i];
+    // Вырожденный случай: начинка покрыла ВЕСЬ лист, принимать некому. Тогда раздаём как раньше —
+    // по всей грядке: лучше вернуть рис себе же, чем потерять его и снова сломать сохранение объёма.
+    if (kept <= 1e-12) { for (let i = 0; i < M; i++) if (bed[i] > 1e-9) kept += cur[i]; }
+    if (kept > 1e-12) { const k = total / kept, any = free;
+      let sum2 = 0; for (let i = 0; i < M; i++) if (free(i)) sum2 += cur[i];
+      const useFree = sum2 > 1e-12;
+      for (let i = 0; i < M; i++) add[i] = (useFree ? free(i) : bed[i] > 1e-9) ? cur[i] * k : 0; }
   }
   for (let i = 0; i < M; i++) { const r = bed[i]; a[i] = (r + bt * Math.max(0, H[i] - r) + add[i]) * g.T; }
   const R = Math.max(1, Math.round(SMOOTH_R / PROF_DS));
