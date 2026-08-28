@@ -517,9 +517,22 @@ const PROF_DS = 0.02, SMOOTH_R = 0.9;   // шаг профиля толщины 
 // своё окно индексов — вне окна он и раньше давал ноль. Формула шага не тронута: u, sU, порядок max
 // и «(r + β·max(0, H − r))·T» — те же, что были в bandAt/heightAt; вне начинок H = 0 и выражение
 // сводится к r·T ровно так же, как сводилось раньше.
-function thicknessProfile(vSlice, g, list) {
-  const M = Math.ceil(g.L / PROF_DS) + 2; let a = new Float32Array(M), tmp = new Float32Array(M);
-  const L = g.L, bt = betaEff(g), H = new Float64Array(M);   // Float64, не Float32: H — те же double, что складывал stackTopAt
+// КАРТА ВЫСОТ, редакция 1: рис и начинка разведены в ДВА ПОЛЯ.
+// `bed[i]` — верх риса в столбике i, `fill[i]` — верх стопки начинок; оба нормированы на T,
+// шаг сетки PROF_DS вдоль листа. Пока `bed[i]` в точности равен `spreadAt(u)`, то есть вывод
+// побитово прежний — и это проверено: 50 контрольных сумм FNV-1a по битам Float32 (пять баз ×
+// пять раскладок × два почерка × пять срезов) совпали до последнего бита мантиссы.
+//
+// ЗАЧЕМ ШАГ, КОТОРЫЙ НИЧЕГО НЕ МЕНЯЕТ. Смысл не в поведении, а в том, что у риса появилось
+// МЕСТО. Раньше его высота была ВЫРАЖЕНИЕМ внутри цикла — двигать было нечего, и потому
+// вытесненный начинкой рис исчезал (issue #1: замерено, начинка удаляет рис почти один к одному,
+// 138 мм² из 644 при 145 мм² начинки, а диаметр растёт на 0,2 мм вместо ~1,5).
+// Растекание встанет сюда, между заполнением bed и его сложением с fill.
+//
+// Float64, не Float32: bed и fill складываются как double, иначе округление сдвинет результат.
+function riceField(vSlice, g, list) {
+  const M = Math.ceil(g.L / PROF_DS) + 2, L = g.L;
+  const bed = new Float64Array(M), fill = new Float64Array(M);
   for (const p of list) {
     const d = ING[p.kind]; if (d.paint || p.inCore) continue;   // краска не бугрит, подвёрнутое в ядро — не в намотке
     const rg = patchSRange(p, vSlice, g); if (!rg) continue;
@@ -530,10 +543,17 @@ function thicknessProfile(vSlice, g, list) {
       const sU = Math.min(1, i * PROF_DS / L) * L;
       if (sU < rg[0] || sU > rg[1]) continue;
       const f = cutTop(d, (sU - mid) / wdt); if (f <= 0) continue;
-      const h = p.z0 + (p.z1 - p.z0) * f; if (h > H[i]) H[i] = h;
+      const h = p.z0 + (p.z1 - p.z0) * f; if (h > fill[i]) fill[i] = h;
     }
   }
-  for (let i = 0; i < M; i++) { const r = spreadAt(Math.min(1, i * PROF_DS / L), g); a[i] = (r + bt * Math.max(0, H[i] - r)) * g.T; }
+  for (let i = 0; i < M; i++) bed[i] = spreadAt(Math.min(1, i * PROF_DS / L), g);
+  return { M, bed, fill };
+}
+function thicknessProfile(vSlice, g, list) {
+  const fld = riceField(vSlice, g, list), M = fld.M, bed = fld.bed, H = fld.fill;
+  let a = new Float32Array(M), tmp = new Float32Array(M);
+  const bt = betaEff(g);
+  for (let i = 0; i < M; i++) { const r = bed[i]; a[i] = (r + bt * Math.max(0, H[i] - r)) * g.T; }
   const R = Math.max(1, Math.round(SMOOTH_R / PROF_DS));
   for (let pass = 0; pass < 2; pass++) {              // два прохода box-blur ≈ гаусс
     let acc = 0; for (let i = -R; i <= R; i++) acc += a[Math.min(M - 1, Math.max(0, i))];
