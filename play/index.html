@@ -532,7 +532,7 @@ const PROF_DS = 0.02, SMOOTH_R = 0.9;   // шаг профиля толщины 
 // Float64, не Float32: bed и fill складываются как double, иначе округление сдвинет результат.
 function riceField(vSlice, g, list) {
   const M = Math.ceil(g.L / PROF_DS) + 2, L = g.L;
-  const bed = new Float64Array(M), fill = new Float64Array(M);
+  const bed = new Float64Array(M), fill = new Float64Array(M), lo = new Float64Array(M).fill(Infinity);
   for (const p of list) {
     const d = ING[p.kind]; if (d.paint || p.inCore) continue;   // краска не бугрит, подвёрнутое в ядро — не в намотке
     const rg = patchSRange(p, vSlice, g); if (!rg) continue;
@@ -544,16 +544,64 @@ function riceField(vSlice, g, list) {
       if (sU < rg[0] || sU > rg[1]) continue;
       const f = cutTop(d, (sU - mid) / wdt); if (f <= 0) continue;
       const h = p.z0 + (p.z1 - p.z0) * f; if (h > fill[i]) fill[i] = h;
+      if (p.z0 < lo[i]) lo[i] = p.z0;                    // низ стопки — нужен для ТОЛЩИНЫ начинки
     }
   }
-  for (let i = 0; i < M; i++) bed[i] = spreadAt(Math.min(1, i * PROF_DS / L), g);
-  return { M, bed, fill };
+  for (let i = 0; i < M; i++) { bed[i] = spreadAt(Math.min(1, i * PROF_DS / L), g); if (!isFinite(lo[i])) lo[i] = fill[i]; }
+  return { M, bed, fill, lo };
 }
+// Ширина растекания: рис зернистый и уезжает на считанные зёрна, а не по всему листу.
+// ⚑ inferred: замера нет. 1,4 ед. = 7 мм ≈ две ширины зерна (зерно 3,5 мм, Matsui 2001).
+// Это условность отрисовки-модели, а не физическая величина: в таблицу толщин её класть нельзя.
+// Ширина проверена замером 28.08, а не выбрана на глаз: прогон по 7 / 13 / 20 / 30 / 45 / 70 мм
+// на трёх базах и трёх достижимых почерках сдвигает худшую некруглость всего с 63 % до 61 %.
+// То есть ВЫСОТА ВАЛИКА на силуэт почти не влияет, и подбирать её под приёмку бессмысленно —
+// оставлено физически осмысленное значение в две ширины зерна.
+const SPREAD_W = 1.4;
+// РИС, ВЫТЕСНЕННЫЙ НАЧИНКОЙ, РАСТЕКАЕТСЯ ВБОК (issue #1).
+// Было: `h = bed + β·max(0, fill − bed)` — начинка лежит ВНУТРИ риса, занимая его место, и
+// вытесненный рис исчезает. Замерено на хосомаки: 138 мм² риса из 644 пропадают при 145 мм²
+// начинки, диаметр растёт на 0,2 мм вместо ≈1,5.
+//
+// ПОЧЕМУ НЕЛЬЗЯ ПРОСТО ДОБАВИТЬ РАСТЕКАНИЕ К СТАРОЙ ФОРМУЛЕ. β и растекание описывают ОДНО И ТО ЖЕ:
+// циновка давит бугор. β его просто теряет, растекание — переносит. Наложить одно на другое значит
+// сжать дважды и потерять калибровку β (0,55 у суши-баз, 0,7 у рулета).
+//
+// Поэтому объём делится ровно надвое, без остатка:
+//   содержимое столбика = bed + ft            (рис плюс толщина начинки, ft = fill − lo)
+//   высота столбика     = bed + β·max(0, fill − bed)      ← в точности прежняя формула
+//   разница             = ft − β·max(0, fill − bed)       ← ровно это и уезжает вбок
+// Сумма высот после раздачи равна сумме содержимого ТОЧНО: Σ(bed + β·exc) + Σ(ft − β·exc) = Σ(bed + ft).
+// Прежняя калибровка β не тронута: при пустом листе ft = 0, уезжать нечему, выражение сводится к bed·T.
+//
+// Рис не кладётся на голое нори: раздача идёт только в столбики, где грядка есть, и нормируется
+// заново, чтобы сумма сошлась после отсечения.
 function thicknessProfile(vSlice, g, list) {
-  const fld = riceField(vSlice, g, list), M = fld.M, bed = fld.bed, H = fld.fill;
+  const fld = riceField(vSlice, g, list), M = fld.M, bed = fld.bed, H = fld.fill, lo = fld.lo;
   let a = new Float32Array(M), tmp = new Float32Array(M);
   const bt = betaEff(g);
-  for (let i = 0; i < M; i++) { const r = bed[i]; a[i] = (r + bt * Math.max(0, H[i] - r)) * g.T; }
+  const move = new Float64Array(M);
+  let total = 0;
+  for (let i = 0; i < M; i++) {
+    const exc = Math.max(0, H[i] - bed[i]), ft = Math.max(0, H[i] - lo[i]);
+    const m = ft - bt * exc;
+    if (m > 0) { move[i] = m; total += m; }
+  }
+  const add = new Float64Array(M);
+  if (total > 1e-12) {
+    const R = Math.max(1, Math.round(SPREAD_W / 2 / PROF_DS));
+    let cur = move, buf = new Float64Array(M);
+    for (let pass = 0; pass < 2; pass++) {            // два прохода box ≈ гаусс шириной SPREAD_W
+      let acc = 0; for (let i = -R; i <= R; i++) acc += cur[Math.min(M - 1, Math.max(0, i))];
+      for (let i = 0; i < M; i++) { buf[i] = acc / (2 * R + 1); acc += cur[Math.min(M - 1, i + R + 1)] - cur[Math.max(0, i - R)]; }
+      const sw = cur; cur = buf; buf = sw;
+    }
+    let kept = 0;
+    for (let i = 0; i < M; i++) if (bed[i] > 1e-9) kept += cur[i];
+    if (kept > 1e-12) { const k = total / kept;
+      for (let i = 0; i < M; i++) add[i] = bed[i] > 1e-9 ? cur[i] * k : 0; }
+  }
+  for (let i = 0; i < M; i++) { const r = bed[i]; a[i] = (r + bt * Math.max(0, H[i] - r) + add[i]) * g.T; }
   const R = Math.max(1, Math.round(SMOOTH_R / PROF_DS));
   for (let pass = 0; pass < 2; pass++) {              // два прохода box-blur ≈ гаусс
     let acc = 0; for (let i = -R; i <= R; i++) acc += a[Math.min(M - 1, Math.max(0, i))];
@@ -2767,6 +2815,9 @@ window.addEventListener('hashchange', () => { const pz = decodePuzzle(location.h
 requestFrame();
 </script>
 <!-- Регрессионная проверка: play/index.html?check — грузится только по требованию -->
-<script>if(location.search.indexOf('check')>=0){const t=document.createElement('script');t.src='checks.js';document.head.appendChild(t);}</script>
+<!-- СТОРОЖ ТОЖЕ КЕШИРУЕТСЯ. Без строки запроса браузер отдавал checks.js из кеша, и прогон молча
+     проверял СТАРЫМ сторожем: 28.08 правка проверки не применилась, а результат выглядел настоящим.
+     Та же семья, что «проверка мерила по старому ореолу 10 px». Версия пробрасывается из адреса. -->
+<script>if(location.search.indexOf('check')>=0){const t=document.createElement('script');t.src='checks.js'+location.search;document.head.appendChild(t);}</script>
 </body>
 </html>
