@@ -234,6 +234,27 @@ function runChecks(detail) {
       }
     }
 
+    // ── 5б. МОДУЛИ INVERSE: каталог не разошёлся с игрой ──
+    // Числа материалов продублированы в play/inverse/materials.js НАМЕРЕННО — модуль обязан
+    // работать без страницы. Единственное, что защищает их от дрейфа, — эта сверка, и потому
+    // она жёсткая. Спецификация ред. 2 предупреждает ровно об этом: две реализации одной
+    // сигнатуры расходятся молча и обнаруживаются как «баг непонятно где».
+    if (typeof matVerifyAgainstING === 'function') {
+      for (const msg of matVerifyAgainstING(ING, WRAPPERS)) ok(false, 'каталог inverse: ' + msg);
+      // Инварианты примитивов: у полосы узкое место — ШИРИНА. Ошибка «взять длину» превратила
+      // бы законную длинную полосу (тамаго во весь лист) в невыполнимую.
+      const strip = { id: 's', type: 'strip', materialId: 'cucumber', anchor: { u: 0.4, v: 0.5 },
+                      params: { lengthU: 6, widthV: 0.7, direction: 'u' } };
+      ok(primValidate(strip).length === 0, 'примитивы: валидная полоса не прошла схему');
+      ok(Math.abs(primMinFeature(strip) - 0.7) < 1e-9,
+         `примитивы: мин. элемент полосы ${primMinFeature(strip)}, ожидалась ШИРИНА 0,7`);
+      ok(primValidate({ id: '', type: 'blob' }).length >= 3, 'примитивы: битая схема прошла');
+      // Касание — не пересечение: бруски встык кладут намеренно (несколько тонких собирают в один).
+      const A = { id: 'A', type: 'rect', materialId: 'salmon', anchor: { u: 0, v: 0 }, params: { widthU: 2, heightV: 2 } };
+      const B2 = { id: 'B', type: 'rect', materialId: 'salmon', anchor: { u: 2, v: 0 }, params: { widthU: 2, heightV: 2 } };
+      ok(!primBoxesOverlap(A, B2), 'примитивы: бруски встык сочтены пересекающимися');
+    } else notes.push('модули inverse не загрузились — их разделы пропущены');
+
     // ── 6. РАСКЛАДКА: ничего не спрятано молча, палец достаёт ──
     for (const [w, h] of SIZES) {
       W = w; H = h; DPR = 2;

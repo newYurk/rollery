@@ -2849,6 +2849,13 @@ requestFrame();
 <!-- СТОРОЖ ТОЖЕ КЕШИРУЕТСЯ. Без строки запроса браузер отдавал checks.js из кеша, и прогон молча
      проверял СТАРЫМ сторожем: 28.08 правка проверки не применилась, а результат выглядел настоящим.
      Та же семья, что «проверка мерила по старому ореолу 10 px». Версия пробрасывается из адреса. -->
-<script>if(location.search.indexOf('check')>=0){const t=document.createElement('script');t.src='checks.js'+location.search;document.head.appendChild(t);}</script>
+<!-- Проверочный путь грузит и модули inverse: сверка их каталога с живым ING обязана идти
+     в общей регрессии, иначе продублированные там числа разойдутся с игрой молча.
+     Порядок важен — checks.js последним, он на них ссылается. Загрузка последовательная:
+     параллельная не гарантирует порядок выполнения. -->
+<script>if(location.search.indexOf('check')>=0){
+  (async () => { for (const f of ['inverse/primitives.js','inverse/materials.js','checks.js'])
+    await new Promise(r => { const t=document.createElement('script'); t.src=f+location.search; t.onload=r; t.onerror=r; document.head.appendChild(t); }); })();
+}</script>
 </body>
 </html>
