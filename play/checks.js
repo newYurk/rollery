@@ -47,7 +47,7 @@ const LAY_SKIP = ['844x390'];
 const SIZES = [[390, 844], [844, 390], [1024, 768], [1024, 1366], [1440, 900]];
 
 function runChecks(detail) {
-  const fails = [], notes = [];
+  const fails = [], notes = [], known = [];
   const keep = { base: S.base, wrap: S.wrap, shape: S.shape, turns: S.turns, hand: S.hand, mode: S.mode,
                  lists: JSON.parse(JSON.stringify(S.lists)), W, H, DPR };
   const ok = (cond, msg) => { if (!cond) fails.push(msg); return cond; };
@@ -59,6 +59,11 @@ function runChecks(detail) {
   // Теперь оно только СООБЩАЕТ. Жёсткими остались условия, при которых ролл действительно испорчен:
   // замкнулся ли (обороты), нет ли непокрытых углов, лежат ли начинки внутри, влезает ли раскладка.
   const drift = (cond, msg) => { if (!cond) notes.push(msg); return cond; };
+  // ТРЕТИЙ УРОВЕНЬ: дефект найден, ЗАВЕДЁН и ждёт решения владельца. Не провал — иначе проверка
+  // стоит красной неделями и её перестают читать, а первый же настоящий слом теряется в шуме.
+  // Но и молчать нельзя: молчание через месяц читается как «всё в порядке». Правило простое —
+  // сюда можно класть ТОЛЬКО то, на что есть номер issue, и он пишется в сообщении.
+  const kn = (cond, msg) => { if (!cond) known.push(msg); return cond; };
   const near = (a, b, t) => Math.abs(a - b) <= t;
   const clean = () => { S.shape = 'round'; S.turns = null; S.mode = 'lay';
     S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 }; };
@@ -195,6 +200,30 @@ function runChecks(detail) {
          `яркость риса ${cut ? 'на срезе' : 'на листе'}: Δ ${d.map(x => x.toFixed(1)).join('/')}, допуск ±${TOL_LEVEL}`);
     }
 
+    // ── 3в. ХУДШИЙ СЛУЧАЙ РАСКЛАДКИ: начинки сгрудились у ближнего края ──
+    // ПОЧЕМУ ОТДЕЛЬНО ОТ 3б. Там начинки разложены ПО ВСЕМУ листу, и подворот забирает немного.
+    // Ломается другое: когда всё свалено в зону подворота, computeCore съедает лист, и на намотку
+    // остаётся меньше оборота. Владелец получила такой ролл 27.08, просто играя, — с дырой в
+    // четверть окружности, — а проверка была ЗЕЛЁНОЙ. Причина: перебирался ОДИН параметр за раз
+    // (рука при одной раскладке), а ломает КОМБИНАЦИЯ — тяжёлая раскладка и невыгодная рука.
+    for (const k of ['hoso', 'futo', 'ura', 'fruit']) {
+      for (const hh of HANDS) {
+        S.base = k; S.wrap = null; S.lists[k] = []; clean();
+        for (const [ing, u] of [['salmon', 0.06], ['tamago', 0.13], ['cucumber', 0.19]])
+          { S.sel = ing; placeAt(u, 0.5); }
+        S.hand = Object.assign({}, hh.h); touchModel(); layout();
+        const d = dia(), tag = `${BASES[k].name} · всё у края · ${hh.name}`;
+        let bare = 0;
+        for (let b2 = 0; b2 < NB; b2++) if (d.wd.top[b2] <= d.m.g.r0 + 1e-6) bare++;
+        // Урамаки заведомо не проходит: грядка 10 мм на полулисте, пустой идёт впритык 1,03 оборота.
+        // Замер и разбор — issue #3. Пока правила урамаки не написаны, держим как ИЗВЕСТНО, а не как
+        // провал; когда #3 закроется — переключить на ok() и удалить эту развилку.
+        const say = k === 'ura' ? kn : ok;
+        say(d.wd.turns >= 1.0, `${tag}: витков ${d.wd.turns.toFixed(2)} — ролл НЕ ЗАМКНУЛСЯ${k === 'ura' ? ' (issue #3)' : ''}`);
+        say(bare === 0, `${tag}: ${bare} углов из ${NB} НЕ НАКРЫТЫ листом${k === 'ura' ? ' (issue #3)' : ''}`);
+      }
+    }
+
     // ── 6. РАСКЛАДКА: ничего не спрятано молча, палец достаёт ──
     for (const [w, h] of SIZES) {
       W = w; H = h; DPR = 2;
@@ -213,6 +242,15 @@ function runChecks(detail) {
             ok(patch + 2 * pad >= need,
                `${tag}: цель касания ${(patch + 2 * pad).toFixed(1)} px, норма ${need} (брусок ${patch.toFixed(1)} + ореол ${pad}×2)`);
           ok(L.sheet.w > 0 && L.sheet.h > 0, `${tag}: лист схлопнулся`);
+          // ПРОПОРЦИЯ ЛИСТА. Настоящий лист имеет свои размеры, а рисуется он в свободное место —
+          // и на широких экранах зерно растягивается вдвое (замер и разбор — issue #23). Растянуты
+          // при этом и начинки, и расстояния: раскладка на широком экране обманывает игрока.
+          // Держим как ИЗВЕСТНО: починка — выбор компоновки, а не правка кода.
+          if (!prev) {
+            const bb = B(), trueAsp = bb.Wv / sheetLen(bb), gotAsp = L.sheet.w / L.sheet.h;
+            kn(Math.abs(gotAsp - trueAsp) / trueAsp <= 0.12,
+               `${tag}: лист растянут ×${(gotAsp / trueAsp).toFixed(2)} — ${gotAsp.toFixed(2)} против ${trueAsp.toFixed(2)} (issue #23)`);
+          }
         }
       }
     }
@@ -228,8 +266,9 @@ function runChecks(detail) {
 
   const head = fails.length ? `ПРОВАЛ · ${fails.length}` : 'ВСЁ ЦЕЛО';
   const text = head + (fails.length ? '\n  ' + fails.join('\n  ') : '') +
-    (notes.length ? `\n\nСДВИГ ⌀ · ${notes.length} — не провал, но объясни чем:\n  ` + notes.join('\n  ') : '');
-  return detail ? { ok: !fails.length, fails, notes, text } : text;
+    (notes.length ? `\n\nСДВИГ ⌀ · ${notes.length} — не провал, но объясни чем:\n  ` + notes.join('\n  ') : '') +
+    (known.length ? `\n\nИЗВЕСТНО · ${known.length} — заведено, ждёт решения владельца:\n  ` + known.join('\n  ') : '');
+  return detail ? { ok: !fails.length, fails, notes, known, text } : text;
 }
 
 if (location.search.indexOf('check') >= 0) {
