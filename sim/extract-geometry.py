@@ -130,5 +130,11 @@ for (const phi of [0.3, 2.0, 4.5]) {
 */
 """
 code = header + '\n\n'.join(out) + tail
-io.open('/Users/newyurk/Desktop/rollery-geometry.txt','w',encoding='utf-8').write(code)
+# Куда писать: по умолчанию — снимок в репозитории. Раньше путь был жёстко зашит на Desktop,
+# и повторный запуск молча затирал файл, по которому шло ревью. Теперь путь задаётся аргументом,
+# а снимок в git остаётся эталоном той версии, которую проверяли.
+import sys
+dest = sys.argv[1] if len(sys.argv) > 1 else 'sim/geometry-core.txt'
+io.open(dest,'w',encoding='utf-8').write(code)
+print('записано в', dest)
 print('строк:', code.count('\n'), '· символов:', len(code), '· не найдено:', ', '.join(missing) or 'ничего')
