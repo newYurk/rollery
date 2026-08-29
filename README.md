@@ -39,7 +39,7 @@ Ingredient sizes are in real units (rice layer ≈ 5 mm). See `docs/design-core.
 - `HYPOTHESIS.md` — hypothesis, measurements and pass/fail criteria, written before the code (Russian).
 - `docs/design-core.md` — digest of the design thread + the winding model (Russian).
 - `docs/geometry-audit.md` — independent numeric audit of the spiral/winding math (Russian).
-- `docs/mechanics.md`, `docs/core-v0.md` — core-mechanic candidates and the puzzle-reproduce spec (Russian).
+- `docs/mechanics.md`, `docs/archive/core-v0.md` — core-mechanic candidates and the puzzle-reproduce spec (Russian).
 - `docs/ideas.md` — idea bank (coloured rice as paint, mini-rolls as elements).
 - `docs/ui-review.md` — UI/UX and responsive-layout review across viewports (Russian); the layout follows it.
 - `docs/reality-check.md` — comparison with real maki/kazarimaki construction, with numbers and sources (Russian).
