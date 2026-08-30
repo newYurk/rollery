@@ -80,7 +80,9 @@ function tween(from, to, dur, apply, done) {
 // ---------------------------------------------------------------- ввод
 const drag = { id: null, kind: null, x0: 0, y0: 0, patch: null, ou: 0, ov: 0, moved: false, p0: 0, lastY: 0, lastT: 0 };
 const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
-function sheetUV(x, y) { const s = L.sheet; return { u: 1 - (y - s.y) / s.h, v: (x - s.x) / s.w }; }
+// Единственная точка перевода «экран → доли листа». Сначала toSheet (снимает поворот листа,
+// если тот лежит боком, #23), дальше прежняя формула в логическом пространстве SB.
+function sheetUV(x, y) { const q = toSheet(x, y), s = SB(); return { u: 1 - (q.y - s.y) / s.h, v: (q.x - s.x) / s.w }; }
 // Ореол вокруг патча — HIT_PAD, и он же стоит в формуле пола листа (sheetFloor): это ОДНО число,
 // а не два похожих. Было 10, стало 14. Причина: пока лист был полулистом хосомаки (L = 21),
 // брусок в 2 единицы занимал 0,095 высоты и 10 px ореола хватало. На едином листе (L = 42)
@@ -89,12 +91,15 @@ function sheetUV(x, y) { const s = L.sheet; return { u: 1 - (y - s.y) / s.h, v: 
 // перебор идёт с конца списка, поэтому выигрывает верхний — разрешается детерминированно,
 // но соседа под стопкой схватить можно.
 function hitPatch(x, y) {
+  // patchRect/patchScreen отвечают в ЛОГИЧЕСКОМ пространстве листа — переводим точку касания
+  // туда же (toSheet — чистый поворот, поэтому HIT_PAD в пикселях остаётся честным ореолом).
+  const q = toSheet(x, y); x = q.x; y = q.y;
   const list = patches();
   for (let i = list.length - 1; i >= 0; i--) {
     const p = list[i], d = ING[p.kind];
     if (p.rot) { const t = patchScreen(p), dx = x - t.cx, dy = y - t.cy, c = Math.cos(t.ang), sn = Math.sin(t.ang); const ax = dx * c + dy * sn, ay = -dx * sn + dy * c; if (Math.abs(ax) <= t.lenPx / 2 + HIT_PAD && Math.abs(ay) <= t.wPx / 2 + HIT_PAD) return p; continue; }
     const r = patchRect(p);
-    if (d.wave) { r.y -= d.wave.amp * L.sheet.h; r.h += 2 * d.wave.amp * L.sheet.h; }
+    if (d.wave) { r.y -= d.wave.amp * SB().h; r.h += 2 * d.wave.amp * SB().h; }
     const pad = HIT_PAD; if (x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad) return p;
   }
   return null;

@@ -281,6 +281,35 @@ function runChecks(detail) {
             ok(patch + 2 * pad >= need,
                `${tag}: цель касания ${(patch + 2 * pad).toFixed(1)} px, норма ${need} (брусок ${patch.toFixed(1)} + ореол ${pad}×2)`);
           ok(L.sheet.w > 0 && L.sheet.h > 0, `${tag}: лист схлопнулся`);
+          // ── Ориентация листа (#23). Два чека против расхождения двух описаний направления.
+          // A. Круговой перевод: экран → лист → экран возвращает ту же точку, а sheetUV согласован
+          //    с patchRect (прямое и обратное преобразования живут в РАЗНЫХ файлах — index.html и
+          //    render/sheet.js; разъедутся — палец возьмёт не тот кусок, и это не даст ни ошибки).
+          {
+            const s = L.sheet;
+            for (const [fx, fy] of [[0.2, 0.3], [0.5, 0.5], [0.9, 0.8]]) {
+              const x0 = s.x + fx * s.w, y0 = s.y + fy * s.h;
+              const q = toSheet(x0, y0), b2 = toScreen(q.x, q.y);
+              ok(Math.abs(b2.x - x0) < 0.01 && Math.abs(b2.y - y0) < 0.01,
+                 `${tag}: круговой перевод уехал на (${(b2.x - x0).toFixed(1)}, ${(b2.y - y0).toFixed(1)}) px`);
+              const uv = sheetUV(x0, y0);
+              const pr = patchRect({ kind: 'salmon', u: uv.u, v: uv.v, z0: 0, z1: 1 });
+              const back = toScreen(pr.x + pr.w / 2, pr.y + pr.h / 2);
+              ok(Math.hypot(back.x - x0, back.y - y0) < 1,
+                 `${tag}: sheetUV и patchRect разошлись на ${Math.hypot(back.x - x0, back.y - y0).toFixed(1)} px`);
+            }
+          }
+          // B. Ловится то, что нарисовано: hitPatch в центре куска возвращает его,
+          //    а на 2 px за ореолом — уже нет. Кусок кладётся во временный список и убирается.
+          {
+            const tp = { kind: 'salmon', u: 0.5, v: 0.5, z0: 0, z1: 1, phase: 0 };
+            patches().push(tp);
+            const r2 = patchRect(tp), cxy = toScreen(r2.x + r2.w / 2, r2.y + r2.h / 2);
+            ok(hitPatch(cxy.x, cxy.y) === tp, `${tag}: палец в центре куска его НЕ берёт`);
+            const off = toScreen(r2.x + r2.w / 2, r2.y - HIT_PAD - 2);
+            ok(hitPatch(off.x, off.y) !== tp, `${tag}: палец за ореолом кусок ВСЁ РАВНО берёт`);
+            patches().pop();
+          }
           // ПРОПОРЦИЯ ЛИСТА. Настоящий лист имеет свои размеры, а рисуется он в свободное место —
           // и на широких экранах зерно растягивается вдвое (замер и разбор — issue #23). Растянуты
           // при этом и начинки, и расстояния: раскладка на широком экране обманывает игрока.

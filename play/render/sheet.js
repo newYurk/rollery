@@ -33,7 +33,46 @@ function getSpreadTex(w, h) {
   x.putImageData(img, 0, 0); spreadTex = c; spreadTexKey = key;
   return c;
 }
-// Фигура патча в экранных координатах: x, y — верхний левый угол; w — вдоль v, h — вдоль u.
+// ── СИСТЕМА КООРДИНАТ ЛИСТА (#23) ─────────────────────────────────────────────
+// Вся математика листа ниже написана в ЛОГИЧЕСКОМ пространстве: x вправо = ось v,
+// y вниз = убывание u (u = 1 сверху). Пока лист лежит осью u по вертикали
+// (L.sheet.uAxis === 'y'), логическое пространство совпадает с экранным и всё ниже —
+// тождество. Когда лист повёрнут ('x'), между ними встаёт ЧИСТЫЙ ПОВОРОТ на ±90°
+// (не зеркало: зеркало перевернуло бы фактуры начинок; и изометрия: HIT_PAD в
+// пикселях остаётся честным ореолом). Направление поворота задаёт SHEET_U0 — с какой
+// стороны экрана окажется начало скрутки u = 0; выбор за владельцем (issue #23).
+//
+// Правило для нового кода: геометрия листа пишется по SB() и рисуется внутри
+// sheetPush()/sheetPop(); ввод переводится через toSheet(); подписи, которые должны
+// остаться горизонтальными, рисуются через unrot(). L.sheet.{x,y,w,h} — ЭКРАННАЯ
+// рамка, к осям листа она отношения больше не имеет.
+const SHEET_U0 = 'left';   // 'left' | 'right' — вступает в силу только при uAxis 'x'
+function SB() { const s = L.sheet; return { x: s.x, y: s.y, w: s.lenV, h: s.lenU }; }
+const sheetAng = () => L.sheet.uAxis !== 'x' ? 0 : (SHEET_U0 === 'left' ? Math.PI / 2 : -Math.PI / 2);
+// Экран → логическое (для ввода) и обратно (для подписей и якорей вне трансформа).
+function toSheet(x, y) {
+  const s = L.sheet; if (s.uAxis !== 'x') return { x, y };
+  return SHEET_U0 === 'left'
+    ? { x: s.x + (y - s.y), y: s.y + (s.x + s.lenU - x) }    // экран ← поворот +90°
+    : { x: s.x + (s.y + s.lenV - y), y: s.y + (x - s.x) };   // экран ← поворот −90°
+}
+function toScreen(px, py) {
+  const s = L.sheet; if (s.uAxis !== 'x') return { x: px, y: py };
+  return SHEET_U0 === 'left'
+    ? { x: s.x + s.lenU - (py - s.y), y: s.y + (px - s.x) }
+    : { x: s.x + (py - s.y), y: s.y + s.lenV - (px - s.x) };
+}
+function sheetPush() {
+  ctx.save(); const s = L.sheet; if (s.uAxis !== 'x') return;
+  if (SHEET_U0 === 'left') { ctx.translate(s.x + s.lenU, s.y); ctx.rotate(Math.PI / 2); }
+  else { ctx.translate(s.x, s.y + s.lenV); ctx.rotate(-Math.PI / 2); }
+  ctx.translate(-s.x, -s.y);
+}
+function sheetPop() { ctx.restore(); }
+// Подпись внутри трансформа, но горизонтальная: якорь едет с листом, текст — нет.
+function unrot(px, py, fn) { ctx.save(); ctx.translate(px, py); ctx.rotate(-sheetAng()); fn(); ctx.restore(); }
+
+// Фигура патча в ЛОГИЧЕСКИХ координатах листа (см. блок выше): x, y — верхний левый угол; w — вдоль v, h — вдоль u.
 function drawPatchShape(d, x, y, w, h, flat) {
   const c = d.color, rgb = d.rgb;
   const r = d.round ? h / 2 : d.lens ? h / 2.5 : 3;
@@ -63,12 +102,12 @@ function drawPatchShape(d, x, y, w, h, flat) {
   ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; rr(x, y, w, h, r); ctx.stroke();
 }
 function patchRect(p) {
-  const m = dims(p), s = L.sheet;
+  const m = dims(p), s = SB();
   return { x: s.x + (p.v - m.dv / 2) * s.w, y: s.y + (1 - p.u - m.du / 2) * s.h, w: m.dv * s.w, h: m.du * s.h };
 }
 // Экранная трансформация повёрнутого патча: центр, угол и размеры в пикселях (лист анизотропен: px/единица разные по осям).
 function patchScreen(p) {
-  const m = dims(p), b = B(), s = L.sheet, Lu = sheetLen(b), rot = p.rot || 0, c = Math.cos(rot), sn = Math.sin(rot);
+  const m = dims(p), b = B(), s = SB(), Lu = sheetLen(b), rot = p.rot || 0, c = Math.cos(rot), sn = Math.sin(rot);
   const pxV = s.w / b.Wv, pxU = s.h / Lu, w = m.du * Lu, len = m.dv * b.Wv;
   const cx = s.x + p.v * s.w, cy = s.y + (1 - p.u) * s.h;
   const ang = Math.atan2(sn * pxU, c * pxV);   // ось длины патча: (dv, du) = (cos, -sin) → экран (x вправо, y вниз = -u)
@@ -78,7 +117,7 @@ function patchScreen(p) {
 // z0 — высота патча в стопке; она ЖИВЁТ В МОДЕЛИ (buildModel считает restack на своей копии
 // и вход не мутирует), поэтому вызывающий передаёт её сюда, а не читает из самого патча.
 function drawPatchTop(p, alpha = 1, z0 = 0) {
-  const d = ING[p.kind], m = dims(p), s = L.sheet;
+  const d = ING[p.kind], m = dims(p), s = SB();
   if (p.rot) {
     const t = patchScreen(p);
     ctx.save(); ctx.globalAlpha = alpha * (p.kind === 'nori' ? 0.82 : d.paint ? 0.92 : 1);
