@@ -160,7 +160,9 @@ async function boot(){
   CFG = await (await fetch('/api/variants')).json();
   const vs = $('#variant');
   CFG.variants.forEach(v => vs.add(new Option(v.title + ' · ' + v.id, v.id)));
-  vs.value = CFG.variants.find(v => v.id === 'reference') ? 'reference' : CFG.variants[0].id;
+  // Предвыбираем ЭТАЛОН. Стояло 'reference' — прежний эталон, заменённый 26.08 на reference2:
+  // владелец открывала лабораторию и по умолчанию гоняла устаревший вариант (найдено 29.08).
+  vs.value = CFG.variants.find(v => v.id === 'reference2') ? 'reference2' : CFG.variants[0].id;
   vs.onchange = onVariant; onVariant();
   $('#qual').onclick = e => { const b = e.target.closest('button'); if(!b) return;
     quality = b.dataset.q; [...$('#qual').children].forEach(x => x.setAttribute('aria-pressed', x === b)); };
@@ -180,7 +182,8 @@ function onVariant(){
   const v = CFG.variants.find(x => x.id === $('#variant').value);
   $('#vnote').textContent = v.note + ' · код обновлён ' + v.mtime;
   const ls = $('#layout'); ls.innerHTML = '';
-  v.layouts.forEach(n => ls.add(new Option(n + ' — ' + (CFG.layoutNames[n] || 'раскладка ' + n), n)));
+  // Имя раскладки — из самой сцены (v.names), общая таблица только как запасная.
+  v.layouts.forEach(n => ls.add(new Option(n + ' — ' + ((v.names && v.names[n]) || CFG.layoutNames[n] || 'раскладка ' + n), n)));
   const kb = $('#knobs'); kb.innerHTML = '';
   v.knobs.forEach(k => {
     const c = CFG.knobs[k];

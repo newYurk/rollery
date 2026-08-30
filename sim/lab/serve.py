@@ -49,9 +49,22 @@ TITLES = {
     'mpm-shell':   ('✗ Первая версия — историческая',
                     'Циновка катится по столу и гребёт рис. Опровергнута: так не крутят'),
 }
+# Подписи раскладок берутся ИЗ САМОЙ СЦЕНЫ (поле name в LAYOUTS её run.py), а не из общей
+# таблицы: 29.08 обнаружилось, что 6 и 7 подписаны «Рулет» и «Лаваш», хотя во ВСЕХ вариантах
+# это futomaki-full-core и futomaki-real. Нажимаешь «Рулет» — считается футомаки.
+LAYOUT_RU = {
+    'empty': 'Пустой лист',
+    'tamago-edge': 'Тамаго у края',
+    'salmon-mid': 'Лосось в середине',
+    'four-edge': 'Четыре начинки у края',
+    'overflow-square': 'Переполнение + квадрат',
+    'futomaki-full-core': 'Футомаки, набитое ядро',
+    'futomaki-real': 'Футомаки как в жизни',
+}
+# Запасная таблица — только если сцена не объявила имён (спиральные варианты).
 LAYOUT_NAMES = {
     1: 'Пустой лист', 2: 'Тамаго у края', 3: 'Лосось в середине',
-    4: 'Четыре начинки у края', 5: 'Переполнение + квадрат', 6: 'Рулет (спираль)', 7: 'Лаваш (спираль)',
+    4: 'Четыре начинки у края', 5: 'Переполнение + квадрат', 6: 'Раскладка 6', 7: 'Раскладка 7',
 }
 KNOB_INFO = {
     'speed':  ('Скорость руки', 0.4, 2.0, 0.1, 1.0, 'быстрее — рыхлее и крупнее'),
@@ -80,12 +93,19 @@ def variants():
         layouts = sorted({int(m) for m in re.findall(r'^\s*(\d)\s*:\s*dict\(', src, re.M)})
         if not layouts:
             layouts = [1, 2, 3, 4, 5]
+        # имя каждой раскладки — из самой сцены; техническое переводим, незнакомое показываем как есть
+        names = {}
+        for num, tech in re.findall(r"^\s*(\d)\s*:\s*dict\(name='([^']+)'", src, re.M):
+            names[int(num)] = LAYOUT_RU.get(tech, tech)
         title, note = TITLES.get(name, (name, ''))
-        data = dict(id=name, title=title, note=note, knobs=knobs, layouts=layouts,
+        data = dict(id=name, title=title, note=note, knobs=knobs, layouts=layouts, names=names,
                     mtime=time.strftime('%H:%M %d.%m', time.localtime(os.path.getmtime(rp))))
         _variants_cache[name] = dict(mtime=os.path.getmtime(rp), data=data)
         out.append(data)
-    order = ['reference', 'kin-grab', 'kin-mat', 'spiral-curl', 'spiral-seed', 'play', 'mpm-shell']
+    # Эталон первым. Раньше reference2 в списке не было вовсе — он получал 99 и уезжал в конец,
+    # а первым и предвыбранным оказывался устаревший reference (найдено 29.08).
+    order = ['reference2', 'reference', 'mat-sdf', 'mat-chain', 'kin-grab', 'kin-mat',
+             'spiral-curl', 'spiral-seed', 'spiral-roll', 'play', 'mpm-shell']
     out.sort(key=lambda v: (order.index(v['id']) if v['id'] in order else 99, v['id']))
     return out
 
