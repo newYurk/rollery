@@ -37,13 +37,27 @@ done < <(gh issue list -R $REPO --state all --limit 500 --json number -q '.[].nu
 [ "$miss" = "0" ] && say "  ✓ все issues на доске"
 
 say "── статусы карточек против состояния issues"
+# ⚠ БЕЗ --limit gh отдаёт 30 штук и молчит об этом. Так я 30.08 сообщила владельцу «30
+# открытых, 70 закрытых» вместо настоящих 82 и 18: обрезанный список приняла за полный.
+# Здесь везде явный предел, и он же проверяется на упор — если элементов ровно столько,
+# сколько запрошено, список мог быть обрезан.
 gh project item-list $PROJ --owner $OWNER --limit 500 --format json \
-  -q '.items[] | select(.content.number) | "\(.content.number)\t\(.status // "—")"' 2>/dev/null | \
-while IFS=$'\t' read -r n st; do
-  state=$(gh issue view "$n" -R $REPO --json state -q .state 2>/dev/null)
-  if [ "$state" = "CLOSED" ] && [ "$st" != "Done" ]; then warn "#$n закрыт, а на доске «$st»"; fi
-  if [ "$state" = "OPEN" ] && [ "$st" = "Done" ]; then warn "#$n открыт, а на доске «Done»"; fi
-done
+  -q '.items[] | select(.content.number) | "\(.content.number)\t\(.status // "—")"' 2>/dev/null | sort -k1,1 > /tmp/sc-cards.tsv
+gh issue list -R $REPO --state all --limit 500 --json number,state \
+  -q '.[] | "\(.number)\t\(.state)"' 2>/dev/null | sort -k1,1 > /tmp/sc-issues.tsv
+nc=$(wc -l < /tmp/sc-cards.tsv | tr -d ' '); ni=$(wc -l < /tmp/sc-issues.tsv | tr -d ' ')
+[ "$nc" -ge 500 ] && warn "список карточек упёрся в предел 500 — поднять лимит"
+[ "$ni" -ge 500 ] && warn "список issues упёрся в предел 500 — поднять лимит"
+mism=$(join -t$'\t' /tmp/sc-cards.tsv /tmp/sc-issues.tsv | \
+  awk -F'\t' '($3=="CLOSED" && $2!="Done") || ($3=="OPEN" && $2=="Done") {print "#"$1" — issue "$3", карточка «"$2"»"}')
+if [ -n "$mism" ]; then
+  while IFS= read -r line; do warn "$line"; done <<< "$mism"
+else
+  op=$(awk -F'\t' '$2=="OPEN"' /tmp/sc-issues.tsv | wc -l | tr -d ' ')
+  cl=$(awk -F'\t' '$2=="CLOSED"' /tmp/sc-issues.tsv | wc -l | tr -d ' ')
+  say "  ✓ статусы сходятся: открытых $op · закрытых $cl · карточек $nc"
+fi
+rm -f /tmp/sc-cards.tsv /tmp/sc-issues.tsv
 
 say "── документы"
 for f in STATE.md docs/journal.md; do
