@@ -34,12 +34,26 @@ function facadeInvariants(fx) {
     }
   }
   for (const k of Object.keys(counts).sort()) inv.materialFractions[k] = r4(counts[k] / total);
+  // Карта материалов и самоподобие — через DTO facade, а не через roll.legacyModel.
+  inv.map = sliceMaterialMap(roll, 0.5);
+  inv.selfSimilarity = r4(compareRolls(roll, roll, [0.5]));
   return inv;
 }
 
 function runRollFacadeChecks() {
   const cases = [], failures = [];
   const fail = (id, msg) => failures.push(`${id}: ${msg}`);
+
+  // 0. Межмодельные пары: facade обязан давать те же похожести, что legacy. Пара РАЗНЫХ
+  // моделей — единственное, что реально проверяет тело similarityOf (ревью PR #102).
+  {
+    const wantP = pairSimilarities(r => withLegacyRecipe(r, m => m), similarity);
+    const gotP = pairSimilarities(r => evaluateRoll(createRecipe(r)),
+                                  (a, b, vs) => compareRolls(a, b, vs));
+    for (const k of Object.keys(wantP))
+      if (Math.abs((wantP[k] || 0) - (gotP[k] || 0)) > 1e-6)
+        fail('пары', `${k}: legacy ${wantP[k]} ≠ facade ${gotP[k]}`);
+  }
 
   // 1. Эквивалентность на всех fixtures.
   for (const fx of ROLL_FIXTURES) {

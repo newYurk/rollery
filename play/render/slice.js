@@ -301,38 +301,20 @@ function renderSection(size, vSlice, m, Rref) {
   strokeWrapperRim(c, m, wd, si, scale, half);
   return off;
 }
-// Карта материалов среза для сравнения: 0 — вне, 1 — рис/сердцевина, 2 — обёртка, 3+ — начинка по индексу вида.
-const KIND_IDS = Object.keys(ING);
-function materialMap(size, vSlice, m, Rref) {
-  const si = shapeInfo(m.shape || S.shape, m.Rmax, m.g.press), wd = windFor(m, vSlice), out = new Uint8Array(size * size), half = size / 2, scale = (half - 1) / (Rref * si.margin);
-  for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
-    const dx = (px + 0.5 - half) / scale, dy = (py + 0.5 - half) / scale;
-    let phi = Math.atan2(dy, dx); if (phi < 0) phi += TAU;
-    const r = Math.hypot(dx, dy) * shapeK(phi, si);
-    if (r > wd.Rout) continue;
-    const mat = materialAt(m, wd, vSlice, r, phi);
-    out[py * size + px] = mat.cls === 'out' ? 0 : mat.cls === 'wrap' ? 2 : mat.cls === 'patch' ? 3 + KIND_IDS.indexOf(mat.mt.p.kind) : 1;
-  }
-  return out;
-}
-// Похожесть двух моделей на срезах vs: доля пикселей начинок, у которых тот же материал в окрестности 3×3 у соседа.
-// Сравнение форм: shapeInfo зависит от радиуса каждой модели, поэтому квадрат против круга
-// теперь даёт разные карты (раньше отображение было общим и сокращалось — уровни с формой ничего не проверяли).
-// Метрика сходства — это Dice по классам начинок (рис и нори в счёт не идут, a[i] >= 3).
-// total намеренно считает каждую карту отдельно: total = |A| + |B|, hits = 2*|A ^ B|,
-// то есть 2|A^B| / (|A|+|B|). Ревью 26.08 сочло двойной счёт ошибкой — это неверно:
-// со «счётом один раз» полное совпадение даёт 1,33, а не 1. Не «чинить».
-// Отличие от строгого Dice одно: near() засчитывает попадание по окрестности 3x3,
-// то есть с допуском в пиксель, поэтому числа систематически выше строгого Dice.
-function similarity(mA, mB, vs) {
-  const size = 56, Rref = Math.max(mA.Rmax, mB.Rmax); let hits = 0, total = 0;
-  const near = (map, i, id) => { const x = i % size, y = (i / size) | 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < size && yy < size && map[yy * size + xx] === id) return true; } return false; };
-  for (const v of vs) {
-    const a = materialMap(size, v, mA, Rref), b = materialMap(size, v, mB, Rref);
-    for (let i = 0; i < a.length; i++) { if (a[i] >= 3) { total++; if (near(b, i, a[i])) hits++; } if (b[i] >= 3) { total++; if (near(a, i, b[i])) hits++; } }
-  }
-  return total ? hits / total : 1;
-}
+// ── ПЕРЕЕХАЛО В ДОМЕН (issue #72, первый переезд потребителя) ────────────────
+// Карта материалов среза и сравнение двух роллов больше не считаются здесь: вычисление
+// живёт в play/domain/roll.js (materialMapOf / similarityOf). Оно ничего не рисует и ничего
+// не мутирует — это чтение модели, и в рендере оно оказалось исторически, рядом с face().
+//
+// Здесь остались обёртки прежних имён и прежних сигнатур, поэтому ни один вызывающий не
+// тронут (единственный — puzzleEvaluate, modes/puzzle.js:97). Когда пазл начнёт спрашивать
+// домен напрямую, эти две строки исчезнут — и это будет видно в диффе.
+//
+// Доказательство, что переезд ничего не изменил: слепок play/test/legacy/baseline-data.js
+// снят ДО него, на коде, который был здесь, и проверяется после — раздел §8 в checks.js.
+const materialMap = (size, vSlice, m, Rref) => materialMapOf(size, vSlice, m, Rref);
+const similarity = (mA, mB, vs) => similarityOf(mA, mB, vs);
+
 const faceCache = new Map();
 let modelKey = '';
 function touchModel() { modelKey = S.base + '|' + S.shape + JSON.stringify(patches()); save(); dirty = true; }

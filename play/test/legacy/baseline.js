@@ -44,6 +44,9 @@ function evaluateLegacyFixture(fx) { return withLegacyRecipe(fx.recipe, m => rol
 function captureLegacyBaseline() {
   const out = {};
   for (const fx of ROLL_FIXTURES) out[fx.id] = evaluateLegacyFixture(fx);
+  // Межмодельные пары — отдельным ключом: они не про одну модель, а про сравнение двух.
+  // Служебные ключи начинаются с «__», перебор fixtures их не трогает.
+  out.__pairs = pairSimilarities(r => withLegacyRecipe(r, m => m), similarity);
   return out;
 }
 
@@ -54,6 +57,13 @@ function runLegacyBaselineChecks() {
     failures.push('нет слепка: play/test/legacy/baseline-data.js не подключён');
     return { passed: false, cases, failures };
   }
+  const wantPairs = ROLL_BASELINE.__pairs;
+  if (wantPairs) {
+    const got = pairSimilarities(r => withLegacyRecipe(r, m => m), similarity);
+    for (const k of Object.keys(wantPairs))
+      if (Math.abs((wantPairs[k] || 0) - (got[k] || 0)) > 1e-6)
+        failures.push(`пара ${k}: ${wantPairs[k]} ≠ ${got[k]}`);
+  } else failures.push('в слепке нет межмодельных пар — переснять');
   for (const fx of ROLL_FIXTURES) {
     const want = ROLL_BASELINE[fx.id];
     if (!want) { failures.push(`${fx.id}: нет записи в слепке`); continue; }
