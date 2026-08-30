@@ -407,6 +407,40 @@ function runChecks(detail) {
     }
     S.preview = false;
 
+    // ── 7б. ОБЁРТКА ПЕРЕЖИВАЕТ СОХРАНЕНИЕ (issue #86) ──
+    // Обёртка входит в шаг витка, а значит в ⌀ и число оборотов. Оба сериализатора её теряли:
+    // запись альбома с блином открывалась как нори, ссылка-пазл давала другу ДРУГОЙ ролл.
+    // Проверяем круговой путь у обоих, по ⌀: расхождение блин↔нори у футомаки ≈ 3,7 мм.
+    {
+      S.base = 'futo'; S.wrap = 'crepe'; clean();
+      S.lists.futo = [{ kind: 'tamago', u: 0.4, v: 0.5, z0: 0, z1: 1, phase: 0.9 }];
+      touchModel(); layout();
+      const dCrepe = dia().med;
+      S.wrap = null; touchModel(); const dNori = dia().med;
+      ok(Math.abs(dCrepe - dNori) > 1, `#86: блин и нори дали один ⌀ (${dCrepe.toFixed(1)}) — обёртка не в модели`);
+      // альбом
+      S.wrap = 'crepe'; touchModel();
+      const keepAlbum = S.album.slice();
+      albumSave();
+      const e = S.album[0];
+      ok(!!e && e.wrap === 'crepe', `#86: albumSave не сохранил обёртку (${e && e.wrap})`);
+      if (e) {
+        const back = withRecipe(e, m => { const wd = windFor(m, 0.5), N = 360, rs = [];
+          for (let i = 0; i < N; i++) rs.push(topAt(wd, i / N * TAU));
+          rs.sort((a, b) => a - b); return 2 * rs[N >> 1] * U_MM; });
+        ok(Math.abs(back - dCrepe) < 0.05, `#86: альбом вернул ⌀ ${back.toFixed(1)} вместо ${dCrepe.toFixed(1)} — обёртка потеряна`);
+      }
+      S.album = keepAlbum;
+      // ссылка-пазл
+      const url = encodePuzzle(S.lists.futo, null), got = decodePuzzle(url);
+      ok(!!got && got.wrap === 'crepe', `#86: ссылка-пазл не донесла обёртку (${got && got.wrap})`);
+      // и withRecipe возвращает S.wrap как было
+      S.wrap = 'soy';
+      if (e) withRecipe(e, () => 0);
+      ok(S.wrap === 'soy', `#86: withRecipe не вернул S.wrap (стал ${S.wrap})`);
+      S.wrap = null; S.lists.futo = [];
+    }
+
     // ── 8. МИГРАЦИЯ ГЕОМЕТРИИ (issue #72): legacy baseline и facade ──
     // ТОЧКА ПОДКЛЮЧЕНИЯ, А НЕ САМИ ПРОВЕРКИ. Логика живёт в play/test/**: сюда она не
     // переезжает намеренно — checks.js и без того длинный, а слепок и facade-сравнение

@@ -115,7 +115,9 @@ function puzzleEvaluate() {
 }
 // Ссылка на пазл: раскладка (цель) в хэше адреса; друг видит только срез.
 function encodePuzzle(list, turns) {
-  const h = S.hand || {}; const data = { b: S.base, t: turns || null, s: S.shape, h: (h.air || h.wobble || (h.press !== 1)) ? [+h.air.toFixed(3), +h.wobble.toFixed(3), +h.phase.toFixed(2), +h.press.toFixed(2)] : null, l: list.map(p => [p.kind, +p.u.toFixed(4), +p.v.toFixed(3), p.wU ?? null, p.hU ?? null, p.dv ?? null, +p.phase.toFixed(3), p.rot ? +p.rot.toFixed(4) : null]) };
+  // w — обёртка: она меняет шаг витка, а с ним число оборотов и ⌀ (issue #86). Без неё
+  // друг открывал ссылку и получал ДРУГОЙ ролл: цель пазла считалась по нори вместо блина.
+  const h = S.hand || {}; const data = { b: S.base, w: B().wrapKey || null, t: turns || null, s: S.shape, h: (h.air || h.wobble || (h.press !== 1)) ? [+h.air.toFixed(3), +h.wobble.toFixed(3), +h.phase.toFixed(2), +h.press.toFixed(2)] : null, l: list.map(p => [p.kind, +p.u.toFixed(4), +p.v.toFixed(3), p.wU ?? null, p.hU ?? null, p.dv ?? null, +p.phase.toFixed(3), p.rot ? +p.rot.toFixed(4) : null]) };
   return location.origin + location.pathname + '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(data)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 function decodePuzzle(hash) {
@@ -125,11 +127,15 @@ function decodePuzzle(hash) {
     const data = JSON.parse(json); if (!data.l || !BASES[data.b]) return null;
     const list = data.l.map(a => { const p = { kind: a[0], u: a[1], v: a[2], z0: 0, z1: 0, phase: a[6] || 0 }; if (a[3] != null) p.wU = a[3]; if (a[4] != null) p.hU = a[4]; if (a[5] != null) p.dv = a[5]; if (a[7]) p.rot = a[7]; return p; }).filter(p => ING[p.kind]);
     const hh = Array.isArray(data.h) ? { air: data.h[0], wobble: data.h[1], phase: data.h[2], press: data.h[3], v: 1, cv: 0, hold: 0 } : null;
-    return { base: data.b, turns: data.t, shape: SHAPES[data.s] ? data.s : 'round', hand: hh, list };
+    // Ссылки БЕЗ поля w (созданные до 31.08) читаются как обёртка базы по умолчанию —
+    // формат расширен совместимо, старые ссылки продолжают открываться.
+    const wrap = (data.w && WRAPPERS[data.w]) ? data.w : null;
+    return { base: data.b, wrap, turns: data.t, shape: SHAPES[data.s] ? data.s : 'round', hand: hh, list };
   } catch (e) { return null; }
 }
 function puzzleFromLink(pz) {
-  S.base = pz.base; S.sel = B().ingredients[0]; S.turns = pz.turns || null; S.selPatch = null; S.shape = pz.shape || 'round';
+  S.base = pz.base; S.wrap = pz.wrap || null; S.sel = uiIngredients()[0] || B().ingredients[0];
+  S.turns = pz.turns || null; S.selPatch = null; S.shape = pz.shape || 'round';
   if (pz.hand) S.hand = pz.hand;
   const local = pz.list.some(p => (p.dv ?? ING[p.kind].dv) < 1), n = pz.list.filter(p => p.kind !== 'nori').length;
   const lv = { n, turns: S.turns || B().turns, pieces: local ? 3 : 1, custom: true };

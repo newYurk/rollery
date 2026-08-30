@@ -11,7 +11,13 @@ const ALBUM_MAX = 60;
 function albumSave() {
   const list = patches(); if (!list.length) return;
   const h = S.hand || {};
-  const e = { id: 'a' + Date.now().toString(36), base: S.base, turns: S.turns || null, shape: S.shape,
+  // ⚠ wrap ОБЯЗАН быть в записи: обёртка входит в шаг витка (T + w), а с ним в число оборотов
+  // и диаметр — блин 2 мм против нори 0,1 мм даёт у футомаки 62,4 против 58,7 мм (замер fixture
+  // F03). Без неё запись с блином открывалась как нори, молча и без ошибки (issue #86).
+  // Пишем разрешённую обёртку базы, а не сырое S.wrap: у баз с wrapFixed (рулет) своя, и
+  // S.wrap там не участвует — иначе в записи оказалось бы то, чего в модели не было.
+  const e = { id: 'a' + Date.now().toString(36), base: S.base, wrap: B().wrapKey || null,
+              turns: S.turns || null, shape: S.shape,
               hand: { air: +(h.air || 0).toFixed(3), wobble: +(h.wobble || 0).toFixed(3), phase: +(h.phase || 0).toFixed(2), press: +(h.press || 1).toFixed(2) },
               list: JSON.parse(JSON.stringify(list)), at: Date.now(),
               level: S.puzzle ? S.puzzle.level : null, sim: S.puzzle && S.puzzle.result ? Math.round(S.puzzle.result.sim * 100) : null };
@@ -26,21 +32,26 @@ function albumRemove(i) {
 }
 // Отрисовать чужой рецепт: временно подменяем состояние, считаем модель, возвращаем всё назад.
 function withRecipe(e, fn) {
-  const keep = { base: S.base, turns: S.turns, shape: S.shape, hand: S.hand, list: S.lists[e.base] };
-  S.base = e.base; S.turns = e.turns || null; S.shape = SHAPES[e.shape] ? e.shape : 'round';
+  // S.wrap снимается и ВОЗВРАЩАЕТСЯ наравне с остальным: без этого просмотр альбома менял
+  // обёртку в текущей сессии — открыл миниатюру записи на блине, вернулся к своему роллу,
+  // а он уже на блине (issue #86).
+  const keep = { base: S.base, wrap: S.wrap, turns: S.turns, shape: S.shape, hand: S.hand, list: S.lists[e.base] };
+  S.base = e.base; S.wrap = (e.wrap && WRAPPERS[e.wrap]) ? e.wrap : null;
+  S.turns = e.turns || null; S.shape = SHAPES[e.shape] ? e.shape : 'round';
   S.hand = Object.assign({ air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 }, e.hand || {});
   let out;
   try { out = fn(buildModel(JSON.parse(JSON.stringify(e.list)))); }
-  finally { S.base = keep.base; S.turns = keep.turns; S.shape = keep.shape; S.hand = keep.hand; S.lists[e.base] = keep.list; }
+  finally { S.base = keep.base; S.wrap = keep.wrap; S.turns = keep.turns; S.shape = keep.shape; S.hand = keep.hand; S.lists[e.base] = keep.list; }
   return out;
 }
 function albumFace(e, size, v) { return withRecipe(e, m => face(v == null ? 0.5 : v, size, m)); }
 function albumLoad(i) {
   const e = S.album[i]; if (!e) return;
   if (S.puzzle) puzzleStop();
-  S.base = e.base; S.turns = e.turns || null; S.shape = SHAPES[e.shape] ? e.shape : 'round';
+  S.base = e.base; S.wrap = (e.wrap && WRAPPERS[e.wrap]) ? e.wrap : null;   // старые записи без поля → обёртка базы (issue #86)
+  S.turns = e.turns || null; S.shape = SHAPES[e.shape] ? e.shape : 'round';
   S.hand = Object.assign({ air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 }, e.hand || {});
-  S.sel = B().ingredients[0]; S.selPatch = null;
+  S.sel = uiIngredients()[0] || B().ingredients[0]; S.selPatch = null;
   S.lists[e.base] = JSON.parse(JSON.stringify(e.list));
   S.albumOpen = -1; S.mode = 'lay'; S.rollP = 0; anim = null; cut = null; slicing = null;
   touchModel(); layout(); dirty = true; requestFrame();
