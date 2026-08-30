@@ -34,6 +34,42 @@ const S = {
   saved: 0,                    // время подсветки «сохранено»
 };
 const patches = () => S.lists[S.base];
+
+// ── ИСТОРИЯ ДЕЙСТВИЙ (issue #84, §5.3 контракта) ─────────────────────────────
+// «Отменить» раньше делало patches().pop() — снимало последний ДОБАВЛЕННЫЙ кусок, а не
+// последнее ДЕЙСТВИЕ. Подвинул огурец, нажал «Отменить» — исчезал лосось, положенный до него,
+// а сдвиг не откатывался. Сдвиг, поворот, удаление и «в нори» не откатывались вообще.
+//
+// Храним СНИМКИ раскладки, а не команды: раскладка — это плоский массив патчей без ссылок,
+// её клон стоит микросекунды, а обратная операция для каждой команды писалась бы отдельно и
+// разъезжалась бы с прямой. Цена — память: 60 снимков по ~20 патчей это десятки килобайт.
+//
+// Снимок кладётся ПЕРЕД изменением (pushHistory), поэтому undo возвращает состояние «как было».
+const HIST_MAX = 60;
+const hist = { past: [], future: [], base: null };
+const histSnap = () => JSON.stringify(patches());
+function pushHistory() {
+  // при смене базы история не переносится: раскладки у баз разные, и откат в чужую был бы ложью
+  if (hist.base !== S.base) { hist.past.length = 0; hist.future.length = 0; hist.base = S.base; }
+  hist.past.push(histSnap());
+  if (hist.past.length > HIST_MAX) hist.past.shift();
+  hist.future.length = 0;                       // новое действие обрывает ветку «вперёд»
+}
+function histApply(json) { S.lists[S.base] = JSON.parse(json); S.selPatch = null; touchModel(); }
+function undo() {
+  if (hist.base !== S.base || !hist.past.length) return false;
+  hist.future.push(histSnap());
+  histApply(hist.past.pop());
+  return true;
+}
+function redo() {
+  if (hist.base !== S.base || !hist.future.length) return false;
+  hist.past.push(histSnap());
+  histApply(hist.future.pop());
+  return true;
+}
+const canUndo = () => hist.base === S.base && hist.past.length > 0;
+const canRedo = () => hist.base === S.base && hist.future.length > 0;
 // ВО ЧТО ЗАВОРАЧИВАТЬ — ТЕПЕРЬ ВЫБОР, А НЕ СВОЙСТВО ТИПА. Решение владельца 27.08: «вместо
 // нори мы можем положить блинную, рисовую бумагу… во что заворачивать мы можем выбирать».
 // Формат не выдуман: во Франции «Makis de crêpes» кладут блин вместо нори, в Испании — лист

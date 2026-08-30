@@ -30,6 +30,7 @@
 <script src="render/screens.js"></script>
 <script src="ui/album.js"></script>
 <script src="modes/puzzle.js"></script>
+<script src="ui/actions.js"></script>
 <script>
 'use strict';
 // =====================================================================
@@ -121,7 +122,9 @@ canvas.addEventListener('pointermove', e => { e.preventDefault(); onMove(e.clien
 canvas.addEventListener('pointerup', e => { e.preventDefault(); onUp(e.clientX, e.clientY, e.pointerId); });
 canvas.addEventListener('pointercancel', e => { onUp(e.clientX, e.clientY, e.pointerId); });
 window.addEventListener('keydown', e => {
-  if (e.key === 'Backspace') action('undo');
+  // Ctrl/⌘+Z — отмена, с Shift — возврат: привычная пара, раз история теперь настоящая (#84).
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); action(e.shiftKey ? 'redo' : 'undo'); }
+  else if (e.key === 'Backspace') action('undo');
   else if (e.key === 'Escape') action('back');
   else if (e.key === 'Enter') { if (S.mode === 'lay' && !anim) { S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 }; } if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 500, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; dirty = true; }); else if (S.mode === 'rolled') { startCut(0.5); requestFrame(); } else if (S.mode === 'revealed') action('slice'); }
 });

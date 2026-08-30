@@ -15,8 +15,8 @@ function drawButtons() {
   for (const b of buttons) {
     rr(b.x, b.y, b.w, b.h, 12);
     ctx.fillStyle = b.primary ? '#e0b25a' : '#2a2a25'; ctx.fill();
-    ctx.strokeStyle = b.primary ? '#f0cb7d' : '#4d4838'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = b.primary ? '#171713' : '#efe4cd'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = b.dim ? '#332f27' : b.primary ? '#f0cb7d' : '#4d4838'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = b.dim ? '#5c5749' : b.primary ? '#171713' : '#efe4cd'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const t = fitText(b.label, b.w - 20);   // fitText выставляет шрифт
     ctx.fillText(t, b.x + b.w / 2, b.y + b.h / 2 + 1);
   }
@@ -28,7 +28,9 @@ function buttonRow(list, area) {
   rows.forEach((row, ri) => {
     const wsum = row.reduce((sum, b) => sum + (b[3] || 1), 0), unit = (a.w - gap * (row.length - 1)) / wsum;
     let x = a.x; const y = a.y + ri * (h + 8);
-    for (const [id, label, primary, wt] of row) { const w = unit * (wt || 1); buttons.push({ id, label, x, y, w, h, primary }); x += w + gap; }
+    // Пятый элемент — «нечего делать»: кнопка рисуется тусклой, но остаётся на месте, чтобы
+    // ряд не прыгал (история действий, issue #84).
+    for (const [id, label, primary, wt, dim] of row) { const w = unit * (wt || 1); buttons.push({ id, label, x, y, w, h, primary, dim }); x += w + gap; }
   });
 }
 let chips = [], chipScrollX = 0;

@@ -112,9 +112,18 @@ function drawLay() {
   if (sel && p === 0) {
     const canWrap = sel.kind !== 'nori' && !ING[sel.kind].wave && !ING[sel.kind].paint, canRot = !ING[sel.kind].wave;
     const rotLabel = `⟳ ${Math.round(((sel.rot || 0) * 180 / Math.PI + 45) % 180)}°`;
-    buttonRow([...(canWrap ? [['wrap', 'В нори', true]] : []), ...(canRot ? [['rotate', rotLabel]] : []), ['remove', 'Убрать']], area);
-  } else if (S.puzzle) buttonRow([['undo', '↶ Отменить'], ['clear', 'Очистить'], ['newpuzzle', '⟳ Другой', false, 0.85]], area);
-  else buttonRow([['undo', '↶ Отменить'], ['clear', 'Очистить']], area);
+    // Четыре кнопки в ряду вместо трёх: дублирование — узкой иконкой, чтобы бюджет ширины
+    // остался тем же (спецификация раскладки, docs/ui-review.md §2, считает не штуки, а место).
+    buttonRow([...(canWrap ? [['wrap', 'В нори', true, 1.2]] : []), ...(canRot ? [['rotate', rotLabel, false, 1.05]] : []),
+               ['duplicate', '⧉', false, 0.45], ['remove', 'Убрать', false, 1]], { ...area, max: 4 });
+  } else {
+    // ↶ и ↷ — история действий, а не «снять последний кусок» (issue #84). Тусклая стрелка
+    // означает, что возвращать нечего: кнопка не прыгает, но и не врёт, что что-то сделает.
+    const row = [['undo', '↶', false, 0.45, !canUndo()], ['redo', '↷', false, 0.45, !canRedo()],
+                 ['mirror', '⇄ Отразить', false, 1.1], ['clear', 'Очистить', false, 1]];
+    if (S.puzzle) row.push(['newpuzzle', '⟳', false, 0.45]);
+    buttonRow(row, { ...area, max: row.length });
+  }
   drawButtons(); drawChips();
   drawTopBar(drag.patch ? hints.layMove : sel ? hints.laySel : S.puzzle ? (L.previewMode === 'side' ? hints.puzzle : levelTitle(S.puzzle.lv, S.puzzle.level)) : hints.lay);
 }
