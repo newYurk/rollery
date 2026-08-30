@@ -98,12 +98,15 @@
 | The molecular structural features controlling stickiness in cooked rice | H. Li, M. A. Fitzgerald, S. Prakash, T. M. Nicholson, R. G. Gilbert | 2017 | [10.1038/srep43713](https://doi.org/10.1038/srep43713) | Молекулярные причины липкости варёного риса. Липкость — то, чем ядро держит форму и чем рис «сваривается» в массу; модуля и закона уплотнения здесь нет (честная дыра остаётся). |
 | Unraveling seasonings impact on cooked rice quality: Technological and nutritional implications for sushi | C. N. Molina, R. Garzón, C. M. Rosell | 2022 | [10.1016/j.jcs.2022.103442](https://doi.org/10.1016/j.jcs.2022.103442) | Влияние заправки (уксус, сахар, соль) на свойства суши-риса — единственная найденная работа именно про сяри. |
 | Analysis of Sushi Rice: Preparation Techniques, Physicochemical Properties and Quality Attributes | W. Tadele Wonbebo, P. Kulawik, A. Szymkowiak, E. Endalew Tadesse | 2025 | [10.3390/app15126540](https://doi.org/10.3390/app15126540) | Обзор суши-риса: техники, физико-химия, качество. Открытый доступ, но MDPI отдаёт 403 на автоматический запрос — полный текст не читан, числами из него не пользуемся. |
+| Research on Biomechanical Properties of Laver (Porphyra yezoensis Ueda) | W. Lu, M. Li, S. Zhang и др. | 2022 | [10.3390/agriengineering4010004](https://doi.org/10.3390/agriengineering4010004) | *AgriEngineering* 4(1):48–66, CC-BY. Гидратированная пластина лавера 0,015–0,031 мм — в 3–7 раз тоньше сухого листа: **нори при увлажнении не набухает** (опровержение гипотезы, `docs/geometry-audit.md`). Модуль назван, но значения не приведены; прочности: разрыв 3,56 МПа, срез 4,79 МПа. |
+| Whole genome sequencing-based association study to unravel genetic architecture of cooked grain width and length traits in rice | G. Misra, S. Badoni, R. Anacleto и др. | 2017 | [10.1038/s41598-017-12778-6](https://doi.org/10.1038/s41598-017-12778-6) | *Sci Rep* 7:12478. Независимое подтверждение вытянутости варёного зерна: L/W варёного 2,85 против 2,11 у сырого (вторая панель сортов, другой метод — сходится с Мацуи 2001). Источник для `GRAIN_ASPECT`. |
 
 ## Не проверено или DOI нет
 
 - **Formulas for computing the stresses in center-wound rolls** (H. C. Altmann, 1968) — https://jglobal.jst.go.jp/en/detail?JGLOBAL_ID=201602009124072128
 - **Nonlinear model for wound roll stresses** (Z. Hakiel, 1987) — https://pascal-francis.inist.fr/vibad/index.php?action=getRecordDetail&idt=8331948
 - **Winding: Machines, Mechanics and Measurements** (James K. Good, David R. Roisum, 2008) — https://books.google.com/books/about/Winding.html?id=mg0Sdg8dCJwC
+- **Мацуи Т., размеры варёного зерна косихикари** (Matsui T., 北陸作物学会報 36:21–23, 2001) — DOI нет (региональный журнал). Варёное зерно 7,7 × 3,5 мм; сырое 4,7 × 2,8 мм независимо подтверждено US Patent 8 859 865 (табл. 9, KOSH). Источник `GRAIN = 0,7` и `GRAIN_ASPECT = 2,2` — разбор в `docs/geometry-audit.md`.
 
 ## Чего в литературе нет
 
