@@ -303,15 +303,27 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 if __name__ == '__main__':
     os.makedirs(RUNS, exist_ok=True)
-    print('Лаборатория скрутки: http://127.0.0.1:%d' % PORT)
+    print('Лаборатория скрутки')
+    print('  на этом маке:  http://127.0.0.1:%d' % PORT)
     if HOST != '127.0.0.1':
-        import socket
+        import socket, subprocess
+        # Имя .local (mDNS) печатаем ПЕРВЫМ и как основной адрес: оно не меняется при смене сети,
+        # а числовой адрес меняется. 29.08 на корневой странице был записан 10.0.0.46, к 30.08 мак
+        # уже получил 10.0.0.148 — записанный однажды IP протухает молча.
+        try:
+            name = subprocess.run(['scutil', '--get', 'LocalHostName'], capture_output=True,
+                                  text=True, timeout=2).stdout.strip()
+        except Exception:
+            name = ''
+        if name:
+            print('  с телефона:    http://%s.local:%d   ← адрес не меняется' % (name, PORT))
         try:
             sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); sk.connect(('10.255.255.255', 1))
             lan = sk.getsockname()[0]; sk.close()
-            print('С телефона (та же сеть Wi-Fi): http://%s:%d' % (lan, PORT))
+            print('  если имя не нашлось: http://%s:%d   (адрес на сегодня)' % (lan, PORT))
         except Exception:
-            print('С телефона: http://<адрес-этого-мака>:%d' % PORT)
+            print('  если имя не нашлось: http://<адрес-этого-мака>:%d' % PORT)
+        print('  телефон и мак должны быть в одной сети Wi-Fi')
     print('Остановить — Ctrl+C в этом окне.')
     try:
         Server((HOST, PORT), Handler).serve_forever()
