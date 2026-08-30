@@ -157,7 +157,9 @@ let CFG = null, JOB = null, poll = null, frames = [], fi = 0, playing = false, t
 // Пересчитано по замеру 31.08 (issue #91): ppc = частицы/сетка², минимум метода 2,0,
 // разрыв ленты исчезает при ppc ≥ 3,2 (поправка 11) — «точно» целится туда.
 // Прежние 7–20 тыс. частиц давали ppc 0,3–0,6: ни один пресет не проходил приёмку.
-const QUAL = { fast: {grid:150, particles:45000, frames:22}, norm: {grid:200, particles:80000, frames:30}, fine: {grid:240, particles:185000, frames:40} };
+// Фактических частиц кладётся ~93 % от запрошенных (замер 100518: 45 000 → ppc 1,855),
+// поэтому в запросе стоит запас ~8 %.
+const QUAL = { fast: {grid:150, particles:50000, frames:22}, norm: {grid:200, particles:88000, frames:30}, fine: {grid:240, particles:200000, frames:40} };
 
 async function boot(){
   CFG = await (await fetch('/api/variants')).json();
