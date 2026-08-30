@@ -65,7 +65,7 @@ function action(id) {
     case 'lvprev': if (S.puzzle && S.puzzle.level > 0) puzzleStart(S.puzzle.level - 1, S.puzzle.seed); else if (S.puzzle && S.puzzle.level < 0) puzzleStart(0, 1); break;
     case 'lvnext': if (S.puzzle && S.puzzle.level + 1 < LEVELS.length && S.puzzle.level + 1 <= puzzleMax()) puzzleStart(S.puzzle.level + 1, S.puzzle.seed); break;
     case 'mute': S.mute = !S.mute; sfx.ensure(); sfx.setMute(S.mute); save(); dirty = true; break;
-    case 'base': { const keys = Object.keys(BASES); S.base = keys[(keys.indexOf(S.base) + 1) % keys.length]; S.sel = B().ingredients[0]; S.selPatch = null; touchModel(); layout(); if (S.puzzle) puzzleStart(S.puzzle.level, S.puzzle.seed); else if (S.mode !== 'lay') action('back'); break; }
+    case 'base': { const keys = uiBases(); S.base = keys[(keys.indexOf(S.base) + 1) % keys.length]; S.sel = uiIngredients()[0] || B().ingredients[0]; S.selPatch = null; touchModel(); layout(); if (S.puzzle) puzzleStart(S.puzzle.level, S.puzzle.seed); else if (S.mode !== 'lay') action('back'); break; }
   }
   requestFrame();
 }

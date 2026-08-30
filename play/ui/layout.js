@@ -65,7 +65,7 @@ const betterFit = floor => (a, c) => {
 // Всё считается в рамке cw × ch внутри safe-area; лист — в приоритете, предпросмотр/цель — полосой, накладкой или в боковой колонке.
 function layout() {
   const cw = W - SAFE.left - SAFE.right, ch = H - SAFE.top - SAFE.bottom, ox = SAFE.left, oy = SAFE.top;
-  const n = B().ingredients.length, pz = S.puzzle, k = pz ? pz.vs.length : 1, showPrev = !!(pz || S.preview);
+  const n = uiIngredients().length, pz = S.puzzle, k = pz ? pz.vs.length : 1, showPrev = !!(pz || S.preview);
   const mode = ch < 500 ? 'L' : cw >= 1100 ? 'D' : cw >= 600 ? 'T' : 'P';
   const hint2 = mode === 'P' && cw < 480, panelH = hint2 ? 78 : 62, btnH = 44;
   Object.assign(L, { mode, cw, ch, ox, oy, hint2, top: oy + panelH, side: null, previewMode: 'none', previewSize: 116, chipScroll: false, btnH , targetCell: 0});
@@ -120,7 +120,7 @@ function layout() {
     //  один ряд оставлял под собой 6 px вместо 12, а второй ряд брался только из случайного
     //  остатка — которого при упёршемся в потолок листе как раз и не оставалось.)
     const belowSheet = 8 + handleH + 12 + btnH + 12, bottomPad = 12;
-    const stripW = cw - 24, pad = chipLabelPad(chipSize, B().ingredients);
+    const stripW = cw - 24, pad = chipLabelPad(chipSize, uiIngredients());
     const inner = Math.max(chipSize, stripW - 2 * pad);
     // Сколько рядов НУЖНО, чтобы показать все начинки без прокрутки. Один ряд из 11 чипов
     // требует окна ≥ 596 px, из 12 → ≥ 648 px (с местом под подписи): портретных телефонов
@@ -160,7 +160,7 @@ function layout() {
     L.previewY = L.top + 12 + band / 2; L.previewSize = k > 1 ? Math.min(84, (cw - 32 - 8 * (k - 1)) / k) : 116;
   } else {
     const handleH = 40, chipSize = 52, chipRow = 70, scol = mode === 'D' ? 320 : 260;
-    const pad = chipLabelPad(chipSize, B().ingredients);
+    const pad = chipLabelPad(chipSize, uiIngredients());
     // ПРОПОРЦИЯ ЛИСТА — ЭТО ПРОПОРЦИЯ РАМКИ, и больше ничего. Здесь стояло ph = L / Wv, то есть
     // честная физика листа, и это было верно, пока лист был признаком ТИПА: хосомаки из полулиста
     // реально широкий и низкий, футомаки из целого — почти квадратный. Типы отменены, обёртка

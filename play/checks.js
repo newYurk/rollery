@@ -299,7 +299,7 @@ function runChecks(detail) {
         for (const prev of [false, true]) {
           S.preview = prev; touchModel(); layout();
           const tag = `${w}×${h} ${BASES[k].name}${prev ? ' +превью' : ''}`;
-          const ings = B().ingredients.length, per = L.chips.perRow || ings, rows = L.chips.rows || 1;
+          const ings = uiIngredients().length, per = L.chips.perRow || ings, rows = L.chips.rows || 1;
           const hidden = Math.max(0, ings - per * rows);
           ok(hidden === 0 || L.chipScroll, `${tag}: ${hidden} начинок спрятано БЕЗ прокрутки`);
           const patch = 2 / getModel().g.L * L.sheet.lenU;       // брусок 2 ед. на экране (вдоль оси скрутки)

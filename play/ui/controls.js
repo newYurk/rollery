@@ -35,7 +35,7 @@ function buttonRow(list, area) {
 }
 let chips = [], chipScrollX = 0;
 function drawChips() {
-  chips = []; const c = L.chips, ings = B().ingredients, n = ings.length, gap = 8, size = c.size;
+  chips = []; const c = L.chips, ings = uiIngredients(), n = ings.length, gap = 8, size = c.size;
   const perRow = c.perRow || n, rowH = size + (c.labels ? 18 : 6), rowW = perRow * (size + gap) - gap;
   // Подпись шире чипа, а полоса отсекается по своей рамке, поэтому содержимое живёт с отступом
   // pad от краёв: иначе крайняя подпись («Огурец» → «гурец») срезана даже при нулевой прокрутке.
@@ -78,8 +78,12 @@ function drawTopBar(hint) {
   // Обёртка — кнопка-образец: глиф не эмодзи, а кружок цвета самой обёртки, так видно выбор
   // не читая. Перебором, а не списком: раскладку только что перебрали, и лишний ряд сейчас
   // рискован. Настоящий выбор — образцы на циновке вплотную к листу, issue #13.
-  const items = [['base', B().emoji], ['shape', SHAPES[S.shape].glyph], ['album', '★'], ['puzzle', '🧩'], ['preview', '👁'], ['mute', S.mute ? '🔇' : '🔊']];
-  if (!B().wrapFixed) items.splice(1, 0, ['sheet', '●']);
+  // Минимальный стенд (#96): альбом, пазл и выбор обёртки — только с ?full (пазл остаётся,
+  // если игрок пришёл по ссылке ?puzzle — тогда FULL_UI и так включён).
+  const items = [['base', B().emoji], ['shape', SHAPES[S.shape].glyph],
+                 ...(FULL_UI ? [['album', '★'], ['puzzle', '🧩']] : []),
+                 ['preview', '👁'], ['mute', S.mute ? '🔇' : '🔊']];
+  if (FULL_UI && !B().wrapFixed) items.splice(1, 0, ['sheet', '●']);
   if (S.puzzle || S.mode === 'revealed' || S.mode === 'plate') items.splice(3, 0, ['share', '🔗']);
   const iconsW = items.length * ((narrow ? 34 : 40) + (narrow ? 4 : 6));
   ctx.save(); ctx.beginPath(); ctx.rect(ox, T0, cw - iconsW - 20, 50); ctx.clip();

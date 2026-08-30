@@ -35,6 +35,21 @@ const S = {
 };
 const patches = () => S.lists[S.base];
 
+// ── МИНИМАЛЬНЫЙ СТЕНД (issue #96, решение владельца 30.08) ───────────────────
+// По умолчанию игра показывает только основные механики тем же набором, что
+// лаборатория: базы футомаки/хосомаки, начинки её раскладок (тамаго, лосось,
+// огурец) + нори + две краски (розовый и зелёный — главные цвета кадзаримаки).
+// Каждая проба в игре тогда сверяема с прогоном лаборатории тем же материалом.
+// ?full возвращает всё: остальные базы, полную палитру, пазл, альбом, обёртки.
+// Это фильтр ВИТРИНЫ, не модели: модель, регрессия ?check и сохранённые
+// раскладки знают полный каталог; ссылки ?puzzle продолжают работать.
+// Полный интерфейс: ?full, вход в пазл (?puzzle) или ссылка-пазл (#p=… — хэш, не query).
+const FULL_UI = /[?&](full|puzzle)/.test(location.search) || /#p=/.test(location.hash);
+const MIN_BASES = ['hoso', 'futo'];
+const MIN_ING = new Set(['salmon', 'cucumber', 'tamago', 'nori', 'ricePink', 'riceGreen']);
+const uiBases = () => FULL_UI ? Object.keys(BASES) : MIN_BASES;
+const uiIngredients = () => FULL_UI ? B().ingredients : B().ingredients.filter(k => MIN_ING.has(k));
+
 // ── ИСТОРИЯ ДЕЙСТВИЙ (issue #84, §5.3 контракта) ─────────────────────────────
 // «Отменить» раньше делало patches().pop() — снимало последний ДОБАВЛЕННЫЙ кусок, а не
 // последнее ДЕЙСТВИЕ. Подвинул огурец, нажал «Отменить» — исчезал лосось, положенный до него,
@@ -123,7 +138,10 @@ function load() {
     S.album = JSON.parse(localStorage.getItem('rollery.album') || '[]');
     if (!Array.isArray(S.album)) S.album = [];
   } catch (e) {}
-  S.sel = B().ingredients[0];
+  // Минимальный стенд: сохранённая база/начинка может быть спрятана (#96) — раскладки при этом
+  // НЕ трогаем, они переживут и вернутся с ?full.
+  if (!uiBases().includes(S.base)) S.base = 'futo';
+  S.sel = uiIngredients()[0] || B().ingredients[0];
   for (const b in S.lists) S.lists[b] = S.lists[b].filter(p => ING[p.kind]);
 }
 function save() {
