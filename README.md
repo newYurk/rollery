@@ -22,7 +22,15 @@ and the canonical reference numbers in the executable check
 
 ## Where things are
 
-- `play/` — the stand itself (Canvas 2D, no build step) and its regression check.
+- `play/` — the stand itself (Canvas 2D, classic scripts, no build step):
+  - `model/` — the core, free of any browser API: `util.js`, `catalog.js`
+    (bases, wrappers, ingredients), `geometry.js` (spread profile, stacking,
+    height map, winding, tuck core, material sampling).
+  - `render/` — `slice.js` (cut face), `sheet.js` (top view), `screens.js`.
+  - `ui/` — `layout.js` (canvas, breakpoints), `controls.js`, `album.js`.
+  - `modes/puzzle.js` — the only game mode; `state.js`, `audio.js`,
+    `checks.js` (regression, run via `?check`), `index.html` (153-line shell).
+  - Load order is mandatory and documented in each file's header.
 - `sim/` — the offline MLS-MPM reference used to calibrate the stand
   (run it via `sim/lab/lab.sh`); run outputs stay local and out of git.
 - `docs/` — knowledge base; start at `docs/index.html` (published) or `STATE.md`
