@@ -108,9 +108,9 @@
   <div class="grp">
     <span class="lbl">Подробность</span>
     <div class="qual" id="qual">
-      <button data-q="fast" aria-pressed="false">Быстро<br><small>~1 мин · ppc 2,0</small></button>
-      <button data-q="norm" aria-pressed="true">Обычно<br><small>~3 мин · ppc 2,0</small></button>
-      <button data-q="fine" aria-pressed="false">Точно<br><small>~10 мин · ppc 3,2</small></button>
+      <button data-q="fast" aria-pressed="false">Быстро<br><small>~1 мин · ppc 2,4</small></button>
+      <button data-q="norm" aria-pressed="true">Обычно<br><small>~3 мин · ppc 2,3</small></button>
+      <button data-q="fine" aria-pressed="false">Точно<br><small>~10 мин · ppc 3,5</small></button>
     </div>
   </div>
 
@@ -157,8 +157,9 @@ let CFG = null, JOB = null, poll = null, frames = [], fi = 0, playing = false, t
 // Пересчитано по замеру 31.08 (issue #91): ppc = частицы/сетка², минимум метода 2,0,
 // разрыв ленты исчезает при ppc ≥ 3,2 (поправка 11) — «точно» целится туда.
 // Прежние 7–20 тыс. частиц давали ppc 0,3–0,6: ни один пресет не проходил приёмку.
-// Фактических частиц кладётся ~93 % от запрошенных (замер 100518: 45 000 → ppc 1,855),
-// поэтому в запросе стоит запас ~8 %.
+// Числа сверены с укладчиком (sample_layout, run.py:301–330) и подтверждены прогоном:
+// hp = sqrt(площадь / запрос), дальше ряды и колонки округляются — фактических частиц
+// выходит на ~2 % БОЛЬШЕ запроса, зависимость линейная. Ожидаемые ppc: 2,35 · 2,26 · 3,52.
 const QUAL = { fast: {grid:150, particles:50000, frames:22}, norm: {grid:200, particles:88000, frames:30}, fine: {grid:240, particles:200000, frames:40} };
 
 async function boot(){
