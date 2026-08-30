@@ -46,7 +46,10 @@ const patches = () => S.lists[S.base];
 // Полный интерфейс: ?full, вход в пазл (?puzzle) или ссылка-пазл (#p=… — хэш, не query).
 const FULL_UI = /[?&](full|puzzle)/.test(location.search) || /#p=/.test(location.hash);
 const MIN_BASES = ['hoso', 'futo'];
-const MIN_ING = new Set(['salmon', 'cucumber', 'tamago', 'nori', 'ricePink', 'riceGreen']);
+// Набор — владельца («самый разнообразный, с чем удобно тестировать»): бруски (лосось, огурец),
+// ломтик-линза (авокадо), короткий кружок (креветка — «ненаполненность», dv 0,3), жидкое волной
+// (майо), плоский широкий (тамаго — раскладки лаборатории), нори + две краски.
+const MIN_ING = new Set(['salmon', 'cucumber', 'avocado', 'shrimp', 'mayo', 'tamago', 'nori', 'ricePink', 'riceGreen']);
 const uiBases = () => FULL_UI ? Object.keys(BASES) : MIN_BASES;
 const uiIngredients = () => FULL_UI ? B().ingredients : B().ingredients.filter(k => MIN_ING.has(k));
 
