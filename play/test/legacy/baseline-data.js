@@ -16,6 +16,11 @@
 //         (albumSave) поле wrap НЕ сохраняет — запись с блином вернётся как нори.
 //   F07 — ролл на грани: 1,0056 витка. Это известный случай урамаки (issue #3), и слепок
 //         фиксирует его как есть, а не как хотелось бы.
+//
+// ПЕРЕСНЯТ 31.08.2026 — в инварианты добавлено поле shape. Причина названа честно: ревью
+// PR #100 показало, что форма прессовки не входила ни в один инвариант, и F04 «квадратная
+// прессовка» на деле её не проверял. Числа намотки при этом не изменились ни в одном
+// fixture — сравни с предыдущей ревизией файла: добавилась ровно одна строка на запись.
 
 const ROLL_BASELINE = {
   "F01-hosomaki-basic": {
@@ -25,6 +30,7 @@ const ROLL_BASELINE = {
     "sheetEnd": 21,
     "sheetLength": 21,
     "hasCore": true,
+    "shape": "round",
     "coreRadius": 1.1645,
     "coreFold": 3,
     "patchCount": 1,
@@ -80,6 +86,7 @@ const ROLL_BASELINE = {
     "sheetEnd": 42,
     "sheetLength": 42,
     "hasCore": true,
+    "shape": "round",
     "coreRadius": 2.1499,
     "coreFold": 6,
     "patchCount": 3,
@@ -138,6 +145,7 @@ const ROLL_BASELINE = {
     "sheetEnd": 42,
     "sheetLength": 42,
     "hasCore": true,
+    "shape": "round",
     "coreRadius": 2.3125,
     "coreFold": 6,
     "patchCount": 1,
@@ -194,6 +202,7 @@ const ROLL_BASELINE = {
     "sheetEnd": 73.1363,
     "sheetLength": 73.1363,
     "hasCore": true,
+    "shape": "square",
     "coreRadius": 2.1499,
     "coreFold": 6,
     "patchCount": 2,
@@ -249,6 +258,7 @@ const ROLL_BASELINE = {
     "sheetEnd": 42,
     "sheetLength": 42,
     "hasCore": true,
+    "shape": "round",
     "coreRadius": 2.3618,
     "coreFold": 6,
     "patchCount": 3,
@@ -306,6 +316,7 @@ const ROLL_BASELINE = {
     "sheetEnd": 42,
     "sheetLength": 42,
     "hasCore": true,
+    "shape": "round",
     "coreRadius": 2.1499,
     "coreFold": 6,
     "patchCount": 2,
@@ -363,6 +374,7 @@ const ROLL_BASELINE = {
     "sheetEnd": 21,
     "sheetLength": 21,
     "hasCore": true,
+    "shape": "round",
     "coreRadius": 2.009,
     "coreFold": 4,
     "patchCount": 3,

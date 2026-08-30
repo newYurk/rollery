@@ -17,8 +17,18 @@
 // поставить S и вернуть как было (withRollRecipeState). Это цена совместимости, и именно её
 // снимают следующие шаги: пока шов внутри facade, он один, а не размазан по вызывающим.
 //
-// Classic script: сборки в проекте нет, файлы делят одно лексическое окружение, порядок
-// подключения обязателен. Подключается ПОСЛЕ model/geometry.js.
+// ЗАВИСИМОСТИ, ЧЕСТНО. Classic script: сборки нет, файлы делят одно лексическое окружение.
+// Facade опирается не только на геометрию:
+//   model/catalog.js — BASES, ING, WRAPPERS, U_MM, TAU;
+//   state.js         — S, B();
+//   model/geometry.js — buildModel, windFor, materialAt, sheetLen;
+//   ui/layout.js     — W, H, DPR, L, layout()  (нужны deriveSheetLayout);
+//   render/slice.js  — SHAPES                  (нужен validateRecipe).
+// Две последние загружаются ПОЗЖЕ этого файла (index.html:26,27 против :25) — на объявление
+// это не влияет, обращения происходят при ВЫЗОВЕ, к тому времени всё на месте. Но зависеть
+// домену от рендера неправильно: SHAPES живёт в render/slice.js только исторически. Поэтому
+// проверка формы ниже мягкая (если списка нет — не браковать), а сам список должен переехать
+// в домен отдельным шагом миграции.
 
 const ROLL_FACADE_VERSION = 1;
 const ROLL_HAND_NEUTRAL = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
@@ -50,7 +60,7 @@ function validateRecipe(recipe) {
   if (!recipe || typeof recipe !== 'object') return { ok: false, errors: [{ field: '', message: 'рецепт не объект' }] };
   if (!BASES[recipe.base]) errors.push({ field: 'base', message: `неизвестная база «${recipe.base}»` });
   if (recipe.wrap && !WRAPPERS[recipe.wrap]) errors.push({ field: 'wrap', message: `неизвестная обёртка «${recipe.wrap}»` });
-  if (recipe.shape && !SHAPES[recipe.shape]) errors.push({ field: 'shape', message: `неизвестная форма «${recipe.shape}»` });
+  if (recipe.shape && typeof SHAPES !== 'undefined' && !SHAPES[recipe.shape]) errors.push({ field: 'shape', message: `неизвестная форма «${recipe.shape}»` });
   if (recipe.turns != null && !(recipe.turns > 0)) errors.push({ field: 'turns', message: 'витки должны быть положительным числом или null' });
   if (!Array.isArray(recipe.list)) errors.push({ field: 'list', message: 'list должен быть массивом' });
   else recipe.list.forEach((p, i) => {
@@ -70,7 +80,7 @@ function withRollRecipeState(recipe, hand, fn) {
     S.base = recipe.base;
     S.wrap = recipe.wrap || null;
     S.turns = recipe.turns || null;
-    S.shape = SHAPES[recipe.shape] ? recipe.shape : 'round';
+    S.shape = (typeof SHAPES !== 'undefined' && SHAPES[recipe.shape]) ? recipe.shape : 'round';
     S.hand = Object.assign({}, ROLL_HAND_NEUTRAL, recipe.hand || {}, hand || {});
     const list = JSON.parse(JSON.stringify(recipe.list || []));
     S.lists[recipe.base] = list;
@@ -107,6 +117,10 @@ function evaluateRoll(recipe, handParams, options) {
         coreRadius: m.core ? m.core.R : 0,
         coreFold: m.core ? m.core.sFold : 0,
         closed: wd.turns >= 1,
+        // Форма прессовки едет в модель через S.shape и живёт в m.shape. Без неё в метриках
+        // ни один инвариант не отличал круглый ролл от квадратного — F04 обещал покрыть
+        // квадрат и не покрывал (найдено ревью PR #100).
+        shape: m.shape,
       },
       legacyModel: m,
     };

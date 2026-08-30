@@ -36,6 +36,9 @@ function rollInvariants(m) {
     sheetEnd: r4(wd.sEnd),
     sheetLength: r4(m.g.L),
     hasCore: !!m.core,
+    // Форма прессовки — часть модели (m.shape). Без неё круглый и квадратный ролл давали
+    // одинаковый набор инвариантов, и F04 «квадратная прессовка» проверял не то, что обещал.
+    shape: m.shape,
     coreRadius: r4(m.core ? m.core.R : 0),
     coreFold: r4(m.core ? m.core.sFold : 0),
     patchCount: m.list.length,
@@ -75,6 +78,7 @@ function invariantsDiff(a, b, tol) {
   num('coreRadius', a.coreRadius, b.coreRadius);
   num('coreFold', a.coreFold, b.coreFold);
   if (a.hasCore !== b.hasCore) out.push(`hasCore: ${a.hasCore} ≠ ${b.hasCore}`);
+  if (a.shape !== b.shape) out.push(`shape: ${a.shape} ≠ ${b.shape}`);
   if (a.patchCount !== b.patchCount) out.push(`patchCount: ${a.patchCount} ≠ ${b.patchCount}`);
   const keys = new Set([...Object.keys(a.materialFractions), ...Object.keys(b.materialFractions)]);
   for (const k of keys) num('доля ' + k, a.materialFractions[k] || 0, b.materialFractions[k] || 0);
