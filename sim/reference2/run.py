@@ -1824,6 +1824,46 @@ def main():
     met['conservation_ok'] = bool(met['conservation'] >= 0.95)
     met['raster_outside_particles'] = _rout_win
     met['raster_window_ok'] = bool(_rout_win == 0)
+
+    # ── ВЕРДИКТ ПРОГОНА ───────────────────────────────────────────────────────────────────────
+    # ЗАЧЕМ. `stable` отвечает на вопрос «счёт не развалился»: конечные числа, никто не улетел,
+    # скорости в пределах, лента не порвана, циновка дошла до ролла. Это ДЕТЕКТОР СЧЁТА, и он
+    # честен в своей роли. Но 30.08 обнаружилось, что его читают как «прогон годен»: на всех пяти
+    # раскладках стоял `stable: true`, пока пять физических проверок из этого же дампа были
+    # красными — рис пережат ниже физического предела, складки, лист отстаёт от циновки, витки
+    # мимо формулы, циновка гнётся острее бамбука. Прибор рапортовал «здоров», и по его числам
+    # калибровали модель игры.
+    #
+    # Это ровно та ошибка, которую проект уже разбирал на диаметре ролла: ОТДЕЛЯТЬ ДЕТЕКТОР ОТ
+    # ТРЕБОВАНИЯ. Поэтому `stable` не расширяем — рядом появляется отдельный вердикт о физической
+    # годности, и он перечисляет ИМЕНА проваленных проверок, а не прячет их за одним словом.
+    #
+    # Правило чтения: `physics_ok = false` не значит «прогон испорчен» — значит «этими числами
+    # калибровать нельзя, пока не объяснено, почему провал допустим».
+    _phys = [
+        ('рис не пережат',            'rice_squash_ok'),
+        ('нет складок листа',         'wrinkle_ok'),
+        ('циновка гнётся не острее',  'wrinkle_ok_mat'),
+        ('объём сохранён',            'conservation_ok'),
+        ('порядок начинок сохранён',  'core_order_preserved'),
+        ('витки сходятся с формулой', 'turns_match_formula_best'),
+        ('лист прижат к циновке',     'nori_mat_contact_ok'),
+        ('растр не обрезал ролл',     'raster_window_ok'),
+    ]
+    _failed = [name for name, key in _phys if key in met and met[key] is not None and not met[key]]
+    _absent = [name for name, key in _phys if key not in met or met[key] is None]
+    # Разрешение: приёмка, снятая при 1,9 частицы на клетку, недостоверна — минимум метода два,
+    # а лента нори тоньше клетки в несколько раз (поправка 11, KINEMATICS.md).
+    _ppc = float(n) / max(1, nx * ny)          # частиц на клетку; минимум метода — две
+    met['ppc'] = round(_ppc, 3)
+    _res_ok = bool(_ppc >= 2.0 and (W_NORI / dx) >= 0.5)
+    if not _res_ok:
+        _failed.append('разрешение сетки (ppc %.2f, нори/dx %.2f)' % (_ppc, W_NORI / dx))
+    met['physics_checks_failed'] = _failed
+    met['physics_checks_absent'] = _absent
+    met['physics_ok'] = bool(not _failed)
+    met['verdict'] = ('ГОДЕН для калибровки' if met['physics_ok'] and met.get('stable')
+                      else 'НЕ ГОДЕН: ' + '; '.join(_failed or ['счёт неустойчив']))
     # --- the geometry this run was made with, stamped into the file so that an old metrics_N.json and
     #     a new one cannot be confused: the keys are identical and only the numbers moved.
     met['geometry'] = dict(unit_mm=U_MM, T_rice_U=T_RICE, w_nori_U=W_NORI, h_sheet_U=round(H_SHEET, 4),
@@ -1845,7 +1885,14 @@ def main():
                None, 0, zoom=(center, args.window))
     print(json.dumps({k: v for k, v in met.items() if k not in ('controller_log', 'fillings', 'wrinkle_hist')},
                      indent=1, default=_js))
+    # Вердикт печатается ПОСЛЕДНИМ и отдельной строкой: до 30.08 итог прогона тонул в дампе из
+    # полутора сотен ключей, и «stable: true» читалось как «всё хорошо» (см. блок ВЕРДИКТ выше).
     print(f'done in {elapsed:.1f}s  ({step} steps, t_end={t:.1f})')
+    print('─' * 72)
+    print('ВЕРДИКТ: ' + met['verdict'])
+    if met['physics_checks_absent']:
+        print('  не проверялось: ' + '; '.join(met['physics_checks_absent']))
+    print('─' * 72, flush=True)
 
 def save_frame(S, cls, xc, R, th_lo, th_hi, shp, path, t, F, gp=None, grabbing=0, zoom=None, ylift=0.0,
                fbox=None):

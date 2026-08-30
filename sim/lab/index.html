@@ -261,13 +261,27 @@ function togglePlay(){ playing ? pause() : play(); }
 function renderMetrics(m){
   const rows = [];
   const seen = new Set();
+  // ВЕРДИКТ ПЕРВОЙ СТРОКОЙ. До 30.08 таблица начиналась с «Устойчиво: да» — и это читалось как
+  // «прогон удался», хотя «устойчиво» отвечает только за то, что счёт не развалился. Физические
+  // проверки при этом могли быть красными все разом. Теперь наверху стоит вердикт с причинами.
+  if(m.verdict){
+    const ok = m.physics_ok && m.stable;
+    rows.push(`<tr><td><b>Вердикт</b></td><td class="${ok ? 'good' : 'bad'}"><b>${ok ? 'ГОДЕН для калибровки' : 'НЕ ГОДЕН'}</b></td></tr>`);
+    if(!ok && m.physics_checks_failed && m.physics_checks_failed.length)
+      rows.push(`<tr><td>Провалено</td><td class="bad" style="font-size:11.5px">${m.physics_checks_failed.join('<br>')}</td></tr>`);
+  }
   CFG.keyMetrics.forEach(([k, label]) => {
     if(!(k in m) || seen.has(label)) return;
     seen.add(label);
     let v = m[k], cls = '';
     if(typeof v === 'boolean'){
-      if(k === 'stable'){ cls = v ? 'good' : 'bad'; v = v ? 'да' : 'нет'; }
-      else { cls = v ? 'bad' : 'good'; v = v ? 'да' : 'нет'; }
+      // У части флагов «да» — это хорошо (счёт устойчив, рис не пережат), у части наоборот
+      // («нори порвана»). Раньше исключением был только stable, и новые проверки покрасились бы
+      // задом наперёд: «Рис не пережат: да» горело бы красным.
+      const goodWhenTrue = ['stable', 'rice_squash_ok', 'wrinkle_ok', 'core_order_preserved',
+                            'physics_ok', 'conservation_ok', 'pressed_ok'].includes(k);
+      cls = (v === goodWhenTrue) ? 'good' : 'bad';
+      v = v ? 'да' : 'нет';
     } else if(typeof v === 'number'){
       if(k === 'conservation') cls = v >= 0.97 ? 'good' : v >= 0.93 ? 'warn' : 'bad';
       if(k === 'rice_J_mean') cls = (v > 0.88 && v < 0.99) ? 'good' : 'warn';
