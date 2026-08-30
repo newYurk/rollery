@@ -1,0 +1,347 @@
+'use strict';
+// РЕНДЕР СРЕЗА: форма сечения, цвет материала в точке, готовая картинка среза.
+//
+// Формы (SHAPES, shapeInfo) — это ОТОБРАЖЕНИЕ готового круглого среза в суперэллипс с
+// сохранением площади, а не прессовка: настоящая прессовка живёт в физике и пока не сделана
+// (docs/shapes.md). Ключ shapeCache обязан видеть Rout — иначе роллы разного диаметра делят
+// один силуэт (issue #88, починено 29.08).
+//
+// Условности отрисовки (минимальная экранная ширина обёртки, рельеф зерна) держатся ЗДЕСЬ и
+// не имеют права протекать в модель: разбор — docs/geometry-audit.md, «Условности отрисовки».
+
+// ---------------------------------------------------------------- рендер среза
+// size — в пикселях устройства; vSlice — где режем; m — модель; Rref — общий радиус масштаба (для сравнения двух моделей).
+// Форма прессовки циновкой: круг, скруглённый квадрат, скруглённый треугольник.
+// Экранный радиус r_s на угле φ → радиус модели r_m = r_s · sqrt(A) / ρ(φ); площадь сохраняется.
+// Форма сечения. По источникам (docs/shapes.md) это НЕ отдельная скрутка, а финишная операция:
+// лист, навеска и число оборотов те же, углы набирают пальцами поверх циновки. Отсюда три правила:
+//   · тонкий ролл квадратится целиком, толстый — только с боков, верх остаётся круглым (хосомаки vs футомаки);
+//   · углы набирают повторами и прижимом — слабый прижим даёт скруглённые углы, сильный острые;
+//   · шов кладут вниз, на грань, а не на угол;
+//   · треугольник в маки — капля с «горкой» сзади, а не равносторонний.
+const SHAPES = { round: { k: 0, p: 0, glyph: '⭕' }, square: { k: 4, p: 0.62, glyph: '◻' }, triangle: { k: 3, p: 0.58, glyph: '△', drop: 0.22 } };
+const R_THIN = 3.2, R_THICK = 5.0;   // тоньше — квадратится целиком, толще — только бока
+// Угол не может быть острее зерна: сколько ни дави, кромка скругляется на его размер — «углы нельзя
+// добрать нажимом, зёрна давятся» (docs/shapes.md). Отсюда скругление берётся не на глаз, а из зерна.
+// Варёное зерно косихикари — 7,7 x 3,5 мм (Matsui T., Hokuriku Crop Science 36:21-23, 2001: сырое
+// 4,7 x 2,8 мм, при варке длина x1,64, ширина x1,25). Поперечник = 3,5 мм = 0,7 ед. Прежние 2,5 мм
+// были толщиной зерна, а не шириной. Слой риса 7 мм — это ровно ДВА зерна поперёк.
+const shapeCache = {};
+function shapeInfo(name, Rout, press) {
+  const sh = SHAPES[name] || SHAPES.round;
+  // A: с ростом диаметра углы сдаются; D: прижим их возвращает, но не выше предела
+  const fat = clamp(((Rout || 3.5) - R_THIN) / (R_THICK - R_THIN));
+  const pr = clamp(0.55 + 0.45 * (press == null ? 1 : press), 0.4, 1.25);
+  const p = clamp(sh.p * (1 - 0.55 * fat) * pr, 0, 0.9);
+  // ⚠ Rout ОБЯЗАН быть в ключе. Через p он не проходит: fat насыщается при Rout ≥ 5 и ≤ 3,2,
+  // а halfWin ниже зависит от Rout напрямую и не насыщается никогда. Без него футомаки (5,39),
+  // фруктовые (5,29) и рулет (7,05) получали ОДИН ключ 'square|0.279' при разном halfWin —
+  // силуэт задавал тот, кто отрисовался первым, и в альбоме, где базы рисуются в одном кадре,
+  // это видно. Округляем до 0,05, чтобы кеш продолжал работать (issue #88).
+  const key = name + '|' + p.toFixed(3) + '|' + (Math.round((Rout || 3.5) / 0.05) * 0.05).toFixed(2);
+  if (shapeCache[key]) return shapeCache[key];
+  const N = 720, rho = new Float32Array(N); let A = 0, rhoMax = 0;
+  for (let i = 0; i < N; i++) {
+    const phi = i / N * TAU; let r = 1;
+    if (sh.k) {
+      // B: фаза подобрана так, чтобы φ = 0 (шов) пришёлся на середину нижней грани
+      const sector = TAU / sh.k, a = ((phi + Math.PI / 2 + sector / 2) % sector) - sector / 2;
+      r = lerp(1, Math.cos(Math.PI / sh.k) / Math.cos(a), p);
+      // A: у толстого ролла бока зажаты сильнее верха
+      if (fat > 0 && sh.k === 4) r = lerp(r, lerp(1, r, Math.abs(Math.cos(phi))), fat * 0.7);
+      // C: треугольник — капля: вершина напротив шва скруглена, сзади «горка»
+      if (sh.drop) r *= 1 + sh.drop * p * Math.cos(phi + Math.PI);
+    }
+    rho[i] = r; A += r * r; rhoMax = Math.max(rhoMax, r);
+  }
+  // скругление зерном: усредняем ρ(φ) по дуге шириной в рисинку
+  const halfWin = Math.max(1, Math.round(N * (GRAIN / Math.max(1.2, Rout || 3.5)) / TAU));
+  if (sh.k) {
+    const src = Float32Array.from(rho);
+    let acc = 0;
+    for (let d = -halfWin; d <= halfWin; d++) acc += src[(d + N) % N];
+    for (let i = 0; i < N; i++) {
+      rho[i] = acc / (2 * halfWin + 1);
+      acc += src[(i + halfWin + 1) % N] - src[(i - halfWin + N) % N];
+    }
+    A = 0; rhoMax = 0;
+    for (let i = 0; i < N; i++) { A += rho[i] * rho[i]; rhoMax = Math.max(rhoMax, rho[i]); }
+  }
+  A /= N;
+  if (Object.keys(shapeCache).length > 40) for (const k in shapeCache) delete shapeCache[k];
+  return (shapeCache[key] = { rho, sqrtA: Math.sqrt(A), margin: rhoMax / Math.sqrt(A), p });
+}
+function shapeK(phi, info) { const i = Math.floor(phi / TAU * 720) % 720; return info.sqrtA / info.rho[i]; }
+// УСЛОВНОСТЬ ОТРИСОВКИ, не физика. Лента нори — 0,02 ед. (0,10 мм, по источнику), и на срезе 260 css-px
+// она занимает 1,6 device-px у хосомаки и 0,9 у футомаки: alpha-blend выбеливает её в серую паутинку,
+// а срез читается как белое пятно. Поэтому ВНЕШНЯЯ поверхность ролла обводится штрихом минимальной
+// экранной ширины — обёртка снова читается как материал. Условность гасится сама: как только честная
+// лента дорастает до 1,5 × MIN, множитель уходит в ноль (у сладкого рулета лента 58,7 px → множитель 0,
+// то есть рулет не меняется ни на пиксель). Обводится ТОЛЬКО внешняя поверхность и никогда не спираль
+// намотки: в настоящем маки лист делает ровно один оборот (docs/reality-check.md), поэтому внутренняя
+// дуга — артефакт модели; жирная чёрная спираль сквозь рис была бы заявлением о том, чего в продукте нет.
+const WRAP_MIN_CSS = 1.6;
+// Обводка ленты нори. Раньше обводился ТОЛЬКО внешний контур, и внутренняя лента
+// оставалась волосяной — владелец заметила это глазом: «внутри нори не должен становиться
+// тоньше при замотке». Замер подтвердил: в модели обе ленты одной толщины (0,0198–0,0207 ед.
+// при честных 0,020 на четырёх лучах), разница была чисто в отрисовке.
+//
+// Внутренняя лента существует не всегда, и выдумывать её нельзя. Хосомаки на полулисте
+// смыкается почти встык: обхват тонкого ролла 7,9 см против листа 10,5 — виток один, второго
+// слоя нет. Футомаки на целом листе делает 1,85–1,91 оборота (подтверждено симуляцией,
+// sim/reference2 раскладка 7), и там нахлёст настоящий. Поэтому обводим то, что посчитала
+// модель: внешний край каждого витка, КРОМЕ последнего (его уже обводит внешний контур).
+function strokeWrapperTurns(c, m, wd, si, scale, half, LW, alpha) {
+  if (wd.kmax < 2) return;                       // один виток — внутренней ленты нет
+  const step = Math.max(1, Math.round(NB / (TAU * m.Rmax * scale / 2)));
+  c.save();
+  c.globalCompositeOperation = 'source-atop';
+  c.globalAlpha = alpha;
+  c.lineJoin = 'round'; c.lineCap = 'butt';   // не 'round': шапки на торцах и давали крючок
+  // Рисуем ТЕМ ЖЕ приёмом, что внешний контур: сначала контактная тень, потом лента.
+  // Без тени внутренняя лента меряется на 3 device-px против 4 у внешней — и владелец
+  // увидела это глазом, хотя ширина штриха задавалась одна и та же. Тень здесь не украшение:
+  // внутренний виток зажат рисом с ОБЕИХ сторон, канавка контакта у него не хуже внешней.
+  const SHADOW = LW + 1.7 * WRAP_MIN_CSS * DPR;
+  // НОРИ РАЗДЕЛЯЕТ РИСИНКИ, А НЕ РАЗРЕЗАЕТ ИХ ПОПОЛАМ (владелец 27.08). Лента внутреннего витка
+  // обводилась гладкой кривой поверх готовой картинки, и кривая шла ПО ТЕЛАМ зёрен: половина рисинки
+  // по одну сторону листа, половина по другую.
+  // ПОЧЕМУ НЕ GRAIN_BITE. Правило границы рис/начинка смещает точку К ЦЕНТРУ ближайшего зерна, а поле
+  // GRAIN_C РАЗРЫВНО: на границе клеток ближайшее зерно меняется скачком. Начинке это безвредно, она
+  // сплошная. Ленте в 0,1 мм — нет: кромки уехали бы в разные стороны и вместо ленты вышел бы пунктир.
+  // ПОЧЕМУ НЕ ВОЛНА ПО КАЖДОМУ ЗЕРНУ. Владелец: «из-за натяжения не будет ли странно волны смотреться?»
+  // В docs/reality-check.md уже доказано, почему на внешнем слое не бывает гармошки: складка требует
+  // ИЗБЫТКА ДЛИНЫ листа на своём радиусе, а при монотонной намотке ему взяться неоткуда. На масштабе
+  // зерна довод тот же: провал в щель между зёрнами — это тоже избыток длины, значит его нет. А вот
+  // выпуклость над выступающим зерном избытка не требует: это кратчайший обход препятствия.
+  // Форма поэтому ровно одна — НАТЯНУТАЯ НИТКА ЧЕРЕЗ КОЛЫШКИ: лист опирается на выступающие зёрна и
+  // идёт ПРЯМО над промежутками. Отсюда три правила ниже: смещение только наружу, бегущий максимум по
+  // окну в ползерна (опора на самое выступающее зерно окрестности) и малая амплитуда.
+  // press — это и есть натяжение: сильный прижим ⇒ линия глаже.
+  // ⚑ inferred: замера прогиба листа между зёрнами нет; 0,5 мм взято по фотографиям на глаз.
+  const bite = RICE.wrapBite > 0 && S.base !== 'cake' ? RICE.wrapBite : 0;
+  const tension = bite ? clamp((1.30 - (m.g.press == null ? 1 : m.g.press)) / 0.45, 0.12, 1) : 0;
+  for (let k = 0; k < wd.kmax - 1; k++) {
+    const pts = [];
+    for (let i = 0; i < NB; i += step) {
+      const idx = k * NB + i;
+      const ro = wd.rout[idx];
+      // лист в этом бине кончился — рвём линию; хвост: дальше витка нет
+      let ok = (ro > 0) && wd.rin[idx] >= 0 && idx !== wd.lastIdx;
+      // «КРОМЕ ПОСЛЕДНЕГО» — ЭТО ПРО БИН, А НЕ ПРО ВИТОК. Условие стояло на весь виток k, и при
+      // неполном верхнем витке (1,12 оборота у футомаки) нижний обводился ВЕСЬ, включая те 317°,
+      // где над ним ничего нет и где он сам и есть внешний контур. Линия ложилась на обводку рима,
+      // удваивая её тень, а на 0°…43° отходила внутрь и замыкалась через шов радиальным отрезком —
+      // получался «язык», отходящий от круга на трёх часах. Обводим бин, только если над ним
+      // действительно есть виток.
+      if (ok && wd.rin[idx + NB] < 0) ok = false;
+      if (!ok) { pts.push(null); continue; }
+      const phi = i * DPHI, rho = ro / shapeK(phi, si);
+      let bulge = 0;
+      if (bite) {
+        const dx0 = Math.cos(phi) * rho, dy0 = Math.sin(phi) * rho, tn = 1 / Math.max(1e-6, rho);
+        spreadColor(dx0 / GRAIN, dy0 / GRAIN, B(), -dy0 * tn, dx0 * tn, 1);
+        // 1 - q², а не sqrt(1 - q²): у корня на кромке зерна бесконечная производная, и лента
+        // получала прямоугольные ступеньки. Квадрат гладкий (C¹) и даёт ту же выпуклость.
+        const qg = Math.min(1, GRAIN_C[2]);
+        bulge = Math.max(0, 1 - qg * qg);                 // только НАРУЖУ: провал держит натяжение
+      }
+      pts.push({ phi, rho, bulge });
+    }
+    if (bite) {
+      const n = pts.length;
+      // окно опоры — полширины зерна по дуге ряда
+      const rMid = pts.find(q => q) ? pts.find(q => q).rho : 1;
+      const win = Math.max(1, Math.round(0.5 * GRAIN / Math.max(1e-6, rMid * DPHI * step)));
+      const mx = new Array(n).fill(0);
+      for (let i = 0; i < n; i++) { let v = 0;
+        for (let d = -win; d <= win; d++) { const q = pts[((i + d) % n + n) % n]; if (q && q.bulge > v) v = q.bulge; }
+        mx[i] = v; }
+      for (let i = 0; i < n; i++) { const a = mx[(i - 1 + n) % n], b2 = mx[i], c2 = mx[(i + 1) % n];
+        if (pts[i]) pts[i].bulge = 0.25 * a + 0.5 * b2 + 0.25 * c2; }
+    }
+    const p = new Path2D(); let first = true, drawn = 0, bins = pts.length;
+    for (const q of pts) {
+      if (!q) { first = true; continue; }
+      const rpx = (q.rho + bite * tension * WRAP_BULGE * q.bulge) * scale;
+      const x = half + Math.cos(q.phi) * rpx, y = half + Math.sin(q.phi) * rpx;
+      if (first) { p.moveTo(x, y); first = false; } else p.lineTo(x, y);
+      drawn++;
+    }
+    // ВИТОК ЗАМЫКАЕМ, ЕСЛИ ОН ПОЛНЫЙ. Иначе оба конца ломаной падают на угол 0 — на три часа —
+    // и круглые шапки (lineCap) рисуют там две шляпки на разных радиусах: получается «уступ и
+    // тёмный крючок», который владелец и увидела. Сверка по 45 срезам на фотографиях: контур
+    // всегда замкнутая непрерывная кривая, торцов обводки не бывает.
+    if (drawn === bins) p.closePath();
+    if (drawn > 2) {
+      c.strokeStyle = 'rgba(24,40,30,0.28)'; c.lineWidth = SHADOW; c.stroke(p);
+      c.strokeStyle = rgbCss(B().wrapperRgb);  c.lineWidth = LW;     c.stroke(p);
+    }
+  }
+  c.restore();
+}
+function strokeWrapperRim(c, m, wd, si, scale, half) {
+  const b = B();
+  if (b.inverted) return;                       // урамаки: нори внутри, модель этого не умеет — не подчёркивать известную ошибку
+  const MIN = WRAP_MIN_CSS * DPR, wPx = m.g.w * scale;
+  const a = clamp((1.5 * MIN - wPx) / (0.5 * MIN));
+  if (a <= 0) return;                           // честная лента и так достаточно толстая
+  const LW = Math.max(MIN, wPx);
+  const step = Math.max(1, Math.round(NB / (TAU * m.Rmax * scale / 2)));   // шаг бинов ≈ 2 device-px по дуге
+  const p = new Path2D();
+  let first = true;
+  for (let i = 0; i <= NB; i += step) {
+    const bb = i % NB, phi = bb * DPHI, rOut = topAt(wd, phi);
+    if (rOut <= m.g.r0) continue;
+    // половина ширины вычитается в ЭКРАННЫХ px, а не в единицах модели: на плоских гранях квадрата и
+    // треугольника shapeK < 1, и сдвиг в единицах модели вытолкнул бы штрих за силуэт
+    const rpx = rOut / shapeK(phi, si) * scale - LW / 2;
+    const x = half + Math.cos(phi) * rpx, y = half + Math.sin(phi) * rpx;
+    if (first) { p.moveTo(x, y); first = false; } else p.lineTo(x, y);
+  }
+  if (first) return;
+  p.closePath();
+  c.save();
+  c.globalCompositeOperation = 'source-atop';   // не красить за силуэтом, который посчитала модель
+  c.globalAlpha = a; c.lineJoin = 'round'; c.lineCap = 'round';
+  c.strokeStyle = 'rgba(24,40,30,0.28)'; c.lineWidth = LW + 1.7 * MIN; c.stroke(p);   // контактная тень в канавке; `inferred`, источника нет
+  c.strokeStyle = rgbCss(b.wrapperRgb);   c.lineWidth = LW;             c.stroke(p);
+  c.restore();
+  strokeWrapperTurns(c, m, wd, si, scale, half, LW, a);   // и внутренние витки — той же шириной
+}
+function renderSection(size, vSlice, m, Rref) {
+  const g = m.g, b = B(), wd = windFor(m, vSlice), si = shapeInfo(m.shape || S.shape, m.Rmax, m.g.press);
+  const off = document.createElement('canvas'); off.width = off.height = size;
+  const c = off.getContext('2d'); const img = c.createImageData(size, size); const d = img.data;
+  const half = size / 2, R = Rref || m.Rmax, scale = (half - 1.5) / (R * si.margin);
+  // LOD крупы: сколько device-px приходится на зерно. На альбомных миниатюрах рельеф гасится, иначе
+  // он вырождается в решётку. sweet — сладкая база не усиливается: она и так читается, и «нереальная
+  // разница» между срезами должна исчезнуть, а не поменять знак.
+  const lod = clamp((GRAIN * scale - 6) / 8), sweet = S.base === 'cake';
+  for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
+    const i = (py * size + px) * 4;
+    const dx = (px + 0.5 - half) / scale, dy = (py + 0.5 - half) / scale;
+    let phi = Math.atan2(dy, dx); if (phi < 0) phi += TAU;
+    const rho = Math.hypot(dx, dy), r = rho * shapeK(phi, si);
+    if (r > wd.Rout + 1 / scale) { d[i + 3] = 0; continue; }
+    let alpha = 1, rgb;
+    const mat = materialAt(m, wd, vSlice, r, phi);
+    if (mat.cls === 'out') {
+      alpha = clamp(0.5 + (topAt(wd, phi) - r) * scale);
+      if (alpha <= 0) { d[i + 3] = 0; continue; }
+      rgb = wrapperColor(px, py, b);
+    } else {
+      // Крупа разворачивается ПО ВИТКУ: зёрна в ролле ложатся вдоль намотки. Решётка клеток остаётся
+      // ровной (в полярных координатах клетка размазывается в дугу), а по касательной разворачивается
+      // только вытянутость зерна — через (-sin, cos) от угла точки.
+      // Ветки разведены явно (а не тернарником), чтобы лишняя работа не считалась там, где не нужна:
+      // касательная к витку нужна только рису несладкой базы, крему рулета она не нужна вовсе.
+      if (mat.cls === 'wrap') rgb = wrapperColor(px, py, b);
+      else if (sweet && mat.cls === 'patch') {
+        rgb = patchColor(mat.mt, px, py);
+        // Начинка у несладких баз: хрома ×1,25 и тонкий тёмный кант по кромке. ПОЧЕМУ обёрткой, а не внутри
+        // patchColor: та обязана остаться чистой функцией цвета материала — её зовут и вид листа, и альбом,
+        // и хексы в ING менять нельзя. Кант нужен потому, что кусок ЛЕЖИТ В РИСЕ: без контактной тени он
+        // читается как наклейка поверх среза. Хрома ×1,25 — заявленная условность, того же класса, что уже
+        // записанные «ненатуральные цвета/контраст». Сладкую базу не трогаем: она и так читается, и разрыв
+        // между срезами должен исчезнуть, а не поменять знак.
+        if (!sweet) {
+          const lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+          const kk = 1 - 0.16 * smooth(0.82, 1.0, Math.hypot(mat.mt.lu * 2, mat.mt.lz * 2 - 1));
+          rgb = [(lum + (rgb[0] - lum) * 1.25) * kk, (lum + (rgb[1] - lum) * 1.25) * kk, (lum + (rgb[2] - lum) * 1.25) * kk];
+        }
+      } else if (sweet) rgb = spreadColor(dx / GRAIN, dy / GRAIN, b);   // крем: ct/st и LOD в его ветке не участвуют
+      else {
+        // РИС ДОЛЖЕН ОБНИМАТЬ КУСОК, А НЕ ПОДЛЕЗАТЬ ПОД НЕГО. Владелец 27.08: «что сделать, чтобы рис
+        // был вокруг кусков, а не как сейчас просто накладывался». Причина была не в форме начинок:
+        // рис и кусок считались НЕЗАВИСИМО, materialAt отвечал по точке, и граница выходила идеальной
+        // геометрической линией. Зерно при этом — целое тело, и эта линия резала его пополам: кусок
+        // читался наклейкой поверх среза.
+        // В жизни граница проходит ПО ЗЁРНАМ: нож рассекает рисинки целиком, одни прилегают к куску,
+        // другие чуть заходят на него, и контур получается зубчатым в масштабе зерна, а не гладким.
+        // Правило ровно это и говорит: зерно принадлежит тому материалу, где лежит ЕГО ЦЕНТР. Решётка
+        // считается всегда, центр возвращается в GRAIN_C, и материал спрашивается ещё раз — уже в
+        // центре. Оба перехода честные: рис заходит на кусок, кусок вытесняет рис. Обёртку и ядро
+        // правило не трогает — нори это лист, его кромка обязана остаться гладкой.
+        // НА ОСИ У ВИТКА НЕТ КАСАТЕЛЬНОЙ. Ровно в центре (-dy, dx)/|r| не определена и на соседних пикселях
+        // разворачивается на целый оборот: анизотропная метрика скачет, и в середине среза вылезает
+        // «цветок» из четырёх лепестков. Он был и раньше, но еле виден; рельеф зерна его проявил.
+        // Поэтому в пределах одной рисинки от оси направление плавно замораживается вдоль x, а амплитуда
+        // рельефа гасится: сердцевина ролла — это подворот листа, а не поле уложенных зёрен.
+        const gr = 1 / Math.max(1e-6, rho), tw = smooth(0.2 * GRAIN, 1.0 * GRAIN, rho);
+        const tx = lerp(1, -dy * gr, tw), ty = lerp(0, dx * gr, tw), tn = 1 / Math.max(1e-6, Math.hypot(tx, ty));
+        rgb = spreadColor(dx / GRAIN, dy / GRAIN, b, tx * tn, ty * tn, lod * tw);
+        // НА СКОЛЬКО СМЕЩАТЬ. Первая проба отдавала зерно целиком тому, где его центр, — и кусок
+        // выходил обгрызенным на все восемь миллиметров, а рисунок на нём вырождался в пятна: цвет
+        // брался в центре зерна, полоски лосося и тамаго квантовались. Но нож рассекает рисинки, а не
+        // обходит их: настоящая граница дрожит в масштабе МИЛЛИМЕТРА. Поэтому решение принимается не
+        // в центре зерна, а на трети пути к нему — амплитуда дрожания выходит около 1,4 мм, — а
+        // текстура куска по-прежнему берётся В САМОЙ ТОЧКЕ, если точка внутри куска.
+        // ⚑ inferred: замера зубчатости границы рис/начинка по фотографиям нет; 0,35 подобрано на глаз
+        // при сравнении с фотографиями срезов и держится как условность отрисовки, а не как величина.
+        const GRAIN_BITE = 0.35;
+        const cx = dx + GRAIN_C[0] * GRAIN * GRAIN_BITE, cy = dy + GRAIN_C[1] * GRAIN * GRAIN_BITE;
+        let cphi = Math.atan2(cy, cx); if (cphi < 0) cphi += TAU;
+        const cmat = materialAt(m, wd, vSlice, Math.hypot(cx, cy) * shapeK(cphi, si), cphi);
+        const src = (cmat.cls === 'patch' || cmat.cls === 'spread') ? cmat : mat;
+        if (src.cls === 'patch') {
+          const smt = mat.cls === 'patch' ? mat.mt : src.mt;
+          rgb = patchColor(smt, px, py);
+          const lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+          const kk = 1 - 0.16 * smooth(0.82, 1.0, Math.hypot(smt.lu * 2, smt.lz * 2 - 1));
+          rgb = [(lum + (rgb[0] - lum) * 1.25) * kk, (lum + (rgb[1] - lum) * 1.25) * kk, (lum + (rgb[2] - lum) * 1.25) * kk];
+        }
+      }
+      if (mat.sm && mat.sm.rOut >= topAt(wd, phi) - 1e-4) alpha = clamp(0.5 + (mat.sm.rOut - r) * scale);   // внешняя кромка
+    }
+    const rr = r / R, vig = 1 - 0.10 * rr * rr - 0.035 * (dx + dy) / R;
+    d[i] = clamp(rgb[0] * vig, 0, 255); d[i + 1] = clamp(rgb[1] * vig, 0, 255); d[i + 2] = clamp(rgb[2] * vig, 0, 255); d[i + 3] = alpha * 255;
+  }
+  c.putImageData(img, 0, 0);
+  strokeWrapperRim(c, m, wd, si, scale, half);
+  return off;
+}
+// Карта материалов среза для сравнения: 0 — вне, 1 — рис/сердцевина, 2 — обёртка, 3+ — начинка по индексу вида.
+const KIND_IDS = Object.keys(ING);
+function materialMap(size, vSlice, m, Rref) {
+  const si = shapeInfo(m.shape || S.shape, m.Rmax, m.g.press), wd = windFor(m, vSlice), out = new Uint8Array(size * size), half = size / 2, scale = (half - 1) / (Rref * si.margin);
+  for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
+    const dx = (px + 0.5 - half) / scale, dy = (py + 0.5 - half) / scale;
+    let phi = Math.atan2(dy, dx); if (phi < 0) phi += TAU;
+    const r = Math.hypot(dx, dy) * shapeK(phi, si);
+    if (r > wd.Rout) continue;
+    const mat = materialAt(m, wd, vSlice, r, phi);
+    out[py * size + px] = mat.cls === 'out' ? 0 : mat.cls === 'wrap' ? 2 : mat.cls === 'patch' ? 3 + KIND_IDS.indexOf(mat.mt.p.kind) : 1;
+  }
+  return out;
+}
+// Похожесть двух моделей на срезах vs: доля пикселей начинок, у которых тот же материал в окрестности 3×3 у соседа.
+// Сравнение форм: shapeInfo зависит от радиуса каждой модели, поэтому квадрат против круга
+// теперь даёт разные карты (раньше отображение было общим и сокращалось — уровни с формой ничего не проверяли).
+// Метрика сходства — это Dice по классам начинок (рис и нори в счёт не идут, a[i] >= 3).
+// total намеренно считает каждую карту отдельно: total = |A| + |B|, hits = 2*|A ^ B|,
+// то есть 2|A^B| / (|A|+|B|). Ревью 26.08 сочло двойной счёт ошибкой — это неверно:
+// со «счётом один раз» полное совпадение даёт 1,33, а не 1. Не «чинить».
+// Отличие от строгого Dice одно: near() засчитывает попадание по окрестности 3x3,
+// то есть с допуском в пиксель, поэтому числа систематически выше строгого Dice.
+function similarity(mA, mB, vs) {
+  const size = 56, Rref = Math.max(mA.Rmax, mB.Rmax); let hits = 0, total = 0;
+  const near = (map, i, id) => { const x = i % size, y = (i / size) | 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < size && yy < size && map[yy * size + xx] === id) return true; } return false; };
+  for (const v of vs) {
+    const a = materialMap(size, v, mA, Rref), b = materialMap(size, v, mB, Rref);
+    for (let i = 0; i < a.length; i++) { if (a[i] >= 3) { total++; if (near(b, i, a[i])) hits++; } if (b[i] >= 3) { total++; if (near(a, i, b[i])) hits++; } }
+  }
+  return total ? hits / total : 1;
+}
+const faceCache = new Map();
+let modelKey = '';
+function touchModel() { modelKey = S.base + '|' + S.shape + JSON.stringify(patches()); save(); dirty = true; }
+function face(vSlice, cssSize, m, Rref) {
+  m = m || getModel(); const size = Math.round(cssSize * DPR);
+  const key = m.key + '|' + vSlice.toFixed(3) + '|' + size + '|' + (Rref ? Rref.toFixed(3) : '') + '|' + S.shape;
+  let img = faceCache.get(key);
+  if (!img) { if (faceCache.size > 60) faceCache.clear(); img = renderSection(size, vSlice, m, Rref); faceCache.set(key, img); }
+  return img;
+}
+const pieceV = i => i / NPIECES + 0.002;   // левая грань кусочка; кусочек 0 — торец ролла
+
