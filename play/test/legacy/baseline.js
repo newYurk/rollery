@@ -1,0 +1,66 @@
+'use strict';
+// LEGACY BASELINE: прогон fixtures ПРЯМО через монолит geometry.js, без facade.
+//
+// Это точка опоры всей миграции (issue #72): пока не доказано, что мы умеем воспроизводить
+// нынешнее поведение числами, любое «facade ничего не сломал» — слова.
+//
+// ⚠ ГЕОМЕТРИЯ ЧИТАЕТ ГЛОБАЛЬНОЕ СОСТОЯНИЕ. buildModel берёт базу, обёртку, форму, витки и руку
+// из S (см. geometry.js:668–678), а не из аргументов. Поэтому «прогнать рецепт» — это
+// временно ПОСТАВИТЬ S и вернуть как было. Ровно этот шов и есть предмет будущей миграции:
+// пока он здесь, facade вынужден делать то же самое (play/domain/roll.js).
+//
+// Прецедент не выдуман: так уже устроен альбом — withRecipe (play/ui/album.js:28).
+// ⚠ Отличие: там НЕ восстанавливается S.wrap, здесь восстанавливается. См. baseline-data.js.
+
+const LEGACY_HAND_NEUTRAL = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
+
+// Временно применить рецепт к глобальному S, посчитать fn(model), вернуть S как было.
+function withLegacyRecipe(recipe, fn) {
+  const keep = { base: S.base, wrap: S.wrap, turns: S.turns, shape: S.shape, hand: S.hand,
+                 list: S.lists[recipe.base] };
+  try {
+    S.base = recipe.base;
+    S.wrap = recipe.wrap || null;
+    S.turns = recipe.turns || null;
+    S.shape = SHAPES[recipe.shape] ? recipe.shape : 'round';
+    S.hand = Object.assign({}, LEGACY_HAND_NEUTRAL, recipe.hand || {});
+    // Клон списка: модель не должна получить ссылку на fixture — restack проставляет z0/z1,
+    // computeCore ставит inCore, и fixture молча «пропитался» бы результатом прошлого прогона.
+    const list = JSON.parse(JSON.stringify(recipe.list || []));
+    S.lists[recipe.base] = list;
+    return fn(buildModel(list));
+  } finally {
+    S.base = keep.base; S.wrap = keep.wrap; S.turns = keep.turns; S.shape = keep.shape;
+    S.hand = keep.hand; S.lists[recipe.base] = keep.list;
+  }
+}
+
+// Инварианты одного fixture по legacy-пути.
+function evaluateLegacyFixture(fx) { return withLegacyRecipe(fx.recipe, m => rollInvariants(m)); }
+
+// Слепок всех fixtures — тем же кодом, которым он записывался. Печать этого объекта в
+// консоли даёт содержимое play/test/legacy/baseline-data.js: слепок ПЕРЕСНИМАЕТСЯ осознанно,
+// вместе с коммитом, где сказано, что изменилось в модели (то же правило, что у REF в checks.js).
+function captureLegacyBaseline() {
+  const out = {};
+  for (const fx of ROLL_FIXTURES) out[fx.id] = evaluateLegacyFixture(fx);
+  return out;
+}
+
+// Проверка: нынешнее поведение совпадает с записанным слепком.
+function runLegacyBaselineChecks() {
+  const cases = [], failures = [];
+  if (typeof ROLL_BASELINE === 'undefined') {
+    failures.push('нет слепка: play/test/legacy/baseline-data.js не подключён');
+    return { passed: false, cases, failures };
+  }
+  for (const fx of ROLL_FIXTURES) {
+    const want = ROLL_BASELINE[fx.id];
+    if (!want) { failures.push(`${fx.id}: нет записи в слепке`); continue; }
+    const got = evaluateLegacyFixture(fx);
+    const diff = invariantsDiff(want, got);
+    cases.push({ id: fx.id, ok: diff.length === 0 });
+    for (const d of diff) failures.push(`${fx.id}: ${d}`);
+  }
+  return { passed: failures.length === 0, cases, failures };
+}
