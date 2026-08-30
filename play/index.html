@@ -64,7 +64,12 @@ function shapeInfo(name, Rout, press) {
   const fat = clamp(((Rout || 3.5) - R_THIN) / (R_THICK - R_THIN));
   const pr = clamp(0.55 + 0.45 * (press == null ? 1 : press), 0.4, 1.25);
   const p = clamp(sh.p * (1 - 0.55 * fat) * pr, 0, 0.9);
-  const key = name + '|' + p.toFixed(3);
+  // ⚠ Rout ОБЯЗАН быть в ключе. Через p он не проходит: fat насыщается при Rout ≥ 5 и ≤ 3,2,
+  // а halfWin ниже зависит от Rout напрямую и не насыщается никогда. Без него футомаки (5,39),
+  // фруктовые (5,29) и рулет (7,05) получали ОДИН ключ 'square|0.279' при разном halfWin —
+  // силуэт задавал тот, кто отрисовался первым, и в альбоме, где базы рисуются в одном кадре,
+  // это видно. Округляем до 0,05, чтобы кеш продолжал работать (issue #88).
+  const key = name + '|' + p.toFixed(3) + '|' + (Math.round((Rout || 3.5) / 0.05) * 0.05).toFixed(2);
   if (shapeCache[key]) return shapeCache[key];
   const N = 720, rho = new Float32Array(N); let A = 0, rhoMax = 0;
   for (let i = 0; i < N; i++) {
@@ -764,7 +769,13 @@ function drawTopBar(hint) {
 // ---------------------------------------------------------------- рисование листа (вид сверху)
 let spreadTex = null, spreadTexKey = '';
 function getSpreadTex(w, h) {
-  const cw = Math.round(w * DPR), ch = Math.round(h * DPR), key = S.base + '|' + cw + 'x' + ch;
+  // ⚠ turns и обёртка ОБЯЗАНЫ быть в ключе: масштаб зерна ниже берётся от sheetLen(b), а тот
+  // читает S.turns и толщину обёртки b.w. Без них переход между уровнями пазла с одинаковым
+  // числом кусков и той же базой (например 4 → 5, turns 3 → 2) не менял ключ, и лист оставался
+  // нарисован в масштабе прошлого уровня — расхождение в 2,1 раза. Ровно так же устроен ключ
+  // модели в buildModel, и по той же причине (issue #89).
+  const cw = Math.round(w * DPR), ch = Math.round(h * DPR),
+        key = S.base + '|' + (B().wrapKey || '-') + '|' + (S.turns || '-') + '|' + cw + 'x' + ch;
   if (spreadTex && spreadTexKey === key) return spreadTex;
   const b = B(), base = b.spreadRgb, c = document.createElement('canvas'); c.width = cw; c.height = ch;
   const x = c.getContext('2d'); const img = x.createImageData(cw, ch); const d = img.data;
