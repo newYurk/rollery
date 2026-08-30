@@ -22,9 +22,10 @@
 <script src="model/catalog.js"></script>
 <script src="state.js"></script>
 <script src="model/geometry.js"></script>
-<!-- Тонкий compatibility facade над геометрией (issue #72). Пока его единственный потребитель —
-     проверки: ни один production-файл на него ещё не переведён. Подключён всегда, потому что
-     переезд потребителей пойдёт по одному, и файл должен быть на месте до первого из них. -->
+<!-- Тонкий compatibility facade над геометрией (issue #72). Подключён здесь, ПОСЛЕ модели и
+     ДО рендера: сам он объявляет только функции, а обращения к shapeInfo/shapeK (render/slice.js)
+     и W/H/DPR/L/layout (ui/layout.js) происходят при ВЫЗОВЕ, когда всё уже загружено. То есть
+     домен сегодня зависит от рендера — это временно и названо в шапке roll.js. -->
 <script src="domain/roll.js"></script>
 <script src="audio.js"></script>
 <script src="ui/layout.js"></script>

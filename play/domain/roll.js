@@ -216,8 +216,8 @@ function sliceMaterialMap(roll, position, options) {
   const map = materialMapOf(size, position === undefined ? 0.5 : position, m, opt.Rref || m.Rmax);
   const counts = {}, probe = [];
   for (let i = 0; i < map.length; i++) counts[map[i]] = (counts[map[i]] || 0) + 1;
-  for (let i = 0; i < map.length; i += 337) probe.push(map[i]);
-  const out = { counts: {}, probe: probe.join('') };
+  for (let i = 0; i < map.length; i += 313) probe.push(map[i]);   // шаг по модулю стороны, см. probe.js
+  const out = { counts: {}, probe: probe.join(',') };
   for (const k of Object.keys(counts).sort((a, b) => a - b)) out.counts[k] = counts[k];
   return out;
 }
