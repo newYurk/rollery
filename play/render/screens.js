@@ -62,7 +62,10 @@ function drawLay() {
   // sheetPush()/sheetPop() — при повёрнутом листе (#23) это один общий поворот на ±90°.
   // Экранные элементы (циновка-фон, ручка, полосы предпросмотра, кнопки) остаются снаружи.
   const s = SB(), p = S.rollP, hd = L.handle;
-  drawMat(hd.x, L.sheet.y - 18, hd.w, hd.y + hd.h + 8 - (L.sheet.y - 18));
+  if (L.sheet.uAxis === 'x') {   // циновка-фон: от ручки сбоку через весь лист, прутья поперёк скрутки
+    const x0 = Math.min(hd.x, L.sheet.x - 8), x1 = Math.max(hd.x + hd.w, L.sheet.x + L.sheet.w + 8);
+    drawMat(x0, L.sheet.y - 18, x1 - x0, L.sheet.h + 36, 14, B(), true);
+  } else drawMat(hd.x, L.sheet.y - 18, hd.w, hd.y + hd.h + 8 - (L.sheet.y - 18));
   sheetPush();
   const yb = s.y + s.h * (1 - p);
   // лист: остаток, ещё не скрученный
@@ -106,11 +109,19 @@ function drawLay() {
   // ролл в процессе скрутки (внутри трансформа: при повёрнутом листе цилиндр сам встанет вертикально)
   if (p > 0) { const mm = getModel(); const R = windRout(0.5, p * mm.g.L, mm.g, mm.list) * s.h / mm.g.L; drawRollBody(s.x + s.w / 2, yb, R, s.w + 10, [{ a: 0, b: 1, off: 0 }]); }
   sheetPop();
-  // циновка-ручка
+  // циновка-ручка: подпись и стрелка — по направлению тяги
   rr(hd.x, hd.y, hd.w, hd.h, 10); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
   ctx.fillStyle = 'rgba(40,30,20,0.55)'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  let ht = p > 0 ? 'ещё… ↑' : '↑ потяни циновку вверх — скрутить'; if (ctx.measureText(ht).width > hd.w - 24) ht = '↑ скрутить';
-  ctx.fillText(ht, hd.x + hd.w / 2, hd.y + hd.h / 2);
+  if (L.sheet.uAxis === 'x') {   // ручка — вертикальная полоса сбоку, текст кладётся вдоль неё
+    const arr = SHEET_U0 === 'left' ? '→' : '←', dir = SHEET_U0 === 'left' ? 'вправо' : 'влево';
+    let ht = p > 0 ? `ещё… ${arr}` : `${arr} потяни циновку ${dir} — скрутить`;
+    ctx.save(); ctx.translate(hd.x + hd.w / 2, hd.y + hd.h / 2); ctx.rotate(-Math.PI / 2);
+    if (ctx.measureText(ht).width > hd.h - 24) ht = `${arr} скрутить`;
+    ctx.fillText(ht, 0, 0); ctx.restore();
+  } else {
+    let ht = p > 0 ? 'ещё… ↑' : '↑ потяни циновку вверх — скрутить'; if (ctx.measureText(ht).width > hd.w - 24) ht = '↑ скрутить';
+    ctx.fillText(ht, hd.x + hd.w / 2, hd.y + hd.h / 2);
+  }
   drawPreviewArea(p);
   buttons = [];
   const area = L.layBtn;

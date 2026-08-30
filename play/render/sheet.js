@@ -146,11 +146,15 @@ function drawPatchTop(p, alpha = 1, z0 = 0) {
   }
   ctx.restore();
 }
-function drawMat(x, y, w, h, r = 14, b = B()) {
+// vert — прутья вертикально: у настоящей макису прутья ПОПЕРЁК направления скрутки, поэтому
+// при повёрнутом листе (#23, скрутка по горизонтали) циновка под листом рисуется с vert=true.
+// Функция общая с доской реза — там ролл всегда горизонтален и флаг не передаётся.
+function drawMat(x, y, w, h, r = 14, b = B(), vert = false) {
   rr(x, y, w, h, r); ctx.fillStyle = b.mat; ctx.fill();
   ctx.save(); rr(x, y, w, h, r); ctx.clip();
   ctx.strokeStyle = b.matLine; ctx.lineWidth = 1.2;
-  for (let yy = y + 3; yy < y + h; yy += 7) { ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + w, yy); ctx.stroke(); }
+  if (vert) for (let xx = x + 3; xx < x + w; xx += 7) { ctx.beginPath(); ctx.moveTo(xx, y); ctx.lineTo(xx, y + h); ctx.stroke(); }
+  else for (let yy = y + 3; yy < y + h; yy += 7) { ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + w, yy); ctx.stroke(); }
   ctx.restore();
 }
 // Кусочки лежат на той же доске, на которой сворачивали. Без неё тёмная нори (#22342b) тонет

@@ -83,7 +83,7 @@ function onDown(x, y, id) {
       return;
     }
     const s = L.sheet;
-    if (inRect(x, y, L.handle) || (S.rollP > 0 && inRect(x, y, s))) { drag.id = id; drag.kind = 'roll'; drag.y0 = y; drag.p0 = S.rollP; drag.lastY = y; drag.lastT = performance.now(); drag.samples = []; drag.moveT = drag.lastT; drag.sampT = drag.lastT; sfx.rustleStart(); return; }
+    if (inRect(x, y, L.handle) || (S.rollP > 0 && inRect(x, y, s))) { drag.id = id; drag.kind = 'roll'; drag.x0 = x; drag.y0 = y; drag.p0 = S.rollP; drag.lastX = x; drag.lastY = y; drag.lastT = performance.now(); drag.samples = []; drag.moveT = drag.lastT; drag.sampT = drag.lastT; sfx.rustleStart(); return; }
     if (inRect(x, y, s)) {
       const p = hitPatch(x, y);
       drag.id = id; drag.x0 = x; drag.y0 = y; drag.moved = false;
@@ -123,8 +123,14 @@ function onMove(x, y, id) {
     S.albumScroll = drag.s0 - (y - drag.y0);
   } else if (drag.kind === 'roll') {
     const now = performance.now();
-    S.rollP = clamp(drag.p0 + (drag.y0 - y) / (L.sheet.lenU * 0.85));
-    const speed = Math.abs(y - drag.lastY) / Math.max(1, now - drag.lastT); drag.lastY = y; drag.lastT = now;
+    // Тяга и её скорость меряются ВДОЛЬ ОСИ СКРУТКИ: по вертикали, пока лист лежит осью u вверх,
+    // по горизонтали — когда повёрнут (#23); знак горизонтали задаёт сторона u = 0 (SHEET_U0).
+    // Чинить прогресс и скорость можно только ПАРОЙ: замер по новой оси при старом vRef молча
+    // перекосил бы «почерк» — v упирается в потолок, air залипает, и все роллы выходят одинаковыми.
+    const dPull = L.sheet.uAxis !== 'x' ? (drag.y0 - y) : (SHEET_U0 === 'left' ? x - drag.x0 : drag.x0 - x);
+    S.rollP = clamp(drag.p0 + dPull / (L.sheet.lenU * 0.85));
+    const dStep = L.sheet.uAxis !== 'x' ? Math.abs(y - drag.lastY) : Math.abs(x - drag.lastX);
+    const speed = dStep / Math.max(1, now - drag.lastT); drag.lastX = x; drag.lastY = y; drag.lastT = now;
     if (drag.samples && now - drag.sampT >= 8) { drag.samples.push(speed); drag.sampT = now; if (drag.samples.length > 240) drag.samples.shift(); }
     if (speed > 0.05) drag.moveT = now;
     sfx.rustle(speed * 1.5);

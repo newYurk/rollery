@@ -78,7 +78,7 @@ function tween(from, to, dur, apply, done) {
 }
 
 // ---------------------------------------------------------------- ввод
-const drag = { id: null, kind: null, x0: 0, y0: 0, patch: null, ou: 0, ov: 0, moved: false, p0: 0, lastY: 0, lastT: 0 };
+const drag = { id: null, kind: null, x0: 0, y0: 0, patch: null, ou: 0, ov: 0, moved: false, p0: 0, lastX: 0, lastY: 0, lastT: 0 };
 const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 // Единственная точка перевода «экран → доли листа». Сначала toSheet (снимает поворот листа,
 // если тот лежит боком, #23), дальше прежняя формула в логическом пространстве SB.
