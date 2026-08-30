@@ -565,16 +565,31 @@ function computeCore(list, g) {
   }
   const half = sFold / 2;
   const core = { sFold, Wc: half, items: [], HA: T, HB: T };
-  const inside = list.filter(p => p.u * L < sFold);
-  for (const p of inside) { const far = p.u * L >= half; if (!ING[p.kind].paint) { if (far) core.HB = Math.max(core.HB, p.z1 * T); else core.HA = Math.max(core.HA, p.z1 * T); } }
+  // ТВЁРДЫЕ куски уезжают в ядро ЦЕЛИКОМ по центру: брусок не разрезать подворотом пополам.
+  const inside = list.filter(p => !ING[p.kind].paint && p.u * L < sFold);
+  for (const p of inside) { const far = p.u * L >= half; if (far) core.HB = Math.max(core.HB, p.z1 * T); else core.HA = Math.max(core.HA, p.z1 * T); }
+  const W = g.w;
   for (const p of inside) {
     p.inCore = true; const d = ING[p.kind], far = p.u * L >= half;
     let y0, y1;
-    const W = g.w;
-    if (d.paint) { y0 = W + (far ? 0 : core.HB); y1 = W + (far ? core.HB : core.HB + core.HA); }
-    else if (far) { y0 = W + p.z0 * T; y1 = W + p.z1 * T; }
+    if (far) { y0 = W + p.z0 * T; y1 = W + p.z1 * T; }
     else { y0 = W + core.HB + core.HA - p.z1 * T; y1 = W + core.HB + core.HA - p.z0 * T; }
-    core.items.push({ p, d, y0, y1, far, paint: !!d.paint, round: !!d.round, lens: !!d.lens });
+    core.items.push({ p, d, y0, y1, far, paint: false, round: !!d.round, lens: !!d.lens });
+  }
+  // КРАСКА — НЕ ТЕЛО, А ЦВЕТ РИСА, и подворот её РЕЖЕТ, а не утаскивает целиком (issue #95).
+  // Прежнее правило «по центру» давало ядро без краски вовсе: полоса у края центром лежала за
+  // линией подворота, в inside не попадала — и при ПОЛНОСТЬЮ закрашенном листе ядро выходило
+  // белым все 360° (замер: 4320/4320 точек «core»). Владелец это увидела на телефоне.
+  // Теперь краска входит в ядро ПЕРЕСЕЧЕНИЕМ с [0, sFold]: ближняя половина сгиба красит верх
+  // (постель перевёрнута), дальняя — низ; точную обрезку по sU делает система координат
+  // coreMaterial сама (x ∈ [0, half] покрывает ровно [0, sFold]). inCore краске НЕ ставится:
+  // её часть за сгибом остаётся в намотке (та всё равно начинается с sStart = sFold).
+  for (const p of list) {
+    const d = ING[p.kind]; if (!d.paint) continue;
+    const w2 = dims(p, g).du * L / 2, s0 = p.u * L - w2, s1 = p.u * L + w2;
+    if (s1 <= 0 || s0 >= sFold) continue;
+    if (s0 < half) core.items.push({ p, d, y0: W + core.HB, y1: W + core.HB + core.HA, far: false, paint: true, round: false, lens: false });
+    if (s1 > half) core.items.push({ p, d, y0: W, y1: W + core.HB, far: true, paint: true, round: false, lens: false });
   }
   // Нори — один непрерывный лист. Внутри ядра он идёт тремя участками: по верху постели (подвёрнутый
   // ближний край — «крючок»), вокруг сгиба и обратно по низу постели, откуда уходит в намотку.
@@ -610,6 +625,22 @@ function coreMaterial(m, r, phi, vSlice) {
     if (!it.far) { lz = 1 - lz; }
     if (!it.paint) { const sp = cutSpan(it.d, lu); if (lz < sp[0] || lz > sp[1]) continue; }
     return { cls: 'patch', mt: { p: it.p, d: it.d, lu, lz, lv: along / rg[4] } };
+  }
+  // ПУСТОТА БЛИЖНЕГО КЛАПАНА (issue #95). У подвёрнутой половины постели рис есть не везде:
+  // голая полоса у кромки (до SPREAD_START) складывается внутрь как нори-«крючок» без риса.
+  // Прямоугольная модель ядра отдавала этот объём белому «рису», которого там нет, — при
+  // полностью закрашенном листе внизу-справа ядра оставался белый сектор. Физически прижим
+  // схлопывает пустоту, и объём занимает НИЖНИЙ слой — дальняя половина сгиба; краску берём у
+  // неё на той же поперечной координате. Твёрдые куски так не продлеваем: у них своя высота.
+  const sUnear = half - x;
+  if (sUnear >= 0 && spreadAt(sUnear / L, m.g) <= 1e-6) {
+    for (let i = c.items.length - 1; i >= 0; i--) {
+      const it = c.items[i]; if (!it.paint || !it.far) continue;
+      const rg = patchSRange(it.p, vSlice, m.g); if (!rg) continue;
+      if (x < rg[0] - half || x > rg[1] - half) continue;
+      const sU = half + x, du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
+      return { cls: 'patch', mt: { p: it.p, d: it.d, lu: across / rg[3], lz: 0.5, lv: along / rg[4] } };
+    }
   }
   return { cls: 'core' };
 }

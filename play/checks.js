@@ -263,6 +263,34 @@ function runChecks(detail) {
       ok(!primBoxesOverlap(A, B2), 'примитивы: бруски встык сочтены пересекающимися');
     } else notes.push('модули inverse не загрузились — их разделы пропущены');
 
+    // ── 5б. ДОСТИЖИМОСТЬ ЯДРА КРАСКОЙ (issue #95) ──
+    // Полностью закрашенный лист обязан давать полностью закрашенный срез: ядро — без единой
+    // белой точки, намотка — тоже, если краска доведена до конца листа. Ловит ровно тот дефект,
+    // который владелец увидела на телефоне: краска бралась в ядро «по центру патча», полоса у
+    // края в ядро не попадала, и центр выходил белым все 360°.
+    {
+      S.base = 'futo'; S.wrap = null; clean();
+      const bb5 = B(), Lu5 = sheetLen(bb5), u05 = 0.048;
+      const seg5 = (bb5.spreadEnd - u05) / 4;
+      const mk5 = (k, i) => ({ kind: k, u: u05 + seg5 * (i + 0.5), v: 0.5, z0: 0, z1: 1, phase: 0, wU: seg5 * Lu5, dv: 1 });
+      const tail5 = { kind: 'riceBlack', u: (u05 + 3 * seg5 + 1) / 2, v: 0.5, z0: 0, z1: 1, phase: 0, wU: (1 - (u05 + 3 * seg5)) * Lu5, dv: 1 };
+      S.lists.futo = [mk5('ricePink', 0), mk5('riceYellow', 1), mk5('riceGreen', 2), tail5];
+      touchModel();
+      const m5 = getModel(), wd5 = windFor(m5, 0.5);
+      let coreWhite5 = 0, corePts5 = 0, spreadWhite5 = 0;
+      for (let ai = 0; ai < 72; ai++) for (let ri = 0; ri < 40; ri++) {
+        const r5 = (ri + 0.5) / 40 * m5.Rmax, phi5 = ai / 72 * TAU;
+        const q5 = materialAt(m5, wd5, 0.5, r5, phi5);
+        const rin5 = innerAt(wd5, phi5), cR5 = rin5 >= 0 ? rin5 : m5.g.r0;
+        if (r5 < cR5) { corePts5++; if (q5 && q5.cls === 'core') coreWhite5++; }
+        if (q5 && q5.cls === 'spread') spreadWhite5++;
+      }
+      ok(corePts5 > 100, `#95: ядро не нашлось на срезе (точек ${corePts5})`);
+      ok(coreWhite5 === 0, `#95: закрашенный лист даёт белое ядро — ${coreWhite5} точек из ${corePts5}`);
+      ok(spreadWhite5 === 0, `#95: краска до конца листа, а в намотке белый рис — ${spreadWhite5} точек`);
+      S.lists.futo = [];
+    }
+
     // ── 6. РАСКЛАДКА: ничего не спрятано молча, палец достаёт ──
     for (const [w, h] of SIZES) {
       W = w; H = h; DPR = 2;
