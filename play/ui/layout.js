@@ -52,8 +52,11 @@ const sheetFloor = () => (TOUCH - 2 * HIT_PAD) * sheetLen(B()) / 2;
 // его до 896 и требует двух рядов. По числу рядов выигрывала колонка, и лист падал с 58,7 %
 // до 37,6 % ради ряда, который ничего не показывал сверх первого. Считать надо видимость,
 // а не строки: два ряда по шесть лучше одного ряда по шесть, но не лучше одного ряда по двадцать.
+// Пол пальца — это минимум ВДОЛЬ ОСИ СКРУТКИ u (sheetFloor считается из длины листа), поэтому
+// ранжируем по alongU, а не по sh: сегодня они совпадают (u лежит по вертикали), но после
+// поворота листа (#23) u уйдёт в ширину, и «самый высокий лист» стал бы отбором не по той оси.
 const betterFit = floor => (a, c) => {
-  const rank = x => (x.sh >= floor ? [1, x.vis, x.area] : [0, 0, x.sh]);
+  const rank = x => (x.alongU >= floor ? [1, x.vis, x.area] : [0, 0, x.alongU]);
   const ra = rank(a), rc = rank(c);
   for (let i = 0; i < 3; i++) if (Math.abs(rc[i] - ra[i]) > 0.5) return rc[i] > ra[i] ? c : a;
   return a;
@@ -69,7 +72,11 @@ function layout() {
   L.rowBtn = { x: ox + (cw - Math.min(cw - 32, 560)) / 2, y: oy + ch - 12 - btnH, w: Math.min(cw - 32, 560), h: btnH, max: 3 };
   if (mode === 'L') {
     const handleH = 32, sh = Math.max(90, ch - panelH - 22 - handleH - 8 - 8), sw = Math.max(120, Math.min(1.3 * sh, 0.55 * cw));
-    L.sheet = { x: ox + 16, y: L.top + 22, w: sw, h: sh };
+    // uAxis/lenU/lenV — ориентация листа на экране (#23): вдоль какой экранной оси лежит ось
+    // скрутки u и сколько пикселей достаётся каждой оси листа. w/h ОСТАЮТСЯ экранными размерами
+    // рамки — на них считаются eaten, накладка предпросмотра и центрирование; всё, что спрашивает
+    // «сколько пикселей на ось узора», читает lenU и не гадает по w/h.
+    L.sheet = { x: ox + 16, y: L.top + 22, w: sw, h: sh, uAxis: 'y', lenU: sh, lenV: sw };
     L.handle = { x: L.sheet.x - 12, y: L.sheet.y + sh + 8, w: sw + 24, h: handleH };
     const sx = L.sheet.x + sw + 28, swid = Math.max(200, cw - sw - 60);
     L.side = { x: sx, y: L.top + 8, w: swid, h: ch - panelH - 16 };
@@ -130,7 +137,7 @@ function layout() {
       const rem = ch - (panelH + 26 + belowSheet + bottomPad) - bnd - rowsC * chipRow;
       const sh = Math.max(90, rem);
       const eaten = (!bnd && showPrev) ? (k > 1 ? sw * (Math.min(56, (sw - 16 - 6 * (k - 1)) / k) + 16) : 102 * 102) : 0;
-      return { band: bnd, rows: rowsC, sh, vis: Math.min(n, rowsC * perFitP), area: sw * sh - eaten };
+      return { band: bnd, rows: rowsC, sh, alongU: sh, vis: Math.min(n, rowsC * perFitP), area: sw * sh - eaten };
     };
     // Здесь стоял ЖЁСТКИЙ ПОРЯДОК УСТУПОК: первый план с остатком ≥ пола и выиграл. Из-за него
     // полоса предпросмотра оставалась всегда, пока лист формально дотягивал до пола, — на 390x844
@@ -141,7 +148,7 @@ function layout() {
     const plP = candsP.reduce(betterFit(FLOOR));
     const band = plP.band, rows = plP.rows, sh = plP.sh, perRow = Math.ceil(n / rows);
     L.previewMode = showPrev ? (band ? 'band' : 'overlay') : 'none';
-    L.sheet = { x: ox + (cw - sw) / 2, y: L.top + 26 + band, w: sw, h: sh };
+    L.sheet = { x: ox + (cw - sw) / 2, y: L.top + 26 + band, w: sw, h: sh, uAxis: 'y', lenU: sh, lenV: sw };
     L.handle = { x: L.sheet.x - 18, y: L.sheet.y + sh + 8, w: sw + 36, h: handleH };
     L.layBtn = { x: L.rowBtn.x, y: L.handle.y + handleH + 12, w: L.rowBtn.w, h: btnH, max: 3 };
     L.chips = { x: ox + 12, y: L.layBtn.y + btnH + 12, w: stripW, size: chipSize, rows, labels: true, perRow, pad };
@@ -196,7 +203,7 @@ function layout() {
       // Сколько чипов видно без прокрутки в ЭТОЙ раскладке — вторая ступень отбора.
       const innerC = Math.max(chipSize, sw + 36 - 2 * pad);
       const vis = Math.min(n, rows * Math.max(1, Math.floor((innerC + 8) / (chipSize + 8))));
-      return { band: bnd, side, rows, sw, sh, boxH: bh, vis, area: sw * sh - eaten };
+      return { band: bnd, side, rows, sw, sh, alongU: sh, boxH: bh, vis, area: sw * sh - eaten };
     };
     // Где предпросмотру стоять — решает СРАВНЕНИЕ ПО СУЩЕСТВУ, а не доля высоты. Прежний потолок
     // «полоса не больше пятой части высоты» был угаданным числом и решал судьбу листа: на 1024x768
@@ -219,7 +226,7 @@ function layout() {
     const spare = Math.max(0, boxH - sh);
     const groupW = sw + (sideOn ? 24 + scol : 0);
     const bx = Math.max(ox + 22, ox + (cw - groupW) / 2);
-    L.sheet = { x: bx, y: L.top + 26 + band + spare / 2, w: sw, h: sh };
+    L.sheet = { x: bx, y: L.top + 26 + band + spare / 2, w: sw, h: sh, uAxis: 'y', lenU: sh, lenV: sw };
     L.handle = { x: bx - 18, y: L.sheet.y + sh + 8, w: sw + 36, h: handleH };
     L.layBtn = { x: bx - 18, y: L.handle.y + handleH + 12, w: sw + 36, h: btnH, max: 3 };
     L.chips = { x: bx - 18, y: L.layBtn.y + btnH + 12, w: sw + 36, size: chipSize, rows, labels: true, perRow, pad };

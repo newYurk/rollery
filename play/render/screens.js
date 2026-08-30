@@ -127,7 +127,11 @@ function drawLay() {
   drawButtons(); drawChips();
   drawTopBar(drag.patch ? hints.layMove : sel ? hints.laySel : S.puzzle ? (L.previewMode === 'side' ? hints.puzzle : levelTitle(S.puzzle.lv, S.puzzle.level)) : hints.lay);
 }
-function rollDims() { const m = getModel(), s = L.sheet; const k = L.roll.len / s.w; return { g: m.g, R: m.Rmax * s.h / m.g.L * k, len: L.roll.len }; }
+// Мост «лист → доска реза»: длина ролла на доске масштабируется от экранной протяжённости оси v
+// (длины ролла на листе), радиус — от пикселей на единицу оси u. Раньше тут стояли s.w и s.h —
+// верно только пока u вертикальна; после поворота (#23) формула на w/h раздула бы радиус в
+// (lenU/lenV)² раз и утянула за собой нож, размах удара и разлёт половин.
+function rollDims() { const m = getModel(), s = L.sheet; const k = L.roll.len / s.lenV; return { g: m.g, R: m.Rmax * s.lenU / m.g.L * k, len: L.roll.len }; }
 function drawBoard(R, len, alpha = 1) {
   ctx.save(); ctx.globalAlpha = alpha; drawMat(L.roll.x - len / 2 - 26, L.roll.y - R - 36, len + 52, 2 * R + 72); ctx.restore();
 }

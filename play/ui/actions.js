@@ -123,7 +123,7 @@ function onMove(x, y, id) {
     S.albumScroll = drag.s0 - (y - drag.y0);
   } else if (drag.kind === 'roll') {
     const now = performance.now();
-    S.rollP = clamp(drag.p0 + (drag.y0 - y) / (L.sheet.h * 0.85));
+    S.rollP = clamp(drag.p0 + (drag.y0 - y) / (L.sheet.lenU * 0.85));
     const speed = Math.abs(y - drag.lastY) / Math.max(1, now - drag.lastT); drag.lastY = y; drag.lastT = now;
     if (drag.samples && now - drag.sampT >= 8) { drag.samples.push(speed); drag.sampT = now; if (drag.samples.length > 240) drag.samples.shift(); }
     if (speed > 0.05) drag.moveT = now;
@@ -152,7 +152,7 @@ function measureHand() {
   const use = sm.filter(v => v > 0.02).sort((a, b) => a - b); if (use.length < 5) return;
   const q = f => use[clamp(Math.round(f * (use.length - 1)), 0, use.length - 1)];
   const med = q(0.5), spread = (q(0.75) - q(0.25)) / Math.max(med, 1e-3);   // медиана и межквартильный разброс — устойчивы к выбросам
-  const vRef = L.sheet.h / 600;                                   // спокойная тяга — примерно за 600 мс
+  const vRef = L.sheet.lenU / 600;                                // спокойная тяга — примерно за 600 мс (ход = ось скрутки)
   const v = clamp(med / vRef, 0.3, 3), cv = clamp(spread, 0, 1.5);
   const hold = clamp((performance.now() - drag.moveT) / 900, 0, 1);
   const phase = (sm.reduce((a, b, i) => a + b * (i + 1), 0) % TAU + TAU) % TAU;
