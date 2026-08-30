@@ -24,6 +24,21 @@ function probeClassAt(m, wd, vSlice, r, phi) {
   return q.cls;
 }
 
+// Карта материалов среза, свёрнутая в сравнимый вид: сколько пикселей каждого класса
+// плюс выборка значений в фиксированных точках. Полная карта 56×56 в слепок не кладётся —
+// её и незачем хранить целиком: счётчики ловят сдвиг долей, выборка ловит сдвиг узора.
+// Это характеризация ЧИТАЮЩЕГО пути (materialMap → similarity), который переезжает за
+// facade: слепок снят ДО переезда, поэтому проверка после него — настоящая, а не тавтология.
+function mapSignature(m, vSlice) {
+  const size = 56, map = materialMap(size, vSlice, m, m.Rmax);
+  const counts = {}, probe = [];
+  for (let i = 0; i < map.length; i++) counts[map[i]] = (counts[map[i]] || 0) + 1;
+  for (let i = 0; i < map.length; i += 337) probe.push(map[i]);   // 337 — взаимно простое с 56²
+  const out = { counts: {}, probe: probe.join('') };
+  for (const k of Object.keys(counts).sort((a, b) => a - b)) out.counts[k] = counts[k];
+  return out;
+}
+
 // Полный набор инвариантов модели: числа намотки + доли материалов + пробы.
 // round4 держит сравнение устойчивым к последнему биту double.
 function rollInvariants(m) {
@@ -61,6 +76,11 @@ function rollInvariants(m) {
     }
   }
   for (const k of Object.keys(counts).sort()) inv.materialFractions[k] = r4(counts[k] / total);
+  // Карта материалов и самоподобие: путь, который переезжает за facade (issue #72, шаг 2).
+  // similarity(m, m) обязана давать ровно 1 — модель похожа на себя; если переезд что-то
+  // сдвинет, это первое, что перестанет быть единицей.
+  inv.map = mapSignature(m, 0.5);
+  inv.selfSimilarity = r4(similarity(m, m, [0.5]));
   return inv;
 }
 
@@ -82,6 +102,17 @@ function invariantsDiff(a, b, tol) {
   if (a.patchCount !== b.patchCount) out.push(`patchCount: ${a.patchCount} ≠ ${b.patchCount}`);
   const keys = new Set([...Object.keys(a.materialFractions), ...Object.keys(b.materialFractions)]);
   for (const k of keys) num('доля ' + k, a.materialFractions[k] || 0, b.materialFractions[k] || 0);
+  num('selfSimilarity', a.selfSimilarity, b.selfSimilarity);
+  if (a.map && b.map) {
+    const mk = new Set([...Object.keys(a.map.counts), ...Object.keys(b.map.counts)]);
+    for (const k of mk) num('карта, класс ' + k, a.map.counts[k] || 0, b.map.counts[k] || 0);
+    if (a.map.probe !== b.map.probe) {
+      let bad = 0;
+      for (let i = 0; i < Math.max(a.map.probe.length, b.map.probe.length); i++)
+        if (a.map.probe[i] !== b.map.probe[i]) bad++;
+      out.push(`карта среза: ${bad} проб из ${a.map.probe.length} не совпали`);
+    }
+  } else if (!!a.map !== !!b.map) out.push('карта среза есть только у одной стороны');
   const n = Math.max(a.probes.length, b.probes.length);
   let bad = 0;
   for (let i = 0; i < n; i++) if (a.probes[i] !== b.probes[i]) bad++;

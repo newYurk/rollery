@@ -149,6 +149,85 @@ function sliceAt(roll, position, options) {
   return { ok: true, position: v, rings, rays, radius: m.Rmax, cells, fractions };
 }
 
+// ── карта материалов и сравнение (первый переезд потребителя, issue #72) ─────
+//
+// Это ЧИТАЮЩИЙ путь, вынесенный из play/render/slice.js: он ничего не рисует и ничего не
+// мутирует — считает, из какого материала каждая точка среза, и насколько два ролла похожи.
+// В рендере он оказался исторически (там же лежит face()), а по существу это домен: его
+// потребитель — оценка пазла, а не отрисовка. Вычисление перенесено ДОСЛОВНО; в slice.js
+// остались тонкие обёртки прежних имён, поэтому вызывающие не тронуты.
+//
+// ⚠ Одна зависимость осталась в рендере намеренно: shapeInfo/shapeK (форма прессовки).
+// Они нужны и рисованию, и карте; тащить их сюда — это уже второй переезд, а этот PR
+// сознательно узкий. Обращения происходят при вызове, порядок подключения не мешает.
+//
+// ⚠ Совместимость: `m.shape || S.shape` сохранён как был. Это чтение глобального состояния
+// внутри «чистой» функции — тот самый шов, который снимается не здесь, а когда S перестанет
+// быть источником рецепта. Записано, чтобы не выглядело недосмотром.
+
+const ROLL_MAP_SIZE = 56;                 // сторона карты сравнения, px
+const ROLL_KIND_IDS = Object.keys(ING);   // 0 — вне, 1 — рис/сердцевина, 2 — обёртка, 3+ — начинка
+
+// Карта материалов среза как Uint8Array size×size. Rref — общий масштаб (у двух моделей он
+// обязан быть один, иначе карты несравнимы).
+function materialMapOf(size, vSlice, m, Rref) {
+  const si = shapeInfo(m.shape || S.shape, m.Rmax, m.g.press), wd = windFor(m, vSlice);
+  const out = new Uint8Array(size * size), half = size / 2, scale = (half - 1) / (Rref * si.margin);
+  for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
+    const dx = (px + 0.5 - half) / scale, dy = (py + 0.5 - half) / scale;
+    let phi = Math.atan2(dy, dx); if (phi < 0) phi += TAU;
+    const r = Math.hypot(dx, dy) * shapeK(phi, si);
+    if (r > wd.Rout) continue;
+    const mat = materialAt(m, wd, vSlice, r, phi);
+    out[py * size + px] = mat.cls === 'out' ? 0 : mat.cls === 'wrap' ? 2 : mat.cls === 'patch' ? 3 + ROLL_KIND_IDS.indexOf(mat.mt.p.kind) : 1;
+  }
+  return out;
+}
+
+// Похожесть двух моделей по срезам vs — Dice по классам начинок с допуском в пиксель.
+// Рис и обёртка в счёт не идут (a[i] >= 3): считается узор, а не фон.
+// total намеренно считает каждую карту отдельно: total = |A| + |B|, hits = 2·|A ∧ B|.
+// Ревью 26.08 сочло двойной счёт ошибкой — это неверно: со «счётом один раз» полное
+// совпадение даёт 1,33, а не 1. Не «чинить».
+function similarityOf(mA, mB, vs) {
+  const size = ROLL_MAP_SIZE, Rref = Math.max(mA.Rmax, mB.Rmax);
+  let hits = 0, total = 0;
+  const near = (map, i, id) => { const x = i % size, y = (i / size) | 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const xx = x + dx, yy = y + dy;
+      if (xx >= 0 && yy >= 0 && xx < size && yy < size && map[yy * size + xx] === id) return true; }
+    return false; };
+  for (const v of vs) {
+    const a = materialMapOf(size, v, mA, Rref), b = materialMapOf(size, v, mB, Rref);
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] >= 3) { total++; if (near(b, i, a[i])) hits++; }
+      if (b[i] >= 3) { total++; if (near(a, i, b[i])) hits++; }
+    }
+  }
+  return total ? hits / total : 1;
+}
+
+// Доменный вход: карта среза по DTO ролла, свёрнутая в сравнимый вид (счётчики + выборка).
+// Полную карту наружу не отдаём: её единственный потребитель — сравнение, а хранить 3136
+// байт на срез в слепке незачем.
+function sliceMaterialMap(roll, position, options) {
+  if (!roll || !roll.ok) return { counts: {}, probe: '' };
+  const opt = options || {}, size = opt.size || ROLL_MAP_SIZE, m = roll.legacyModel;
+  const map = materialMapOf(size, position === undefined ? 0.5 : position, m, opt.Rref || m.Rmax);
+  const counts = {}, probe = [];
+  for (let i = 0; i < map.length; i++) counts[map[i]] = (counts[map[i]] || 0) + 1;
+  for (let i = 0; i < map.length; i += 337) probe.push(map[i]);
+  const out = { counts: {}, probe: probe.join('') };
+  for (const k of Object.keys(counts).sort((a, b) => a - b)) out.counts[k] = counts[k];
+  return out;
+}
+
+// Доменный вход: насколько похожи два ролла на заданных срезах. 1 — совпали.
+function compareRolls(rollA, rollB, positions) {
+  if (!rollA || !rollA.ok || !rollB || !rollB.ok) return 0;
+  return similarityOf(rollA.legacyModel, rollB.legacyModel, positions || [0.5]);
+}
+
 // ── раскладка листа ──────────────────────────────────────────────────────────
 
 // Геометрия вида сверху для заданного окна — ДАННЫЕ (рамка листа, ручка циновки, ориентация).

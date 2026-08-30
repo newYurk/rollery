@@ -34,6 +34,9 @@ function facadeInvariants(fx) {
     }
   }
   for (const k of Object.keys(counts).sort()) inv.materialFractions[k] = r4(counts[k] / total);
+  // Карта материалов и самоподобие — через DTO facade, а не через roll.legacyModel.
+  inv.map = sliceMaterialMap(roll, 0.5);
+  inv.selfSimilarity = r4(compareRolls(roll, roll, [0.5]));
   return inv;
 }
 
