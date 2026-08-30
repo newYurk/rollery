@@ -30,6 +30,12 @@ SR = 44100
 BPM = 96
 BEAT = 60.0 / BPM
 
+# КОРИДОР ДЛИТЕЛЬНОСТИ (требование владельца 30.08.2026): не короче 13 и не длиннее 30 секунд.
+# Короче — не успевает прозвучать тема и петля начинает надоедать частотой повтора;
+# длиннее — перестаёт быть заставкой и требует развития, которого в чиптюне на четыре
+# канала взять неоткуда. Проверяется на выходе: файл вне коридора просто не пишется.
+MIN_SEC, MAX_SEC = 13.0, 30.0
+
 # ── ноты ─────────────────────────────────────────────────────────────────────
 A4 = 440.0
 NAMES = {'C': -9, 'C#': -8, 'D': -7, 'D#': -6, 'E': -5, 'F': -4,
@@ -190,12 +196,16 @@ def render():
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else 'rollery-theme.wav'
     samples = render()
+    dur = len(samples) / SR
+    if not (MIN_SEC <= dur <= MAX_SEC):
+        sys.exit(f'длительность {dur:.1f} с вне коридора {MIN_SEC:.0f}–{MAX_SEC:.0f} с — '
+                 f'править партитуру (LEAD/BASS/CHORDS) или темп, а не порог')
     with wave.open(path, 'w') as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(SR)
         w.writeframes(b''.join(struct.pack('<h', int(max(-1, min(1, v)) * 32767)) for v in samples))
-    print(f'{path}: {len(samples) / SR:.1f} с, {BPM} BPM, ре мажорная пентатоника')
+    print(f'{path}: {dur:.1f} с (коридор {MIN_SEC:.0f}–{MAX_SEC:.0f}), {BPM} BPM, ре мажорная пентатоника')
 
 
 if __name__ == '__main__':
