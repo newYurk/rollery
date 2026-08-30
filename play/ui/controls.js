@@ -80,7 +80,7 @@ function drawTopBar(hint) {
   // рискован. Настоящий выбор — образцы на циновке вплотную к листу, issue #13.
   // Минимальный стенд (#96): альбом, пазл и выбор обёртки — только с ?full (пазл остаётся,
   // если игрок пришёл по ссылке ?puzzle — тогда FULL_UI и так включён).
-  const items = [['base', B().emoji], ['shape', SHAPES[S.shape].glyph],
+  const items = [...(uiBases().length > 1 ? [['base', B().emoji]] : []), ['shape', SHAPES[S.shape].glyph],
                  ...(FULL_UI ? [['album', '★'], ['puzzle', '🧩']] : []),
                  ['preview', '👁'], ['mute', S.mute ? '🔇' : '🔊']];
   if (FULL_UI && !B().wrapFixed) items.splice(1, 0, ['sheet', '●']);
