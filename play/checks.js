@@ -44,7 +44,7 @@ const ROUND_MAX_HAND = 20;            // при любой достижимой 
 // не дотянуть НИКАКИМ ореолом. Ландшафтный телефон — ориентация для скрутки, реза и
 // просмотра, но не для раскладки. Это ограничение, а не дефект.
 const LAY_SKIP = ['844x390'];
-const SIZES = [[390, 844], [844, 390], [1024, 768], [1024, 1366], [1440, 900]];
+const SIZES = [[390, 844], [844, 390], [1024, 768], [1024, 1366], [1180, 820], [1440, 900]];
 
 function runChecks(detail) {
   const fails = [], notes = [], known = [];
@@ -281,6 +281,15 @@ function runChecks(detail) {
             ok(patch + 2 * pad >= need,
                `${tag}: цель касания ${(patch + 2 * pad).toFixed(1)} px, норма ${need} (брусок ${patch.toFixed(1)} + ореол ${pad}×2)`);
           ok(L.sheet.w > 0 && L.sheet.h > 0, `${tag}: лист схлопнулся`);
+          // H. Ручка циновки лежит со стороны начала скрутки (u = 0) и не наезжает на лист:
+          // соответствие ручки и оси тяги, а не два независимо правильных числа.
+          {
+            const sh2 = L.sheet, hd2 = L.handle;
+            const sideOk = sh2.uAxis === 'x'
+              ? (typeof SHEET_U0 !== 'undefined' && SHEET_U0 === 'right' ? hd2.x >= sh2.x + sh2.w : hd2.x + hd2.w <= sh2.x)
+              : hd2.y >= sh2.y + sh2.h;
+            ok(sideOk, `${tag}: ручка циновки не со стороны u=0 (uAxis ${sh2.uAxis})`);
+          }
           // ── Ориентация листа (#23). Два чека против расхождения двух описаний направления.
           // A. Круговой перевод: экран → лист → экран возвращает ту же точку, а sheetUV согласован
           //    с patchRect (прямое и обратное преобразования живут в РАЗНЫХ файлах — index.html и
@@ -310,16 +319,62 @@ function runChecks(detail) {
             ok(hitPatch(off.x, off.y) !== tp, `${tag}: палец за ореолом кусок ВСЁ РАВНО берёт`);
             patches().pop();
           }
-          // ПРОПОРЦИЯ ЛИСТА. Настоящий лист имеет свои размеры, а рисуется он в свободное место —
-          // и на широких экранах зерно растягивается вдвое (замер и разбор — issue #23). Растянуты
-          // при этом и начинки, и расстояния: раскладка на широком экране обманывает игрока.
-          // Держим как ИЗВЕСТНО: починка — выбор компоновки, а не правка кода.
+          // АНИЗОТРОПИЯ ЛИСТА. Пиксели на единицу длины по осям листа: kU — вдоль скрутки (узор),
+          // kV — вдоль ролла. Раньше здесь сравнивались w/h с пропорцией листа — формула, верная
+          // только пока u вертикальна; теперь сравнение идёт по осям и переживает поворот (#23).
+          // Остаётся kn СОЗНАТЕЛЬНО: поворот снизил искажение (на 1440×900 с ×2,23 до ~×0,44 в
+          // другую сторону), но не убрал; превратить это в «ок» — ослепить детектор.
           if (!prev) {
-            const bb = B(), trueAsp = bb.Wv / sheetLen(bb), gotAsp = L.sheet.w / L.sheet.h;
-            kn(Math.abs(gotAsp - trueAsp) / trueAsp <= 0.12,
-               `${tag}: лист растянут ×${(gotAsp / trueAsp).toFixed(2)} — ${gotAsp.toFixed(2)} против ${trueAsp.toFixed(2)} (issue #23)`);
+            const bb = B(), kU = L.sheet.lenU / sheetLen(bb), kV = L.sheet.lenV / bb.Wv, ratio = kV / kU;
+            kn(Math.abs(ratio - 1) <= 0.12,
+               `${tag}: анизотропия ×${ratio.toFixed(2)} — по v ${kV.toFixed(1)} px/ед против ${kU.toFixed(1)} по u (issue #23)`);
+            // Требование к повёрнутому листу: ось узора обязана рисовать зерно цвета (3,5 мм ≥ 10 px
+            // при DPR 2) — это цена цветного риса #47; ради неё поворот и делался.
+            if (L.sheet.uAxis === 'x')
+              ok(kU / U_MM >= 3.0, `${tag}: повёрнут, но ось узора даёт лишь ${(kU / U_MM).toFixed(2)} px/мм (надо ≥ 3)`);
+            // Худшая цель касания среди начинок базы — теперь по ОБЕИМ осям (узкие полоски —
+            // известное ограничение, а не провал: краска 1,5 ед = 7,5 мм уже пальца, issue #47).
+            let worst = null;
+            for (const kk of B().ingredients) {
+              const m2 = dims({ kind: kk });
+              const t2 = Math.min(m2.du * L.sheet.lenU, m2.dv * L.sheet.lenV) + 2 * pad;
+              if (!worst || t2 < worst.t) worst = { k: kk, t: t2 };
+            }
+            if (LAY_SKIP.indexOf(w + 'x' + h) < 0)
+              kn(worst.t >= need, `${tag}: узкая начинка «${ING[worst.k].name}» — цель ${worst.t.toFixed(1)} px при норме ${need} (issue #47)`);
           }
         }
+      }
+      // ── G. ЖЕСТ ЖИВ: синтетическая протяжка вдоль оси скрутки. Отказ почерка не даёт ни одной
+      // ошибки — просто у всех роллы становятся идеально ровными, а шорох замолкает; поэтому
+      // прогресс, сэмплы скорости и сам замер руки проверяются протяжкой через onDown/onMove/onUp.
+      // Спин-ожидание вместо setTimeout: runChecks синхронный, а сэмплам нужен шаг ≥ 8 мс.
+      {
+        S.base = 'futo'; S.wrap = null; S.lists.futo = []; S.preview = false; clean(); touchModel(); layout();
+        S.rollP = 0;
+        // Кнопки и иконки — от ПОСЛЕДНЕГО нарисованного кадра реального окна, а не от синтетической
+        // раскладки: onDown проверяет их первыми, и ручка синтетического размера может случайно
+        // попасть в кнопку кадра (поймано: центр ручки 390×844 угодил в «Отразить» окна 500×880).
+        buttons.length = 0; icons.length = 0;
+        const hd2 = L.handle, horiz = L.sheet.uAxis === 'x';
+        const sgn = horiz && typeof SHEET_U0 !== 'undefined' && SHEET_U0 === 'right' ? -1 : 1;
+        const hx = hd2.x + hd2.w / 2, hy = hd2.y + hd2.h / 2;
+        onDown(hx, hy, 99);
+        ok(drag.kind === 'roll', `${w}×${h}: ручка циновки не начинает скрутку`);
+        let lx = hx, ly = hy;
+        for (let i2 = 1; i2 <= 8; i2++) {
+          const t0 = performance.now(); while (performance.now() - t0 < 12) {}
+          lx = horiz ? hx + sgn * i2 * 26 : hx; ly = horiz ? hy : hy - i2 * 26;
+          onMove(lx, ly, 99);
+        }
+        ok(S.rollP > 0.08, `${w}×${h}: тяга не крутит (rollP ${S.rollP.toFixed(2)})`);
+        ok(!!drag.samples && drag.samples.length >= 5, `${w}×${h}: сэмплы скорости не копятся (${drag.samples ? drag.samples.length : 0})`);
+        S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
+        onUp(lx, ly, 99);
+        ok(S.hand.press !== 1, `${w}×${h}: почерк не замерился — жест умер молча`);
+        // onUp на полускрутке запускает tween доскрутки/отката, а кадры в синхронной проверке
+        // не идут — anim не погаснет никогда и молча съест onDown следующего размера.
+        anim = null; S.rollP = 0;
       }
     }
     S.preview = false;

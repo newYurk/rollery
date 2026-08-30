@@ -18,6 +18,8 @@ function drawParticles(dt) {
 }
 const hints = {
   lay: 'Выбери начинку и тапни по листу · потяни циновку вверх, чтобы скрутить',
+  layR: 'Выбери начинку и тапни по листу · потяни циновку вправо, чтобы скрутить',
+  layL: 'Выбери начинку и тапни по листу · потяни циновку влево, чтобы скрутить',
   layMove: 'Тащи, чтобы подвинуть · вытащи за лист, чтобы убрать',
   laySel: 'В нори — контур на срезе · поворот — поперёк или по диагонали: рисунок разный в кусочках',
   puzzle: 'Повтори срез: разложи, скрути, разрежь',
@@ -106,9 +108,14 @@ function drawLay() {
   const core = p === 0 && !drag.patch ? getModel().core : null;   // линия подворота: что ниже неё, сомнётся в ядро
   if (core) { const yf = s.y + (1 - core.sFold / getModel().g.L) * s.h; ctx.setLineDash([2, 5]); ctx.strokeStyle = 'rgba(40,30,20,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x, yf); ctx.lineTo(s.x + s.w, yf); ctx.stroke(); ctx.setLineDash([]); unrot(s.x + s.w - 6, yf - 2, () => { ctx.fillStyle = 'rgba(40,30,20,0.55)'; ctx.font = font(10); ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText('подворот — ядро', 0, 0); }); }
   ctx.restore();
-  // ролл в процессе скрутки (внутри трансформа: при повёрнутом листе цилиндр сам встанет вертикально)
-  if (p > 0) { const mm = getModel(); const R = windRout(0.5, p * mm.g.L, mm.g, mm.list) * s.h / mm.g.L; drawRollBody(s.x + s.w / 2, yb, R, s.w + 10, [{ a: 0, b: 1, off: 0 }]); }
   sheetPop();
+  // Ролл в процессе скрутки — ВНЕ трансформа: у цилиндра свой свет (блик, тень), и внутри
+  // поворота листа он лёг бы набок. Позиция фронта переводится в экран через toScreen.
+  if (p > 0) {
+    const mm = getModel(), R = windRout(0.5, p * mm.g.L, mm.g, mm.list) * s.h / mm.g.L;
+    if (L.sheet.uAxis === 'x') { const c = toScreen(s.x + s.w / 2, yb); drawRollBody(c.x, c.y, R, s.w + 10, [{ a: 0, b: 1, off: 0 }], 1, 1, 'v'); }
+    else drawRollBody(s.x + s.w / 2, yb, R, s.w + 10, [{ a: 0, b: 1, off: 0 }]);
+  }
   // циновка-ручка: подпись и стрелка — по направлению тяги
   rr(hd.x, hd.y, hd.w, hd.h, 10); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
   ctx.fillStyle = 'rgba(40,30,20,0.55)'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -141,7 +148,8 @@ function drawLay() {
     buttonRow(row, { ...area, max: row.length });
   }
   drawButtons(); drawChips();
-  drawTopBar(drag.patch ? hints.layMove : sel ? hints.laySel : S.puzzle ? (L.previewMode === 'side' ? hints.puzzle : levelTitle(S.puzzle.lv, S.puzzle.level)) : hints.lay);
+  const hintLay = L.sheet.uAxis === 'x' ? (SHEET_U0 === 'left' ? hints.layR : hints.layL) : hints.lay;
+  drawTopBar(drag.patch ? hints.layMove : sel ? hints.laySel : S.puzzle ? (L.previewMode === 'side' ? hints.puzzle : levelTitle(S.puzzle.lv, S.puzzle.level)) : hintLay);
 }
 // Мост «лист → доска реза»: длина ролла на доске масштабируется от экранной протяжённости оси v
 // (длины ролла на листе), радиус — от пикселей на единицу оси u. Раньше тут стояли s.w и s.h —

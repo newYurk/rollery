@@ -71,6 +71,10 @@ function layout() {
   Object.assign(L, { mode, cw, ch, ox, oy, hint2, top: oy + panelH, side: null, previewMode: 'none', previewSize: 116, chipScroll: false, btnH , targetCell: 0});
   L.rowBtn = { x: ox + (cw - Math.min(cw - 32, 560)) / 2, y: oy + ch - 12 - btnH, w: Math.min(cw - 32, 560), h: btnH, max: 3 };
   if (mode === 'L') {
+    // Ландшафтный телефон СОЗНАТЕЛЬНО не повёрнут (#23): раскладка здесь вне нормы касания при
+    // любой ориентации (см. LAY_SKIP в checks.js — лист 258 px против пола 336), это ориентация
+    // для скрутки и просмотра, а не для раскладки. Поворачивать имеет смысл вместе с пересмотром
+    // самой ветки, а не флагом.
     const handleH = 32, sh = Math.max(90, ch - panelH - 22 - handleH - 8 - 8), sw = Math.max(120, Math.min(1.3 * sh, 0.55 * cw));
     // uAxis/lenU/lenV — ориентация листа на экране (#23): вдоль какой экранной оси лежит ось
     // скрутки u и сколько пикселей достаётся каждой оси листа. w/h ОСТАЮТСЯ экранными размерами
@@ -169,13 +173,22 @@ function layout() {
     // шаг витка, число оборотов, ⌀ считаются по-настоящему и ничего не потеряли; на экране лист
     // просто занимает отведённую рамку. Скачок при смене обёртки теперь НОЛЬ ПО ПОСТРОЕНИЮ:
     // в расчёте рамки не осталось ни одной величины, зависящей от обёртки или базы.
-    // Чем платим — лист не показывает пропорций: на ландшафтном окне рамка 0,42, честное — 1,1,
-    // то есть ось u (вдоль скрутки, она же решает узор) сплющена в 2,6 раза. Страховкой был бы
-    // фиксированный, от обёртки не зависящий коридор sh/sw ∈ [0,55; 1,40] — он стоит 20–24 %
-    // площади на 1024x768 и 1440x900 и ноль на остальных; сознательно НЕ включён, ждём практики.
+    // Чем платим — лист не показывает пропорций. Худшую половину этой цены снял ПОВОРОТ (#23,
+    // ниже): ось узора u на широких экранах получает длинную сторону рамки (1,93 → 5,50 px/мм
+    // на 1440×900). Оставшаяся анизотропия (~×0,44 в другую сторону) видна в ?check как kn —
+    // это детектор, а не норма; коридор пропорций по-прежнему сознательно НЕ включён.
     // Полоса цели над листом: цели идут одним рядом, поэтому размер клетки ограничен шириной окна.
     const fsBand = k > 1 ? Math.min(180, (cw - 60 - 8 * (k - 1)) / k) : 116;
     const bandH = showPrev ? Math.round(k > 1 ? fsBand + 40 : 136) : 0;
+    // ПОВОРОТ ЛИСТА (#23): ось скрутки u кладётся по ДЛИННОЙ стороне доступного места, потому что
+    // именно вдоль u раскладка превращается в узор (замер: 1,93 → 5,50 px/мм на 1440×900), а вдоль
+    // v всего ~6 кусков по 32 мм. Решается ФОРМОЙ места, не буквой режима: 1024×1366 — тоже T,
+    // но место там вертикальное, и поворот был бы потерей. Запас 1,15 — чтобы почти-квадратное окно
+    // не дёргалось между ориентациями от появления полосы предпросмотра.
+    const bwR = (mode === 'D' ? Math.min(cw - 44, 1240) : cw - 44);
+    const bhR = ch - panelH - 26 - 12 - btnH - 12 - chipRow - 12;
+    const rot = bwR > bhR * 1.15;
+    const u0left = typeof SHEET_U0 === 'undefined' || SHEET_U0 === 'left';
     // Пол листа — тот же, что на телефоне, и считается одной формулой на всех (sheetFloor).
     const FLOOR = sheetFloor();
     // Одна раскладка при заданном месте предпросмотра и потолке рядов чипов.
@@ -186,13 +199,17 @@ function layout() {
       if (bw < 240) return null;   // колонке негде стоять: узкое окно
       // Рамка целиком: ширина листа — вся ширина блока, высота — весь остаток. Ширина больше
       // не зависит от числа рядов (раньше зависела через target), поэтому считается один раз.
-      const sw = Math.max(120, bw);
+      // При повороте ручка-циновка уезжает с низа на бок: ширина платит handleH + 12, высота
+      // возвращает себе handleH + 8. Лента чипов при повороте меряется от ОКНА, а не от sw + 36:
+      // иначе вторая ступень отбора (видимость чипов) ездит по той же переменной, что и ось узора.
+      const sw = Math.max(120, bw - (rot ? handleH + 12 : 0));
+      const chipInner = rot ? Math.max(chipSize, cw - 24 - 2 * pad) : Math.max(chipSize, sw + 36 - 2 * pad);
       let rows = 1, sh = 0, bh = 0;
       for (;;) {
-        bh = ch - panelH - 26 - bnd - handleH - 8 - 12 - btnH - 12 - rows * chipRow - 12;
-        // Ряд чипов проверяется на ИТОГОВУЮ полосу (sw + 36), а не на bw: они расходятся до 680 px
+        bh = ch - panelH - 26 - bnd - (rot ? 0 : handleH + 8) - 12 - btnH - 12 - rows * chipRow - 12;
+        // Ряд чипов проверяется на ИТОГОВУЮ полосу, а не на bw: они расходятся до 680 px
         // (1440x900, рулет: bw 1240 при sw 561), а лишний чип просто обрезался бы молча.
-        if (rows >= maxRows || n * (chipSize + 8) - 8 <= Math.max(chipSize, sw + 36 - 2 * pad)) break;
+        if (rows >= maxRows || n * (chipSize + 8) - 8 <= chipInner) break;
         rows++;
       }
       sh = Math.max(90, bh);
@@ -201,9 +218,8 @@ function layout() {
         ? (k > 1 ? sw * (Math.min(56, (sw - 16 - 6 * (k - 1)) / k) + 16) : 102 * 102)
         : 0;
       // Сколько чипов видно без прокрутки в ЭТОЙ раскладке — вторая ступень отбора.
-      const innerC = Math.max(chipSize, sw + 36 - 2 * pad);
-      const vis = Math.min(n, rows * Math.max(1, Math.floor((innerC + 8) / (chipSize + 8))));
-      return { band: bnd, side, rows, sw, sh, alongU: sh, boxH: bh, vis, area: sw * sh - eaten };
+      const vis = Math.min(n, rows * Math.max(1, Math.floor((chipInner + 8) / (chipSize + 8))));
+      return { band: bnd, side, rows, sw, sh, alongU: rot ? sw : sh, boxH: bh, vis, area: sw * sh - eaten };
     };
     // Где предпросмотру стоять — решает СРАВНЕНИЕ ПО СУЩЕСТВУ, а не доля высоты. Прежний потолок
     // «полоса не больше пятой части высоты» был угаданным числом и решал судьбу листа: на 1024x768
@@ -215,7 +231,7 @@ function layout() {
     // выше двух рядов без неё, и правило само отдавало бы видимость палитры. Отбор — betterFit.
     const cands = [];
     for (const maxRows of [2, 1]) {
-      if (showPrev) cands.push(fit(bandH, false, maxRows), fit(0, true, maxRows), fit(0, false, maxRows));
+      if (showPrev) { cands.push(fit(bandH, false, maxRows)); if (!rot) cands.push(fit(0, true, maxRows)); cands.push(fit(0, false, maxRows)); }
       else cands.push(fit(0, false, maxRows));
     }
     const pl = cands.filter(Boolean).reduce(betterFit(FLOOR));
@@ -224,6 +240,19 @@ function layout() {
     // Остаток по вертикали делим пополам: лист физически широкий и низкий, весь экран ему не нужен,
     // и блок «лист + циновка + кнопки + лента» стоит по центру, а не прижат к панели.
     const spare = Math.max(0, boxH - sh);
+    if (rot) {
+      // Повёрнутый лист: ось скрутки u — по горизонтали, ручка-циновка — вертикальной полосой
+      // со стороны u = 0 (SHEET_U0), кнопки — сразу под листом, лента чипов — от окна.
+      const groupW = handleH + 12 + sw;
+      const gx0 = Math.max(ox + 22, ox + (cw - groupW) / 2);
+      const bx = u0left ? gx0 + handleH + 12 : gx0;
+      L.sheet = { x: bx, y: L.top + 26 + band + spare / 2, w: sw, h: sh, uAxis: 'x', lenU: sw, lenV: sh };
+      L.handle = u0left ? { x: bx - 12 - handleH, y: L.sheet.y - 18, w: handleH, h: sh + 36 }
+                        : { x: bx + sw + 12, y: L.sheet.y - 18, w: handleH, h: sh + 36 };
+      L.layBtn = { x: bx - 18, y: L.sheet.y + sh + 12, w: sw + 36, h: btnH, max: 3 };
+      L.chips = { x: ox + 12, y: L.layBtn.y + btnH + 12, w: cw - 24, size: chipSize, rows, labels: true, perRow, pad };
+      L.chipScroll = perRow * (chipSize + 8) - 8 > Math.max(chipSize, cw - 24 - 2 * pad);
+    } else {
     const groupW = sw + (sideOn ? 24 + scol : 0);
     const bx = Math.max(ox + 22, ox + (cw - groupW) / 2);
     L.sheet = { x: bx, y: L.top + 26 + band + spare / 2, w: sw, h: sh, uAxis: 'y', lenU: sh, lenV: sw };
@@ -233,6 +262,7 @@ function layout() {
     // Страховка от молчаливого обреза: если полоса уже ряда — включаем прокрутку.
     L.chipScroll = perRow * (chipSize + 8) - 8 > Math.max(chipSize, sw + 36 - 2 * pad);
     if (sideOn) L.side = { x: bx + sw + 24, y: L.top + 16, w: scol, h: ch - panelH - 32 };
+    }
     L.previewMode = showPrev ? (sideOn ? 'side' : band ? 'band' : 'overlay') : 'none';
     L.previewY = L.top + 12 + band / 2;
     // Боковая колонка на планшете уже десктопной (260 против 320): и кружок среза, и клетки целей

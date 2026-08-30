@@ -171,10 +171,28 @@ function drawSlab(items, alpha = 1, b = B(), pad = null) {
   ctx.restore();
 }
 // Цилиндр ролла (вид сверху). pieces: [{a, b, off}] в долях длины, off — сдвиг по x; squash — сплющивание.
-function drawRollBody(xc, yc, R, len, pieces, squash = 1, alpha = 1) {
+function drawRollBody(xc, yc, R, len, pieces, squash = 1, alpha = 1, axis = 'h') {
   const b = B(), wr = b.wrapperRgb;
   ctx.save(); ctx.globalAlpha = alpha;
-  ctx.translate(xc, yc); ctx.scale(1, squash);
+  ctx.translate(xc, yc);
+  if (axis === 'v') {
+    // Вертикальный валик (повёрнутый лист, #23). Рисовать его внутри поворота листа нельзя:
+    // градиент света повернулся бы вместе с геометрией, и блик лёг бы сбоку при тенях сверху.
+    // Здесь свой свет: блик у левой образующей, тень падает вправо — на ещё не скрученный лист.
+    ctx.scale(squash, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(R + 8, 0, R * 0.35, len / 2 + 6, 0, 0, TAU); ctx.fill();
+    const gv = ctx.createLinearGradient(-R, 0, R, 0);
+    gv.addColorStop(0, rgbCss(shade(wr, 0.55))); gv.addColorStop(0.28, rgbCss(mix(wr, [255, 255, 255], S.base === 'cake' ? 0.35 : 0.22)));
+    gv.addColorStop(0.55, rgbCss(wr)); gv.addColorStop(1, rgbCss(shade(wr, 0.4)));
+    for (const pc of pieces) {
+      const y0 = -len / 2 + pc.a * len + pc.off, h = (pc.b - pc.a) * len;
+      ctx.fillStyle = gv; rr(-R, y0, 2 * R, h, 6); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.10)'; rr(-R * 0.62, y0 + 4, R * 0.22, h - 8, 4); ctx.fill();
+    }
+    ctx.restore(); return;
+  }
+  ctx.scale(1, squash);
   // тень
   ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(0, R + 8, len / 2 + 6, R * 0.35, 0, 0, TAU); ctx.fill();
   const g = ctx.createLinearGradient(0, -R, 0, R);
