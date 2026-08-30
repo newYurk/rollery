@@ -19,9 +19,8 @@ added=0
 while IFS=$'\t' read -r num state; do
   echo "$have" | grep -qx "$num" && continue
   url="https://github.com/$REPO/issues/$num"
-  gh project item-add $PROJ --owner $OWNER --url "$url" >/dev/null
-  id=$(gh project item-list $PROJ --owner $OWNER --limit 500 --format json \
-       -q ".items[] | select(.content.number==$num) | .id")
+  # id берём из ответа item-add: свежая карточка попадает в item-list с задержкой
+  id=$(gh project item-add $PROJ --owner $OWNER --url "$url" --format json -q .id)
   gh project item-edit --id "$id" --project-id "$PID" --field-id "$FLD_W" --single-select-option-id "$OPT_USUAL" >/dev/null
   opt=$([ "$state" = "CLOSED" ] && echo "$OPT_DONE" || echo "$OPT_TODO")
   gh project item-edit --id "$id" --project-id "$PID" --field-id "$FLD_S" --single-select-option-id "$opt" >/dev/null
