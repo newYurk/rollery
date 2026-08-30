@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+"""Чиптюн-набросок темы «Ролльни» — синтез, а не сэмплы.
+
+Звук собран по правилам NES-подобного чипа, чтобы попадать в 16-битный пиксель-арт:
+  · мелодия      — импульсная волна (pulse) со скважностью 25 %, лёгкое вибрато после атаки;
+  · подголосок   — та же волна 12,5 %, тише и октавой выше, вступает во второй половине;
+  · бас          — треугольная волна, как в NES (там третий канал именно треугольный);
+  · аккорды      — АРПЕДЖИО: чип не умел играть аккорд одним каналом, поэтому ноты
+                   перебирались так быстро, что ухо слышало созвучие. Это узнаваемая
+                   краска эпохи, а не ограничение, которое надо обходить;
+  · перкуссия    — шум с короткой огибающей (тот самый шумовой канал).
+
+Лад — ре мажорная пентатоника (D E F# A B). Пентатоника звучит по-японски без клише
+вроде «китайской» гаммы, и в ней трудно взять фальшивую ноту: любая нота ложится на любой
+аккорд — удобно, когда музыка должна не отвлекать от готовки.
+
+Темп 96 — спокойный: игра про руки и терпение, а не про погоню.
+
+Аудио в git НЕ КЛАДЁМ (правило папки: результаты работы — локально). В репозитории живёт
+этот генератор; звук он пишет туда, куда скажут аргументом.
+
+    python3 tools/chiptune.py ~/Desktop/rollery-theme.wav
+"""
+import math
+import struct
+import sys
+import wave
+
+SR = 44100
+BPM = 96
+BEAT = 60.0 / BPM
+
+# ── ноты ─────────────────────────────────────────────────────────────────────
+A4 = 440.0
+NAMES = {'C': -9, 'C#': -8, 'D': -7, 'D#': -6, 'E': -5, 'F': -4,
+         'F#': -3, 'G': -2, 'G#': -1, 'A': 0, 'A#': 1, 'B': 2}
+
+
+def hz(note):
+    """'F#4' → частота. 'r' — пауза."""
+    if note == 'r':
+        return 0.0
+    name, octave = note[:-1], int(note[-1])
+    return A4 * (2.0 ** (NAMES[name] / 12.0 + (octave - 4)))
+
+
+# ── огибающая ────────────────────────────────────────────────────────────────
+def env(i, n, attack=0.006, release=0.09, sustain=0.72):
+    """Быстрая атака, спад к сустейну, мягкий уход — характер чипа: щёлкает, но не звенит."""
+    t, dur = i / SR, n / SR
+    if t < attack:
+        return t / attack
+    if t > dur - release:
+        return max(0.0, (dur - t) / release) * sustain
+    decay = 0.05
+    if t < attack + decay:
+        return 1.0 - (1.0 - sustain) * (t - attack) / decay
+    return sustain
+
+
+def pulse(freq, n, duty=0.25, amp=0.22, vib=0.0):
+    """Импульсная волна. vib — глубина вибрато в полутонах, включается не сразу."""
+    out = [0.0] * n
+    if freq <= 0:
+        return out
+    phase = 0.0
+    for i in range(n):
+        f = freq
+        if vib:
+            depth = min(1.0, max(0.0, (i / SR - 0.12) / 0.18))   # вибрато вступает плавно
+            f *= 2.0 ** (vib * depth * math.sin(2 * math.pi * 5.5 * i / SR) / 12.0)
+        phase += f / SR
+        out[i] = (amp if (phase % 1.0) < duty else -amp) * env(i, n)
+    return out
+
+
+def triangle(freq, n, amp=0.30, steps=16):
+    """Треугольник со ступеньками — в NES он квантован, отсюда его характерный «деревянный» бас."""
+    out = [0.0] * n
+    if freq <= 0:
+        return out
+    phase = 0.0
+    for i in range(n):
+        phase += freq / SR
+        x = phase % 1.0
+        tri = 4 * x - 1 if x < 0.5 else 3 - 4 * x            # −1…1
+        tri = round(tri * steps) / steps                     # ступеньки
+        out[i] = tri * amp * env(i, n, attack=0.004, release=0.05, sustain=0.85)
+    return out
+
+
+def noise(n, amp=0.10, decay=0.055):
+    """Шумовой канал: псевдослучайная последовательность с коротким спадом — «тк» вместо барабана."""
+    out = [0.0] * n
+    reg = 0x7FFF
+    for i in range(n):
+        bit = ((reg >> 0) ^ (reg >> 1)) & 1                  # регистр сдвига, как в чипе
+        reg = (reg >> 1) | (bit << 14)
+        e = math.exp(-i / (SR * decay))
+        out[i] = ((reg & 1) * 2 - 1) * amp * e
+    return out
+
+
+def arp(notes, n, amp=0.10, rate=28.0):
+    """Арпеджио: перебор нот быстрее, чем ухо их различает, — так чип «играл аккорд»."""
+    out = [0.0] * n
+    if not notes:
+        return out
+    step = max(1, int(SR / rate))
+    phase = 0.0
+    for i in range(n):
+        f = hz(notes[(i // step) % len(notes)])
+        phase += f / SR
+        out[i] = (amp if (phase % 1.0) < 0.5 else -amp) * env(i, n, sustain=0.55)
+    return out
+
+
+# ── партитура ────────────────────────────────────────────────────────────────
+# (нота, длительность в долях). Мелодия строится из двух фраз: вопрос и ответ —
+# вторая повторяет первую, но приходит домой, на тонику.
+LEAD = [
+    ('r', 4),                                                        # такт вступления: сперва бас и арпеджио
+    ('A4', 1), ('B4', .5), ('A4', .5), ('F#4', 1), ('E4', 1),        # фраза 1: вопрос
+    ('D4', 1.5), ('E4', .5), ('F#4', 1), ('A4', 1),
+    ('B4', 1), ('A4', .5), ('F#4', .5), ('E4', 1), ('D4', 1),        # фраза 2: спуск
+    ('E4', 2), ('r', 2),
+    ('D5', 1), ('B4', .5), ('A4', .5), ('F#4', 1), ('A4', 1),        # фраза 3: выше, светлее
+    ('B4', 1.5), ('A4', .5), ('F#4', 1), ('E4', 1),
+    ('D4', 1), ('E4', .5), ('F#4', .5), ('A4', 1), ('B4', 1),        # фраза 4: ответ
+    ('A4', 2), ('D4', 2),                                            # домой
+    ('r', 4),
+]
+
+# Бас: корни аккордов D–Bm–G–A, по два такта на круг.
+BASS = [('D2', 2), ('D2', 2), ('B1', 2), ('B1', 2), ('G1', 2), ('G1', 2), ('A1', 2), ('A1', 2)] * 2 + \
+       [('D2', 4)]
+
+# Аккорды для арпеджио — те же ступени.
+CHORDS = [(['D4', 'F#4', 'A4'], 4), (['B3', 'D4', 'F#4'], 4),
+          (['G3', 'B3', 'D4'], 4), (['A3', 'C#4', 'E4'], 4)] * 4 + \
+         [(['D4', 'F#4', 'A4'], 4)]
+
+
+def render():
+    total = int(sum(d for _, d in LEAD) * BEAT * SR) + SR // 2
+    mix = [0.0] * total
+
+    def put(buf, at):
+        for i, v in enumerate(buf):
+            j = at + i
+            if 0 <= j < total:
+                mix[j] += v
+
+    # мелодия
+    pos = 0
+    for i, (note, dur) in enumerate(LEAD):
+        n = int(dur * BEAT * SR)
+        put(pulse(hz(note), n, duty=0.25, amp=0.22, vib=0.18 if dur >= 1 else 0.0), pos)
+        # подголосок октавой выше — только во второй половине, чтобы было развитие
+        if i > len(LEAD) // 2 and note != 'r':
+            put(pulse(hz(note) * 2, n, duty=0.125, amp=0.055), pos)
+        pos += n
+
+    # бас
+    pos = 0
+    for note, dur in BASS:
+        n = int(dur * BEAT * SR)
+        put(triangle(hz(note), n), pos)
+        pos += n
+
+    # арпеджио
+    pos = 0
+    for notes, dur in CHORDS:
+        n = int(dur * BEAT * SR)
+        put(arp(notes, n), pos)
+        pos += n
+
+    # перкуссия: тихое «тк» на каждую вторую долю, со второго такта
+    beats = int(sum(d for _, d in LEAD))
+    for b in range(4, beats):
+        if b % 2 == 1:
+            put(noise(int(0.09 * SR), amp=0.075), int(b * BEAT * SR))
+
+    # нормализация с запасом: чип звучит громко, но клиппинг — это уже не стиль, а брак
+    peak = max(abs(v) for v in mix) or 1.0
+    gain = 0.89 / peak
+    return [v * gain for v in mix]
+
+
+def main():
+    path = sys.argv[1] if len(sys.argv) > 1 else 'rollery-theme.wav'
+    samples = render()
+    with wave.open(path, 'w') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SR)
+        w.writeframes(b''.join(struct.pack('<h', int(max(-1, min(1, v)) * 32767)) for v in samples))
+    print(f'{path}: {len(samples) / SR:.1f} с, {BPM} BPM, ре мажорная пентатоника')
+
+
+if __name__ == '__main__':
+    main()
