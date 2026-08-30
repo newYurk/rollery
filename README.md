@@ -1,48 +1,33 @@
 # Rollery — sheet → spiral → cut
 
-A one-file prototype of a roll-making game: lay fillings on a flat sheet, roll it up, cut it —
-and the cross-section you see is a deterministic unrolling of what you actually placed.
+A prototype of a roll-making game: lay fillings on a flat sheet, roll it up,
+cut it — and the cross-section you see is a deterministic unrolling of what you
+actually placed.
 
 **Play it:** https://newyurk.github.io/rollery/play/ — phone (portrait), tablet or desktop.
 **Puzzle mode:** https://newyurk.github.io/rollery/play/?puzzle — reproduce the shown cross-section.
+**Everything else:** https://newyurk.github.io/rollery/ — the front page with three doors (game, local lab, docs).
 
-## Model
+## Model, in one paragraph
 
-No soft-body physics. The sheet is a `(u, v, z)` canvas of patches (`u` along the rolling direction,
-`v` along the roll, `z` through the spread). Rolling is a **variable-thickness winding**: the sheet is
-sliced into 1440 angular bins and wound turn by turn; where a filling is thicker than the spread it
-displaces it (rice compressibility κ), the excess is squeezed by the mat (β), the thickness profile is
-smoothed, rice tapers off before the bare sealing flap. Fillings laid close to the near edge are **tucked**
-into a solid core (the bed folds in half; the near half's nori becomes the inner hook) and the rest of the sheet
-winds around it — about 1.4 turns, like a real futomaki (`docs/reality-check.md`). The cut face is rendered pixel
-by pixel by mapping `(r, φ)` back onto the sheet; the cross-section can be pressed round, square or triangular.
-Ingredient sizes are in real units (rice layer ≈ 5 mm). See `docs/design-core.md` and `docs/geometry-audit.md`.
+No soft-body physics. The sheet is a `(u, v, z)` canvas of patches; rolling is
+a variable-thickness winding where thick fillings displace rice and the near
+edge is tucked into a solid core, like a real maki. It is a phenomenological
+model — every parameter answers for one observable effect — verified against
+real-roll numbers with sources. The details live where they are maintained:
+the design digest in `docs/design-core.md`, the numeric audit in
+`docs/geometry-audit.md`, the real-world comparison in `docs/reality-check.md`,
+and the canonical reference numbers in the executable check
+(`play/index.html?check`, constants in `play/checks.js`).
 
-## What's in the stand
+## Where things are
 
-- Sheet view: tap to place, drag to move, drag off the sheet to remove, tap to select.
-  **Wrap in nori** adds four real nori patches around a filling (under, over, two end caps) — a closed
-  outline on the cut. Coloured rice acts as pattern paint (the kazarimaki technique).
-- Pull the mat upward to roll. Tap the roll where you want to cut.
-- Cut ritual: knife → press → cut → the face opens like a door. Then slice into six and see every piece.
-- Two bases: sushi roll (nori + rice) and sweet roll cake (sponge + cream). Shapes: ⭕ ◻ △.
-- **Puzzle**: 15 levels — reproduce a target cross-section (or a row of pieces). Difficulty knobs: number of
-  fillings, turns (sheet length), pieces shown, nori wrapping, short fillings, coloured rice, shape.
-  Similarity is computed on material maps of the cut with a one-pixel tolerance; misses get a hint.
-  🔗 copies a link to the puzzle (the layout travels in the URL hash; a friend sees only the cut) —
-  from the plain stand it shares *your* layout as a puzzle.
-- Live cross-section preview (👁) is an author's tool; keep it off during playtests.
-
-## Files
-
-- `index.html` — the whole stand (Canvas 2D, Web Audio, no build step, no dependencies).
-- `HYPOTHESIS.md` — hypothesis, measurements and pass/fail criteria, written before the code (Russian).
-- `docs/design-core.md` — digest of the design thread + the winding model (Russian).
-- `docs/geometry-audit.md` — independent numeric audit of the spiral/winding math (Russian).
-- `docs/mechanics.md`, `docs/archive/core-v0.md` — core-mechanic candidates and the puzzle-reproduce spec (Russian).
-- `docs/ideas.md` — idea bank (coloured rice as paint, mini-rolls as elements).
-- `docs/ui-review.md` — UI/UX and responsive-layout review across viewports (Russian); the layout follows it.
-- `docs/reality-check.md` — comparison with real maki/kazarimaki construction, with numbers and sources (Russian).
-- `STATE.md` — project entry point: where we are and what's next (Russian).
+- `play/` — the stand itself (Canvas 2D, no build step) and its regression check.
+- `sim/` — the offline MLS-MPM reference used to calibrate the stand
+  (run it via `sim/lab/lab.sh`); run outputs stay local and out of git.
+- `docs/` — knowledge base; start at `docs/index.html` (published) or `STATE.md`
+  (working entry point, Russian). The target architecture is
+  `docs/domain-contract.md`; finished work is archived in `docs/archive/`.
+- Work is tracked in GitHub issues; ideas live in `docs/ideas.md`.
 
 This is a measurement rig, not a game and not a stack decision.
