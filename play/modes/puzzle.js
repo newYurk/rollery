@@ -127,7 +127,7 @@ function decodePuzzle(hash) {
     const data = JSON.parse(json); if (!data.l || !BASES[data.b]) return null;
     const list = data.l.map(a => { const p = { kind: a[0], u: a[1], v: a[2], z0: 0, z1: 0, phase: a[6] || 0 }; if (a[3] != null) p.wU = a[3]; if (a[4] != null) p.hU = a[4]; if (a[5] != null) p.dv = a[5]; if (a[7]) p.rot = a[7]; return p; }).filter(p => ING[p.kind]);
     const hh = Array.isArray(data.h) ? { air: data.h[0], wobble: data.h[1], phase: data.h[2], press: data.h[3], v: 1, cv: 0, hold: 0 } : null;
-    // Ссылки БЕЗ поля w (созданные до 31.08) читаются как обёртка базы по умолчанию —
+    // Ссылки БЕЗ поля w (созданные до 30.08) читаются как обёртка базы по умолчанию —
     // формат расширен совместимо, старые ссылки продолжают открываться.
     const wrap = (data.w && WRAPPERS[data.w]) ? data.w : null;
     return { base: data.b, wrap, turns: data.t, shape: SHAPES[data.s] ? data.s : 'round', hand: hh, list };
