@@ -406,6 +406,20 @@ function runChecks(detail) {
       }
     }
     S.preview = false;
+
+    // ── 8. МИГРАЦИЯ ГЕОМЕТРИИ (issue #72): legacy baseline и facade ──
+    // ТОЧКА ПОДКЛЮЧЕНИЯ, А НЕ САМИ ПРОВЕРКИ. Логика живёт в play/test/**: сюда она не
+    // переезжает намеренно — checks.js и без того длинный, а слепок и facade-сравнение
+    // должны читаться отдельно от регрессии стенда. Если файлы не подключены (открыли
+    // старым адресом), раздел молчит, а не роняет прогон.
+    if (typeof runLegacyBaselineChecks === 'function') {
+      const b = runLegacyBaselineChecks();
+      ok(b.passed, `legacy baseline: ${b.failures.length} расхождений — ` + b.failures.slice(0, 3).join(' · '));
+    } else notes.push('legacy baseline не подключён — раздел §8 пропущен');
+    if (typeof runRollFacadeChecks === 'function') {
+      const f = runRollFacadeChecks();
+      ok(f.passed, `facade ≠ legacy: ${f.failures.length} расхождений — ` + f.failures.slice(0, 3).join(' · '));
+    } else notes.push('facade-проверки не подключены — раздел §8 пропущен');
   } catch (e) {
     fails.push('ПАДЕНИЕ: ' + e.message + (e.stack ? ' @ ' + e.stack.split('\n')[1] : ''));
   } finally {

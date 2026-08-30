@@ -22,6 +22,10 @@
 <script src="model/catalog.js"></script>
 <script src="state.js"></script>
 <script src="model/geometry.js"></script>
+<!-- Тонкий compatibility facade над геометрией (issue #72). Пока его единственный потребитель —
+     проверки: ни один production-файл на него ещё не переведён. Подключён всегда, потому что
+     переезд потребителей пойдёт по одному, и файл должен быть на месте до первого из них. -->
+<script src="domain/roll.js"></script>
 <script src="audio.js"></script>
 <script src="ui/layout.js"></script>
 <script src="render/slice.js"></script>
@@ -154,7 +158,9 @@ requestFrame();
      Порядок важен — checks.js последним, он на них ссылается. Загрузка последовательная:
      параллельная не гарантирует порядок выполнения. -->
 <script>if(location.search.indexOf('check')>=0){
-  (async () => { for (const f of ['inverse/primitives.js','inverse/materials.js','checks.js'])
+  (async () => { for (const f of ['inverse/primitives.js','inverse/materials.js',
+      'test/fixtures/fixtures.js','test/probe.js','test/legacy/baseline.js',
+      'test/legacy/baseline-data.js','test/domain/roll-facade-checks.js','checks.js'])
     await new Promise(r => { const t=document.createElement('script'); t.src=f+location.search; t.onload=r; t.onerror=r; document.head.appendChild(t); }); })();
 }</script>
 </body>
