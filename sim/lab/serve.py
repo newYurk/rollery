@@ -259,7 +259,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             args = {k: v for k, v in (body.get('args') or {}).items() if k in KNOB_INFO}
             frames = max(6, min(60, int(body.get('frames', 30))))
             grid = max(120, min(320, int(body.get('grid', 200))))
-            particles = max(4000, min(40000, int(body.get('particles', 12000))))
+            particles = max(4000, min(200000, int(body.get('particles', 12000))))   # потолок поднят под пресет «точно» (ppc 3,2 на сетке 240), issue #91
             rid = time.strftime('%H%M%S') + '-' + variant + '-l' + str(layout)
             job = Job(rid, variant, layout, args, frames, grid, particles)
             JOBS[rid] = job

@@ -108,9 +108,9 @@
   <div class="grp">
     <span class="lbl">Подробность</span>
     <div class="qual" id="qual">
-      <button data-q="fast" aria-pressed="false">Быстро<br><small>~10 с</small></button>
-      <button data-q="norm" aria-pressed="true">Обычно<br><small>~25 с</small></button>
-      <button data-q="fine" aria-pressed="false">Точно<br><small>~60 с</small></button>
+      <button data-q="fast" aria-pressed="false">Быстро<br><small>~1 мин · ppc 2,0</small></button>
+      <button data-q="norm" aria-pressed="true">Обычно<br><small>~3 мин · ppc 2,0</small></button>
+      <button data-q="fine" aria-pressed="false">Точно<br><small>~10 мин · ppc 3,2</small></button>
     </div>
   </div>
 
@@ -154,7 +154,10 @@
 <script>
 const $ = s => document.querySelector(s);
 let CFG = null, JOB = null, poll = null, frames = [], fi = 0, playing = false, timer = null, quality = 'norm';
-const QUAL = { fast: {grid:150, particles:7000, frames:22}, norm: {grid:200, particles:12000, frames:30}, fine: {grid:260, particles:20000, frames:40} };
+// Пересчитано по замеру 31.08 (issue #91): ppc = частицы/сетка², минимум метода 2,0,
+// разрыв ленты исчезает при ppc ≥ 3,2 (поправка 11) — «точно» целится туда.
+// Прежние 7–20 тыс. частиц давали ppc 0,3–0,6: ни один пресет не проходил приёмку.
+const QUAL = { fast: {grid:150, particles:45000, frames:22}, norm: {grid:200, particles:80000, frames:30}, fine: {grid:240, particles:185000, frames:40} };
 
 async function boot(){
   CFG = await (await fetch('/api/variants')).json();

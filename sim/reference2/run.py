@@ -1852,13 +1852,23 @@ def main():
     ]
     _failed = [name for name, key in _phys if key in met and met[key] is not None and not met[key]]
     _absent = [name for name, key in _phys if key not in met or met[key] is None]
-    # Разрешение: приёмка, снятая при 1,9 частицы на клетку, недостоверна — минимум метода два,
-    # а лента нори тоньше клетки в несколько раз (поправка 11, KINEMATICS.md).
+    # Разрешение: приёмка, снятая при 1,9 частицы на клетку, недостоверна — минимум метода два
+    # (поправка 11, KINEMATICS.md; разрыв ленты там исчезает между ppc 2,6 и 3,2 — пресет «точно»
+    # в пульте целится в 3,2, но это выбор пресета, а не минимум метода).
+    # Вторая половина критерия — ЛЕНТА НЕ ДЫРЯВИТСЯ ЧИСЛЕННО: в каждой клетке, которую пересекает
+    # нори, должно лежать несколько её частиц, иначе перенос на сетку рвёт мембрану сам по себе.
+    # Это dx / nori_dx (шаг ЧАСТИЦ ленты) ≥ 3 — ровно то, что просит поправка 11, п. 1.
+    # ⚠ Первая редакция (30.08, ночь) сравнивала dx с ТОЛЩИНОЙ ленты (W_NORI / dx ≥ 0,5) — это
+    # требовало сетку ~660 и не проходило никогда; толщина решается рядами частиц (nr ≥ 2),
+    # а не клеткой сетки. Замер: сетки 150/200/260 дают W_NORI/dx 0,11/0,15/0,20 — планка была
+    # недостижима по построению, вердикт «НЕ ГОДЕН» стоял бы вечно (issue #91).
     _ppc = float(n) / max(1, nx * ny)          # частиц на клетку; минимум метода — две
     met['ppc'] = round(_ppc, 3)
-    _res_ok = bool(_ppc >= 2.0 and (W_NORI / dx) >= 0.5)
+    _nori_per_cell = dx / max(1e-9, info['nori_dx'])
+    met['nori_particles_per_cell'] = round(_nori_per_cell, 2)
+    _res_ok = bool(_ppc >= 2.0 and _nori_per_cell >= 3.0)
     if not _res_ok:
-        _failed.append('разрешение сетки (ppc %.2f, нори/dx %.2f)' % (_ppc, W_NORI / dx))
+        _failed.append('разрешение сетки (ppc %.2f, частиц нори на клетку %.1f)' % (_ppc, _nori_per_cell))
     met['physics_checks_failed'] = _failed
     met['physics_checks_absent'] = _absent
     met['physics_ok'] = bool(not _failed)
