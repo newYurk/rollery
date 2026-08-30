@@ -50,6 +50,14 @@ function runChecks(detail) {
   const fails = [], notes = [], known = [];
   const keep = { base: S.base, wrap: S.wrap, shape: S.shape, turns: S.turns, hand: S.hand, mode: S.mode,
                  lists: JSON.parse(JSON.stringify(S.lists)), W, H, DPR };
+  // ПРОВЕРКА НЕ ИМЕЕТ ПРАВА ТРОГАТЬ СОХРАНЁННОЕ ИГРОКОМ. Раздел §4 гоняет puzzleStart для всех
+  // шестнадцати уровней, а puzzleStart пишет в localStorage {level, seed, max} — после прогона
+  // у владельца оказывался пройден весь пазл, а живой предпросмотр 👁 выключался (S.preview
+  // принудительно гасится ниже и уезжает в хранилище ближайшим save()). Снимаем слепок ключей
+  // и возвращаем его в finally — вместе с состоянием S.
+  const LS_KEYS = ['rollery.puzzle', 'rollery.preview', 'rollery.shape', 'rollery.model.v2', 'rollery.cuts'];
+  const keepLS = {};
+  try { for (const k of LS_KEYS) keepLS[k] = localStorage.getItem(k); } catch (e) {}
   const ok = (cond, msg) => { if (!cond) fails.push(msg); return cond; };
   // ДИАМЕТР — ДЕТЕКТОР ИЗМЕНЕНИЙ, А НЕ ТРЕБОВАНИЕ К ПРОДУКТУ. Владелец 27.08: «диаметры мне вообще
   // особо не важны… если он стал больше, но ничего не разрывается, всё в порядке». Это верно: ролл
@@ -291,8 +299,17 @@ function runChecks(detail) {
   } finally {
     Object.assign(S, { base: keep.base, wrap: keep.wrap, shape: keep.shape, turns: keep.turns,
                        hand: keep.hand, mode: keep.mode, lists: keep.lists });
+    S.puzzle = null;                       // §4 оставлял активный уровень висеть в состоянии
     W = keep.W; H = keep.H; DPR = keep.DPR;
     try { touchModel(); layout(); dirty = true; requestFrame(); } catch (e) {}
+    // ПОСЛЕ touchModel: он зовёт save(), который перезаписывает ключи — возвращаем слепок последним.
+    try {
+      for (const k of LS_KEYS) {
+        if (keepLS[k] === null || keepLS[k] === undefined) localStorage.removeItem(k);
+        else localStorage.setItem(k, keepLS[k]);
+      }
+      S.preview = localStorage.getItem('rollery.preview') === '1';
+    } catch (e) {}
   }
 
   const head = fails.length ? `ПРОВАЛ · ${fails.length}` : 'ВСЁ ЦЕЛО';
