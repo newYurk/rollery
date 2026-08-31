@@ -23,6 +23,12 @@
   a.doc:hover, a.doc:focus-visible{ background:#1d1c17 }
   a.doc:focus-visible{ outline:2px solid var(--hot); outline-offset:-2px }
   a.doc b{ color:var(--hot); font-weight:600; font-size:15px }
+  /* Пометка «что откроется» стоит рядом с названием НАМЕРЕННО: часть ссылок ведёт на живую
+     страницу с иллюстрациями, часть — на исходник в GitHub. До клика это неочевидно. */
+  a.doc .kind{ display:inline-block; margin-left:.55em; padding:1px 6px 2px; border-radius:3px;
+    font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; vertical-align:1px }
+  a.doc .kind.page{ background:#2f2a19; color:var(--hot); border:1px solid #4a3f22 }
+  a.doc .kind.src{ background:#23231d; color:var(--dim); border:1px solid var(--line) }
   a.doc span{ display:block; color:var(--dim); font-size:13px; margin-top:.15em }
   footer{ margin-top:2.2rem; color:#7d7768; font-size:12.5px; line-height:1.7 }
   footer a{ color:#7d7768 }
@@ -35,43 +41,43 @@
 
   <h2>Начать отсюда</h2>
   <ul>
-    <li><a class="doc" href="reports/piece-body.html"><b>Ядро: от нарезки до среза</b>
+    <li><a class="doc" href="reports/piece-body.html"><b>Ядро: от нарезки до среза</b><span class="kind page">страница · откроется здесь</span>
       <span>Главный документ. Инженерные схемы всей нашей математики: что такое кусок,
         что с ним делает скрутка, что показывает срез. Правится вместе с геометрией.</span></a></li>
-    <li><a class="doc" href="reports/kinematics.html"><b>Кинематика скрутки</b>
+    <li><a class="doc" href="reports/kinematics.html"><b>Кинематика скрутки</b><span class="kind page">страница · откроется здесь</span>
       <span>Иллюстрированный отчёт: какая модель циновки выжила, откуда взялись толщины, что опровергнуто. Открывается прямо здесь.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/geometry-audit.md"><b>Аудит геометрии</b>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/geometry-audit.md"><b>Аудит геометрии</b><span class="kind src">исходник · GitHub</span>
       <span>Толщины по источникам, размер зерна, разбор ошибок в срезе.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/reality-check.md"><b>Сверка с настоящими маки</b>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/reality-check.md"><b>Сверка с настоящими маки</b><span class="kind src">исходник · GitHub</span>
       <span>Техника укладки риса, что делают руками, чем это отличается от модели.</span></a></li>
   </ul>
 
   <h2>Модель и механика</h2>
   <ul>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/domain-contract.md"><b>Доменный контракт</b><span>Архитектура системы «раскладка → скрутка → срез»: слои, сущности, P0, миграция монолита.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/design-core.md"><b>Ядро замысла</b><span>С чего всё началось.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/mechanics.md"><b>Механика</b><span>Кандидаты игрового ядра и их критика.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/shapes.md"><b>Формы и нарезка</b><span>Круглый, квадратный, треугольный ролл; как режут начинки.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/inverse-design.md"><b>Обратное проектирование</b><span>По целевому срезу — найти раскладку. Спецификация с разбором.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/kazari-plan.md"><b>Кадзари макидзуси</b><span>Направление: узор в срезе как рисунок.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/domain-contract.md"><b>Доменный контракт</b><span class="kind src">исходник · GitHub</span><span>Архитектура системы «раскладка → скрутка → срез»: слои, сущности, P0, миграция монолита.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/design-core.md"><b>Ядро замысла</b><span class="kind src">исходник · GitHub</span><span>С чего всё началось.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/mechanics.md"><b>Механика</b><span class="kind src">исходник · GitHub</span><span>Кандидаты игрового ядра и их критика.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/shapes.md"><b>Формы и нарезка</b><span class="kind src">исходник · GitHub</span><span>Круглый, квадратный, треугольный ролл; как режут начинки.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/inverse-design.md"><b>Обратное проектирование</b><span class="kind src">исходник · GitHub</span><span>По целевому срезу — найти раскладку. Спецификация с разбором.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/kazari-plan.md"><b>Кадзари макидзуси</b><span class="kind src">исходник · GitHub</span><span>Направление: узор в срезе как рисунок.</span></a></li>
   </ul>
 
   <h2>Проверки и источники</h2>
   <ul>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/papers.md"><b>Научные работы</b><span>Проверенные DOI под вопросы модели и честный раздел «чего в литературе нет».</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/simulation-research.md"><b>Симуляционный эталон</b><span>Зачем считается MLS-MPM и что он проверяет.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/sim/KINEMATICS.md"><b>Спецификация кинематики</b><span>Постановка и датированные поправки к ней — включая опровергнутые.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/noise-floor.md"><b>Пол разброса</b><span>Сколько шумит рука и что метрика сходства вообще различает.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/ui-review.md"><b>Ревью интерфейса</b><span>Спецификация адаптива и разбор вёрстки.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/ideas.md"><b>Банк идей</b><span>Идеи с разборами; задачи живут в issues.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/papers.md"><b>Научные работы</b><span class="kind src">исходник · GitHub</span><span>Проверенные DOI под вопросы модели и честный раздел «чего в литературе нет».</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/simulation-research.md"><b>Симуляционный эталон</b><span class="kind src">исходник · GitHub</span><span>Зачем считается MLS-MPM и что он проверяет.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/sim/KINEMATICS.md"><b>Спецификация кинематики</b><span class="kind src">исходник · GitHub</span><span>Постановка и датированные поправки к ней — включая опровергнутые.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/noise-floor.md"><b>Пол разброса</b><span class="kind src">исходник · GitHub</span><span>Сколько шумит рука и что метрика сходства вообще различает.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/ui-review.md"><b>Ревью интерфейса</b><span class="kind src">исходник · GitHub</span><span>Спецификация адаптива и разбор вёрстки.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/ideas.md"><b>Банк идей</b><span class="kind src">исходник · GitHub</span><span>Идеи с разборами; задачи живут в issues.</span></a></li>
   </ul>
 
   <h2>Рабочее и архив</h2>
   <ul>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/glossary.md"><b>Словарь</b><span>Слова кухни и слова модели; что уже путали.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/journal.md"><b>Журнал</b><span>Хроника по дням: что делалось, что находилось, что откатывалось.</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/issues"><b>Issues</b><span>Задачи и идеи со статусами; доска — проект «Roll-It».</span></a></li>
-    <li><a class="doc" href="https://github.com/newYurk/rollery/tree/main/docs/archive"><b>Архив</b><span>Законченное: сырые ревью, их валидация, спецификация пазла-ядра, снимок геометрии.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/glossary.md"><b>Словарь</b><span class="kind src">исходник · GitHub</span><span>Слова кухни и слова модели; что уже путали.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/blob/main/docs/journal.md"><b>Журнал</b><span class="kind src">исходник · GitHub</span><span>Хроника по дням: что делалось, что находилось, что откатывалось.</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/issues"><b>Issues</b><span class="kind src">исходник · GitHub</span><span>Задачи и идеи со статусами; доска — проект «Roll-It».</span></a></li>
+    <li><a class="doc" href="https://github.com/newYurk/rollery/tree/main/docs/archive"><b>Архив</b><span class="kind src">исходник · GitHub</span><span>Законченное: сырые ревью, их валидация, спецификация пазла-ядра, снимок геометрии.</span></a></li>
   </ul>
 
   <footer>

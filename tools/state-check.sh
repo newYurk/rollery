@@ -68,6 +68,18 @@ last_code=$(git log -1 --format=%cd --date=short -- play/ sim/)
 last_state=$(git log -1 --format=%cd --date=short -- STATE.md)
 [ "$last_code" \> "$last_state" ] && warn "код правился ($last_code) позже STATE.md ($last_state) — точка входа могла отстать"
 
+# ГИД ПО ЯДРУ обязан идти вровень с математикой (issue #106). Он описывает то же самое,
+# что считает geometry.js и хранит catalog.js, — и если те ушли вперёд, гид врёт молча,
+# а врущая схема хуже отсутствующей: по ней принимают решения.
+guide=docs/reports/piece-body.html
+last_math=$(git log -1 --format=%cd --date=short -- play/model/geometry.js play/model/catalog.js)
+last_guide=$(git log -1 --format=%cd --date=short -- "$guide")
+if [ "$last_math" \> "$last_guide" ]; then
+  warn "математика правилась ($last_math) позже гида ($last_guide) — $guide отстал от geometry/catalog"
+else
+  say "  ✓ гид по ядру вровень с математикой ($last_guide)"
+fi
+
 say ""
 [ "$bad" = "0" ] && say "ВСЁ В СОГЛАСИИ" || say "РАСХОЖДЕНИЙ: $bad — см. ✗ выше"
 exit 0
