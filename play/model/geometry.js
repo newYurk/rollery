@@ -133,7 +133,7 @@ function matAt(u, v, z, list, g) {
     const rg = patchSRange(p, v, g); if (!rg) continue;
     const sU = u * L; if (sU < rg[0] || sU > rg[1]) continue;
     const du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
-    const lu = patchLu(p, across / rg[3]);
+    const lu = across / rg[3];
     const lz = d.paint ? 0.5 : (z - p.z0) / (p.z1 - p.z0);
     if (!d.paint) { const sp = cutSpan(d, lu); if (lz < sp[0] || lz > sp[1]) continue; }
     return { p, d, lu, lz, lv: along / rg[4] };
@@ -222,14 +222,6 @@ function cutProfile(d) {
   return CUT_PROFILES[name] || CUT_PROFILES['брусок'];
 }
 
-// ЗЕРКАЛО КУСКА. Кнопка «Отразить» зеркалит раскладку; для куска, СИММЕТРИЧНОГО по lu, это
-// ничего не меняет, а для асимметричного (сектор, полумесяц, ломтик рыбы кожей вниз) кусок
-// обязан перевернуться вместе с ней — иначе зеркальный ролл выйдет не зеркальным.
-// ⚠ ОДНА ФУНКЦИЯ НА ВСЕХ. Поперечная координата считается в ТРЁХ местах — matAt, heightAt и
-// coreMaterial. Применить зеркало не во всех — значит закрасить кусок по одной форме, а рис
-// вытеснить по другой. Ровно та беда, от которой лечили cutSpan (см. выше).
-const patchLu = (p, raw) => (p && p.flip) ? -raw : raw;
-
 // ВЕРХ фигуры в поперечной позиции lu (−0,5…0,5), в долях собственной толщины куска.
 function cutTop(d, lu) {
   const a = clamp(lu * 2, -1, 1), q = Math.max(0, 1 - a * a);
@@ -312,7 +304,7 @@ function heightAt(p, u, v, g) {
   const rg = patchSRange(p, v, g); if (!rg) return 0;
   const sU = u * gL(g);
   if (sU < rg[0] || sU > rg[1]) return 0;
-  const lu = patchLu(p, (sU - (rg[0] + rg[1]) / 2) / Math.max(1e-6, rg[1] - rg[0]));   // −0.5…0.5 поперёк
+  const lu = (sU - (rg[0] + rg[1]) / 2) / Math.max(1e-6, rg[1] - rg[0]);   // −0.5…0.5 поперёк куска
   return cutTop(ING[p.kind], lu);                          // верх ТОЙ ЖЕ фигуры, что рисует matAt
 }
 // Толщина «намазка + стопка» в точке листа (без обёртки), в единицах: рис под начинкой выдавлен, когда стопка выше намазки.
@@ -777,7 +769,7 @@ function coreMaterial(m, r, phi, vSlice) {
     const x0 = it.far ? rg[0] - half : half - rg[1], x1 = it.far ? rg[1] - half : half - rg[0];
     if (x < x0 || x > x1) continue;
     const sU = it.far ? half + x : half - x, du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
-    let lu = patchLu(it.p, across / rg[3]), lz = (y - it.y0) / (it.y1 - it.y0);
+    let lu = across / rg[3], lz = (y - it.y0) / (it.y1 - it.y0);
     if (!it.far) { lz = 1 - lz; }
     if (!it.paint) { const sp = cutSpan(it.d, lu); if (lz < sp[0] || lz > sp[1]) continue; }
     return { cls: 'patch', mt: { p: it.p, d: it.d, lu, lz, lv: along / rg[4] } };

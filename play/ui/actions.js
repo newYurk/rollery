@@ -18,34 +18,6 @@ function action(id) {
     case 'wrap': if (S.mode === 'lay' && S.selPatch) { pushHistory(); wrapInNori(S.selPatch); } break;
     case 'rotate': if (S.mode === 'lay' && S.selPatch) { pushHistory(); const p = S.selPatch; p.rot = ((p.rot || 0) + Math.PI / 4) % Math.PI; if (p.rot < 1e-6) delete p.rot; const bb = bounds(p), hu = (bb.u1 - bb.u0) / 2, hv = (bb.v1 - bb.v0) / 2; p.u = clamp(p.u, Math.min(0.5, hu), Math.max(0.5, 1 - hu)); p.v = clamp(p.v, Math.min(0.5, hv), Math.max(0.5, 1 - hv)); touchModel(); sfx.place(); } break;
     case 'remove': if (S.mode === 'lay' && S.selPatch) { pushHistory(); const l = patches(), i = l.indexOf(S.selPatch); if (i >= 0) l.splice(i, 1); S.selPatch = null; touchModel(); } break;
-    // Дублирование: копия рядом, со сдвигом на полкуска — чтобы её было видно и можно было взять.
-    // Копия становится выделенной: следующее действие относится к ней, как и ожидает рука.
-    case 'duplicate': if (S.mode === 'lay' && S.selPatch) {
-      pushHistory();
-      const p = S.selPatch, m = dims(p), q = JSON.parse(JSON.stringify(p));
-      q.u = clamp(p.u + m.du * 0.6, m.du / 2, 1 - m.du / 2);
-      if (Math.abs(q.u - p.u) < 1e-4) q.v = clamp(p.v + m.dv * 0.6, m.dv / 2, 1 - m.dv / 2);
-      q.phase = Math.random() * TAU;
-      patches().push(q); S.selPatch = q; touchModel(); sfx.place();
-    } break;
-    // Отражение ВСЕЙ раскладки поперёк листа (u → 1−u): ближний край становится дальним.
-    // На срезе это разворачивает узор наизнанку — центр уходит на корку и наоборот; ровно
-    // тот приём, которым в кадзаримаки получают зеркальную пару к уже найденному узору.
-    case 'mirror': if (S.mode === 'lay' && patches().length) {
-      pushHistory();
-      // ЗЕРКАЛО ЦЕЛИКОМ, а не только положения. Отражение меняет три вещи разом:
-      //   · положение по u — было и раньше;
-      //   · СМЫСЛ ПОВОРОТА: кусок под +45° в зеркале лежит под −45°. Это не про асимметрию,
-      //     это было неверно и для прямоугольника — просто никто не смотрел;
-      //   · САМ КУСОК, если он несимметричен поперёк (сектор, полумесяц). Для симметричного
-      //     флаг ничего не делает, поэтому ставим его всем и не разбираем случаи.
-      for (const p of patches()) {
-        p.u = clamp(1 - p.u, 0, 1);
-        if (p.rot) p.rot = -p.rot;
-        p.flip = !p.flip;
-      }
-      S.selPatch = null; touchModel(); sfx.place();
-    } break;
     case 'deselect': S.selPatch = null; dirty = true; break;
     case 'back': S.mode = 'lay'; S.rollP = 0; S.bigPiece = -1; S.albumOpen = -1; cut = null; slicing = null; if (S.puzzle) S.puzzle.result = null; dirty = true; break;
     case 'new': S.lists[S.base] = []; touchModel(); action('back'); break;
