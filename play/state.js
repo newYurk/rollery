@@ -113,7 +113,9 @@ const WRAPPERS = {
 for (const k in WRAPPERS) WRAPPERS[k].rgb = hexRgb(WRAPPERS[k].color);
 // Начинки общие для всех: один экран, сладкое и несладкое рядом. Деление на типы отложено
 // до игровых стратегий — владелец 27.08 отложила это на потом: разделить на типы можно будет позже.
-const ALL_INGREDIENTS = ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet',
+const ALL_INGREDIENTS = ['salmon', 'tuna', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet',
+  // Канон футомаки, заведён 31.08 (#10): без него собрать настоящий футомаки было нечем.
+  'shiitake', 'kanpyo', 'anago', 'denbu',
   'ricePink', 'riceYellow', 'riceGreen', 'riceBlack',
   'strawberry', 'kiwi', 'mango', 'banana', 'jam', 'nut'];
 // Активная база = тип (лист, грядка) + выбранная обёртка поверх него.

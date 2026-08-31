@@ -82,6 +82,15 @@
 // ⚠ Лосось сначала поставили 10 × 10 мм по СОВРЕМЕННОМУ источнику (ролл с лососем) — и
 // хосомаки при максимальном воздухе ПЕРЕСТАЛ ЗАМЫКАТЬСЯ: 1,00 витка, некруглость 65,7 %.
 // Это не довод против источника, а довод за то, что у лосося в хосомаки другой канон.
+//
+// ⚑ И ТРЕТЬЯ ПРАВКА ТОГО ЖЕ ДНЯ, но она НЕ про модель — про сам слепок.
+// map.counts и map.probe хранили классы ЧИСЛАМИ, а число класса — это «3 + индекс в
+// ROLL_KIND_IDS», то есть оно зависело от порядка каталога. Стоило завести канон футомаки,
+// как слепок упал: «класс 11: 194 ≠ 0 · класс 16: 0 ≠ 194» — те же 194 точки того же
+// розового риса, просто индекс уехал на пять. Сторож, который падает от переучёта каталога,
+// приучает пересниматься не глядя, а это ровно то, что запрещено выше. Теперь классы
+// записаны ИМЕНАМИ, и заодно слепок стало можно читать глазами.
+// Класс 1 назван 'rice', а не 'spread': карта сливает в него и постель, и ядро подворота.
 const ROLL_BASELINE = {
   "F01-hosomaki-basic": {
     "turns": 1.1222,
@@ -141,12 +150,12 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "0": 965,
-        "1": 1900,
-        "2": 35,
-        "4": 236
+        "out": 965,
+        "rice": 1900,
+        "wrap": 35,
+        "cucumber": 236
       },
-      "probe": "0,1,1,1,1,1,1,4,1,4,0"
+      "probe": "out,rice,rice,rice,rice,rice,rice,cucumber,rice,cucumber,out"
     },
     "selfSimilarity": 1
   },
@@ -208,13 +217,13 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "0": 921,
-        "1": 2130,
-        "2": 20,
-        "3": 46,
-        "6": 19
+        "out": 921,
+        "rice": 2130,
+        "wrap": 20,
+        "salmon": 46,
+        "avocado": 19
       },
-      "probe": "0,1,1,1,1,1,1,1,1,1,0"
+      "probe": "out,rice,rice,rice,rice,rice,rice,rice,rice,rice,out"
     },
     "selfSimilarity": 1
   },
@@ -275,12 +284,12 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "0": 891,
-        "1": 1922,
-        "2": 243,
-        "5": 80
+        "out": 891,
+        "rice": 1922,
+        "wrap": 243,
+        "tamago": 80
       },
-      "probe": "0,1,1,1,1,2,1,1,1,1,0"
+      "probe": "out,rice,rice,rice,rice,wrap,rice,rice,rice,rice,out"
     },
     "selfSimilarity": 1
   },
@@ -341,13 +350,13 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "0": 1028,
-        "1": 1874,
-        "2": 14,
-        "3": 26,
-        "11": 194
+        "out": 1028,
+        "rice": 1874,
+        "wrap": 14,
+        "salmon": 26,
+        "ricePink": 194
       },
-      "probe": "0,1,1,1,1,0,1,1,1,1,0"
+      "probe": "out,rice,rice,rice,rice,out,rice,rice,rice,rice,out"
     },
     "selfSimilarity": 1
   },
@@ -410,13 +419,13 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "0": 987,
-        "1": 2085,
-        "2": 13,
-        "3": 38,
-        "6": 13
+        "out": 987,
+        "rice": 2085,
+        "wrap": 13,
+        "salmon": 38,
+        "avocado": 13
       },
-      "probe": "0,1,1,1,1,0,1,1,1,1,0"
+      "probe": "out,rice,rice,rice,rice,out,rice,rice,rice,rice,out"
     },
     "selfSimilarity": 1
   },
@@ -479,13 +488,13 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "0": 1023,
-        "1": 1930,
-        "2": 11,
-        "4": 120,
-        "5": 52
+        "out": 1023,
+        "rice": 1930,
+        "wrap": 11,
+        "cucumber": 120,
+        "tamago": 52
       },
-      "probe": "0,1,1,1,1,0,1,1,1,1,0"
+      "probe": "out,rice,rice,rice,rice,out,rice,rice,rice,rice,out"
     },
     "selfSimilarity": 1
   },
@@ -548,14 +557,14 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "0": 975,
-        "1": 1880,
-        "2": 25,
-        "3": 121,
-        "4": 88,
-        "6": 47
+        "out": 975,
+        "rice": 1880,
+        "wrap": 25,
+        "salmon": 121,
+        "cucumber": 88,
+        "avocado": 47
       },
-      "probe": "0,1,1,1,1,0,1,1,1,1,0"
+      "probe": "out,rice,rice,rice,rice,out,rice,rice,rice,rice,out"
     },
     "selfSimilarity": 1
   },

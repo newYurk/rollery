@@ -210,16 +210,31 @@ function similarityOf(mA, mB, vs) {
 // Доменный вход: карта среза по DTO ролла, свёрнутая в сравнимый вид (счётчики + выборка).
 // Полную карту наружу не отдаём: её единственный потребитель — сравнение, а хранить 3136
 // байт на срез в слепке незачем.
+// ИМЯ КЛАССА КАРТЫ. Число класса — это «3 + индекс в ROLL_KIND_IDS», то есть оно зависит от
+// ПОРЯДКА КАТАЛОГА: стоило 31.08 завести канон футомаки, как слепок упал с «класс 11: 194 ≠ 0 ·
+// класс 16: 0 ≠ 194» — те же точки того же розового риса, просто индекс уехал на пять. Сторож,
+// падающий от переучёта каталога, приучает пересниматься не глядя.
+// Класс 1 — 'rice', а не 'spread': карта сливает в него и постель, и ядро подворота.
+const rollMapClassName = (c) => c === 0 ? 'out' : c === 1 ? 'rice' : c === 2 ? 'wrap'
+                                               : (ROLL_KIND_IDS[c - 3] || ('kind' + (c - 3)));
+// СВЁРТКА КАРТЫ В СРАВНИМЫЙ ВИД — ОДНО ОПРЕДЕЛЕНИЕ НА ВСЕХ.
+// Раньше эта же логика жила ДВАЖДЫ: здесь и в play/test/probe.js (mapSignature). Копии
+// разошлись при первой же правке — домен считал классы числами, проба именами, и регрессия
+// «facade ≠ legacy» дала 75 расхождений на пустом месте. Теперь обе зовут это.
+// ⚠ Шаг пробы 313 — по модулю СТОРОНЫ карты (313 mod 56 = 33), а не по длине массива:
+// при шаге 337 (337 mod 56 = 1) точки шли по диагонали и попадали в углы, где всегда пусто.
+function rollMapDigest(map) {
+  const counts = {}, probe = [];
+  for (let i = 0; i < map.length; i++) counts[map[i]] = (counts[map[i]] || 0) + 1;
+  for (let i = 0; i < map.length; i += 313) probe.push(rollMapClassName(map[i]));
+  const out = { counts: {}, probe: probe.join(',') };
+  for (const k of Object.keys(counts).sort((a, b) => a - b)) out.counts[rollMapClassName(+k)] = counts[k];
+  return out;
+}
 function sliceMaterialMap(roll, position, options) {
   if (!roll || !roll.ok) return { counts: {}, probe: '' };
   const opt = options || {}, size = opt.size || ROLL_MAP_SIZE, m = roll.legacyModel;
-  const map = materialMapOf(size, position === undefined ? 0.5 : position, m, opt.Rref || m.Rmax);
-  const counts = {}, probe = [];
-  for (let i = 0; i < map.length; i++) counts[map[i]] = (counts[map[i]] || 0) + 1;
-  for (let i = 0; i < map.length; i += 313) probe.push(map[i]);   // шаг по модулю стороны, см. probe.js
-  const out = { counts: {}, probe: probe.join(',') };
-  for (const k of Object.keys(counts).sort((a, b) => a - b)) out.counts[k] = counts[k];
-  return out;
+  return rollMapDigest(materialMapOf(size, position === undefined ? 0.5 : position, m, opt.Rref || m.Rmax));
 }
 
 // Доменный вход: насколько похожи два ролла на заданных срезах. 1 — совпали.
