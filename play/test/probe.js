@@ -12,17 +12,16 @@
 // Классы материала (materialAt): 'out' | 'core' | 'wrap' | 'spread' | { cls:'patch', mt }.
 // Патч сворачивается в 'patch:<kind>' — важно не «есть ли что-то», а ЧТО именно лежит в точке.
 
-const PROBE_RINGS = 12;     // радиусов в сетке проб
-const PROBE_RAYS = 24;      // лучей
-const PROBE_SLICES = [0.25, 0.5, 0.75];   // ломтики, по которым берём пробы
+// ⚠ СЕТКА И ИМЕНА КЛАССОВ БЕРУТСЯ У ДОМЕНА, А НЕ ЗАДАЮТСЯ ЗДЕСЬ (правка 31.08).
+// Держать свои 12 и 24 значило сравнивать модель со слепком по ДРУГОЙ сетке, чем считает
+// домен: правка ROLL_SLICE_RINGS до слепка бы не дошла, и регрессия молча перестала бы
+// стеречь то, что стережёт. Та же болезнь, что уже случилась со свёрткой карты (ниже).
+const PROBE_RINGS = ROLL_SLICE_RINGS;
+const PROBE_RAYS = ROLL_SLICE_RAYS;
+const PROBE_SLICES = [0.25, 0.5, 0.75];   // ломтики, по которым берём пробы — это выбор пробы
 
-// Класс материала в точке (r, φ) одного ломтика — строкой, пригодной для сравнения.
-function probeClassAt(m, wd, vSlice, r, phi) {
-  const q = materialAt(m, wd, vSlice, r, phi);
-  if (!q) return 'null';
-  if (q.cls === 'patch') return 'patch:' + (q.mt && q.mt.p ? q.mt.p.kind : '?');
-  return q.cls;
-}
+// Класс материала в точке (r, φ) одного ломтика. Само правило — в домене (rollProbeClass).
+const probeClassAt = (m, wd, vSlice, r, phi) => rollProbeClass(materialAt(m, wd, vSlice, r, phi));
 
 // Карта материалов среза, свёрнутая в сравнимый вид: сколько пикселей каждого класса
 // плюс выборка значений в фиксированных точках. Полная карта 56×56 в слепок не кладётся —
@@ -33,8 +32,7 @@ function mapSignature(m, vSlice) {
   // ⚠ СВЁРТКА ЖИВЁТ В ДОМЕНЕ (play/domain/roll.js, rollMapDigest) — здесь только вызов.
   // До 31.08 тут лежала вторая копия той же логики, и копии разошлись при первой правке:
   // домен считал классы числами, проба именами, регрессия дала 75 расхождений на пустом месте.
-  const size = 56;
-  return rollMapDigest(materialMap(size, vSlice, m, m.Rmax));
+  return rollMapDigest(materialMap(ROLL_MAP_SIZE, vSlice, m, m.Rmax));
 }
 
 // Полный набор инвариантов модели: числа намотки + доли материалов + пробы.

@@ -127,6 +127,13 @@ function evaluateRoll(recipe, handParams, options) {
   });
 }
 
+// КАК ЗОВЁТСЯ МАТЕРИАЛ В ТОЧКЕ — ОДНО ОПРЕДЕЛЕНИЕ. Важно не «есть ли что-то», а ЧТО именно
+// лежит в точке, поэтому патч сворачивается в 'patch:<kind>'. До 31.08 это выражение стояло
+// дважды — здесь и в play/test/probe.js, — и слепок регрессии сравнивал модель с самим собой
+// через ВТОРУЮ редакцию той же логики. Ровно то, что уже случалось со свёрткой карты.
+const rollProbeClass = (q) => !q ? 'null'
+  : q.cls === 'patch' ? 'patch:' + (q.mt && q.mt.p ? q.mt.p.kind : '?') : q.cls;
+
 // Срез ролла в точке position (доля длины ролла, 0..1) — ДАННЫЕ, не картинка.
 // Возвращает сетку классов материала и их доли; рисует это renderer (drawSlice), не facade.
 function sliceAt(roll, position, options) {
@@ -140,8 +147,7 @@ function sliceAt(roll, position, options) {
   const cells = [], counts = {};
   for (let ri = 0; ri < rings; ri++) for (let ai = 0; ai < rays; ai++) {
     const r = (ri + 0.5) / rings * m.Rmax, phi = ai / rays * TAU;
-    const q = materialAt(m, wd, v, r, phi);
-    const cls = !q ? 'null' : q.cls === 'patch' ? 'patch:' + (q.mt && q.mt.p ? q.mt.p.kind : '?') : q.cls;
+    const cls = rollProbeClass(materialAt(m, wd, v, r, phi));
     cells.push(cls); counts[cls] = (counts[cls] || 0) + 1;
   }
   const fractions = {};
