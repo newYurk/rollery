@@ -16,7 +16,15 @@ function action(id) {
     case 'redo': if (S.mode === 'lay' && redo()) sfx.place(); break;
     case 'clear': if (S.mode === 'lay' && patches().length) { pushHistory(); S.lists[S.base] = []; S.selPatch = null; touchModel(); } break;
     case 'wrap': if (S.mode === 'lay' && S.selPatch) { pushHistory(); wrapInNori(S.selPatch); } break;
-    case 'rotate': if (S.mode === 'lay' && S.selPatch) { pushHistory(); const p = S.selPatch; p.rot = ((p.rot || 0) + Math.PI / 4) % Math.PI; if (p.rot < 1e-6) delete p.rot; const bb = bounds(p), hu = (bb.u1 - bb.u0) / 2, hv = (bb.v1 - bb.v0) / 2; p.u = clamp(p.u, Math.min(0.5, hu), Math.max(0.5, 1 - hu)); p.v = clamp(p.v, Math.min(0.5, hv), Math.max(0.5, 1 - hv)); touchModel(); sfx.place(); } break;
+    // ПОВОРОТ — ТОЛЬКО В ПЛОСКОСТИ ЛИСТА, вокруг вертикали. Кусок нельзя положить на другую
+    // грань: сектор огурца всегда лежит плоской гранью на рисе, кожицей вверх. Это решение
+    // владельца (31.08) и оно записано в docs/domain-contract.md — не забыть при добавлении
+    // вида сбоку: раскладка и поворот живут ТОЛЬКО в виде сверху.
+    // Диапазон берётся ИЗ ФОРМЫ: у симметричного куска 180° — то же, что 0°, и лишние щелчки
+    // только раздражают; у несимметричного (сектор) все 360° дают разные положения.
+    case 'rotate': if (S.mode === 'lay' && S.selPatch) { pushHistory(); const p = S.selPatch;
+      const span = cutSymmetric(ING[p.kind]) ? Math.PI : TAU;
+      p.rot = ((p.rot || 0) + Math.PI / 4) % span; if (p.rot < 1e-6) delete p.rot; const bb = bounds(p), hu = (bb.u1 - bb.u0) / 2, hv = (bb.v1 - bb.v0) / 2; p.u = clamp(p.u, Math.min(0.5, hu), Math.max(0.5, 1 - hu)); p.v = clamp(p.v, Math.min(0.5, hv), Math.max(0.5, 1 - hv)); touchModel(); sfx.place(); } break;
     case 'remove': if (S.mode === 'lay' && S.selPatch) { pushHistory(); const l = patches(), i = l.indexOf(S.selPatch); if (i >= 0) l.splice(i, 1); S.selPatch = null; touchModel(); } break;
     case 'deselect': S.selPatch = null; dirty = true; break;
     case 'back': S.mode = 'lay'; S.rollP = 0; S.bigPiece = -1; S.albumOpen = -1; cut = null; slicing = null; if (S.puzzle) S.puzzle.result = null; dirty = true; break;

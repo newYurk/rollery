@@ -136,7 +136,9 @@ function drawLay() {
   const area = L.layBtn;
   if (sel && p === 0) {
     const canWrap = sel.kind !== 'nori' && !ING[sel.kind].wave && !ING[sel.kind].paint, canRot = !ING[sel.kind].wave;
-    const rotLabel = `⟳ ${Math.round(((sel.rot || 0) * 180 / Math.PI + 45) % 180)}°`;
+    // Подпись показывает, КУДА повернётся, и по тому же диапазону, что и само действие.
+    const rotSpan = cutSymmetric(ING[sel.kind]) ? 180 : 360;
+    const rotLabel = `⟳ ${Math.round(((sel.rot || 0) * 180 / Math.PI + 45) % rotSpan)}°`;
     buttonRow([...(canWrap ? [['wrap', 'В нори', true, 1.2]] : []), ...(canRot ? [['rotate', rotLabel, false, 1.05]] : []),
                ['remove', 'Убрать', false, 1]], { ...area, max: 3 });
   } else {
