@@ -112,11 +112,26 @@ function pieceTopSprite(p, d, wPx, hPx, cell) {
     const lv = nAlong > 1 ? along / (nAlong - 1) : 0.5;          // 0…1 вдоль
     // Кромка — это БОКОВЫЕ ГРАНИ тела, которые и правда видно, когда смотришь сверху.
     // Ближняя (нижняя) грань темнее дальней: свет падает с той стороны.
-    const near = across === nAcross - 1, far = across === 0;
-    const cap = along === 0 || along === nAlong - 1;
-    const c = near ? pieceSideColor(pp, d, lu, lv, i, j, 0.62)
-            : far  ? pieceSideColor(pp, d, lu, lv, i, j, 1.30)
-            : cap  ? pieceSideColor(pp, d, lu, lv, i, j, 0.86)
+    // ⚠ ГРАНИ РИСУЮТСЯ, ТОЛЬКО ЕСЛИ КУСКУ ЕСТЬ ЧЕМ ИХ ПОКАЗАТЬ. Правка 31.08 по замечанию
+    // владельца: «креветка выглядит коричневой». Замер объяснил почему. Кромка занимает
+    // РОВНО ОДНУ клетку с каждой стороны, а куски тонкие: лосось на листе — 3 клетки поперёк,
+    // креветка — 2. У лосося две трети куска оказывались боковой гранью, а у креветки
+    // ВЕРХА НЕ БЫЛО ВОВСЕ: обе клетки — грани, одна из них ×0,62. Дальше пиксельная палитра
+    // сажала потемневший розовый на ближайшую ступень, и та оказывалась коричневой
+    // (#f4a48c × 0,55 = #865a4d). Замер с холста: у лосося #321d16 на 240 пикселях из 576.
+    // Кромка задумана как ТОНКАЯ подсказка объёма, а не как сам кусок. Порог: грань имеет
+    // смысл, когда после неё остаётся хотя бы одна клетка верха с каждой стороны.
+    // Порог 6, а не 4: при четырёх клетках поперёк две из них — грани, то есть ПОЛОВИНА куска.
+    // Кромка должна быть подсказкой объёма, а не самим куском; оставляем её, когда после
+    // двух граней остаётся хотя бы четыре клетки верха.
+    const есть_грани = nAcross >= 6, есть_торцы = nAlong >= 6;
+    const near = есть_грани && across === nAcross - 1, far = есть_грани && across === 0;
+    const cap = есть_торцы && (along === 0 || along === nAlong - 1);
+    // И ближняя грань посветлела: 0,62 задумывалось как «в тени», но на палитре из четырёх
+    // ступеней это прыжок через ступень вниз, а 0,78 попадает в свою же вторую ступень.
+    const c = near ? pieceSideColor(pp, d, lu, lv, i, j, 0.78)
+            : far  ? pieceSideColor(pp, d, lu, lv, i, j, 1.22)
+            : cap  ? pieceSideColor(pp, d, lu, lv, i, j, 0.90)
             :        pieceTopColor(pp, d, lu, lv, i, j);
     const o = (j * cols + i) * 4;
     data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
@@ -129,6 +144,20 @@ function pieceTopSprite(p, d, wPx, hPx, cell) {
 
 // Фигура патча в ЛОГИЧЕСКИХ координатах листа (см. блок выше): x, y — верхний левый угол;
 // w — вдоль v, h — вдоль u. p нужен для фазы фактуры и может отсутствовать (иконки в панели).
+// ВЕКТОРНЫЙ КОНТУР ПОВЕРХ ПИКСЕЛЕЙ — отладка, клавиша L (идея владельца 31.08).
+// Пиксельная сетка округляет край куска до клетки, и на глаз не видно, где граница проходит
+// НА САМОМ ДЕЛЕ. Контур рисуется по настоящим координатам, дробным: расхождение с пиксельной
+// кромкой и есть та ошибка округления, которую хотелось увидеть. Не арт и не часть модели —
+// поэтому вне слепка и по умолчанию выключен.
+function strokeOutline(x, y, w, h) {
+  ctx.save();
+  ctx.setLineDash([]); ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
+  ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = 'rgba(255,60,120,0.95)'; ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.restore();
+}
+
 function drawPatchShape(d, x, y, w, h, flat, p) {
   const cell = PIX || 2;
   const spr = pieceTopSprite(p, d, w, h, cell);
@@ -170,6 +199,7 @@ function drawPatchTop(p, alpha = 1, z0 = 0) {
     ctx.translate(t.cx, t.cy); ctx.rotate(t.ang);
     if (d.paint) { ctx.fillStyle = d.color; rr(-t.lenPx / 2, -t.wPx / 2, t.lenPx, t.wPx, 3); ctx.fill(); }
     else drawPatchShape(d, -t.lenPx / 2, -t.wPx / 2, t.lenPx, t.wPx, false, p);
+    if (S.lines) strokeOutline(-t.lenPx / 2, -t.wPx / 2, t.lenPx, t.wPx);
     ctx.restore(); return;
   }
   if (d.paint) {
@@ -188,6 +218,7 @@ function drawPatchTop(p, alpha = 1, z0 = 0) {
     ctx.save(); ctx.translate(0, -lw * 0.22); ctx.stroke(); ctx.restore();
   } else {
     const r = patchRect(p); drawPatchShape(d, r.x, r.y, r.w, r.h, false, p);
+    if (S.lines) strokeOutline(r.x, r.y, r.w, r.h);
   }
   ctx.restore();
 }
