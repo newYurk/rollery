@@ -16,8 +16,10 @@ function getSpreadTex(w, h) {
   // числом кусков и той же базой (например 4 → 5, turns 3 → 2) не менял ключ, и лист оставался
   // нарисован в масштабе прошлого уровня — расхождение в 2,1 раза. Ровно так же устроен ключ
   // модели в buildModel, и по той же причине (issue #89).
-  const cw = Math.round(w * DPR), ch = Math.round(h * DPR),
-        key = S.base + '|' + (B().wrapKey || '-') + '|' + (S.turns || '-') + '|' + cw + 'x' + ch;
+  // В пиксельном режиме текстура считается в PIX раз крупнее и растягивается без сглаживания:
+  // фотографический рис рядом с блочными начинками спорил сильнее, чем помогал (31.08).
+  const cw = Math.round(w * DPR / (PIX || 1)), ch = Math.round(h * DPR / (PIX || 1)),
+        key = S.base + '|' + (B().wrapKey || '-') + '|' + (S.turns || '-') + '|' + cw + 'x' + ch + (PIX ? '|p' : '');
   if (spreadTex && spreadTexKey === key) return spreadTex;
   const b = B(), base = b.spreadRgb, c = document.createElement('canvas'); c.width = cw; c.height = ch;
   const x = c.getContext('2d'); const img = x.createImageData(cw, ch); const d = img.data;
@@ -25,10 +27,15 @@ function getSpreadTex(w, h) {
   // но с потолком 0,5. ПОЧЕМУ потолок: сверху видно ЦЕЛЫЕ зёрна в постели, а борозда между зёрнами —
   // это признак РЕЗА, её в полную силу видно только на срезе. На полную амплитуду лист превращался
   // в мозаику (снято на скриншоте: 54 зерна поперёк, каждое с бороздой) и спорил с начинками.
-  const sheetLod = Math.min(0.5, clamp((cw / (b.Wv / GRAIN) - 6) / 8));
+  // ⚠ Порог в АРТ-пикселях: в пиксельном режиме текстура считается в PIX раз мельче, и по
+  // старому порогу зерно гасло совсем — лист становился ровным кремовым полем (та же ловушка,
+  // что уже чинилась в срезе, issue #104). Умножаем обратно на PIX.
+  const sheetLod = Math.min(0.5, clamp((cw * (PIX || 1) / (b.Wv / GRAIN) - 6) / 8));
   for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
     const col = spreadColor(i / cw * b.Wv / GRAIN, j / ch * sheetLen(b) / GRAIN, b, undefined, undefined, sheetLod), k = (j * cw + i) * 4;
-    d[k] = base[0] + (col[0] - base[0]) * 0.7; d[k + 1] = base[1] + (col[1] - base[1]) * 0.7; d[k + 2] = base[2] + (col[2] - base[2]) * 0.7; d[k + 3] = 255;
+    let r0 = base[0] + (col[0] - base[0]) * 0.7, g0 = base[1] + (col[1] - base[1]) * 0.7, b0 = base[2] + (col[2] - base[2]) * 0.7;
+    if (PIX) { const q = pixSnap(r0, g0, b0); r0 = q[0]; g0 = q[1]; b0 = q[2]; }
+    d[k] = r0; d[k + 1] = g0; d[k + 2] = b0; d[k + 3] = 255;
   }
   x.putImageData(img, 0, 0); spreadTex = c; spreadTexKey = key;
   return c;
@@ -72,8 +79,101 @@ function sheetPop() { ctx.restore(); }
 // Подпись внутри трансформа, но горизонтальная: якорь едет с листом, текст — нет.
 function unrot(px, py, fn) { ctx.save(); ctx.translate(px, py); ctx.rotate(-sheetAng()); fn(); ctx.restore(); }
 
+// ── ПИКСЕЛЬНАЯ НАЧИНКА (issue #104) ─────────────────────────────────────────
+// Начинка на листе — это «то, что кладёт игрок», и владелец просила пикселизовать именно её.
+// Рисуется не сглаженной фигурой, а блоками по сетке арт-пикселей:
+//   · прямоугольник прижат к сетке — иначе кромка размывается и весь смысл теряется;
+//   · три ступени светлоты вместо градиента: светлая грань сверху, тело, тёмная снизу —
+//     классическая объёмность 16-битного спрайта, где объём делается двумя строками пикселей;
+//   · фактура — крупными блоками, а не тонкими линиями: линия в полпикселя даёт серую кашу.
+// Скруглений нет намеренно: круглый кусок в пиксель-арте задаётся ступенчатым силуэтом.
+function drawPatchShapePix(d, x, y, w, h) {
+  const P = PIX, q = v => Math.round(v / P) * P;
+  const x0 = q(x), y0 = q(y);
+  const cols = Math.max(2, Math.round(w / P)), rows = Math.max(2, Math.round(h / P));
+  const base = d.rgb;
+  // ЧЕТЫРЕ СТУПЕНИ, А НЕ ДВЕ. Спрайт эпохи строится рампой: блик, свет, тело, тень. Двух
+  // ступеней хватает на «геометрическую плашку», и именно так выглядела первая редакция.
+  // Контраст больше, чем «реалистичный»: в пиксель-арте свет условен — блик почти белый,
+  // тень уходит в цвет контура. Мягкая рампа даёт «квантованное фото», а не спрайт (31.08).
+  const ramp = [ mix(base, [255,255,255], 0.58), mix(base, [255,255,255], 0.26),
+                 base, mix(shade(base, 0.55), [40,22,14], 0.25) ];
+  // КОНТУР — ПОЧТИ ЧЁРНЫЙ, а не тёмная версия материала. Именно он собирает спрайт в предмет:
+  // на референсе владельца (31.08) обводка у всего одна и очень тёмная, тёплого тона.
+  const line = mix(base, [26, 15, 10], 0.82);
+  const round = !!d.round, lens = !!d.lens;
+
+  // ⚠ СИЛУЭТ — КАПСУЛА, А НЕ ЭЛЛИПСС. Круглым у куска является СЕЧЕНИЕ, а не вид сверху:
+  // сверху брусок остаётся полосой со скруглёнными ТОРЦАМИ. Первая редакция делала эллипс
+  // целиком — и длинный ломтик авокадо превращался в веретено с остриями (владелец увидела
+  // сразу, 31.08). Радиус — половина короткой стороны, ровно как в прежнем rr(..., h/2).
+  const shortN = Math.min(cols, rows), rad = (round ? shortN / 2 : shortN / 2.5);
+  const inside = (i, j) => {
+    if (!round && !lens) return true;
+    const along = cols >= rows ? i : j, across = cols >= rows ? j : i;
+    const nAlong = cols >= rows ? cols : rows, nAcross = cols >= rows ? rows : cols;
+    const ac = (nAcross - 1) / 2, dAc = Math.abs(across - ac);
+    if (dAc > nAcross / 2) return false;
+    if (along >= rad - 0.5 && along <= nAlong - rad - 0.5) return true;   // прямая часть
+    const cc = along < nAlong / 2 ? rad - 0.5 : nAlong - rad - 0.5;       // центр торца
+    return (along - cc) ** 2 + (across - ac) ** 2 <= rad * rad;
+  };
+
+  // ДИЗЕРИНГ — подпись эпохи. Между двумя ступенями кладётся шахматка, и переход читается
+  // как переход, а не как ступенька. Без него любая заливка выглядит плоской наклейкой.
+  const dither = (i, j) => ((i + j) & 1) === 0;
+
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    if (!inside(i, j)) continue;
+    const px = x0 + i * P, py = y0 + j * P;
+    const t = rows > 1 ? j / (rows - 1) : 0.5;          // 0 — верх куска, 1 — низ
+    // Выбор ступени по высоте + дизеринг на границах между ними.
+    let c;
+    if (t < 0.14) c = ramp[0];
+    else if (t < 0.30) c = dither(i, j) ? ramp[0] : ramp[1];
+    else if (t < 0.62) c = ramp[1];
+    else if (t < 0.76) c = dither(i, j) ? ramp[1] : ramp[2];
+    else if (t < 0.90) c = ramp[2];
+    else c = dither(i, j) ? ramp[2] : ramp[3];
+    // Крапины: детерминированный шум по клетке — тот же hash, что у зерна, без Math.random,
+    // иначе фактура дрожала бы каждый кадр.
+    if (hash(i * 7 + 3, j * 11 + 5) > 0.82) c = mix(c, [255, 255, 255], 0.22);
+    ctx.fillStyle = rgbCss(c); ctx.fillRect(px, py, P, P);
+  }
+
+  // Фактура — блоками по сетке, а не тонкими линиями: линия тоньше арт-пикселя даёт кашу.
+  const tex = d.tex, hi = rgbCss(mix(base, [255,255,255], 0.62)), lo = rgbCss(shade(base, 0.78));
+  if (tex === 'salmon') {           // белые прожилки лосося — поперёк, через клетку
+    ctx.fillStyle = hi;
+    for (let j = 1; j < rows - 1; j += 3) for (let i = 0; i < cols; i++)
+      if (inside(i, j) && ((i + j) % 4)) ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
+  } else if (tex === 'shrimp') {    // кольца креветки — поперечные полосы в клетку
+    ctx.fillStyle = hi;
+    for (let i = 1; i < cols - 1; i += 3) for (let j = 0; j < rows; j++)
+      if (inside(i, j)) ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
+  } else if (tex === 'tamago') {    // слои омлета — тёмные швы
+    ctx.fillStyle = lo;
+    for (let j = 2; j < rows - 1; j += 3) for (let i = 0; i < cols; i++)
+      if (inside(i, j)) ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
+  } else if (tex === 'cucumber') {  // светлая сердцевина огурца
+    ctx.fillStyle = hi;
+    const j = Math.floor(rows / 2);
+    for (let i = 1; i < cols - 1; i++) if (inside(i, j)) ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
+  }
+
+  // КОНТУР — по клеткам силуэта, а не рамкой: у пиксельного спрайта обводка повторяет ступени.
+  ctx.fillStyle = rgbCss(line);
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    if (!inside(i, j)) continue;
+    if (inside(i - 1, j) && inside(i + 1, j) && inside(i, j - 1) && inside(i, j + 1)
+        && i > 0 && i < cols - 1 && j > 0 && j < rows - 1) continue;
+    ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
+  }
+}
+
 // Фигура патча в ЛОГИЧЕСКИХ координатах листа (см. блок выше): x, y — верхний левый угол; w — вдоль v, h — вдоль u.
 function drawPatchShape(d, x, y, w, h, flat) {
+  if (PIX) return drawPatchShapePix(d, x, y, w, h);
   const c = d.color, rgb = d.rgb;
   const r = d.round ? h / 2 : d.lens ? h / 2.5 : 3;
   if (d.round) {
@@ -219,8 +319,40 @@ function drawKnife(x, y, angle, press, R) {
   if (press > 0) { ctx.globalAlpha = press * 0.4; ctx.fillStyle = '#fff'; ctx.fillRect(-1.5, -bl + 8, 3, bl - 12); }
   ctx.restore();
 }
+// Силуэт картинки, залитый одним тёмным цветом, — для пиксельной тени. Кешируется: срез
+// меняется редко, а рисуется каждый кадр.
+const _silCache = new Map();
+function pixSilhouette(img) {
+  let s = _silCache.get(img);
+  if (!s) {
+    if (_silCache.size > 40) _silCache.clear();
+    s = document.createElement('canvas'); s.width = img.width; s.height = img.height;
+    const c = s.getContext('2d');
+    c.imageSmoothingEnabled = false; c.drawImage(img, 0, 0);
+    c.globalCompositeOperation = 'source-in'; c.fillStyle = '#0d0c0a';
+    c.fillRect(0, 0, s.width, s.height);
+    _silCache.set(img, s);
+  }
+  return s;
+}
 function drawFaceImg(img, x, y, size, scaleX = 1, alpha = 1) {
   ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.scale(Math.max(0.01, scaleX), 1);
+  if (PIX) {
+    // Пиксельный режим: размытые тени — единственный источник мыла вокруг готовой картинки,
+    // поэтому вместо них СМЕЩЁННАЯ КОПИЯ силуэта (так тень делали на приставках), позиция и
+    // размер прижаты к сетке арт-пикселей, сглаживание при выводе выключено (issue #104).
+    const q = v => Math.round(v / PIX) * PIX;
+    const sz = Math.max(PIX, q(size)), x0 = q(-sz / 2), y0 = q(-sz / 2);
+    ctx.imageSmoothingEnabled = false;
+    // ⚠ ТЕНЬ — СПЛОШНОЙ СИЛУЭТ, А НЕ КОПИЯ КАРТИНКИ. Первая редакция рисовала со смещением сам
+    // срез вполупрозрачности — и он читался как ПРИЗРАК второго ролла, а не как тень
+    // (владелец 31.08: «какой-то артефакт внизу, как будто второй раз обёрнут»). Силуэт
+    // получается заливкой по маске картинки: source-in красит только непрозрачные точки.
+    const sil = pixSilhouette(img);
+    ctx.globalAlpha = alpha * 0.55; ctx.drawImage(sil, x0 + PIX, y0 + 2 * PIX, sz, sz);
+    ctx.globalAlpha = alpha;        ctx.drawImage(img, x0, y0, sz, sz);
+    ctx.restore(); return;
+  }
   ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 8;
   ctx.drawImage(img, -size / 2, -size / 2, size, size);
   // контактная тень: узкий тёмный ореол по силуэту — граница светлой обёртки на светлой доске

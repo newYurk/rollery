@@ -76,7 +76,9 @@ function drawLay() {
   const mdl = getModel(), wd0 = windFor(mdl, 0.5), Lm = mdl.g.L;
   const uClose = wd0.sClose >= 0 ? wd0.sClose / Lm : B().spreadEnd, uEnd = wd0.sEnd < Lm ? wd0.sEnd / Lm : 1;
   const bare = (1 - uClose) * s.h, rimPx = B().spreadEnd < 1 ? RIM_W * s.h : 0;
-  ctx.save(); rr(s.x, s.y + bare, s.w, s.h - bare, 4); ctx.clip(); ctx.drawImage(getSpreadTex(s.w, s.h), s.x, s.y, s.w, s.h);
+  ctx.save(); rr(s.x, s.y + bare, s.w, s.h - bare, 4); ctx.clip();
+  if (PIX) ctx.imageSmoothingEnabled = false;   // растягиваем крупную текстуру ступеньками, а не мылом
+  ctx.drawImage(getSpreadTex(s.w, s.h), s.x, s.y, s.w, s.h);
   // КРАЙ РИСА ПРОСВЕЧИВАЕТ, А НЕ ОБВОДИТСЯ. Стенкой рис не обрывается: у самой кромки его
   // остаётся на пару зёрен, и сквозь него видно нори. Раньше здесь рисовалась светлая полоса —
   // валик «нарисованный», а не следствие толщины; владелец на неё и указала. Теперь это просто

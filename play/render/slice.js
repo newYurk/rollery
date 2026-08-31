@@ -183,7 +183,11 @@ function strokeWrapperTurns(c, m, wd, si, scale, half, LW, alpha) {
 function strokeWrapperRim(c, m, wd, si, scale, half) {
   const b = B();
   if (b.inverted) return;                       // урамаки: нори внутри, модель этого не умеет — не подчёркивать известную ошибку
-  const MIN = WRAP_MIN_CSS * DPR, wPx = m.g.w * scale;
+  // В пиксельном режиме минимум — ОДИН арт-пиксель, а не 1,6 device-px: иначе лента выходит
+  // вчетверо жирнее задуманного и забивает узор (issue #104).
+  // ДВА арт-пикселя, а не один: контур в один пиксель читается как дефект разрешения, а не как
+  // обводка — в пиксель-арте силуэт всегда весомый (замечание владельца 31.08).
+  const MIN = PIX ? 2 : WRAP_MIN_CSS * DPR, wPx = m.g.w * scale;
   const a = clamp((1.5 * MIN - wPx) / (0.5 * MIN));
   if (a <= 0) return;                           // честная лента и так достаточно толстая
   const LW = Math.max(MIN, wPx);
@@ -203,12 +207,65 @@ function strokeWrapperRim(c, m, wd, si, scale, half) {
   p.closePath();
   c.save();
   c.globalCompositeOperation = 'source-atop';   // не красить за силуэтом, который посчитала модель
-  c.globalAlpha = a; c.lineJoin = 'round'; c.lineCap = 'round';
-  c.strokeStyle = 'rgba(24,40,30,0.28)'; c.lineWidth = LW + 1.7 * MIN; c.stroke(p);   // контактная тень в канавке; `inferred`, источника нет
+  // Пиксельный режим: скругления и контактная тень снимаются — оба дают полупрозрачные
+  // краевые точки, то есть ровно то, чего в 16-битном арте не бывает.
+  c.globalAlpha = PIX ? 1 : a;
+  c.lineJoin = PIX ? 'miter' : 'round'; c.lineCap = PIX ? 'butt' : 'round';
+  if (!PIX) { c.strokeStyle = 'rgba(24,40,30,0.28)'; c.lineWidth = LW + 1.7 * MIN; c.stroke(p); }   // контактная тень; `inferred`
   c.strokeStyle = rgbCss(b.wrapperRgb);   c.lineWidth = LW;             c.stroke(p);
   c.restore();
   strokeWrapperTurns(c, m, wd, si, scale, half, LW, a);   // и внутренние витки — той же шириной
 }
+// ── ПИКСЕЛЬНЫЙ РЕЖИМ (16-битный арт) ────────────────────────────────────────
+// Срез УЖЕ рисуется попиксельно (ImageData ниже), поэтому пиксель-арт здесь не переписывание,
+// а три вещи: считать в PIX раз крупнее, прижать цвет к палитре и убрать полупрозрачные кромки.
+//
+// ⚠ Само по себе понижение разрешения даёт МЫЛО, а не пиксель-арт — проверено прогоном
+// (issue #104). Вид даёт именно связка: крупный пиксель + жёсткая альфа + палитра.
+// Поэтому здесь всё три сразу, а не «сначала масштаб, потом остальное».
+//
+// Включается ?pix (и ?pix=6 задаёт размер арт-пикселя). Пока это ПРОБА, а не решение:
+// художественный выбор палитры за владельцем, код лишь перестал мешать.
+// PIX — сколько НАСТОЯЩИХ пикселей занимает один арт-пиксель. Восемь, а не четыре: при мелком
+// арт-пикселе получается «плохое разрешение», а не пиксель-арт — крупность и есть стиль.
+// ВКЛЮЧЁН ПО УМОЛЧАНИЮ с 31.08. Причина не «пиксельный лучше», а «половинчатый хуже обоих»:
+// иконки стали нарисованными спрайтами, и гладкие полосы рядом с ними читаются как сбой, а не
+// как стиль. `?flat` возвращает прежний вид, `?pix=5` меняет размер арт-пикселя.
+const PIX = (() => {
+  if (/[?&]flat\b/.test(location.search)) return 0;
+  const m = /[?&]pix(?:=(\d+))?/.exec(location.search);
+  return m ? (+m[1] || 8) : 8;
+})();
+
+// Палитра выведена из уже существующих цветов игры, а не придумана: по 4 ступени светлоты на
+// каждый материал каталога. Это «квантованный реализм» — честная отправная точка, от которой
+// художник дальше отходит осознанно. Ступени, а не плавность, и есть суть 16-битного вида.
+let _pal = null;
+function pixPalette() {
+  if (_pal) return _pal;
+  const out = [];
+  const add = hex => { const c = hexRgb(hex);
+    for (const k of [0.55, 0.78, 1.0, 1.18])
+      out.push([Math.min(255, c[0] * k), Math.min(255, c[1] * k), Math.min(255, c[2] * k)]); };
+  for (const k in ING) if (ING[k].color) add(ING[k].color);
+  for (const k in WRAPPERS) add(WRAPPERS[k].color);
+  for (const k in BASES) { if (BASES[k].spread) add(BASES[k].spread); if (BASES[k].wrapper) add(BASES[k].wrapper); }
+  add('#efe6d2'); add('#171713');                       // рис и фон стола
+  _pal = out; return out;
+}
+// Ближайший цвет палитры. Перебор по сотне записей на пиксель дорог, поэтому результат
+// запоминается по огрублённому ключу: соседние оттенки всё равно сойдутся в одну ступень.
+const _palCache = new Map();
+function pixSnap(r, g, b) {
+  const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+  const hit = _palCache.get(key); if (hit) return hit;
+  const pal = pixPalette(); let best = pal[0], bd = 1e9;
+  for (const c of pal) { const d = (c[0] - r) ** 2 + (c[1] - g) ** 2 + (c[2] - b) ** 2;
+    if (d < bd) { bd = d; best = c; } }
+  if (_palCache.size > 4096) _palCache.clear();
+  _palCache.set(key, best); return best;
+}
+
 function renderSection(size, vSlice, m, Rref) {
   const g = m.g, b = B(), wd = windFor(m, vSlice), si = shapeInfo(m.shape || S.shape, m.Rmax, m.g.press);
   const off = document.createElement('canvas'); off.width = off.height = size;
@@ -217,7 +274,10 @@ function renderSection(size, vSlice, m, Rref) {
   // LOD крупы: сколько device-px приходится на зерно. На альбомных миниатюрах рельеф гасится, иначе
   // он вырождается в решётку. sweet — сладкая база не усиливается: она и так читается, и «нереальная
   // разница» между срезами должна исчезнуть, а не поменять знак.
-  const lod = clamp((GRAIN * scale - 6) / 8), sweet = S.base === 'cake';
+  // ⚠ Порог LOD выражен в АРТ-пикселях: при PIX=4 зерно занимает вчетверо меньше точек, и по
+  // старому порогу оно просто гасло (на превью — полностью). Это и есть та поправка, без
+  // которой «пиксельный срез» выходил бы гладким полем без крупы (issue #104).
+  const lod = clamp((GRAIN * scale * (PIX || 1) - 6) / 8), sweet = S.base === 'cake';
   for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
     const i = (py * size + px) * 4;
     const dx = (px + 0.5 - half) / scale, dy = (py + 0.5 - half) / scale;
@@ -294,8 +354,13 @@ function renderSection(size, vSlice, m, Rref) {
       }
       if (mat.sm && mat.sm.rOut >= topAt(wd, phi) - 1e-4) alpha = clamp(0.5 + (mat.sm.rOut - r) * scale);   // внешняя кромка
     }
-    const rr = r / R, vig = 1 - 0.10 * rr * rr - 0.035 * (dx + dy) / R;
-    d[i] = clamp(rgb[0] * vig, 0, 255); d[i + 1] = clamp(rgb[1] * vig, 0, 255); d[i + 2] = clamp(rgb[2] * vig, 0, 255); d[i + 3] = alpha * 255;
+    // Виньетка в пиксельном режиме снимается: непрерывный градиент по всему срезу уводил
+    // один и тот же материал по палитре в зависимости от места — ровно то, чего в 16-битном
+    // арте не бывает. Альфа становится порогом: полупрозрачная кромка = ореол, а не контур.
+    const rr = r / R, vig = PIX ? 1 : 1 - 0.10 * rr * rr - 0.035 * (dx + dy) / R;
+    let cr = clamp(rgb[0] * vig, 0, 255), cg = clamp(rgb[1] * vig, 0, 255), cb = clamp(rgb[2] * vig, 0, 255);
+    if (PIX) { const q = pixSnap(cr, cg, cb); cr = q[0]; cg = q[1]; cb = q[2]; alpha = alpha > 0.5 ? 1 : 0; }
+    d[i] = cr; d[i + 1] = cg; d[i + 2] = cb; d[i + 3] = alpha * 255;
   }
   c.putImageData(img, 0, 0);
   strokeWrapperRim(c, m, wd, si, scale, half);
@@ -320,9 +385,23 @@ let modelKey = '';
 function touchModel() { modelKey = S.base + '|' + S.shape + JSON.stringify(patches()); save(); dirty = true; }
 function face(vSlice, cssSize, m, Rref) {
   m = m || getModel(); const size = Math.round(cssSize * DPR);
-  const key = m.key + '|' + vSlice.toFixed(3) + '|' + size + '|' + (Rref ? Rref.toFixed(3) : '') + '|' + S.shape;
+  const key = m.key + '|' + vSlice.toFixed(3) + '|' + size + '|' + (Rref ? Rref.toFixed(3) : '') + '|' + S.shape + (PIX ? '|p' + PIX : '');
   let img = faceCache.get(key);
-  if (!img) { if (faceCache.size > 60) faceCache.clear(); img = renderSection(size, vSlice, m, Rref); faceCache.set(key, img); }
+  if (!img) {
+    if (faceCache.size > 60) faceCache.clear();
+    if (PIX) {
+      // Считаем срез в PIX раз мельче и увеличиваем ЦЕЛЫМ множителем с выключенным сглаживанием.
+      // Целым — обязательно: дробное увеличение возвращает мыло, ради борьбы с которым всё и затеяно.
+      // Размер выхода кратен PIX, поэтому вызывающий получает картинку не мельче запрошенной.
+      const small = Math.max(8, Math.round(size / PIX)), out = small * PIX;
+      const src = renderSection(small, vSlice, m, Rref);
+      const cv = document.createElement('canvas'); cv.width = cv.height = out;
+      const cx = cv.getContext('2d'); cx.imageSmoothingEnabled = false;
+      cx.drawImage(src, 0, 0, small, small, 0, 0, out, out);
+      img = cv;
+    } else img = renderSection(size, vSlice, m, Rref);
+    faceCache.set(key, img);
+  }
   return img;
 }
 const pieceV = i => i / NPIECES + 0.002;   // левая грань кусочка; кусочек 0 — торец ролла

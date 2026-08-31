@@ -34,6 +34,27 @@ function buttonRow(list, area) {
   });
 }
 let chips = [], chipScrollX = 0;
+
+// ── ИКОНКИ-СПРАЙТЫ (issue #104) ─────────────────────────────────────────────
+// Чипы рисовались тем же кодом, что и начинки на листе, — то есть вычислялись. Но иконка
+// изображает ПРЕДМЕТ («кусок лосося»), а не его укладку, и вот её как раз можно нарисовать
+// заранее. Спрайты 40×40 с альфой лежат в play/assets/icons/, сделаны в Draw Things и
+// посажены на пиксельную сетку (tools/pixel-icons.py).
+//
+// Загрузка ленивая и НЕблокирующая: пока картинка не пришла, чип рисуется по-старому, а
+// как придёт — просим кадр. Никаких ожиданий: стенд обязан открываться сразу.
+const ICONS = {};
+function iconImg(kind) {
+  let im = ICONS[kind];
+  if (im === undefined) {
+    im = new Image();
+    im.onload = () => { dirty = true; requestFrame(); };
+    im.onerror = () => { ICONS[kind] = null; };          // нет файла — молча рисуем по-старому
+    im.src = 'assets/icons/' + kind + '.png';
+    ICONS[kind] = im;
+  }
+  return im && im.complete && im.naturalWidth ? im : null;
+}
 function drawChips() {
   chips = []; const c = L.chips, ings = uiIngredients(), n = ings.length, gap = 8, size = c.size;
   const perRow = c.perRow || n, rowH = size + (c.labels ? 18 : 6), rowW = perRow * (size + gap) - gap;
@@ -49,9 +70,18 @@ function drawChips() {
     rr(x, y, size, size, 12); ctx.fillStyle = '#26261f'; ctx.fill();
     if (selected) { ctx.strokeStyle = '#f3e7ca'; ctx.lineWidth = 2.5; ctx.stroke(); }
     ctx.save(); rr(x + 4, y + 4, size - 8, size - 8, 9); ctx.clip();
-    const gw = Math.max(8, (d.wU / 2.6) * (size - 16)), gh = d.dv >= 1 ? size - 16 : (size - 16) * 0.5;
-    ctx.translate(x + size / 2, y + size / 2);
-    if (d.paint) { ctx.fillStyle = d.color; rr(-gh / 2, -gw / 2, gh, gw, 6); ctx.fill(); } else drawPatchShape(d, -gh / 2, -gw / 2, gh, gw, true);
+    const sprite = iconImg(kind);
+    if (sprite) {
+      // Спрайт вписывается ЦЕЛЫМ множителем и без сглаживания — дробное растяжение вернуло бы
+      // мыло, ради борьбы с которым спрайт и рисовался.
+      const inner = size - 10, k = Math.max(1, Math.floor(inner / sprite.width)), sz = sprite.width * k;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(sprite, Math.round(x + (size - sz) / 2), Math.round(y + (size - sz) / 2), sz, sz);
+    } else {
+      const gw = Math.max(8, (d.wU / 2.6) * (size - 16)), gh = d.dv >= 1 ? size - 16 : (size - 16) * 0.5;
+      ctx.translate(x + size / 2, y + size / 2);
+      if (d.paint) { ctx.fillStyle = d.color; rr(-gh / 2, -gw / 2, gh, gw, 6); ctx.fill(); } else drawPatchShape(d, -gh / 2, -gw / 2, gh, gw, true);
+    }
     ctx.restore();
     if (c.labels) { ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(d.name, x + size / 2, y + size + 3); }
   });
