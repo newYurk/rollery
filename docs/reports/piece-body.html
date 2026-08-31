@@ -4,45 +4,12 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 
 <style>
-  /* Светлая тема — калька под лампой: холодный серо-зелёный, а не бумажный крем. */
+  /* ТЁМНАЯ ТЕМА — ОДНА, БЕЗ ПЕРЕКЛЮЧЕНИЯ. Это светокопия: светлые линии по тёмному полю.
+     Выбор сознательный, а не упущение: гид живёт первым в разделе документов, а весь раздел
+     тёмный, и страница, светлеющая посреди тёмного сайта, читается как чужая. Поэтому ни
+     prefers-color-scheme, ни data-theme здесь нет — но каждый цвет задан явно, чтобы страница
+     держалась на любом фоне, куда бы её ни вставили. */
   :root {
-    --paper:      #e9ece8;
-    --field:      #f4f6f2;
-    --ink:        #171c18;
-    --ink-2:      #4c554e;
-    --ink-3:      #78827a;
-    --rule:       #c2c8c0;
-    --rule-soft:  #d7dcd5;
-    --dim:        #6d776f;
-    --hot:        #b8371c;   /* верхний контур — общий у двух видов */
-    --hot-soft:   rgba(184, 55, 28, 0.10);
-    --cold:       #2a6480;   /* нижний контур — виден только в срезе */
-    --cold-soft:  rgba(42, 100, 128, 0.10);
-    --rice:       #ded7cd;
-    --nori:       #22342b;
-    --shadow:     0 1px 0 rgba(23, 28, 24, 0.06);
-  }
-  /* Системная тёмная (штампа на корне нет) — светокопия: линии светлые по тёмному. */
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --paper:     #141817;
-      --field:     #1b201f;
-      --ink:       #dee3df;
-      --ink-2:     #9aa49d;
-      --ink-3:     #737d76;
-      --rule:      #333b39;
-      --rule-soft: #262d2c;
-      --dim:       #808b84;
-      --hot:       #f0714f;
-      --hot-soft:  rgba(240, 113, 79, 0.12);
-      --cold:      #6bb3d4;
-      --cold-soft: rgba(107, 179, 212, 0.12);
-      --rice:      #4a453e;
-      --nori:      #16241d;
-      --shadow:    0 1px 0 rgba(0, 0, 0, 0.4);
-    }
-  }
-  :root[data-theme="dark"] {
     --paper:     #141817;
     --field:     #1b201f;
     --ink:       #dee3df;
@@ -51,13 +18,14 @@
     --rule:      #333b39;
     --rule-soft: #262d2c;
     --dim:       #808b84;
-    --hot:       #f0714f;
+    --hot:       #f0714f;   /* верхний контур — общий у двух видов */
     --hot-soft:  rgba(240, 113, 79, 0.12);
-    --cold:      #6bb3d4;
+    --cold:      #6bb3d4;   /* нижний контур — виден только в срезе */
     --cold-soft: rgba(107, 179, 212, 0.12);
     --rice:      #4a453e;
     --nori:      #16241d;
     --shadow:    0 1px 0 rgba(0, 0, 0, 0.4);
+    color-scheme: dark;
   }
 
   * { box-sizing: border-box; }
@@ -1621,10 +1589,5 @@
   }
 
   drawAll();
-  // Цвета берутся из токенов темы — при смене темы линии надо пересчитать.
-  if (window.matchMedia) {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    (mq.addEventListener ? mq.addEventListener.bind(mq, 'change') : mq.addListener.bind(mq))(drawAll);
-  }
 })();
 </script>
