@@ -1,4 +1,23 @@
 'use strict';
+// ЛИСТ РИСУЕТСЯ В НАСТОЯЩЕЙ ПРОПОРЦИИ — решение владельца 31.08, «честный масштаб всегда».
+//
+// Раньше лист заполнял рамку целиком, и в коде прямо стояло «пропорция листа больше не
+// изображает физику». Тогда это было разумно: лист считался картинкой. Теперь по нему сверяют
+// глазами — то ли легло и туда ли, — и кривая линейка сверять не даёт.
+//
+// Что это было на замере (390 × 844): у футомаки почти честно, 1,03, потому что его лист сам
+// близок к квадрату (210 × 190 мм). У ХОСОМАКИ И УРАМАКИ — ВДВОЕ: лист 105 × 190, а рамка та
+// же, и кусок 10 × 10 мм рисовался 25 × 48 px. Квадратный брусок выглядел лежачим кирпичом.
+//
+// Вписываем по МЕНЬШЕЙ стороне: лист никогда не вылезает за отведённое, а остаток остаётся
+// пустым. Пустое место — честная цена за то, что форме куска можно верить.
+function sheetFit(sw, sh, uAxis) {
+  const b = B(), Lu = sheetLen(b), Wv = b.Wv;      // единицы: вдоль скрутки и вдоль ролла
+  const надо = uAxis === 'y' ? Lu / Wv : Wv / Lu;  // нужное отношение высоты к ширине
+  if (!(надо > 0) || !isFinite(надо)) return { sw, sh };
+  return (sh / sw > надо) ? { sw, sh: sw * надо } : { sw: sh / надо, sh };
+}
+
 // ХОЛСТ И РАСКЛАДКА ЭКРАНА: canvas, ctx, размеры, safe-area, режимы P/L/T/D.
 //
 // Здесь объявлены canvas, ctx, W, H, DPR, SAFE и L — их читает всё остальное, поэтому файл
@@ -80,7 +99,10 @@ function layout() {
     // скрутки u и сколько пикселей достаётся каждой оси листа. w/h ОСТАЮТСЯ экранными размерами
     // рамки — на них считаются eaten, накладка предпросмотра и центрирование; всё, что спрашивает
     // «сколько пикселей на ось узора», читает lenU и не гадает по w/h.
-    L.sheet = { x: ox + 16, y: L.top + 22, w: sw, h: sh, uAxis: 'y', lenU: sh, lenV: sw };
+    { const f = sheetFit(sw, sh, 'y');
+      // Остаток от честной пропорции делится поровну: лист стоит по центру рамки, а не прижат
+      // к верху с пустой циновкой под ним.
+      L.sheet = { x: ox + 16 + (sw - f.sw) / 2, y: L.top + 22 + (sh - f.sh) / 2, w: f.sw, h: f.sh, uAxis: 'y', lenU: f.sh, lenV: f.sw }; }
     L.handle = { x: L.sheet.x - 12, y: L.sheet.y + sh + 8, w: sw + 24, h: handleH };
     const sx = L.sheet.x + sw + 28, swid = Math.max(200, cw - sw - 60);
     L.side = { x: sx, y: L.top + 8, w: swid, h: ch - panelH - 16 };
@@ -152,7 +174,8 @@ function layout() {
     const plP = candsP.reduce(betterFit(FLOOR));
     const band = plP.band, rows = plP.rows, sh = plP.sh, perRow = Math.ceil(n / rows);
     L.previewMode = showPrev ? (band ? 'band' : 'overlay') : 'none';
-    L.sheet = { x: ox + (cw - sw) / 2, y: L.top + 26 + band, w: sw, h: sh, uAxis: 'y', lenU: sh, lenV: sw };
+    { const f = sheetFit(sw, sh, 'y');
+      L.sheet = { x: ox + (cw - f.sw) / 2, y: L.top + 26 + band + (sh - f.sh) / 2, w: f.sw, h: f.sh, uAxis: 'y', lenU: f.sh, lenV: f.sw }; }
     L.handle = { x: L.sheet.x - 18, y: L.sheet.y + sh + 8, w: sw + 36, h: handleH };
     L.layBtn = { x: L.rowBtn.x, y: L.handle.y + handleH + 12, w: L.rowBtn.w, h: btnH, max: 3 };
     L.chips = { x: ox + 12, y: L.layBtn.y + btnH + 12, w: stripW, size: chipSize, rows, labels: true, perRow, pad };
@@ -219,7 +242,14 @@ function layout() {
         : 0;
       // Сколько чипов видно без прокрутки в ЭТОЙ раскладке — вторая ступень отбора.
       const vis = Math.min(n, rows * Math.max(1, Math.floor((chipInner + 8) / (chipSize + 8))));
-      return { band: bnd, side, rows, sw, sh, alongU: rot ? sw : sh, boxH: bh, vis, area: sw * sh - eaten };
+      // ⚠ СРАВНИВАТЬ НАДО ТО, ЧТО РЕАЛЬНО НАРИСУЕМ. С 31.08 лист держит честную пропорцию и
+      // потому МЕНЬШЕ рамки; если кандидатов сравнивать по площади рамки, выигрывает тот, у
+      // кого рамка удачнее, а не тот, у кого лист крупнее. Именно так на 1024×768 победил
+      // повёрнутый вариант, который по ширине уже, и ось узора просела до 2,79 px/мм при
+      // требовании ≥ 3. Считаем честные размеры здесь же и по ним и судим.
+      const ff = sheetFit(sw, sh, rot ? 'x' : 'y');
+      return { band: bnd, side, rows, sw, sh, alongU: rot ? ff.sw : ff.sh, boxH: bh, vis,
+               area: ff.sw * ff.sh - eaten };
     };
     // Где предпросмотру стоять — решает СРАВНЕНИЕ ПО СУЩЕСТВУ, а не доля высоты. Прежний потолок
     // «полоса не больше пятой части высоты» был угаданным числом и решал судьбу листа: на 1024x768
@@ -240,13 +270,21 @@ function layout() {
     // Остаток по вертикали делим пополам: лист физически широкий и низкий, весь экран ему не нужен,
     // и блок «лист + циновка + кнопки + лента» стоит по центру, а не прижат к панели.
     const spare = Math.max(0, boxH - sh);
+    // ⚠ ЧЕСТНАЯ ПРОПОРЦИЯ ДОЛЖНА БРАТЬ ВЕСЬ ДОСТУПНЫЙ БОКС, А НЕ ТОЛЬКО sh.
+    // Ветка T/D считает sh консервативно и оставляет `spare` неиспользованным. Пока лист
+    // заполнял рамку, это было незаметно; после перехода на честный масштаб (31.08) он стал
+    // ужиматься от УЖЕ ужатой высоты, и на 1024×768 ось узора просела до 2,79 px/мм при
+    // требовании ≥ 3 — то есть честность отняла читаемость там, где место было.
+    // Отдаём боксу его настоящую высоту; лишнее вернётся полем при центрировании.
+    const boxFit = boxH;
     if (rot) {
       // Повёрнутый лист: ось скрутки u — по горизонтали, ручка-циновка — вертикальной полосой
       // со стороны u = 0 (SHEET_U0), кнопки — сразу под листом, лента чипов — от окна.
       const groupW = handleH + 12 + sw;
       const gx0 = Math.max(ox + 22, ox + (cw - groupW) / 2);
       const bx = u0left ? gx0 + handleH + 12 : gx0;
-      L.sheet = { x: bx, y: L.top + 26 + band + spare / 2, w: sw, h: sh, uAxis: 'x', lenU: sw, lenV: sh };
+      { const f = sheetFit(sw, boxFit, 'x');
+        L.sheet = { x: bx + (sw - f.sw) / 2, y: L.top + 26 + band + (boxFit - f.sh) / 2, w: f.sw, h: f.sh, uAxis: 'x', lenU: f.sw, lenV: f.sh }; }
       L.handle = u0left ? { x: bx - 12 - handleH, y: L.sheet.y - 18, w: handleH, h: sh + 36 }
                         : { x: bx + sw + 12, y: L.sheet.y - 18, w: handleH, h: sh + 36 };
       L.layBtn = { x: bx - 18, y: L.sheet.y + sh + 12, w: sw + 36, h: btnH, max: 3 };
@@ -255,7 +293,8 @@ function layout() {
     } else {
     const groupW = sw + (sideOn ? 24 + scol : 0);
     const bx = Math.max(ox + 22, ox + (cw - groupW) / 2);
-    L.sheet = { x: bx, y: L.top + 26 + band + spare / 2, w: sw, h: sh, uAxis: 'y', lenU: sh, lenV: sw };
+    { const f = sheetFit(sw, boxFit, 'y');
+      L.sheet = { x: bx + (sw - f.sw) / 2, y: L.top + 26 + band + (boxFit - f.sh) / 2, w: f.sw, h: f.sh, uAxis: 'y', lenU: f.sh, lenV: f.sw }; }
     L.handle = { x: bx - 18, y: L.sheet.y + sh + 8, w: sw + 36, h: handleH };
     L.layBtn = { x: bx - 18, y: L.handle.y + handleH + 12, w: sw + 36, h: btnH, max: 3 };
     L.chips = { x: bx - 18, y: L.layBtn.y + btnH + 12, w: sw + 36, size: chipSize, rows, labels: true, perRow, pad };

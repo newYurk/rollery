@@ -280,8 +280,16 @@ function pixSilhouette(img) {
   }
   return s;
 }
-function drawFaceImg(img, x, y, size, scaleX = 1, alpha = 1) {
+// `безТени` — для отладочного окна «что внутри»: там срез растянут почти на весь лист, и
+// тень съедала бы поле, которое нужнее под сам рисунок (решение владельца 31.08).
+function drawFaceImg(img, x, y, size, scaleX = 1, alpha = 1, безТени = false) {
   ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.scale(Math.max(0.01, scaleX), 1);
+  if (безТени) {
+    if (PIX) { const q = v => Math.round(v / PIX) * PIX, sz = Math.max(PIX, q(size));
+      ctx.imageSmoothingEnabled = false; ctx.drawImage(img, q(-sz / 2), q(-sz / 2), sz, sz); }
+    else ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    ctx.restore(); return;
+  }
   if (PIX) {
     // Пиксельный режим: размытые тени — единственный источник мыла вокруг готовой картинки,
     // поэтому вместо них СМЕЩЁННАЯ КОПИЯ силуэта (так тень делали на приставках), позиция и
