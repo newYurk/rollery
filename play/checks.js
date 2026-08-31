@@ -334,7 +334,11 @@ function runChecks(detail) {
           const ings = uiIngredients().length, per = L.chips.perRow || ings, rows = L.chips.rows || 1;
           const hidden = Math.max(0, ings - per * rows);
           ok(hidden === 0 || L.chipScroll, `${tag}: ${hidden} начинок спрятано БЕЗ прокрутки`);
-          const patch = 2 / getModel().g.L * L.sheet.lenU;       // брусок 2 ед. на экране (вдоль оси скрутки)
+          // ⚠ БЫЛО «2 ед.» ЧИСЛОМ — литерал, уже разошедшийся с каталогом (лосось стал 1,6).
+          // Меряем ту же величину, по которой считается пол листа: МЕДИАННУЮ начинку палитры.
+          // Узкие (майо) сюда не идут — они в мягком канале ниже, с номером задачи #47.
+          const typ = (typeof typicalU === 'function') ? typicalU() : 2;
+          const patch = typ / getModel().g.L * L.sheet.lenU;      // на экране, вдоль оси скрутки
           const pad = (typeof HIT_PAD === 'number') ? HIT_PAD : 10;
           const need = (typeof TOUCH === 'number') ? TOUCH : 44;
           if (LAY_SKIP.indexOf(w + 'x' + h) < 0)
