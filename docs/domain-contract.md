@@ -681,16 +681,14 @@ createLayout(baseId, catalog) -> Layout
 addPiece(layout, pieceDraft, catalog)
   -> {layout, events, diagnostics}
 
-movePiece(layout, pieceId, positionMm, catalog)
-  -> {layout, events, diagnostics}
-
-rotatePiece(layout, pieceId, angleDeg, catalog)
-  -> {layout, events, diagnostics}
+# ⚠ ОТМЕНЕНО решением владельца 31.08.2026 (#110), см. §5.3. Игрок не двигает и не поворачивает
+# куски поштучно — раскладка задаётся иначе. Строки оставлены зачёркнутыми, а не удалены,
+# потому что §8 и §10 на них ссылались, и молча исчезнувшая функция читается как забытая.
+# movePiece(layout, pieceId, positionMm, catalog)      -> {layout, events, diagnostics}
+# rotatePiece(layout, pieceId, angleDeg, catalog)      -> {layout, events, diagnostics}
+# setPiecePlacement(layout, pieceId, placement, catalog) -> {layout, events, diagnostics}
 
 setPieceCut(layout, pieceId, cutId, catalog)
-  -> {layout, events, diagnostics}
-
-setPiecePlacement(layout, pieceId, placement, catalog)
   -> {layout, events, diagnostics}
 
 removePiece(layout, pieceId)
@@ -1182,12 +1180,15 @@ smoke-тест изоляции presentation-слоя — если скин не
 ```js
 const layout = createLayout("base-id", catalog);
 const withCucumber = addPiece(layout, cucumberDraft, catalog).layout;
-const moved = movePiece(withCucumber, "piece-001", {xMm: 47, yMm: 95}, catalog).layout;
-const rotated = rotatePiece(moved, "piece-001", 45, catalog).layout;
+const withTamago  = addPiece(withCucumber, tamagoDraft, catalog).layout;
 
-const roll = buildRollModel(rotated, neutralTechnique, catalog);
+const roll = buildRollModel(withTamago, neutralTechnique, catalog);
 const slice = sliceRoll(roll, centerCut, catalog);
-const hints = diagnoseSlice(rotated, roll, slice, {mode: "sandbox"});
+const hints = diagnoseSlice(withTamago, roll, slice, {mode: "sandbox"});
+
+// ⚠ ЗДЕСЬ СТОЯЛИ movePiece И rotatePiece — отменённые §5.3 (#110, решение владельца 31.08).
+// То есть «финальный критерий успеха» буквально предписывал построить то, от чего §5.3
+// защищает. §8 и §10 тогда поправили, а §7 и §14 — нет; поймано вечерней сверкой 31.08.
 ```
 
 А затем любой интерфейс — текущий Canvas, 16-bit экран, HTML, mobile UI, puzzle mode, yokai story или ресторанная метаигра — может отобразить этот результат и отправить следующие команды, не переписывая механику ролла.

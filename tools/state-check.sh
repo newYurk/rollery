@@ -18,9 +18,18 @@ if [ -n "$(git status --porcelain)" ]; then
   warn "есть незакоммиченные изменения:"; git status --porcelain | sed 's/^/      /'
 else say "  ✓ чисто"; fi
 
+# ⚠ СНАЧАЛА СПРОСИТЬ, ЕСТЬ ЛИ ВЕТКА НА ORIGIN. Прежняя редакция считала коммиты в диапазоне
+# origin/$br..$br и глушила ошибку через 2>/dev/null: если ветки на origin НЕТ ВОВСЕ (новая,
+# ни разу не отправленная), git падал, вывод пустел, ahead становился нулём — и сторож печатал
+# «✓ запушено» ровно в том случае, который обязан ловить. Тот же класс, что мерка spreadEnd
+# вместо кромки нори: величина взята не та, что названа. Найдено вечерней сверкой 31.08.
 br=$(git branch --show-current)
-ahead=$(git log "origin/$br..$br" --oneline 2>/dev/null | wc -l | tr -d ' ')
-[ "$ahead" != "0" ] && warn "не запушено коммитов: $ahead (ветка $br)" || say "  ✓ запушено ($br)"
+if ! git rev-parse --verify --quiet "origin/$br" >/dev/null; then
+  warn "ветки $br нет на origin — не отправлена ни разу"
+else
+  ahead=$(git log "origin/$br..$br" --oneline | wc -l | tr -d ' ')
+  [ "$ahead" != "0" ] && warn "не запушено коммитов: $ahead (ветка $br)" || say "  ✓ запушено ($br)"
+fi
 
 say "── ветки без PR"
 for b in $(git branch --format='%(refname:short)' | grep -v '^main$'); do
