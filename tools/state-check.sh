@@ -71,13 +71,26 @@ last_state=$(git log -1 --format=%cd --date=short -- STATE.md)
 # ГИД ПО ЯДРУ обязан идти вровень с математикой (issue #106). Он описывает то же самое,
 # что считает geometry.js и хранит catalog.js, — и если те ушли вперёд, гид врёт молча,
 # а врущая схема хуже отсутствующей: по ней принимают решения.
+#
+# ⚠ СВЕРЯЕМ СОДЕРЖИМОЕ, А НЕ ДАТЫ. Прежняя версия сравнивала даты последних коммитов
+# geometry.js и гида. Оба правились 31.08 — сторож печатал «вровень», а в гиде лежала
+# формула ДВУХ ПОКОЛЕНИЙ НАЗАД: флаги round/lens вместо таблицы профилей, ни сектора,
+# ни полукруга, креветка кружком 10×8 против полукруга 10×5 в игре. Все чертежи документа
+# рисовались по снятой формуле, а подпись обещала «по формуле кода». Зелёный сторож на
+# врущем документе хуже отсутствующего: по нему принимают решения.
 guide=docs/reports/piece-body.html
-last_math=$(git log -1 --format=%cd --date=short -- play/model/geometry.js play/model/catalog.js)
-last_guide=$(git log -1 --format=%cd --date=short -- "$guide")
-if [ "$last_math" \> "$last_guide" ]; then
-  warn "математика правилась ($last_math) позже гида ($last_guide) — $guide отстал от geometry/catalog"
+блок() {   # вырезать помеченный блок и сжать пробелы: сравниваем смысл, а не отступы
+  awk '/⟦ФОРМА · ЕДИНОЕ ОПРЕДЕЛЕНИЕ⟧/{f=1} f{print} /⟦\/ФОРМА · ЕДИНОЕ ОПРЕДЕЛЕНИЕ⟧/{f=0}' "$1" \
+    | tr -s ' \t' ' ' | sed 's/^ //; s/ $//'
+}
+math_block=$(блок play/model/geometry.js)
+guide_block=$(блок "$guide")
+if [ -z "$math_block" ] || [ -z "$guide_block" ]; then
+  warn "блок ⟦ФОРМА · ЕДИНОЕ ОПРЕДЕЛЕНИЕ⟧ не найден в geometry.js или в $guide — сверять нечего"
+elif [ "$math_block" != "$guide_block" ]; then
+  warn "гид разошёлся с geometry.js по форме сечения: $(diff <(echo "$math_block") <(echo "$guide_block") | grep -c '^[<>]') строк — $guide"
 else
-  say "  ✓ гид по ядру вровень с математикой ($last_guide)"
+  say "  ✓ гид по ядру считает форму той же формулой, что игра ($(echo "$math_block" | wc -l | tr -d ' ') строк сверено)"
 fi
 
 say ""
