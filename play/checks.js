@@ -506,7 +506,7 @@ function runChecks(detail) {
       const pr = runPracticeChecks({ B: BASES, ING, S, touchModel, layout, getModel, windFor, topAt, materialAt, TAU, U_MM,
                                      NPIECES: (typeof NPIECES !== 'undefined' ? NPIECES : null) });
       for (const f of pr.провалы) ok(false, 'практика: ' + f);
-      // ── КАНОН КАК ДАННЫЕ: правила не должны сгнить ────────────────────────
+      // ── КАНОН КАК ДАННЫЕ: правила не должны разойтись с источником ────────
       // play/model/canon.js хранит правила поваров исполняемыми. Здесь гоняем их на
       // эталонных раскладках: канонический ролл ДОЛЖЕН проходить, нарушающий — падать.
       // Без этого таблица правил тихо разъедется с каталогом при первом переименовании.

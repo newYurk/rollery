@@ -652,7 +652,7 @@ Dice, метрика сломается (у смешанного пикселя 
 
 ## ⚑ Поправка 29.08.2026: движок обслуживает и пазл
 
-Из растворённого `docs/puzzle-inverse-reuse.md` (спецификация владельца 26.08 —
+Из растворённого `docs/puzzle-inverse-reuse.md` (в архиве: `docs/archive/puzzle-inverse-spec-2026-08-26.md`; спецификация владельца 26.08 —
 `docs/archive/puzzle-inverse-spec-2026-08-26.md`): модуль `inverse-search.js`
 проектируется с двумя входами — inverse design и пазл. Пазлом переиспользуются
 мутации и feasibility-фильтр: генератор уровней зовёт `solveInverseDesign`
