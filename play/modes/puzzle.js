@@ -117,7 +117,10 @@ function puzzleEvaluate() {
 function encodePuzzle(list, turns) {
   // w — обёртка: она меняет шаг витка, а с ним число оборотов и ⌀ (issue #86). Без неё
   // друг открывал ссылку и получал ДРУГОЙ ролл: цель пазла считалась по нори вместо блина.
-  const h = S.hand || {}; const data = { b: S.base, w: B().wrapKey || null, t: turns || null, s: S.shape, h: (h.air || h.wobble || (h.press !== 1)) ? [+h.air.toFixed(3), +h.wobble.toFixed(3), +h.phase.toFixed(2), +h.press.toFixed(2)] : null, l: list.map(p => [p.kind, +p.u.toFixed(4), +p.v.toFixed(3), p.wU ?? null, p.hU ?? null, p.dv ?? null, +p.phase.toFixed(3), p.rot ? +p.rot.toFixed(4) : null]) };
+  // ⚠ ФОРМАТ ССЫЛКИ ДОПОЛНЯЕТСЯ С КОНЦА. Девятый элемент — зеркало куска (#10): у старых
+  // ссылок его нет, `a[8]` там undefined, и кусок читается незеркальным — как и был.
+  // Пишем только когда true, чтобы ссылка не пухла: у большинства кусков флага нет.
+  const h = S.hand || {}; const data = { b: S.base, w: B().wrapKey || null, t: turns || null, s: S.shape, h: (h.air || h.wobble || (h.press !== 1)) ? [+h.air.toFixed(3), +h.wobble.toFixed(3), +h.phase.toFixed(2), +h.press.toFixed(2)] : null, l: list.map(p => [p.kind, +p.u.toFixed(4), +p.v.toFixed(3), p.wU ?? null, p.hU ?? null, p.dv ?? null, +p.phase.toFixed(3), p.rot ? +p.rot.toFixed(4) : null, p.flip ? 1 : null]) };
   return location.origin + location.pathname + '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(data)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 function decodePuzzle(hash) {
@@ -125,7 +128,7 @@ function decodePuzzle(hash) {
     const mm = /#p=([A-Za-z0-9_-]+)/.exec(hash); if (!mm) return null;
     const json = decodeURIComponent(escape(atob(mm[1].replace(/-/g, '+').replace(/_/g, '/'))));
     const data = JSON.parse(json); if (!data.l || !BASES[data.b]) return null;
-    const list = data.l.map(a => { const p = { kind: a[0], u: a[1], v: a[2], z0: 0, z1: 0, phase: a[6] || 0 }; if (a[3] != null) p.wU = a[3]; if (a[4] != null) p.hU = a[4]; if (a[5] != null) p.dv = a[5]; if (a[7]) p.rot = a[7]; return p; }).filter(p => ING[p.kind]);
+    const list = data.l.map(a => { const p = { kind: a[0], u: a[1], v: a[2], z0: 0, z1: 0, phase: a[6] || 0 }; if (a[3] != null) p.wU = a[3]; if (a[4] != null) p.hU = a[4]; if (a[5] != null) p.dv = a[5]; if (a[7]) p.rot = a[7]; if (a[8]) p.flip = true; return p; }).filter(p => ING[p.kind]);
     const hh = Array.isArray(data.h) ? { air: data.h[0], wobble: data.h[1], phase: data.h[2], press: data.h[3], v: 1, cv: 0, hold: 0 } : null;
     // Ссылки БЕЗ поля w (созданные до 30.08) читаются как обёртка базы по умолчанию —
     // формат расширен совместимо, старые ссылки продолжают открываться.
