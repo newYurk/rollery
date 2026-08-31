@@ -55,7 +55,9 @@ const MATERIALS = {
   cucumber: {
     id: 'cucumber', name: 'Огурец', color: '#79b55c', ingKey: 'cucumber',
     placementClass: 'rigid',
-    baseThickness: 1.6, compressibility: 0.15,
+    // ⚠ Толщина ДОЛЖНА совпадать с hU в ING — сторож это проверяет. 1,0 вместо прежних 1,6:
+    // огурец переописан полукругом (см. catalog.js), а у полукруга высота вдвое меньше ширины.
+    baseThickness: 1.15, compressibility: 0.15,
     minFeatureSize: GRAIN_ACROSS,
     // Повара кладут твёрдое ближе к себе — оно работает СЕРДЕЧНИКОМ (marron, Сираи).
     // И отдельно: несколько тонких кусочков рассеивают усилие скрутки и раскалывают центр,
