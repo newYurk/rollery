@@ -98,7 +98,7 @@ const canRedo = () => hist.base === S.base && hist.future.length > 0;
 // Толщина решает многое: она входит в шаг витка (T + w), то есть меняет число оборотов и ⌀.
 // ⚑ inferred: замер есть только у нори. Остальные — оценка по продукту, отмечено honestly.
 const WRAPPERS = {
-  nori:  { name: 'Нори',            mm: 0.10, color: '#22342b', src: 'FAO, Nisizawa: лист 21×19 см ≈ 3 г' },
+  nori:  { name: 'Нори',            mm: 0.10, color: '#22342b', src: 'выведено: FAO даёт 21×19 см и ≈3 г → 75 г/м² ÷ ρ 0,7–1,0; толщину источник не называет (#107)' },
   rice:  { name: 'Рисовая бумага',  mm: 0.50, color: '#efe6d4', src: 'inferred' },
   soy:   { name: 'Соевая',          mm: 0.20, color: '#e3c069', src: 'inferred' },
   egg:   { name: 'Омлет',           mm: 1.50, color: '#e8b551', src: 'inferred (薄焼き卵)' },
