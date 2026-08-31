@@ -1439,8 +1439,9 @@
           const a = -Math.PI / 2 + lu * d.wU * S / rSpot;
           let hv = fn(d, lu) - 0.5;
           if (squash) {
-            const flat = 1 - 0.42 * Math.cos(lu * Math.PI);      // сверху примялось
-            const wide = 1 + 0.30 * Math.cos(lu * Math.PI);      // вбок раздалось
+            // Объём никуда не девается: сколько ушло сверху, столько прибавилось снизу и вбок.
+            const flat = 1 - 0.62 * Math.cos(lu * Math.PI);      // крышка примялась
+            const wide = 1 + 0.55 * Math.cos(lu * Math.PI);      // низ и бока раздались
             hv = hv * (dir > 0 ? flat : wide);
           }
           const r = rSpot + hv * d.hU * S;
@@ -1449,9 +1450,19 @@
       }
       g.appendChild(el('path', { d: toPath(bent) + ' Z', fill: '#ef8a66',
         stroke: col, 'stroke-width': 2 }));
-      g.appendChild(text(cx, 52, cap, { anchor: 'middle', size: 11.5, weight: 600,
+      g.appendChild(text(cx, 62, cap, { anchor: 'middle', size: 11.5, weight: 600,
         ls: '0.12em', fill: col }));
       g.appendChild(text(cx, 292, sub, { anchor: 'middle', size: 12, fill: C('--ink-2') }));
+      if (squash) {
+        // Стрелки прижима: без них «стало шире» читается как «нарисовали другой кусок».
+        for (const sx of [-1, 1]) {
+          const ax = cx + sx * 118;
+          g.appendChild(line(ax, 96, ax, 150, { stroke: col, w: 1.6 }));
+          g.appendChild(line(ax, 150, ax - 5, 141, { stroke: col, w: 1.6 }));
+          g.appendChild(line(ax, 150, ax + 5, 141, { stroke: col, w: 1.6 }));
+        }
+        g.appendChild(text(cx, 90, 'прижим', { anchor: 'middle', size: 11, fill: col, weight: 600 }));
+      }
     });
     g.appendChild(line(500, 90, 500, 270, { stroke: C('--rule'), w: 1, dash: '5 5' }));
     g.appendChild(text(500, 322, 'изгиб по витку модель делает · сминание — нет',
