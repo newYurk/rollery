@@ -68,6 +68,20 @@
 // F07-edge-overload даёт turns 0,99 — ролл на грани незамыкания. Это НЕ регресс: раскладка
 // специально перегружена у края, и то, что модель показывает границу, а не прячет её, —
 // правильное поведение. Порог остаётся под наблюдением.
+//
+// ⚑ И ВТОРОЙ ПРОГОН ТОГО ЖЕ ДНЯ — правка форм начинок (#10).
+// Авокадо переведён с «ломтика» (линза) на новый профиль «полумесяц»: его режут дольками из
+// ПОЛОЙ половинки, и обе границы дольки гнутся в одну сторону, а линза выпукла с обеих.
+// Клубника, киви и манго переведены на «брусок» — их собственные комментарии в каталоге всё
+// это время говорили «срез видит их РЕБРОМ, полосой», то есть прямоугольником, а стоял
+// ломтик-линза. Паста (майо, джем) переведена с «кружка» на «полукруг»: выдавленный жгут
+// лежит НА рисе, выпуклого низа у него быть не может. Лосось стал квадратным 8 × 8 мм по
+// 白ごはん.com (тэкка-маки). Отсюда доли материалов: avocado 0,0104 → 0,0035 у F02,
+// salmon 0,0278 → 0,0243, и пары similarity (F02~F05 0,554 → 0,528).
+//
+// ⚠ Лосось сначала поставили 10 × 10 мм по СОВРЕМЕННОМУ источнику (ролл с лососем) — и
+// хосомаки при максимальном воздухе ПЕРЕСТАЛ ЗАМЫКАТЬСЯ: 1,00 витка, некруглость 65,7 %.
+// Это не довод против источника, а довод за то, что у лосося в хосомаки другой канон.
 const ROLL_BASELINE = {
   "F01-hosomaki-basic": {
     "turns": 1.1222,
@@ -137,8 +151,8 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "F02-futomaki-basic": {
-    "turns": 1.1146,
-    "outerDiameterMm": 56.856,
+    "turns": 1.116,
+    "outerDiameterMm": 56.6993,
     "closePoint": -1,
     "sheetEnd": 42,
     "sheetLength": 42,
@@ -149,10 +163,10 @@ const ROLL_BASELINE = {
     "patchCount": 3,
     "materialFractions": {
       "core": 0.5,
-      "patch:avocado": 0.0104,
-      "patch:salmon": 0.0278,
+      "patch:avocado": 0.0035,
+      "patch:salmon": 0.0243,
       "patch:shrimp": 0.0046,
-      "spread": 0.4572
+      "spread": 0.4676
     },
     "probes": [
       "0.25|1|0=core",
@@ -195,10 +209,10 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "0": 921,
-        "1": 2107,
-        "2": 17,
-        "3": 59,
-        "6": 32
+        "1": 2130,
+        "2": 20,
+        "3": 46,
+        "6": 19
       },
       "probe": "0,1,1,1,1,1,1,1,1,1,0"
     },
@@ -271,8 +285,8 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "F04-puzzle-recipe": {
-    "turns": 1.1444,
-    "outerDiameterMm": 73.1158,
+    "turns": 1.1458,
+    "outerDiameterMm": 72.9195,
     "closePoint": -1,
     "sheetEnd": 73.1363,
     "sheetLength": 73.1363,
@@ -282,8 +296,8 @@ const ROLL_BASELINE = {
     "coreFold": 28.9561,
     "patchCount": 2,
     "materialFractions": {
-      "core": 0.559,
-      "patch:ricePink": 0.1076,
+      "core": 0.5625,
+      "patch:ricePink": 0.1042,
       "patch:salmon": 0.0069,
       "spread": 0.3264
     },
@@ -327,10 +341,10 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "0": 1030,
-        "1": 1865,
-        "2": 15,
-        "3": 32,
+        "0": 1028,
+        "1": 1874,
+        "2": 14,
+        "3": 26,
         "11": 194
       },
       "probe": "0,1,1,1,1,0,1,1,1,1,0"
@@ -338,8 +352,8 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "F05-hand-variation": {
-    "turns": 1.05,
-    "outerDiameterMm": 62.7216,
+    "turns": 1.0514,
+    "outerDiameterMm": 62.5583,
     "closePoint": -1,
     "sheetEnd": 42,
     "sheetLength": 42,
@@ -351,10 +365,10 @@ const ROLL_BASELINE = {
     "materialFractions": {
       "core": 0.5,
       "out": 0.0139,
-      "patch:avocado": 0.0069,
-      "patch:salmon": 0.0174,
+      "patch:avocado": 0.0035,
+      "patch:salmon": 0.0104,
       "patch:shrimp": 0.0023,
-      "spread": 0.4595
+      "spread": 0.4699
     },
     "probes": [
       "0.25|1|0=core",
@@ -396,11 +410,11 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "0": 985,
-        "1": 2064,
+        "0": 987,
+        "1": 2085,
         "2": 13,
-        "3": 48,
-        "6": 26
+        "3": 38,
+        "6": 13
       },
       "probe": "0,1,1,1,1,0,1,1,1,1,0"
     },
@@ -487,18 +501,18 @@ const ROLL_BASELINE = {
     "coreFold": 4,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.3403,
+      "core": 0.375,
       "out": 0.0313,
-      "patch:avocado": 0.0694,
+      "patch:avocado": 0.0417,
       "patch:cucumber": 0.1076,
-      "patch:salmon": 0.066,
+      "patch:salmon": 0.059,
       "spread": 0.3854
     },
     "probes": [
       "0.25|1|0=patch:cucumber",
       "0.25|1|6=core",
       "0.25|1|12=core",
-      "0.25|1|18=patch:avocado",
+      "0.25|1|18=core",
       "0.25|5|0=patch:cucumber",
       "0.25|5|6=patch:salmon",
       "0.25|5|12=core",
@@ -510,7 +524,7 @@ const ROLL_BASELINE = {
       "0.5|1|0=patch:cucumber",
       "0.5|1|6=core",
       "0.5|1|12=core",
-      "0.5|1|18=patch:avocado",
+      "0.5|1|18=core",
       "0.5|5|0=patch:cucumber",
       "0.5|5|6=patch:salmon",
       "0.5|5|12=core",
@@ -522,7 +536,7 @@ const ROLL_BASELINE = {
       "0.75|1|0=patch:cucumber",
       "0.75|1|6=core",
       "0.75|1|12=core",
-      "0.75|1|18=patch:avocado",
+      "0.75|1|18=core",
       "0.75|5|0=patch:cucumber",
       "0.75|5|6=patch:salmon",
       "0.75|5|12=core",
@@ -535,19 +549,19 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "0": 975,
-        "1": 1821,
+        "1": 1880,
         "2": 25,
-        "3": 137,
+        "3": 121,
         "4": 88,
-        "6": 90
+        "6": 47
       },
-      "probe": "0,1,1,1,6,0,1,1,1,1,0"
+      "probe": "0,1,1,1,1,0,1,1,1,1,0"
     },
     "selfSimilarity": 1
   },
   "__pairs": {
-    "F02~F05 рука": 0.554,
-    "F02~сдвиг": 0.4185,
+    "F02~F05 рука": 0.528,
+    "F02~сдвиг": 0.3799,
     "F04~форма": 1
   }
 };
