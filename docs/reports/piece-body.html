@@ -1,0 +1,998 @@
+<title>Тело куска и цепочка представлений</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* Светлая тема — калька под лампой: холодный серо-зелёный, а не бумажный крем. */
+  :root {
+    --paper:      #e9ece8;
+    --field:      #f4f6f2;
+    --ink:        #171c18;
+    --ink-2:      #4c554e;
+    --ink-3:      #78827a;
+    --rule:       #c2c8c0;
+    --rule-soft:  #d7dcd5;
+    --dim:        #6d776f;
+    --hot:        #b8371c;   /* верхний контур — общий у двух видов */
+    --hot-soft:   rgba(184, 55, 28, 0.10);
+    --cold:       #2a6480;   /* нижний контур — виден только в срезе */
+    --cold-soft:  rgba(42, 100, 128, 0.10);
+    --rice:       #ded7cd;
+    --nori:       #22342b;
+    --shadow:     0 1px 0 rgba(23, 28, 24, 0.06);
+  }
+  /* Системная тёмная (штампа на корне нет) — светокопия: линии светлые по тёмному. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:     #141817;
+      --field:     #1b201f;
+      --ink:       #dee3df;
+      --ink-2:     #9aa49d;
+      --ink-3:     #737d76;
+      --rule:      #333b39;
+      --rule-soft: #262d2c;
+      --dim:       #808b84;
+      --hot:       #f0714f;
+      --hot-soft:  rgba(240, 113, 79, 0.12);
+      --cold:      #6bb3d4;
+      --cold-soft: rgba(107, 179, 212, 0.12);
+      --rice:      #4a453e;
+      --nori:      #16241d;
+      --shadow:    0 1px 0 rgba(0, 0, 0, 0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:     #141817;
+    --field:     #1b201f;
+    --ink:       #dee3df;
+    --ink-2:     #9aa49d;
+    --ink-3:     #737d76;
+    --rule:      #333b39;
+    --rule-soft: #262d2c;
+    --dim:       #808b84;
+    --hot:       #f0714f;
+    --hot-soft:  rgba(240, 113, 79, 0.12);
+    --cold:      #6bb3d4;
+    --cold-soft: rgba(107, 179, 212, 0.12);
+    --rice:      #4a453e;
+    --nori:      #16241d;
+    --shadow:    0 1px 0 rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 28px 20px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+  }
+
+  /* ── штамп чертежа ──────────────────────────────────────────────────── */
+  .stamp {
+    border: 1.5px solid var(--ink);
+    background: var(--field);
+    box-shadow: var(--shadow);
+  }
+  .stamp-head { padding: 18px 20px 16px; border-bottom: 1px solid var(--rule); }
+  .stamp-head h1 {
+    margin: 0;
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 700;
+    font-size: clamp(24px, 4.2vw, 38px);
+    line-height: 1.08;
+    letter-spacing: -0.005em;
+    text-wrap: balance;
+  }
+  .stamp-head p {
+    margin: 8px 0 0;
+    max-width: 62ch;
+    color: var(--ink-2);
+  }
+  .stamp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  .cell { padding: 9px 14px 11px; border-right: 1px solid var(--rule); border-top: 1px solid var(--rule-soft); }
+  .cell:last-child { border-right: 0; }
+  .cell .k {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    display: block;
+  }
+  .cell .v {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 14px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+    display: block;
+  }
+
+  /* ── лист с фигурой ─────────────────────────────────────────────────── */
+  .sheet {
+    border: 1px solid var(--rule);
+    background: var(--field);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+  }
+  .sheet-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--rule-soft);
+    flex-wrap: wrap;
+  }
+  .fig-no {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--field);
+    background: var(--ink);
+    padding: 3px 8px 2px;
+    white-space: nowrap;
+  }
+  .sheet-head h2 {
+    margin: 0;
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 600;
+    font-size: 19px;
+    letter-spacing: 0.005em;
+  }
+  .sheet-head .sub { color: var(--ink-3); font-size: 13.5px; margin-left: auto; }
+  .plate { padding: 8px 10px 4px; overflow-x: auto; }
+  .plate svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  .note {
+    padding: 4px 18px 17px;
+    color: var(--ink-2);
+    font-size: 14.5px;
+    max-width: 74ch;
+  }
+  .note p { margin: 10px 0 0; }
+  .note strong { color: var(--ink); font-weight: 600; }
+  .note code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.88em;
+    background: var(--paper);
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+  .hot { color: var(--hot); font-weight: 600; }
+  .cold { color: var(--cold); font-weight: 600; }
+
+  /* ── легенда линий ──────────────────────────────────────────────────── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 26px;
+    padding: 12px 18px 13px;
+    border-top: 1px solid var(--rule-soft);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    color: var(--ink-2);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .legend svg { flex: none; }
+
+  /* ── таблица ролей ──────────────────────────────────────────────────── */
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+    border-bottom: 1px solid var(--rule);
+  }
+  td:first-child { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .tbl-wrap { overflow-x: auto; }
+
+  .caveat { border-left: 3px solid var(--hot); padding-left: 15px; }
+  .caveat h3 {
+    margin: 0 0 6px;
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  footer {
+    color: var(--ink-3);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    border-top: 1px solid var(--rule);
+    padding-top: 14px;
+  }
+  @media (max-width: 620px) {
+    .sheet-head .sub { margin-left: 0; width: 100%; }
+  }
+</style>
+
+<div class="wrap">
+
+  <section class="stamp">
+    <div class="stamp-head">
+      <h1>Тело куска и цепочка представлений</h1>
+      <p>Что мы знаем о куске начинки на каждом шаге — когда он лежит на листе, когда лист свернулся
+         и когда ролл разрезали. И какая функция за что отвечает.</p>
+    </div>
+    <div class="stamp-grid">
+      <div class="cell"><span class="k">Проект</span><span class="v">Ролльня</span></div>
+      <div class="cell"><span class="k">Единица</span><span class="v">1 ед. = 5 мм</span></div>
+      <div class="cell"><span class="k">База на схемах</span><span class="v">Хосомаки</span></div>
+      <div class="cell"><span class="k">Профили</span><span class="v">по формуле кода</span></div>
+      <div class="cell"><span class="k">Ревизия</span><span class="v">31.08.2026</span></div>
+    </div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <!-- Ф-1 ------------------------------------------------------------------->
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-1</span>
+      <h2>Сечение куска: два контура</h2>
+      <span class="sub">разрез поперёк куска</span>
+    </div>
+    <div class="plate"><svg id="fig1" viewBox="0 0 1000 340" role="img"
+      aria-label="Три профиля сечения: брусок с фаской, кружок, линза, с размерными линиями"></svg></div>
+    <div class="note">
+      <p>Кусок описан <strong>одним контуром, у которого две границы</strong>. Верхняя —
+        <span class="hot">cutTop(lu)</span>, нижняя — <span class="cold">cutLow(lu)</span>, где
+        <code>lu</code> отсчитывается поперёк куска от −0,5 до +0,5, а высота меряется в долях
+        собственной толщины куска.</p>
+      <p><strong>Ребро не бывает острым.</strong> У бруска есть фаска — след ножа. Радиус задан
+        в физических единицах (<code>ARRIS = 0,45 ед. ≈ 2,2 мм</code>), а не долей куска, поэтому
+        у тонкого листа нори он сам собой сжимается до незаметного, а у толстого тамаго берёт
+        полные 2,2 мм.</p>
+      <p><strong>Нижний контур сейчас — зеркало верхнего.</strong> Это допущение о симметрии:
+        верно для кружка, линзы и бруска, неверно для половинки авокадо (плоское дно, купол
+        сверху). Допущение вынесено в отдельную функцию и снимается флагом — см. Ф-6.</p>
+    </div>
+  </section>
+
+  <!-- Ф-2 ------------------------------------------------------------------->
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-2</span>
+      <h2>Откуда берётся вид сверху</h2>
+      <span class="sub">взгляд отвесно вниз</span>
+    </div>
+    <div class="plate"><svg id="fig2" viewBox="0 0 1000 350" role="img"
+      aria-label="Лучи зрения падают на верхний контур куска; из наклона поверхности считается свет"></svg></div>
+    <div class="note">
+      <p><strong>Глаз сверху видит ровно верхний контур.</strong> В поперечной позиции
+        <code>lu</code> луч зрения упирается в поверхность на высоте <span class="hot">cutTop(lu)</span> —
+        той самой границе, что в Ф-1 была верхом фигуры. Поэтому вид сверху и вид в срезе
+        <strong>не выводятся друг из друга — они делят этот контур</strong>.</p>
+      <p><span class="cold">Нижнюю границу сверху увидеть нельзя.</span> Она попадает только
+        в срез. Это и есть ответ на вопрос «почему форма среза следует из формы верха»: не
+        следует. Следует ровно половина, вторую половину пока даёт допущение о симметрии.</p>
+      <p><strong>Свет считается, а не рисуется.</strong> Наклон поверхности в точке даёт нормаль,
+        нормаль даёт долю света. Валик светел посередине не потому, что там нарисован блик,
+        а потому что там поверхность смотрит вверх.</p>
+    </div>
+  </section>
+
+  <!-- Ф-3 ------------------------------------------------------------------->
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-3</span>
+      <h2>Кусок на листе</h2>
+      <span class="sub">вид сверху · хосомаки, полулист 105 × 190 мм</span>
+    </div>
+    <div class="plate"><svg id="fig3" viewBox="0 0 1000 400" role="img"
+      aria-label="План листа с осями u и v, куском начинки и голой полосой у дальнего края"></svg></div>
+    <div class="note">
+      <p>Две оси листа. <strong>u — вдоль скрутки</strong>: этот размер станет длиной дуги
+        на спирали. <strong>v — вдоль ролла</strong>: этот останется собой, вдоль него потом
+        режут. Кусок узок по u и длинен по v — поэтому он и превращается в спираль полоской,
+        а не пятном.</p>
+      <p>У каждой начинки в каталоге записаны <code>wU</code> — ширина вдоль u,
+        <code>hU</code> — толщина, <code>dv</code> — какую долю длины ролла кусок занимает.
+        Лосось 2,0 × 1,6 ед. = 10 × 8 мм; креветка та же в сечении, но <code>dv = 0,30</code> —
+        коротышка, попадает не в каждый ломтик.</p>
+    </div>
+  </section>
+
+  <!-- Ф-4 ------------------------------------------------------------------->
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-4</span>
+      <h2>Лист свернулся</h2>
+      <span class="sub">спираль переменной толщины</span>
+    </div>
+    <div class="plate"><svg id="fig4" viewBox="0 0 1000 400" role="img"
+      aria-label="Спираль намотки: ось u становится длиной дуги, толщина листа — шагом витка"></svg></div>
+    <div class="note">
+      <p>Скрутка — <strong>замена координат, а не новая геометрия</strong>. Точка листа
+        <code>(u, v)</code> едет на спираль: u превращается в длину дуги от сердцевины,
+        толщина листа — в радиальную глубину. v не участвует вовсе, он вдоль оси ролла.</p>
+      <p>Шаг витка = рис + обёртка. У хосомаки это <code>1,4 + 0,02 = 1,42 ед.</code> (7,1 мм):
+        нори тоньше риса в семьдесят раз и на шаг почти не влияет — но именно она задаёт
+        тёмную линию, по которой на срезе видно витки.</p>
+      <p class="mono" style="color:var(--ink-3);background:none;padding:0;">схема не в масштабе ·
+        замер модели: 1,29 витка, ⌀ 31,2 мм</p>
+    </div>
+  </section>
+
+  <!-- Ф-5 ------------------------------------------------------------------->
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-5</span>
+      <h2>Ролл разрезали</h2>
+      <span class="sub">срез поперёк оси v</span>
+    </div>
+    <div class="plate"><svg id="fig5" viewBox="0 0 1000 420" role="img"
+      aria-label="Срез ролла: спираль нори, рис, и сечение куска, изогнутое по витку"></svg></div>
+    <div class="note">
+      <p>Нож идёт поперёк оси ролла — значит поперёк куска. <strong>На срезе появляется ровно
+        та фигура из Ф-1</strong>, только изогнутая по витку: её ширина легла вдоль дуги,
+        толщина — вдоль радиуса. Чем ближе к сердцевине, тем сильнее изгиб.</p>
+      <p>Отсюда и главное правило игры: <strong>узор на срезе — следствие раскладки</strong>.
+        Где положил по u — на каком витке окажется; где положил по v — попадёт ли вообще
+        в этот ломтик.</p>
+    </div>
+  </section>
+
+  <!-- Ф-6 ------------------------------------------------------------------->
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-6</span>
+      <h2>Что допущение о симметрии запрещает</h2>
+      <span class="sub">кружок и он же с плоским дном</span>
+    </div>
+    <div class="plate"><svg id="fig6" viewBox="0 0 1000 330" role="img"
+      aria-label="Слева симметричный кружок, справа тот же кружок с плоским дном — купол"></svg></div>
+    <div class="note">
+      <p>Слева — кружок, каким его описывает модель сейчас: низ зеркалит верх. Справа — тот же
+        верхний контур, но с плоским дном: <strong>купол, лежащий на рисе</strong>. Так выглядит
+        половинка авокадо и ломтик рыбы кожей вниз.</p>
+      <p>Разница не косметическая: площадь сечения <span class="mono">0,785 → 0,893</span> —
+        это <span class="cold">нижняя долька</span>, которую зеркало отрезало. Пока такой кусок
+        описать было нельзя вовсе; теперь допущение снимается флагом в каталоге, второго
+        описания формы не заводя.</p>
+    </div>
+  </section>
+
+  <!-- Роли ------------------------------------------------------------------>
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Т-1</span>
+      <h2>Кто на что отвечает</h2>
+      <span class="sub">одно описание — один вопрос</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Функция</th><th>Отвечает на вопрос</th><th>Кто спрашивает</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>cutTop(d, lu)</td>
+            <td>Где верхняя граница сечения в поперечной позиции lu</td>
+            <td>вид сверху, срез, вытеснение риса</td>
+          </tr>
+          <tr>
+            <td>cutLow(d, lu)</td>
+            <td>Где нижняя. По умолчанию зеркало верхней</td>
+            <td>только срез</td>
+          </tr>
+          <tr>
+            <td>cutSpan(d, lu)</td>
+            <td>Что закрашивать в разрезе — обе границы вместе</td>
+            <td>срез</td>
+          </tr>
+          <tr>
+            <td>patchColor(m)</td>
+            <td>Какое вещество в точке: прожилка, кожица, семечко</td>
+            <td>оба вида — одна и та же</td>
+          </tr>
+          <tr>
+            <td>pieceLight(d, lu)</td>
+            <td>Сколько света, из наклона той же поверхности</td>
+            <td>вид сверху</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <p>Правило, ради которого всё это собрано: <strong>новый вид куска не рисуется — выводится</strong>.
+        Понадобился другой угол, другой стиль, другое разрешение — спрашивай тело. Появилось
+        второе описание внешнего вида — значит, скоро разъедется, и это уже случалось дважды:
+        сперва с формой, потом с фактурой.</p>
+    </div>
+  </section>
+
+  <!-- Чего нет -------------------------------------------------------------->
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-7</span>
+      <h2>Чего в теле ещё нет</h2>
+      <span class="sub">профиль вдоль куска · задача №10</span>
+    </div>
+    <div class="plate"><svg id="fig7" viewBox="0 0 1000 300" role="img"
+      aria-label="Сверху: призма — то, что модель умеет. Снизу: свёрнутая креветка — то, что нужно"></svg></div>
+    <div class="note caveat">
+      <h3>Тело — призма</h3>
+      <p>Сечение задано поперёк, а вдоль куска оно постоянно. Значит сверху кусок —
+        <strong>прямоугольник</strong>, и в каком месте по v ни режь, фигура на срезе одна и та
+        же. Скруглённые торцы, которые рисовались раньше, были враньём: домен тоже считает кусок
+        прямоугольным, и срез у самого торца показал бы вещество там, где рисунок обещал пустоту.</p>
+      <p>Свёрнутая креветка, половинка авокадо, полукольцо огурца требуют профиля вдоль.
+        <strong>Он обязан войти в тело и в раскладку одновременно</strong> — если нарисовать
+        его только в рендере, появится четвёртое независимое описание куска, и вся работа
+        обнулится.</p>
+    </div>
+  </section>
+
+  <footer>
+    Ролльня · схема к решению «кусок — тело с одним источником вида» · профили Ф-1, Ф-2, Ф-6
+    построены той же формулой, что считает игра
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (n, a = {}) => {
+    const e = document.createElementNS(NS, n);
+    for (const k in a) e.setAttribute(k, a[k]);
+    return e;
+  };
+  const C = n => getComputedStyle(document.body).getPropertyValue(n).trim();
+
+  // ── ФОРМА КУСКА: дословно то, что в play/model/geometry.js ────────────────
+  // Схема обязана считать тем же, чем считает игра, иначе она рисует свою правду.
+  const ARRIS = 0.45;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function cutTop(d, lu) {
+    const a = clamp(lu * 2, -1, 1), q = Math.max(0, 1 - a * a);
+    if (d.round) return 0.5 + Math.sqrt(q) / 2;
+    if (d.lens)  return 0.5 + Math.pow(q, 0.55) / 2;
+    const W = d.wU / 2, H = d.hU;
+    const r = Math.min(ARRIS, W * 0.5, H * 0.25);
+    const s = W * (1 - Math.abs(a));
+    if (s >= r) return 1;
+    return 1 - (r - Math.sqrt(Math.max(0, r * r - (r - s) * (r - s)))) / H;
+  }
+  const cutLow = (d, lu) => d.flatBottom ? 0 : 1 - cutTop(d, lu);
+
+  const ING = {
+    salmon:   { wU: 2.0, hU: 1.6, label: 'Лосось · брусок', cut: '10 × 8 мм' },
+    shrimp:   { wU: 2.0, hU: 1.6, round: true, label: 'Креветка · кружок', cut: '10 × 8 мм' },
+    avocado:  { wU: 2.0, hU: 1.1, lens: true,  label: 'Авокадо · ломтик', cut: '10 × 5,5 мм' },
+  };
+
+  // ── примитивы черчения ───────────────────────────────────────────────────
+  const line = (x1, y1, x2, y2, o = {}) => el('line', Object.assign({
+    x1, y1, x2, y2, stroke: o.stroke || C('--rule'), 'stroke-width': o.w || 1,
+    'stroke-dasharray': o.dash || '', 'stroke-linecap': 'round'
+  }, o.extra || {}));
+
+  const text = (x, y, s, o = {}) => {
+    const t = el('text', {
+      x, y,
+      fill: o.fill || C('--ink-2'),
+      'font-family': o.mono === false
+        ? '"IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif'
+        : '"IBM Plex Mono", ui-monospace, monospace',
+      'font-size': o.size || 12,
+      'font-weight': o.weight || 400,
+      'text-anchor': o.anchor || 'start',
+      'letter-spacing': o.ls || 0
+    });
+    t.textContent = s;
+    return t;
+  };
+
+  // Размерная линия со стрелками на концах и подписью — как на настоящем чертеже.
+  function dim(g, x1, y1, x2, y2, label, o = {}) {
+    const col = o.stroke || C('--dim');
+    const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1;
+    const ux = dx / L, uy = dy / L, a = 5.5;          // длина уса стрелки
+    g.appendChild(line(x1, y1, x2, y2, { stroke: col, w: 1 }));
+    for (const [px, py, s] of [[x1, y1, 1], [x2, y2, -1]]) {
+      const bx = px + ux * a * s, by = py + uy * a * s;
+      g.appendChild(line(px, py, bx - uy * a * 0.42, by + ux * a * 0.42, { stroke: col, w: 1 }));
+      g.appendChild(line(px, py, bx + uy * a * 0.42, by - ux * a * 0.42, { stroke: col, w: 1 }));
+    }
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    g.appendChild(text(mx + (o.lx || 0), my + (o.ly || -6), label,
+      { anchor: 'middle', size: 11, fill: col }));
+  }
+
+  // Выносная линия к детали: тонкая полка с подписью на конце.
+  function leader(g, x1, y1, x2, y2, label, o = {}) {
+    const col = o.stroke || C('--ink-3');
+    g.appendChild(line(x1, y1, x2, y2, { stroke: col, w: 0.9 }));
+    const ex = x2 + (o.dir === 'left' ? -22 : 22);
+    g.appendChild(line(x2, y2, ex, y2, { stroke: col, w: 0.9 }));
+    g.appendChild(el('circle', { cx: x1, cy: y1, r: 2, fill: col }));
+    g.appendChild(text(ex + (o.dir === 'left' ? -5 : 5), y2 + 4, label,
+      { anchor: o.dir === 'left' ? 'end' : 'start', size: 11.5, fill: o.fill || col }));
+  }
+
+  // ── Ф-1: три профиля с размерами ─────────────────────────────────────────
+  function profilePath(d, cx, cy, sx, sy, which) {
+    // which: 'top' | 'low' | 'full'
+    const N = 120, pts = [];
+    for (let i = 0; i <= N; i++) {
+      const lu = i / N - 0.5;
+      pts.push([cx + lu * d.wU * sx, cy - (cutTop(d, lu) - 0.5) * d.hU * sy]);
+    }
+    if (which === 'top') return 'M' + pts.map(p => p.map(v => v.toFixed(2)).join(' ')).join(' L');
+    const low = [];
+    for (let i = N; i >= 0; i--) {
+      const lu = i / N - 0.5;
+      low.push([cx + lu * d.wU * sx, cy - (cutLow(d, lu) - 0.5) * d.hU * sy]);
+    }
+    if (which === 'low') return 'M' + low.map(p => p.map(v => v.toFixed(2)).join(' ')).join(' L');
+    return 'M' + pts.concat(low).map(p => p.map(v => v.toFixed(2)).join(' ')).join(' L') + ' Z';
+  }
+
+  function drawFig1() {
+    const svg = document.getElementById('fig1');
+    const g = el('g'); svg.appendChild(g);
+    const S = 62;                         // пикселей на единицу
+    const kinds = ['salmon', 'shrimp', 'avocado'];
+    const xs = [200, 500, 800];
+
+    kinds.forEach((k, idx) => {
+      const d = ING[k], cx = xs[idx], cy = 175;
+
+      // ось lu — осевая линия, штрих-пунктир как на чертеже
+      g.appendChild(line(cx - d.wU * S / 2 - 26, cy, cx + d.wU * S / 2 + 26, cy,
+        { stroke: C('--rule'), w: 0.9, dash: '9 3 2 3' }));
+
+      // тело
+      const body = el('path', {
+        d: profilePath(d, cx, cy, S, S, 'full'),
+        fill: C('--rice'), stroke: 'none', opacity: 0.55
+      });
+      g.appendChild(body);
+      const cid = 'clip-' + k;
+      const cp = el('clipPath', { id: cid });
+      cp.appendChild(el('path', { d: profilePath(d, cx, cy, S, S, 'full') }));
+      g.appendChild(cp);
+      const hg = el('g', { 'clip-path': `url(#${cid})` });
+      for (let i = -140; i < 220; i += 7)
+        hg.appendChild(line(cx - 110 + i, cy + 90, cx - 110 + i + 90, cy - 90,
+          { stroke: C('--rule'), w: 0.6 }));
+      g.appendChild(hg);
+
+      // контуры
+      g.appendChild(el('path', { d: profilePath(d, cx, cy, S, S, 'top'),
+        fill: 'none', stroke: C('--hot'), 'stroke-width': 2.4, 'stroke-linejoin': 'round' }));
+      g.appendChild(el('path', { d: profilePath(d, cx, cy, S, S, 'low'),
+        fill: 'none', stroke: C('--cold'), 'stroke-width': 2.4, 'stroke-linejoin': 'round' }));
+
+      // подпись
+      g.appendChild(text(cx, 300, d.label, { anchor: 'middle', size: 14, weight: 600,
+        fill: C('--ink'), mono: false }));
+      g.appendChild(text(cx, 318, d.cut, { anchor: 'middle', size: 11.5, fill: C('--ink-3') }));
+
+      // размеры
+      const hw = d.wU * S / 2, hh = d.hU * S / 2;
+      dim(g, cx - hw, cy + hh + 26, cx + hw, cy + hh + 26, `wU = ${d.wU.toFixed(1)} ед.`, { ly: 15 });
+      dim(g, cx + hw + 30, cy - hh, cx + hw + 30, cy + hh, `hU = ${d.hU.toFixed(1)}`, { lx: 30, ly: 4 });
+      // выносные
+      g.appendChild(line(cx - hw, cy + hh, cx - hw, cy + hh + 32, { stroke: C('--rule'), w: 0.8 }));
+      g.appendChild(line(cx + hw, cy + hh, cx + hw, cy + hh + 32, { stroke: C('--rule'), w: 0.8 }));
+    });
+
+    // фаска — крупным планом на первом профиле
+    const d = ING.salmon, cx = xs[0], cy = 175;
+    const r = Math.min(ARRIS, d.wU / 2 * 0.5, d.hU * 0.25);
+    leader(g, cx + d.wU * S / 2 - 12, cy - d.hU * S / 2 + 8, cx + d.wU * S / 2 + 44, 78,
+      `фаска R ${(r * 5).toFixed(1)} мм`, { fill: C('--hot'), stroke: C('--hot') });
+
+    // легенда осей
+    g.appendChild(text(60, 182, 'lu →', { size: 12, fill: C('--ink-3') }));
+    g.appendChild(text(60, 152, 'lz ↑', { size: 12, fill: C('--ink-3') }));
+    g.appendChild(text(500, 36, 'ВЕРХНИЙ КОНТУР — cutTop(lu)', { anchor: 'middle', size: 11.5,
+      weight: 600, fill: C('--hot'), ls: '0.1em' }));
+    g.appendChild(text(500, 54, 'НИЖНИЙ КОНТУР — cutLow(lu)', { anchor: 'middle', size: 11.5,
+      weight: 600, fill: C('--cold'), ls: '0.1em' }));
+  }
+
+  // ── Ф-2: лучи зрения ─────────────────────────────────────────────────────
+  function drawFig2() {
+    const svg = document.getElementById('fig2');
+    const g = el('g'); svg.appendChild(g);
+    const d = ING.salmon, S = 150, cx = 400, cy = 245;
+    const hw = d.wU * S / 2;
+
+    // рис под куском
+    g.appendChild(el('rect', { x: cx - hw - 90, y: cy, width: hw * 2 + 180, height: 44,
+      fill: C('--rice'), opacity: 0.6 }));
+    g.appendChild(text(cx - hw - 84, cy + 28, 'рис', { size: 11, fill: C('--ink-3') }));
+
+    // тело куска
+    g.appendChild(el('path', { d: profilePath(d, cx, cy - d.hU * S / 2, S, S, 'full'),
+      fill: C('--rice'), opacity: 0.85 }));
+    g.appendChild(el('path', { d: profilePath(d, cx, cy - d.hU * S / 2, S, S, 'top'),
+      fill: 'none', stroke: C('--hot'), 'stroke-width': 2.6 }));
+    g.appendChild(el('path', { d: profilePath(d, cx, cy - d.hU * S / 2, S, S, 'low'),
+      fill: 'none', stroke: C('--cold'), 'stroke-width': 2.6, 'stroke-dasharray': '5 4' }));
+
+    // лучи зрения сверху вниз
+    g.appendChild(text(cx, 34, 'ГЛАЗ', { anchor: 'middle', size: 11.5, weight: 600,
+      ls: '0.14em', fill: C('--ink') }));
+    for (let i = 0; i <= 10; i++) {
+      const lu = i / 10 - 0.5;
+      const x = cx + lu * d.wU * S;
+      const yTop = cy - d.hU * S / 2 - (cutTop(d, lu) - 0.5) * d.hU * S;
+      g.appendChild(line(x, 46, x, yTop - 3, { stroke: C('--ink-3'), w: 0.8, dash: '3 4' }));
+      g.appendChild(el('circle', { cx: x, cy: yTop, r: 2.6, fill: C('--hot') }));
+    }
+
+    // нормаль и свет на краю — где поверхность наклонена
+    const luN = -0.44;
+    const xN = cx + luN * d.wU * S;
+    const yN = cy - d.hU * S / 2 - (cutTop(d, luN) - 0.5) * d.hU * S;
+    const e = 1e-3;
+    const slope = (cutTop(d, luN + e) - cutTop(d, luN - e)) / (2 * e) * (d.hU / d.wU);
+    const nx = -slope, ny = -1, nl = Math.hypot(nx, ny);
+    g.appendChild(line(xN, yN, xN + nx / nl * 46, yN + ny / nl * 46,
+      { stroke: C('--hot'), w: 1.6 }));
+    g.appendChild(text(xN + nx / nl * 46 - 6, yN + ny / nl * 46 - 8, 'нормаль',
+      { anchor: 'end', size: 11, fill: C('--hot') }));
+
+    // полоса результата — как это ложится в пиксели
+    const bx = 700, bw = 230, by = 150, bh = 62;
+    g.appendChild(text(bx, by - 14, 'ЧТО ВИДНО СВЕРХУ', { size: 11.5, weight: 600,
+      ls: '0.12em', fill: C('--ink') }));
+    const N = 9;
+    for (let i = 0; i < N; i++) {
+      const lu = (i + 0.5) / N - 0.5;
+      const slp = (cutTop(d, lu + e) - cutTop(d, lu - e)) / (2 * e);
+      const lightv = clamp((-slp * -0.58 + 0.815) / Math.hypot(slp, 1), 0, 1);
+      const k = 0.34 + 0.66 * lightv;
+      g.appendChild(el('rect', {
+        x: bx, y: by + i * (bh / N) * 1.0, width: bw, height: bh / N + 0.6,
+        fill: `rgb(${Math.round(239 * k)}, ${Math.round(138 * k)}, ${Math.round(102 * k)})`
+      }));
+    }
+    g.appendChild(el('rect', { x: bx, y: by, width: bw, height: bh, fill: 'none',
+      stroke: C('--rule'), 'stroke-width': 1 }));
+    g.appendChild(text(bx, by + bh + 20, 'светлота = наклон поверхности,', { size: 11.5, fill: C('--ink-2') }));
+    g.appendChild(text(bx, by + bh + 36, 'а не нарисованный блик', { size: 11.5, fill: C('--ink-2') }));
+
+    dim(g, cx - hw, 300, cx + hw, 300, 'lu: −0,5 … +0,5', { ly: 16 });
+  }
+
+  // ── Ф-3: план листа ──────────────────────────────────────────────────────
+  function drawFig3() {
+    const svg = document.getElementById('fig3');
+    const g = el('g'); svg.appendChild(g);
+    const x0 = 190, y0 = 60, w = 560, h = 250;      // лист: u вправо, v вниз
+
+    g.appendChild(el('rect', { x: x0, y: y0, width: w, height: h, fill: C('--rice'),
+      opacity: 0.55, stroke: C('--rule'), 'stroke-width': 1 }));
+    // голая полоса у дальнего края (spreadEnd 0,88)
+    g.appendChild(el('rect', { x: x0 + w * 0.88, y: y0, width: w * 0.12, height: h,
+      fill: C('--nori'), opacity: 0.5 }));
+    g.appendChild(text(x0 + w * 0.94, y0 + h / 2, 'голая', { anchor: 'middle', size: 10.5,
+      fill: C('--ink-3') }));
+    g.appendChild(text(x0 + w * 0.94, y0 + h / 2 + 14, 'полоса', { anchor: 'middle', size: 10.5,
+      fill: C('--ink-3') }));
+
+    // кусок: узкий по u, длинный по v
+    const px = x0 + w * 0.30, pw = 22, py = y0 + 30, ph = h - 60;
+    g.appendChild(el('rect', { x: px, y: py, width: pw, height: ph, fill: '#ef8a66' }));
+    g.appendChild(el('rect', { x: px, y: py, width: pw, height: ph, fill: 'none',
+      stroke: C('--ink'), 'stroke-width': 0.8, opacity: 0.35 }));
+
+    // оси
+    dim(g, x0, y0 - 26, x0 + w, y0 - 26, 'u — вдоль скрутки · 21 ед. = 105 мм', { ly: -8 });
+    dim(g, x0 - 34, y0, x0 - 34, y0 + h, 'v — вдоль ролла · 38 ед. = 190 мм', { lx: -14, ly: 0 });
+    const vt = g.lastChild;
+    vt.setAttribute('transform', `rotate(-90 ${x0 - 48} ${y0 + h / 2})`);
+    vt.setAttribute('x', x0 - 48); vt.setAttribute('y', y0 + h / 2);
+
+    // размеры куска
+    dim(g, px, y0 + h + 26, px + pw, y0 + h + 26, 'wU', { ly: 16 });
+    leader(g, px + pw, py + 40, px + pw + 90, py + 6, 'dv — доля длины ролла',
+      { fill: C('--ink-2') });
+
+    g.appendChild(text(x0, y0 + h + 62, 'подворот · ядро', { size: 11, fill: C('--ink-3') }));
+    g.appendChild(line(x0, y0, x0, y0 + h, { stroke: C('--ink'), w: 1.8 }));
+    g.appendChild(text(x0 - 8, y0 - 6, 'u = 0', { anchor: 'end', size: 11, fill: C('--ink-2') }));
+  }
+
+  // ── спираль: r(φ) = R0 + P·φ/2π ──────────────────────────────────────────
+  const R0 = 0.25, PITCH = 1.42, TURNS = 1.29;
+
+  function spiralPts(scale, cx, cy, turns = TURNS, phi0 = 0) {
+    const pts = [];
+    const N = 400, total = Math.PI * 2 * turns;
+    for (let i = 0; i <= N; i++) {
+      const phi = total * i / N;
+      const r = (R0 + PITCH * phi / (Math.PI * 2)) * scale;
+      pts.push([cx + r * Math.cos(phi + phi0), cy + r * Math.sin(phi + phi0)]);
+    }
+    return pts;
+  }
+  const toPath = pts => 'M' + pts.map(p => p.map(v => v.toFixed(2)).join(' ')).join(' L');
+
+  // ── Ф-4: скрутка ─────────────────────────────────────────────────────────
+  function drawFig4() {
+    const svg = document.getElementById('fig4');
+    svg.setAttribute('viewBox', '0 0 1000 400');
+    const g = el('g'); svg.appendChild(g);
+
+    // слева — лист плашмя, кусок на нём
+    const x0 = 56, y0 = 176, L = 300, T = 40, pu = 0.78;
+    g.appendChild(text(x0, 44, 'ЛИСТ ПЛАШМЯ', { size: 11.5, weight: 600, ls: '0.12em', fill: C('--ink') }));
+    g.appendChild(el('rect', { x: x0, y: y0, width: L, height: T, fill: C('--rice'), opacity: 0.7 }));
+    g.appendChild(line(x0, y0 + T, x0 + L, y0 + T, { stroke: C('--nori'), w: 3 }));
+    g.appendChild(el('rect', { x: x0 + L * pu - 13, y: y0 + 5, width: 26, height: T - 5, fill: '#ef8a66' }));
+    g.appendChild(line(x0 + L * pu, y0 - 10, x0 + L * pu, y0 + 3, { stroke: C('--hot'), w: 1.2 }));
+    g.appendChild(text(x0 + L * pu, y0 - 16, 'кусок', { anchor: 'middle', size: 11, fill: C('--hot'), weight: 600 }));
+    dim(g, x0, y0 + T + 32, x0 + L, y0 + T + 32, 'u — вдоль скрутки', { ly: 16 });
+    dim(g, x0 - 20, y0, x0 - 20, y0 + T, '', { stroke: C('--dim') });
+    g.appendChild(text(x0 - 28, y0 + T / 2 + 4, 'рис + нори', { anchor: 'end', size: 11, fill: C('--dim') }));
+
+    // стрелка перехода
+    g.appendChild(line(400, 196, 470, 196, { stroke: C('--ink'), w: 1.4 }));
+    g.appendChild(line(470, 196, 461, 191, { stroke: C('--ink'), w: 1.4 }));
+    g.appendChild(line(470, 196, 461, 201, { stroke: C('--ink'), w: 1.4 }));
+    g.appendChild(text(435, 186, 'скрутка', { anchor: 'middle', size: 11.5, fill: C('--ink-2') }));
+
+    // справа — спираль. Построена ТАК ЖЕ, как срез в Ф-5, и по той же причине: рисовый
+    // диск по замеру модели, спираль нори по формуле шага. Две фигуры обязаны быть сравнимы.
+    const cx = 742, cy = 196, S = 46, pu2 = 0.78;
+    g.appendChild(text(cx, 44, 'СВЁРНУТЫЙ ЛИСТ', { anchor: 'middle', size: 11.5, weight: 600,
+      ls: '0.12em', fill: C('--ink') }));
+
+    g.appendChild(el('circle', { cx, cy, r: 3.12 * S, fill: C('--rice'), opacity: 0.5 }));
+    g.appendChild(el('circle', { cx, cy, r: 3.12 * S, fill: 'none', stroke: C('--nori'), 'stroke-width': 2.4 }));
+    g.appendChild(el('path', { d: toPath(spiralPts(S, cx, cy)), fill: 'none', stroke: C('--nori'),
+      'stroke-width': 2, opacity: 0.9 }));
+    g.appendChild(el('circle', { cx, cy, r: R0 * S, fill: 'none', stroke: C('--rule'),
+      'stroke-width': 1, 'stroke-dasharray': '3 3' }));
+
+    // тот же кусок — теперь на витке, изогнутый
+    const d = ING.salmon;
+    const phiP = Math.PI * 2 * TURNS * pu2;
+    const rP = (R0 + PITCH * phiP / (Math.PI * 2)) * S;
+    const bent = [];
+    for (const [dir, fn] of [[1, cutTop], [-1, cutLow]]) {
+      const N = 60;
+      for (let i = 0; i <= N; i++) {
+        const k = dir > 0 ? i / N : 1 - i / N;
+        const lu = k - 0.5;
+        const a = phiP + lu * d.wU * S / rP;
+        const r = rP + (fn(d, lu) - 0.5) * d.hU * S;
+        bent.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+      }
+    }
+    g.appendChild(el('path', { d: toPath(bent) + ' Z', fill: '#ef8a66' }));
+    leader(g, cx + rP * Math.cos(phiP), cy + rP * Math.sin(phiP), cx + 34, cy + 168,
+      'тот же кусок, изогнут по витку', { dir: 'left', fill: C('--hot'), stroke: C('--hot') });
+
+    // шаг витка — вертикально вниз от центра
+    const phiD = Math.PI / 2;
+    const rA = (R0 + PITCH * phiD / (Math.PI * 2)) * S;
+    const rB = (R0 + PITCH * (phiD + Math.PI * 2) / (Math.PI * 2)) * S;
+    dim(g, cx - 5, cy + rA, cx - 5, cy + rB, '', { stroke: C('--hot') });
+    g.appendChild(text(cx - 15, cy + (rA + rB) / 2 + 4, 'шаг витка 1,42 ед.',
+      { anchor: 'end', size: 11.5, fill: C('--hot'), weight: 600 }));
+    leader(g, cx - R0 * S * 0.7, cy - R0 * S * 0.7, cx - 118, cy - 96,
+      'сердцевина R₀ = 0,25 ед.', { dir: 'left', fill: C('--ink-2') });
+
+    g.appendChild(text(cx, 388, 'u стал длиной дуги · толщина стала радиусом',
+      { anchor: 'middle', size: 11.5, fill: C('--ink-2') }));
+  }
+
+  // ── Ф-5: срез ────────────────────────────────────────────────────────────
+  function drawFig5() {
+    const svg = document.getElementById('fig5');
+    const g = el('g'); svg.appendChild(g);
+    const cx = 380, cy = 214, S = 46;
+
+    // ⚠ Рисовый диск рисуется по ЗАМЕРУ модели (⌀ 31,2 мм = 3,12 ед.), а спираль нори — по
+    // формуле шага. Они не совпадают, и это не ошибка: последний виток нори лежит на 2,08 ед.,
+    // а поверх него ещё слой риса. Нарисовать диск по спирали и подписать замер было бы враньём.
+    const rNori = (R0 + PITCH * TURNS) * S;
+    const rMax = 3.12 * S;
+    g.appendChild(el('circle', { cx, cy, r: rMax, fill: C('--rice'), opacity: 0.55 }));
+    g.appendChild(el('circle', { cx, cy, r: rMax, fill: 'none', stroke: C('--nori'), 'stroke-width': 2.6 }));
+    // спираль нори внутри
+    g.appendChild(el('path', { d: toPath(spiralPts(S, cx, cy)), fill: 'none',
+      stroke: C('--nori'), 'stroke-width': 2, opacity: 0.85 }));
+    g.appendChild(el('circle', { cx, cy, r: R0 * S, fill: 'none', stroke: C('--rule'),
+      'stroke-width': 1, 'stroke-dasharray': '3 3' }));
+
+    // сечение куска, ИЗОГНУТОЕ по витку: lu → дуга, lz → радиус
+    const d = ING.salmon;
+    // ⚠ ТО ЖЕ МЕСТО, ЧТО В Ф-4 (pu = 0,78). Кусок один и тот же; если на двух чертежах он
+    // окажется на разных витках, читатель решит, что это разные куски.
+    const phi0 = Math.PI * 2 * TURNS * 0.78;
+    const rSpot = (R0 + PITCH * phi0 / (Math.PI * 2)) * S;
+    const bent = [];
+    const N = 90;
+    for (let i = 0; i <= N; i++) {
+      const lu = i / N - 0.5;
+      const a = phi0 + lu * d.wU * S / rSpot;
+      const r = rSpot + (cutTop(d, lu) - 0.5) * d.hU * S;
+      bent.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+    }
+    for (let i = N; i >= 0; i--) {
+      const lu = i / N - 0.5;
+      const a = phi0 + lu * d.wU * S / rSpot;
+      const r = rSpot + (cutLow(d, lu) - 0.5) * d.hU * S;
+      bent.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+    }
+    g.appendChild(el('path', { d: toPath(bent) + ' Z', fill: '#ef8a66', stroke: C('--ink'),
+      'stroke-width': 0.7, 'stroke-opacity': 0.35 }));
+
+    // тот же кусок плашмя — для сравнения
+    const bx = 760, by = 190, S2 = 76;
+    g.appendChild(text(bx, by - 76, 'ТА ЖЕ ФИГУРА ИЗ Ф-1', { anchor: 'middle', size: 11.5,
+      weight: 600, ls: '0.1em', fill: C('--ink') }));
+    g.appendChild(el('path', { d: profilePath(d, bx, by, S2, S2, 'full'), fill: '#ef8a66' }));
+    g.appendChild(el('path', { d: profilePath(d, bx, by, S2, S2, 'top'), fill: 'none',
+      stroke: C('--hot'), 'stroke-width': 2.2 }));
+    g.appendChild(el('path', { d: profilePath(d, bx, by, S2, S2, 'low'), fill: 'none',
+      stroke: C('--cold'), 'stroke-width': 2.2 }));
+    g.appendChild(text(bx, by + 92, 'только изогнутая по витку', { anchor: 'middle', size: 11.5,
+      fill: C('--ink-2') }));
+
+    // связь
+    const mid = bent[Math.floor(N / 2)];
+    g.appendChild(line(mid[0] + 10, mid[1], bx - S2 * d.wU / 2 - 16, by,
+      { stroke: C('--hot'), w: 1, dash: '4 4' }));
+
+    // нож
+    g.appendChild(line(cx - rMax - 40, cy - rMax - 34, cx + rMax + 40, cy - rMax - 34,
+      { stroke: C('--ink'), w: 2 }));
+    g.appendChild(text(cx, cy - rMax - 44, 'НОЖ ПОПЕРЁК ОСИ v', { anchor: 'middle', size: 11.5,
+      weight: 600, ls: '0.12em', fill: C('--ink') }));
+    dim(g, cx - rMax, cy + rMax + 34, cx + rMax, cy + rMax + 34, '⌀ 31,2 мм — замер модели', { ly: 16 });
+    leader(g, cx + rNori * 0.71, cy - rNori * 0.71, cx + 150, cy - 138,
+      'последний виток нори · 1,29 витка', { fill: C('--ink-2') });
+  }
+
+  // ── Ф-6: симметрия и её отсутствие ───────────────────────────────────────
+  function drawFig6() {
+    const svg = document.getElementById('fig6');
+    const g = el('g'); svg.appendChild(g);
+    const S = 110;
+    const pairs = [
+      [{ wU: 2.0, hU: 1.6, round: true }, 320, 'СИММЕТРИЧНЫЙ', 'площадь 0,785', C('--cold')],
+      [{ wU: 2.0, hU: 1.6, round: true, flatBottom: true }, 680, 'ПЛОСКИМ ДНОМ', 'площадь 0,893', C('--hot')],
+    ];
+    pairs.forEach(([d, cx, cap, area, col]) => {
+      const cy = 150;
+      g.appendChild(line(cx - d.wU * S / 2 - 30, cy + d.hU * S / 2, cx + d.wU * S / 2 + 30, cy + d.hU * S / 2,
+        { stroke: C('--rule'), w: 1.4 }));
+      g.appendChild(text(cx + d.wU * S / 2 + 36, cy + d.hU * S / 2 + 4, 'рис', { size: 11, fill: C('--ink-3') }));
+      g.appendChild(el('path', { d: profilePath(d, cx, cy, S, S, 'full'), fill: C('--rice'), opacity: 0.75 }));
+      g.appendChild(el('path', { d: profilePath(d, cx, cy, S, S, 'top'), fill: 'none',
+        stroke: C('--hot'), 'stroke-width': 2.6 }));
+      g.appendChild(el('path', { d: profilePath(d, cx, cy, S, S, 'low'), fill: 'none',
+        stroke: C('--cold'), 'stroke-width': 2.6 }));
+      g.appendChild(text(cx, 278, cap, { anchor: 'middle', size: 12, weight: 600, ls: '0.1em', fill: C('--ink') }));
+      g.appendChild(text(cx, 298, area, { anchor: 'middle', size: 11.5, fill: C('--ink-3') }));
+    });
+    // подсветка разницы — нижняя долька
+    const d = { wU: 2.0, hU: 1.6, round: true }, cx = 680, cy = 150;
+    const N = 80, pts = [];
+    for (let i = 0; i <= N; i++) {
+      const lu = i / N - 0.5;
+      pts.push([cx + lu * d.wU * S, cy - (cutLow(d, lu) - 0.5) * d.hU * S]);
+    }
+    pts.push([cx + d.wU * S / 2, cy + d.hU * S / 2], [cx - d.wU * S / 2, cy + d.hU * S / 2]);
+    g.appendChild(el('path', { d: toPath(pts) + ' Z', fill: C('--cold'), opacity: 0.22 }));
+    g.appendChild(text(cx, cy + 52, 'то, что зеркало отрезало', { anchor: 'middle', size: 11,
+      fill: C('--cold'), weight: 600 }));
+    g.appendChild(text(500, 40, 'ОДИН И ТОТ ЖЕ ВЕРХНИЙ КОНТУР', { anchor: 'middle', size: 11.5,
+      weight: 600, ls: '0.1em', fill: C('--hot') }));
+  }
+
+  // ── Ф-7: призма против того, что нужно ───────────────────────────────────
+  function drawFig7() {
+    const svg = document.getElementById('fig7');
+    const g = el('g'); svg.appendChild(g);
+
+    // верх — призма, три среза одинаковы
+    g.appendChild(text(60, 46, 'ЧТО МОДЕЛЬ УМЕЕТ — ПРИЗМА', { size: 11.5, weight: 600,
+      ls: '0.12em', fill: C('--ink') }));
+    const y = 72, h = 44;
+    g.appendChild(el('rect', { x: 60, y, width: 520, height: h, fill: '#ef8a66' }));
+    [0.25, 0.5, 0.75].forEach((t, i) => {
+      const x = 60 + 520 * t;
+      g.appendChild(line(x, y - 12, x, y + h + 12, { stroke: C('--ink'), w: 1, dash: '5 4' }));
+      // одинаковые сечения
+      const d = ING.salmon;
+      g.appendChild(el('path', { d: profilePath(d, 680 + i * 105, y + h / 2, 38, 38, 'full'),
+        fill: '#ef8a66', stroke: C('--hot'), 'stroke-width': 1.6 }));
+    });
+    g.appendChild(text(320, y + h + 34, 'где ни режь — фигура одна и та же',
+      { anchor: 'middle', size: 11.5, fill: C('--ink-2') }));
+
+    // низ — то, что нужно
+    g.appendChild(text(60, 196, 'ЧТО НУЖНО — ПРОФИЛЬ ВДОЛЬ (№10)', { size: 11.5, weight: 600,
+      ls: '0.12em', fill: C('--hot') }));
+    const y2 = 222, N = 120, top = [], bot = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      // свёрнутая креветка: толще в середине, сходит к хвосту
+      const k = Math.sin(Math.PI * Math.pow(t, 0.78)) * 0.92 + 0.08;
+      top.push([60 + 520 * t, y2 + 22 - k * 22]);
+      bot.push([60 + 520 * t, y2 + 22 + k * 22]);
+    }
+    g.appendChild(el('path', { d: toPath(top) + ' L' + bot.slice().reverse()
+      .map(p => p.map(v => v.toFixed(2)).join(' ')).join(' L') + ' Z', fill: '#f4a48c' }));
+    [0.25, 0.5, 0.75].forEach((t, i) => {
+      const x = 60 + 520 * t;
+      g.appendChild(line(x, y2 - 12, x, y2 + 56, { stroke: C('--ink'), w: 1, dash: '5 4' }));
+      const kk = Math.sin(Math.PI * Math.pow(t, 0.78)) * 0.92 + 0.08;
+      const d = { wU: 2.0 * kk, hU: 1.6 * kk, round: true };
+      g.appendChild(el('path', { d: profilePath(d, 680 + i * 105, y2 + 22, 38, 38, 'full'),
+        fill: '#f4a48c', stroke: C('--hot'), 'stroke-width': 1.6 }));
+    });
+    g.appendChild(text(320, y2 + 76, 'фигура меняется вдоль куска',
+      { anchor: 'middle', size: 11.5, fill: C('--ink-2') }));
+  }
+
+  // ── легенда линий в штампе ───────────────────────────────────────────────
+  function drawLegend() {
+    const box = document.getElementById('legend');
+    const items = [
+      ['верхний контур — виден и сверху, и в срезе', C('--hot'), ''],
+      ['нижний контур — виден только в срезе', C('--cold'), ''],
+      ['размерная и выносная', C('--dim'), ''],
+      ['осевая', C('--rule'), '9 3 2 3'],
+    ];
+    for (const [label, col, dash] of items) {
+      const s = document.createElement('span');
+      const svg = el('svg', { width: 34, height: 10, viewBox: '0 0 34 10' });
+      svg.appendChild(line(1, 5, 33, 5, { stroke: col, w: 2.2, dash }));
+      s.appendChild(svg);
+      s.appendChild(document.createTextNode(label));
+      box.appendChild(s);
+    }
+  }
+
+  function drawAll() {
+    for (const id of ['fig1', 'fig2', 'fig3', 'fig4', 'fig5', 'fig6', 'fig7']) {
+      const s = document.getElementById(id);
+      while (s.firstChild) s.removeChild(s.firstChild);
+    }
+    document.getElementById('legend').textContent = '';
+    drawLegend(); drawFig1(); drawFig2(); drawFig3(); drawFig4(); drawFig5(); drawFig6(); drawFig7();
+  }
+
+  drawAll();
+  // Цвета берутся из токенов темы — при смене темы линии надо пересчитать.
+  if (window.matchMedia) {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    (mq.addEventListener ? mq.addEventListener.bind(mq, 'change') : mq.addListener.bind(mq))(drawAll);
+  }
+})();
+</script>
