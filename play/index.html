@@ -21,27 +21,27 @@
 <!-- Кеш браузера дважды за вечер подсовывал старую копию правленого файла, и это выглядело
      как «код не работает»: функция есть в файле, но её нет в странице. Метка версии в адресе
      снимает вопрос — меняется вместе с правкой. CACHE_BUST -->
-<script src="model/util.js?v=81"></script>
-<script src="model/catalog.js?v=81"></script>
-<script src="state.js?v=81"></script>
-<script src="model/geometry.js?v=81"></script>
+<script src="model/util.js?v=83"></script>
+<script src="model/catalog.js?v=83"></script>
+<script src="state.js?v=83"></script>
+<script src="model/geometry.js?v=83"></script>
 <!-- Канон поваров как ДАННЫЕ (не проза): одна таблица правил на двух потребителей —
      сторож ?check и будущие уровни пазла (#112). Нужен ING из каталога, модель не нужна. -->
-<script src="model/canon.js?v=81"></script>
+<script src="model/canon.js?v=83"></script>
 <!-- Тонкий compatibility facade над геометрией (issue #72). Подключён здесь, ПОСЛЕ модели и
      ДО рендера: сам он объявляет только функции, а обращения к shapeInfo/shapeK (render/slice.js)
      и W/H/DPR/L/layout (ui/layout.js) происходят при ВЫЗОВЕ, когда всё уже загружено. То есть
      домен сегодня зависит от рендера — это временно и названо в шапке roll.js. -->
-<script src="domain/roll.js?v=81"></script>
-<script src="audio.js?v=81"></script>
-<script src="ui/layout.js?v=81"></script>
-<script src="render/slice.js?v=81"></script>
-<script src="render/sheet.js?v=81"></script>
-<script src="ui/controls.js?v=81"></script>
-<script src="render/screens.js?v=81"></script>
-<script src="ui/album.js?v=81"></script>
-<script src="modes/puzzle.js?v=81"></script>
-<script src="ui/actions.js?v=81"></script>
+<script src="domain/roll.js?v=83"></script>
+<script src="audio.js?v=83"></script>
+<script src="ui/layout.js?v=83"></script>
+<script src="render/slice.js?v=83"></script>
+<script src="render/sheet.js?v=83"></script>
+<script src="ui/controls.js?v=83"></script>
+<script src="render/screens.js?v=83"></script>
+<script src="ui/album.js?v=83"></script>
+<script src="modes/puzzle.js?v=83"></script>
+<script src="ui/actions.js?v=83"></script>
 <script>
 'use strict';
 // =====================================================================
@@ -121,6 +121,24 @@ function placeAt(u, v) {
   patches().push(p); S.selPatch = null; touchModel(); sfx.place();
 }
 // «Обернуть нори»: четыре настоящих патча вокруг начинки — под, над и два торца.
+// ⚠ ЭТО НЕ КОНВЕРТ, А ЧЕТЫРЕ ПЛАШКИ. Помечено 31.08.2026 по замечанию владельца: «если
+// выбрать кусок, лежащий на татами, и обернуть его в нори, оборачивается не так».
+//
+// Что здесь на самом деле: под кусок кладётся плашка нори, над куском вторая, и с торцов
+// две узкие (capW = 0,3). Четыре независимых прямоугольника. Отсюда всё, что видно на срезе:
+//   · по углам они НЕ СХОДЯТСЯ — между плашкой и торцом остаётся щель, и рис в неё заходит;
+//   · круглый кусок (креветка, авокадо-полумесяц) оборачивается как прямоугольный, потому
+//     что профиль куска здесь не спрашивается вовсе;
+//   · модель не знает, что кусок обёрнут: она видит начинку и рядом четыре куска нори.
+//     Поэтому канон, ядро и карта материалов считают их отдельными телами.
+//
+// И это не то же самое, что нори-обёртка ролла. Обёртка ролла — база (WRAPPERS, S.wrap).
+// Здесь — нори ВНУТРИ ролла, вокруг отдельного куска: приём настоящий (так собирают
+// 鳴門巻き и элементы 飾り巻き寿司), но у него своя геометрия, и её надо расписать (#115).
+//
+// До тех пор действие оставлено в интерфейсе под честной подписью «Кусок в нори», но из
+// генератора целей пазла убрано: строить задание на примитиве, который считается неверно,
+// значит закладывать ошибку в то, что игрок обязан повторить.
 function wrapInNoriList(F, list, rnd = Math.random) {
   const i = list.indexOf(F); if (i < 0) return;
   const m = dims(F), b = B(), L = sheetLen(b), dF = ING[F.kind], wF = F.wU ?? dF.wU, hF = F.hU ?? dF.hU, hN = ING.nori.hU, capW = 0.3;

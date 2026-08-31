@@ -176,11 +176,19 @@ function drawLay() {
   buttons = [];
   const area = L.layBtn;
   if (sel && p === 0) {
-    const canWrap = sel.kind !== 'nori' && !ING[sel.kind].wave && !ING[sel.kind].paint, canRot = !ING[sel.kind].wave;
+    // ⚠ ОБЁРТЫВАНИЕ КУСКА В НОРИ УБРАНО ИЗ ИНТЕРФЕЙСА 31.08.2026 по решению владельца:
+    // «мы ещё не знаем, как именно внутри будем оборачивать… можно пока просто не оборачивать
+    // то, что внутри — давай обычный оттестируем до идеального состояния хотя бы».
+    // Причина не только в незнании приёма: нынешняя реализация собрана из четырёх
+    // несходящихся плашек и считается моделью как четыре отдельных тела (#115). Убрать
+    // кнопку дешевле, чем каждый раз объяснять, почему на срезе щели.
+    // Код механики жив (wrapInNoriList в play/index.html) — вернуть одна правка здесь.
+    const canWrap = false;
+    const canRot = !ING[sel.kind].wave;
     // Подпись показывает, КУДА повернётся, и по тому же диапазону, что и само действие.
     const rotSpan = cutSymmetric(ING[sel.kind]) ? 180 : 360;
     const rotLabel = `⟳ ${Math.round(((sel.rot || 0) * 180 / Math.PI + 45) % rotSpan)}°`;
-    buttonRow([...(canWrap ? [['wrap', 'В нори', true, 1.2]] : []), ...(canRot ? [['rotate', rotLabel, false, 1.05]] : []),
+    buttonRow([...(canWrap ? [['wrap', 'Кусок в нори', true, 1.2]] : []), ...(canRot ? [['rotate', rotLabel, false, 1.05]] : []),
                ['remove', 'Убрать', false, 1]], { ...area, max: 3 });
   } else {
     // ↶ и ↷ — история действий, а не «снять последний кусок» (issue #84). Тусклая стрелка
