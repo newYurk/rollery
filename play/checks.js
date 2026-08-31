@@ -497,6 +497,33 @@ function runChecks(detail) {
       const pr = runPracticeChecks({ B: BASES, ING, S, touchModel, layout, getModel, windFor, topAt, materialAt, TAU, U_MM,
                                      NPIECES: (typeof NPIECES !== 'undefined' ? NPIECES : null) });
       for (const f of pr.провалы) ok(false, 'практика: ' + f);
+      // ── КАНОН КАК ДАННЫЕ: правила не должны сгнить ────────────────────────
+      // play/model/canon.js хранит правила поваров исполняемыми. Здесь гоняем их на
+      // эталонных раскладках: канонический ролл ДОЛЖЕН проходить, нарушающий — падать.
+      // Без этого таблица правил тихо разъедется с каталогом при первом переименовании.
+      if (typeof canonCheck === 'function') {
+        const каппа = canonCheck('hoso', [{ kind: 'cucumber', u: 0.35, v: 0.5 }]);
+        ok(!каппа.нарушено.length, 'канон: каппамаки (огурец в хосомаки) НЕ ПРОШЁЛ — ' +
+           каппа.нарушено.map(x => x.что).join('; '));
+        const трое = canonCheck('hoso', ['salmon', 'tamago', 'cucumber']
+          .map((k, i) => ({ kind: k, u: 0.1 + i * 0.1, v: 0.5 })));
+        ok(трое.нарушено.some(x => x.id === 'hoso-one-filling'),
+           'канон: три начинки в хосомаки НЕ ПОЙМАНЫ — правило одной начинки не работает');
+        // Порядок канонический: устойчивое (тамаго, кампё) ближе, рассыпчатое (шиитакэ) дальше;
+        // дэмбу размазан и в порядке не участвует.
+        const футо = canonCheck('futo', [['tamago', 0.20], ['kanpyo', 0.28], ['denbu', 0.36], ['shiitake', 0.52], ['cucumber', 0.44]]
+          .map(([k, u]) => ({ kind: k, u, v: 0.5 })));
+        ok(!футо.нарушено.length, 'канон: футомаки из четырёх ролей НЕ ПРОШЁЛ — ' +
+           футо.нарушено.map(x => x.что).join('; '));
+        const безЗелени = canonCheck('futo', [['tamago', 0.20], ['kanpyo', 0.28], ['denbu', 0.36]]
+          .map(([k, u]) => ({ kind: k, u, v: 0.5 })));
+        ok(безЗелени.нарушено.some(x => x.id === 'futo-four-roles'),
+           'канон: футомаки БЕЗ зелени не пойман — правило четырёх ролей не работает');
+        const наоборот = canonCheck('futo', [{ kind: 'shiitake', u: 0.2, v: 0.5 }, { kind: 'tamago', u: 0.6, v: 0.5 }]);
+        ok(наоборот.нарушено.some(x => x.id === 'crumbly-far'),
+           'канон: рассыпчатое у ближнего края не поймано');
+        for (const g of каппа.непроверяемо) notes.push('канон · пробел: ' + g);
+      } else notes.push('канон не подключён — правила поваров не проверяются');
       for (const f of pr.заведено) kn(false, 'практика: ' + f);
       practiceGaps = pr.пробелы;
       practiceOk = pr.сошлось.length;
