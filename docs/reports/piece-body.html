@@ -433,21 +433,28 @@
   <section class="sheet">
     <div class="sheet-head">
       <span class="fig-no">Ф-8</span>
-      <h2>Вид сбоку: рис расступается</h2>
-      <span class="sub">разрез листа поперёк грядки</span>
+      <h2>Вид сбоку: модель против практики</h2>
+      <span class="sub">разрез поперёк грядки · проверено источниками</span>
     </div>
     <div class="plate"><svg id="figSide" viewBox="0 0 1000 340" role="img" aria-label="Вид сбоку: рис расступается"></svg></div>
     <div class="note">
-      <p>Сверху не видно главного: <strong>кусок не лежит НА рисе, он лежит В рисе</strong>.
-        Под ним грядка утончается, а вытесненный рис поднимается валиком по бокам — он никуда
-        не девается, а перетекает. Так модель считает сегодня, и это было отдельно починено:
-        сперва вытесненный рис просто исчезал.</p>
-      <p>Отсюда и борозда, которую видно на срезе: начинка сидит в углублении, и граница
-        «рис — кусок» идёт <strong>по зёрнам, а не по геометрической линии</strong>.</p>
-      <div class="ask"><b>Проверяется практикой:</b> модель вдавливает в рис <em>все</em>
-        куски одинаково. Владелец сомневается, что так делают повара: что-то наверняка кладут
-        прямо сверху, что-то в готовую канавку, пасту вообще размазывают.
-        <span class="who">идёт разбор источников · ляжет в #74 «surface / embedded / stacked / spread», #1 «карта высот»</span></div>
+      <p><strong>Модель вдавливает в рис каждый кусок отдельно. Повара так не делают.</strong>
+        Разбор японских источников (<span class="mono">docs/kitchen-practice.md</span>) показал:
+        приёма «вдавить кусок» в языке рецептов <strong>нет вовсе</strong> — везде глагол
+        <span class="mono">のせる</span>, «положить сверху».</p>
+      <p>Что есть на самом деле — <strong>土手 (дотэ, «дамба»)</strong>: дальний край и бока
+        рисовой постели раскладывают <strong>выше</strong>, центр не вспучивают. Получается
+        неглубокая чаша, сделанная <strong>поднятием бортика, а не выкапыванием ямы</strong>.
+        Она и держит начинку по центру при скрутке. Углубление, если его вообще делают, —
+        <strong>одно и широкое</strong>, под весь набор, и сделано до укладки.</p>
+      <p>А в <strong>урамаки начинка вообще не касается риса</strong>: рис намазан на всю нори,
+        лист переворачивают, и начинка ложится на голую нори. Вдавливать некуда.</p>
+      <div class="ask"><b>Сомнение владельца подтвердилось.</b> Механизм придётся заменить:
+        вместо «каждый кусок продавливает свой след» — «постель имеет профиль-чаши, куски
+        садятся в неё». Глубины и высоты бортика в источниках нет ни одной — это замеры,
+        которые придётся делать самим.
+        <span class="who">#74 «классы плейсмента», #1 «карта высот», #25 «топология урамаки»</span></div>
+    </div>
     </div>
   </section>
   <section class="sheet">
@@ -504,10 +511,11 @@
       <p>Шаг витка — это <strong>рис плюс обёртка</strong>, поэтому толщина обёртки прямо
         меняет диаметр ролла. Разброс огромный: нори 0,10 мм против блина 2,00 мм — в двадцать
         раз. Замер на одной раскладке: с блином ⌀ 62,4 мм против 58,7 мм с нори.</p>
-      <p><strong>Честность чисел разная, и это записано в каталоге.</strong> Толщина нори
-        держится на источнике (FAO, Нисидзава: лист 21 × 19 см ≈ 3 г). Остальные пять помечены
-        <span class="mono">inferred</span> — предположения, у блина хотя бы с якорем на замер
-        лаваша. Схема показывает их наравне, но пометка остаётся.</p>
+      <p><strong>Честность чисел разная — и ни одно из шести не замерено.</strong> Пять помечены
+        <span class="mono">inferred</span> прямо в каталоге. Шестое, нори, стояло с источником
+        «FAO» — но <strong>разбор 31.08 показал, что FAO даёт габарит и вес, а толщину не
+        называет</strong>. 0,10 мм выводится из 21 × 19 см и 3 г при разумной плотности, и это
+        честный вывод, а не источник. Догадка, одетая в источник, хуже честной догадки.</p>
       <div class="ask"><b>Открытый вопрос:</b> у выбора обёртки нет интерфейса — поле в модели
         есть, задать его игрок не может.
         <span class="who">задачи #13 «у выбора обёртки нет интерфейса», #98 «правила скрутки по типам»</span></div>
@@ -1276,52 +1284,70 @@
       { anchor: 'middle', size: 12, fill: C('--ink-2') }));
   }
 
-  // ── вид сбоку: кусок сидит В рисе, вытесненный рис уходит валиком вбок ───
+  // ── вид сбоку: что делает модель против того, что делают повара ─────────
+  // ⚠ Лист переписан 31.08 после разбора японских источников (docs/kitchen-practice.md).
+  // Раньше он показывал модель как истину. Оказалось, приёма «вдавить кусок в рис» в языке
+  // рецептов НЕТ вовсе: везде のせる, «положить сверху». А главный настоящий приём обратный
+  // по знаку — 土手 (дотэ): дальний край и бока поднимают, центр не вспучивают.
   function drawFigSide() {
     const svg = document.getElementById('figSide');
     const g = el('g'); svg.appendChild(g);
-    const x0 = 90, x1 = 910, base = 236, T = 62;   // грядка риса
-    const d = ING.salmon, S = 62, cx = 500;
-    const hw = d.wU * S / 2;
+    const d = ING.salmon, S = 30;
+    const base = 214, T = 44;
 
-    // профиль грядки: провал под куском, валики по бокам. Форма из модели: вытесненный
-    // объём не исчезает, а перетекает вбок (issue #1 — было починено именно так).
-    const prof = [];
-    const N = 240;
-    for (let i = 0; i <= N; i++) {
-      const x = x0 + (x1 - x0) * i / N;
-      const q = (x - cx) / hw;                      // 0 в центре куска, ±1 на его краю
-      let h = T;
-      if (Math.abs(q) < 1) h = T * (1 - 0.52 * Math.cos(q * Math.PI / 2));
-      else {
-        const t = Math.min(1, (Math.abs(q) - 1) / 1.5);
-        h = T * (1 + 0.30 * (1 - t) * (1 - t));     // валик рядом с куском
+    function panel(x0, x1, mode, cap, sub, col) {
+      const cxs = mode === 'model' ? [(x0 + x1) / 2 - 62, (x0 + x1) / 2 + 62]
+                                   : [(x0 + x1) / 2 - 62, (x0 + x1) / 2 + 62];
+      const hw = d.wU * S / 2;
+      const prof = [];
+      const N = 260;
+      for (let i = 0; i <= N; i++) {
+        const x = x0 + (x1 - x0) * i / N;
+        let h = T;
+        if (mode === 'model') {
+          // модель: КАЖДЫЙ кусок продавливает свой след, рядом валик
+          for (const cx of cxs) {
+            const q = (x - cx) / hw;
+            if (Math.abs(q) < 1) h = Math.min(h, T * (1 - 0.50 * Math.cos(q * Math.PI / 2)));
+            else {
+              const t = Math.min(1, (Math.abs(q) - 1) / 1.4);
+              h = Math.max(h, T * (1 + 0.26 * (1 - t) * (1 - t)));
+            }
+          }
+        } else {
+          // практика: ОДНА чаша, сделанная поднятием бортика у дальнего края
+          const u = (x - x0) / (x1 - x0);                 // 0 ближний край, 1 дальний
+          const bank = 1 + 0.42 * Math.pow(Math.max(0, (u - 0.55) / 0.45), 2);   // дотэ
+          const dish = 1 - 0.16 * Math.sin(Math.PI * Math.min(1, u / 0.8));
+          h = T * bank * dish;
+        }
+        prof.push([x, base - h]);
       }
-      prof.push([x, base - h]);
+      g.appendChild(el('path', { d: toPath(prof) + ` L${x1} ${base} L${x0} ${base} Z`, fill: C('--rice') }));
+      g.appendChild(el('path', { d: toPath(prof), fill: 'none', stroke: C('--ink-3'), 'stroke-width': 1.3 }));
+      g.appendChild(line(x0, base, x1, base, { stroke: C('--nori'), w: 3 }));
+
+      cxs.forEach((cx, k) => {
+        const hAt = prof.reduce((a, q) => Math.abs(q[0] - cx) < Math.abs(a[0] - cx) ? q : a)[1];
+        const cy = mode === 'model' ? hAt + d.hU * S / 2 - 4 : hAt - d.hU * S / 2 + 2;
+        g.appendChild(el('path', { d: profilePath(d, cx, cy, S, S, 'full'),
+          fill: k ? '#a7c455' : '#ef8a66' }));
+      });
+
+      g.appendChild(text((x0 + x1) / 2, 52, cap, { anchor: 'middle', size: 11.5, weight: 600,
+        ls: '0.12em', fill: col }));
+      g.appendChild(text((x0 + x1) / 2, 268, sub, { anchor: 'middle', size: 12, fill: C('--ink-2') }));
+      return prof;
     }
-    g.appendChild(el('path', { d: toPath(prof) + ` L${x1} ${base} L${x0} ${base} Z`,
-      fill: C('--rice'), stroke: 'none' }));
-    g.appendChild(el('path', { d: toPath(prof), fill: 'none', stroke: C('--ink-3'), 'stroke-width': 1.4 }));
-    g.appendChild(line(x0, base, x1, base, { stroke: C('--nori'), w: 3 }));
-    g.appendChild(text(x0, base + 22, 'нори', { size: 11, fill: C('--ink-3') }));
 
-    // кусок, сидящий в углублении
-    const sunk = base - T * 0.48 - d.hU * S / 2 + 8;
-    g.appendChild(el('path', { d: profilePath(d, cx, sunk, S, S, 'full'), fill: '#ef8a66' }));
-    g.appendChild(el('path', { d: profilePath(d, cx, sunk, S, S, 'top'), fill: 'none',
-      stroke: C('--hot'), 'stroke-width': 2.4 }));
+    panel(60, 470, 'model', 'ЧТО ДЕЛАЕТ МОДЕЛЬ', 'каждый кусок продавливает свой след', C('--cold'));
+    const pr = panel(530, 940, 'real', 'ЧТО ДЕЛАЮТ ПОВАРА', 'один бортик 土手 у дальнего края', C('--hot'));
 
-    // размеры и выноски
-    g.appendChild(line(x0 + 30, base - T, x1 - 30, base - T, { stroke: C('--rule'), w: 0.9, dash: '7 4' }));
-    g.appendChild(text(x0 + 34, base - T - 8, 'ровная грядка, какой была бы без начинки',
-      { size: 11, fill: C('--ink-3') }));
-    leader(g, cx - hw + 6, base - T * 0.40, cx - 210, base - 120, 'грядка утончилась', { dir: 'left', fill: C('--cold') });
-    leader(g, cx + hw + 42, base - T * 1.22, cx + 250, base - 132, 'рис поднялся валиком', { fill: C('--cold') });
-    dim(g, x0 + 12, base, x0 + 12, base - T, 'T', { lx: -14, ly: 4 });
-    g.appendChild(text(500, 44, 'РАЗРЕЗ ЛИСТА ПОПЕРЁК ГРЯДКИ', { anchor: 'middle', size: 11.5,
-      weight: 600, ls: '0.12em', fill: C('--ink') }));
-    g.appendChild(text(500, 316, 'вытесненный рис не исчезает — он перетекает вбок',
-      { anchor: 'middle', size: 12, fill: C('--ink-2') }));
+    // выноска на дотэ
+    leader(g, 900, pr[pr.length - 12][1], 812, 92, 'дальний край ВЫШЕ', { dir: 'left', fill: C('--hot') });
+    g.appendChild(text(735, 292, 'приёма «вдавить кусок» в рецептах нет — везде のせる, «положить сверху»',
+      { anchor: 'middle', size: 11.5, fill: C('--hot'), weight: 600 }));
+    g.appendChild(line(500, 70, 500, 250, { stroke: C('--rule'), w: 1, dash: '5 5' }));
   }
 
   // ── жесты укладки (заготовка: ни один не реализован) ─────────────────────
@@ -1380,7 +1406,7 @@
     const g = el('g'); svg.appendChild(g);
     // ⚠ Числа — из каталога (play/state.js, WRAPPERS), включая пометки честности.
     const W = [
-      { n: 'Нори',            mm: 0.10, c: '#22342b', src: 'FAO · Нисидзава' },
+      { n: 'Нори',            mm: 0.10, c: '#22342b', src: 'выведено из 21×19 см и 3 г' },
       { n: 'Соевая',          mm: 0.20, c: '#e3c069', src: 'inferred' },
       { n: 'Рисовая бумага',  mm: 0.50, c: '#efe6d4', src: 'inferred' },
       { n: 'Омлет',           mm: 1.50, c: '#e8b551', src: 'inferred' },
@@ -1401,7 +1427,7 @@
       // ⚠ Источник прижат к ПРАВОМУ КРАЮ, а не отсчитан от полосы: у толстых обёрток полоса
       // длиннее, и подпись уезжала за границу чертежа — «inferred» превращалось в «inf».
       g.appendChild(text(984, y + 4, w.src, { anchor: 'end', size: 10.5,
-        fill: w.src.indexOf('inferred') === 0 ? C('--hot') : C('--cold') }));
+        fill: w.src.indexOf('FAO') === 0 ? C('--cold') : C('--hot') }));
     });
     g.appendChild(text(x0, 62, 'РИС', { size: 10.5, ls: '0.1em', fill: C('--ink-3') }));
     g.appendChild(text(x0 + RICE_MM * scale + 6, 62, 'ОБЁРТКА', { size: 10.5, ls: '0.1em', fill: C('--ink-3') }));
