@@ -92,6 +92,10 @@ guide=docs/reports/piece-body.html
   awk '/⟦ФОРМА · ЕДИНОЕ ОПРЕДЕЛЕНИЕ⟧/{f=1} f{print} /⟦\/ФОРМА · ЕДИНОЕ ОПРЕДЕЛЕНИЕ⟧/{f=0}' "$1" \
     | tr -s ' \t' ' ' | sed 's/^ //; s/ $//'
 }
+# Вторая половина той же обязанности: у гида есть СВОЯ таблица размеров начинок, вне блока.
+say "── размеры начинок: гид против каталога"
+python3 tools/guide-ingredients-check.py "$guide" play/model/catalog.js || bad=$((bad+1))
+
 math_block=$(блок play/model/geometry.js)
 guide_block=$(блок "$guide")
 if [ -z "$math_block" ] || [ -z "$guide_block" ]; then
