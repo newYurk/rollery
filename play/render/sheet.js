@@ -79,124 +79,73 @@ function sheetPop() { ctx.restore(); }
 // Подпись внутри трансформа, но горизонтальная: якорь едет с листом, текст — нет.
 function unrot(px, py, fn) { ctx.save(); ctx.translate(px, py); ctx.rotate(-sheetAng()); fn(); ctx.restore(); }
 
-// ── ПИКСЕЛЬНАЯ НАЧИНКА (issue #104) ─────────────────────────────────────────
-// Начинка на листе — это «то, что кладёт игрок», и владелец просила пикселизовать именно её.
-// Рисуется не сглаженной фигурой, а блоками по сетке арт-пикселей:
-//   · прямоугольник прижат к сетке — иначе кромка размывается и весь смысл теряется;
-//   · три ступени светлоты вместо градиента: светлая грань сверху, тело, тёмная снизу —
-//     классическая объёмность 16-битного спрайта, где объём делается двумя строками пикселей;
-//   · фактура — крупными блоками, а не тонкими линиями: линия в полпикселя даёт серую кашу.
-// Скруглений нет намеренно: круглый кусок в пиксель-арте задаётся ступенчатым силуэтом.
-function drawPatchShapePix(d, x, y, w, h) {
-  const P = PIX, q = v => Math.round(v / P) * P;
-  const x0 = q(x), y0 = q(y);
-  const cols = Math.max(2, Math.round(w / P)), rows = Math.max(2, Math.round(h / P));
-  const base = d.rgb;
-  const ramp = [ mix(base, [255,255,255], 0.46), mix(base, [255,255,255], 0.20),
-                 base, shade(base, 0.74) ];
-  // ⚠ ЧЁРНОЙ ОБВОДКИ ЗДЕСЬ НЕТ, и это не упущение. У иконки контур уместен: она одна на фоне.
-  // А на листе кусок лежит НА РИСЕ, и тёмный контур вокруг него читается как «обёрнут в нори» —
-  // то есть врёт про игру, где «в нори» настоящий приём с отдельной кнопкой (владелец, 31.08).
-  // Кусок отделяется от риса собственной тенью снизу, а не чужой линией.
-  const edge = shade(base, 0.62);
-  const round = !!d.round, lens = !!d.lens;
-  const shortN = Math.min(cols, rows), rad = round ? shortN / 2 : lens ? shortN / 2.5 : 0;
+// ── ВИД СВЕРХУ: РИСУЕМ ТЕЛО, А НЕ КАРТИНКУ (issue #105) ─────────────────────
+// Здесь больше НЕТ собственного описания того, как выглядит начинка. Раньше их было два:
+// drawPatchShape рисовала градиентом с полосками, её пиксельный двойник — ступеньками
+// светлоты, и обе ничего не знали о patchColor, которая красит срез. Три описания одного
+// вещества расходились, и на листе кусок выглядел не тем, чем оказывался в разрезе.
+// Теперь вид сверху ВЫВОДИТСЯ: спрашиваем у тела (geometry.js) вещество и свет в каждой
+// точке и складываем из ответов картинку. Стиль — единственное, что решается тут, и решается
+// он ОДНИМ числом: размером клетки. Крупная клетка без сглаживания — пиксель-арт; мелкая
+// со сглаживанием — гладкий вид. Чтобы сменить стиль, переписывать нечего.
+const TOP_CACHE = new Map();
+
+// Спрайт куска размером cols×rows клеток. Кэш нужен: лист перерисовывается на каждое
+// движение мыши, а спрайт зависит только от вида начинки и размера — от кадра к кадру он тот же.
+function pieceTopSprite(p, d, wPx, hPx, cell) {
+  const cols = Math.max(2, Math.round(wPx / cell)), rows = Math.max(2, Math.round(hPx / cell));
+  const key = `${d.tex}|${d.rgb}|${cols}|${rows}|${((p && p.phase) || 0).toFixed(2)}`;
+  const hit = TOP_CACHE.get(key);
+  if (hit) return hit;
+
+  const cv = document.createElement('canvas');
+  cv.width = cols; cv.height = rows;
+  const g = cv.getContext('2d'), img = g.createImageData(cols, rows), data = img.data;
+  // Кусок длиннее, чем шире: ВДОЛЬ (lv) — большая сторона, ПОПЕРЁК (lu) — меньшая.
   const horiz = cols >= rows;
-  const inside = (i, j) => {
-    if (!round && !lens) return true;
-    const along = horiz ? i : j, across = horiz ? j : i;
-    const nAlong = horiz ? cols : rows, nAcross = horiz ? rows : cols;
-    const ac = (nAcross - 1) / 2;
-    if (Math.abs(across - ac) > nAcross / 2) return false;
-    if (along >= rad - 0.5 && along <= nAlong - rad - 0.5) return true;
-    const cc = along < nAlong / 2 ? rad - 0.5 : nAlong - rad - 0.5;
-    return (along - cc) ** 2 + (across - ac) ** 2 <= rad * rad;
-  };
-  const dither = (i, j) => ((i + j) & 1) === 0;
+  const nAlong = horiz ? cols : rows, nAcross = horiz ? rows : cols;
+  const pp = p || { phase: 0 };
 
-  // Тело: свет поперёк куска (валик круглый в сечении — светлее посередине, темнее к краям),
-  // а не сверху вниз по всей длине. Дизеринг на переходах — подпись эпохи.
   for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-    if (!inside(i, j)) continue;
-    const across = horiz ? j : i, nAcross = horiz ? rows : cols;
-    const t = nAcross > 1 ? across / (nAcross - 1) : 0.5;   // 0 — верхний край, 1 — нижний
-    let c;
-    if (t < 0.16) c = ramp[1];
-    else if (t < 0.26) c = dither(i, j) ? ramp[1] : ramp[0];
-    else if (t < 0.46) c = ramp[0];                          // блик по середине валика
-    else if (t < 0.58) c = dither(i, j) ? ramp[0] : ramp[1];
-    else if (t < 0.74) c = ramp[1];
-    else if (t < 0.86) c = dither(i, j) ? ramp[1] : ramp[2];
-    else c = ramp[2];
-    ctx.fillStyle = rgbCss(c); ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
+    const along = horiz ? i : j, across = horiz ? j : i;
+    const lu = nAcross > 1 ? across / (nAcross - 1) - 0.5 : 0;   // −0.5…0.5 поперёк
+    const lv = nAlong > 1 ? along / (nAlong - 1) : 0.5;          // 0…1 вдоль
+    // Кромка — это БОКОВЫЕ ГРАНИ тела, которые и правда видно, когда смотришь сверху.
+    // Ближняя (нижняя) грань темнее дальней: свет падает с той стороны.
+    const near = across === nAcross - 1, far = across === 0;
+    const cap = along === 0 || along === nAlong - 1;
+    const c = near ? pieceSideColor(pp, d, lu, lv, i, j, 0.62)
+            : far  ? pieceSideColor(pp, d, lu, lv, i, j, 1.30)
+            : cap  ? pieceSideColor(pp, d, lu, lv, i, j, 0.86)
+            :        pieceTopColor(pp, d, lu, lv, i, j);
+    const o = (j * cols + i) * 4;
+    data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
   }
-
-  // Фактура — ПОПЕРЁК куска и во всю его ширину, как прожилки на филе. Прежняя редакция ставила
-  // отдельные клетки по шахматке и складывалась в кирпичную кладку (владелец, 31.08).
-  const tex = d.tex;
-  const stripe = (colr, step, from) => {
-    ctx.fillStyle = colr;
-    const nAlong = horiz ? cols : rows, nAcross = horiz ? rows : cols;
-    for (let a = from; a < nAlong - 1; a += step)
-      for (let b = 0; b < nAcross; b++) {
-        const i = horiz ? a : b, j = horiz ? b : a;
-        if (inside(i, j)) ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
-      }
-  };
-  if (tex === 'salmon') stripe(rgbCss(mix(base, [255,255,255], 0.70)), 3, 1);
-  else if (tex === 'shrimp') stripe(rgbCss(mix(base, [255,255,255], 0.66)), 3, 1);
-  else if (tex === 'tamago') stripe(rgbCss(shade(base, 0.84)), 4, 2);
-  else if (tex === 'cucumber') {
-    // светлая сердцевина — одна полоса ВДОЛЬ, а не поперёк
-    ctx.fillStyle = rgbCss(mix(base, [255,255,255], 0.42));
-    const nAcross = horiz ? rows : cols, mid = Math.floor(nAcross / 2);
-    for (let a = 1; a < (horiz ? cols : rows) - 1; a++) {
-      const i = horiz ? a : mid, j = horiz ? mid : a;
-      if (inside(i, j)) ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
-    }
-  }
-
-  // Нижняя грань — тень самого куска: она и отделяет его от риса.
-  ctx.fillStyle = rgbCss(edge);
-  for (let a = 0; a < (horiz ? cols : rows); a++) {
-    const nAcross = horiz ? rows : cols;
-    for (let b = nAcross - 1; b >= 0; b--) {
-      const i = horiz ? a : b, j = horiz ? b : a;
-      if (inside(i, j)) { ctx.fillRect(x0 + i * P, y0 + j * P, P, P); break; }
-    }
-  }
+  g.putImageData(img, 0, 0);
+  if (TOP_CACHE.size > 96) TOP_CACHE.clear();     // размеры меняются с масштабом — не копим
+  TOP_CACHE.set(key, cv);
+  return cv;
 }
 
-// Фигура патча в ЛОГИЧЕСКИХ координатах листа (см. блок выше): x, y — верхний левый угол; w — вдоль v, h — вдоль u.
-function drawPatchShape(d, x, y, w, h, flat) {
-  if (PIX) return drawPatchShapePix(d, x, y, w, h);
-  const c = d.color, rgb = d.rgb;
-  const r = d.round ? h / 2 : d.lens ? h / 2.5 : 3;
-  if (d.round) {
-    const g = ctx.createLinearGradient(0, y, 0, y + h);
-    g.addColorStop(0, rgbCss(shade(rgb, 0.75))); g.addColorStop(0.35, rgbCss(mix(rgb, [255, 255, 255], 0.25))); g.addColorStop(0.7, c); g.addColorStop(1, rgbCss(shade(rgb, 0.6)));
-    ctx.fillStyle = g;
-  } else ctx.fillStyle = c;
-  rr(x, y, w, h, r); ctx.fill();
-  ctx.save(); rr(x, y, w, h, r); ctx.clip();
-  switch (d.tex) {
-    case 'salmon': ctx.strokeStyle = 'rgba(255,246,236,0.6)'; ctx.lineWidth = Math.max(1.5, h * 0.12);
-      for (let i = -h; i < w + h; i += Math.max(7, w * 0.11)) { ctx.beginPath(); ctx.moveTo(x + i, y + h); ctx.lineTo(x + i + h * 0.9, y); ctx.stroke(); } break;
-    case 'shrimp': ctx.fillStyle = 'rgba(250,236,224,0.85)';
-      for (let i = 0; i < w; i += Math.max(6, w * 0.2)) ctx.fillRect(x + i, y, Math.max(3, w * 0.09), h); break;
-    case 'tamago': ctx.strokeStyle = 'rgba(200,150,50,0.5)'; ctx.lineWidth = 1;
-      for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(x, y + h * k / 4); ctx.lineTo(x + w, y + h * k / 4); ctx.stroke(); } break;
-    case 'strawberry': ctx.fillStyle = 'rgba(248,230,120,0.9)';
-      for (let k = 0; k < 7; k++) ctx.fillRect(x + w * hash(k, 3) * 0.9 + 1, y + h * hash(k, 9) * 0.8 + 1, 2, 2); break;
-    case 'kiwi': ctx.fillStyle = 'rgba(236,240,190,0.9)'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * 0.22, h * 0.3, 0, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#1e1914'; for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; ctx.fillRect(x + w / 2 + Math.cos(a) * w * 0.28 - 1, y + h / 2 + Math.sin(a) * h * 0.36 - 1, 2, 2); } break;
-    case 'cucumber': ctx.fillStyle = 'rgba(214,232,178,0.55)'; ctx.fillRect(x, y + h * 0.35, w, h * 0.25); break;
-    case 'gloss': ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x, y + h * 0.2, w, h * 0.2); break;
-    case 'flat': if (!flat) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; for (let i = 0; i < w; i += 5) ctx.fillRect(x + i, y, 2, h); } break;
-  }
+// Фигура патча в ЛОГИЧЕСКИХ координатах листа (см. блок выше): x, y — верхний левый угол;
+// w — вдоль v, h — вдоль u. p нужен для фазы фактуры и может отсутствовать (иконки в панели).
+function drawPatchShape(d, x, y, w, h, flat, p) {
+  const cell = PIX || 2;
+  const spr = pieceTopSprite(p, d, w, h, cell);
+  ctx.save();
+  ctx.imageSmoothingEnabled = !PIX;
+  if (PIX) {
+    // Тень тоже по сетке. Размытая тень вокруг цельного спрайта сразу выдаёт, что это
+    // картинка поверх пикселей: в 16-битной графике тень — сдвинутый силуэт, а не градиент.
+    ctx.shadowBlur = 0; ctx.shadowOffsetX = PIX; ctx.shadowOffsetY = PIX;
+    // Прижать к сетке арт-пикселей: иначе спрайт ложится между клетками, кромка мылится,
+    // и весь смысл пиксельного режима теряется — клетка должна быть видна как клетка.
+    const x0 = Math.round(x / PIX) * PIX, y0 = Math.round(y / PIX) * PIX;
+    ctx.drawImage(spr, x0, y0, spr.width * PIX, spr.height * PIX);
+  } else ctx.drawImage(spr, x, y, w, h);
   ctx.restore();
-  ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; rr(x, y, w, h, r); ctx.stroke();
 }
+
 function patchRect(p) {
   const m = dims(p), s = SB();
   return { x: s.x + (p.v - m.dv / 2) * s.w, y: s.y + (1 - p.u - m.du / 2) * s.h, w: m.dv * s.w, h: m.du * s.h };
@@ -220,7 +169,7 @@ function drawPatchTop(p, alpha = 1, z0 = 0) {
     ctx.shadowColor = d.paint ? 'transparent' : 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 4 + z0 * 6; ctx.shadowOffsetY = 2 + z0 * 3;
     ctx.translate(t.cx, t.cy); ctx.rotate(t.ang);
     if (d.paint) { ctx.fillStyle = d.color; rr(-t.lenPx / 2, -t.wPx / 2, t.lenPx, t.wPx, 3); ctx.fill(); }
-    else drawPatchShape(d, -t.lenPx / 2, -t.wPx / 2, t.lenPx, t.wPx, false);
+    else drawPatchShape(d, -t.lenPx / 2, -t.wPx / 2, t.lenPx, t.wPx, false, p);
     ctx.restore(); return;
   }
   if (d.paint) {
@@ -238,7 +187,7 @@ function drawPatchTop(p, alpha = 1, z0 = 0) {
     ctx.shadowColor = 'transparent'; ctx.lineWidth = lw * 0.3; ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.save(); ctx.translate(0, -lw * 0.22); ctx.stroke(); ctx.restore();
   } else {
-    const r = patchRect(p); drawPatchShape(d, r.x, r.y, r.w, r.h, false);
+    const r = patchRect(p); drawPatchShape(d, r.x, r.y, r.w, r.h, false, p);
   }
   ctx.restore();
 }
