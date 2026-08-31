@@ -24,7 +24,7 @@ ahead=$(git log "origin/$br..$br" --oneline 2>/dev/null | wc -l | tr -d ' ')
 
 say "── ветки без PR"
 for b in $(git branch --format='%(refname:short)' | grep -v '^main$'); do
-  pr=$(gh pr list --head "$b" --json number -q '.[0].number' 2>/dev/null)
+  pr=$(gh pr list --head "$b" --limit 1 --json number -q '.[0].number' 2>/dev/null)
   [ -z "$pr" ] && warn "ветка $b без открытого PR — влита и забыта?" || say "  ✓ $b → PR #$pr"
 done
 
