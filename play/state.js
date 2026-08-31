@@ -14,7 +14,7 @@ const S = {
   lists: { hoso: [], futo: [], ura: [] },
   sel: 'salmon',
   preview: false,
-  mute: false,
+  mute: true,                  // звук по умолчанию ВЫКЛЮЧЕН (решение владельца 31.08)
   cuts: 0,                     // срезов за сессию — замер 1
   cutsTotal: 0,
   rollP: 0,                    // прогресс скрутки 0..1 (в режиме lay)
@@ -93,9 +93,11 @@ function redo() {
 const canUndo = () => hist.base === S.base && hist.past.length > 0;
 const canRedo = () => hist.base === S.base && hist.future.length > 0;
 // ВО ЧТО ЗАВОРАЧИВАТЬ — ТЕПЕРЬ ВЫБОР, А НЕ СВОЙСТВО ТИПА. Решение владельца 27.08: вместо нори
-// можно положить блинную или рисовую бумагу — обёртка становится тем, что игрок выбирает сам.
-// Формат не выдуман: во Франции «Makis de crêpes» кладут блин вместо нори, в Испании — лист
-// из застывшей клубники, в Вакаяме フルーツ寿司 крутят на настоящем суши-рисе.
+// можно положить другой лист — обёртка становится тем, что игрок выбирает сам.
+// ⚠ ОБОСНОВАНИЕ ЗАМЕНЕНО 31.08. Раньше здесь стояли французские «Makis de crêpes» и испанский
+// клубничный лист — под правилом «только японская тематика» они больше не доводы. Приём
+// держится на японском: 薄焼き卵 (омлетом крутят 変わり巻き), 湯葉, лента дайкона 桂剥き,
+// 求肥 в вагаси. Обёртка, кроме нори, — это не вольность, а отдельный названный приём.
 // Толщина решает многое: она входит в шаг витка (T + w), то есть меняет число оборотов и ⌀.
 // ⚑ inferred: замер есть только у нори. Остальные — оценка по продукту, отмечено honestly.
 const WRAPPERS = {
@@ -141,7 +143,9 @@ function load() {
     if (m && m.lists) { S.base = m.base in BASES ? m.base : 'hoso'; S.lists = m.lists; S.wrap = (m.wrap && WRAPPERS[m.wrap]) ? m.wrap : null; }
     for (const k in BASES) if (!S.lists[k]) S.lists[k] = [];
     S.preview = localStorage.getItem('rollery.preview') === '1';
-    S.mute = localStorage.getItem('rollery.mute') === '1';
+    // Ключа нет — новый игрок, звук молчит. Сравнение с '1' давало обратное:
+    // отсутствие ключа читалось как «не выключено» и игра начинала со звуком.
+    S.mute = localStorage.getItem('rollery.mute') !== '0';
     S.shape = localStorage.getItem('rollery.shape') || 'round';
     S.cutsTotal = +(localStorage.getItem('rollery.cuts') || 0);
     S.album = JSON.parse(localStorage.getItem('rollery.album') || '[]');

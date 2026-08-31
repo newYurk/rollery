@@ -54,7 +54,11 @@ function action(id) {
     case 'next': if (S.puzzle && S.puzzle.result && S.puzzle.result.pass) puzzleStart(Math.max(0, S.puzzle.level + 1), S.puzzle.seed + 1); break;
     case 'lvprev': if (S.puzzle && S.puzzle.level > 0) puzzleStart(S.puzzle.level - 1, S.puzzle.seed); else if (S.puzzle && S.puzzle.level < 0) puzzleStart(0, 1); break;
     case 'lvnext': if (S.puzzle && S.puzzle.level + 1 < LEVELS.length && S.puzzle.level + 1 <= puzzleMax()) puzzleStart(S.puzzle.level + 1, S.puzzle.seed); break;
-    case 'mute': S.mute = !S.mute; sfx.ensure(); sfx.setMute(S.mute); save(); dirty = true; break;
+    case 'mute': S.mute = !S.mute; sfx.ensure(); sfx.setMute(S.mute); save(); dirty = true;
+      // Включили звук — играем заставку, если она ещё не звучала. Кнопка сама по себе
+      // ничего не издаёт, и без этого игрок не знает, включилось ли что-нибудь.
+      if (!S.mute && sfx._fireStart) sfx._fireStart();
+      break;
     case 'base': { const keys = uiBases(); S.base = keys[(keys.indexOf(S.base) + 1) % keys.length]; S.sel = uiIngredients()[0] || B().ingredients[0]; S.selPatch = null; touchModel(); layout(); if (S.puzzle) puzzleStart(S.puzzle.level, S.puzzle.seed); else if (S.mode !== 'lay') action('back'); break; }
   }
   requestFrame();
