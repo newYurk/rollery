@@ -69,10 +69,11 @@ function runChecks(detail) {
   // и возвращаем его в finally — вместе с состоянием S.
   const LS_KEYS = ['rollery.puzzle', 'rollery.preview', 'rollery.shape', 'rollery.model.v2', 'rollery.cuts'];
   const keepLS = {};
+  let practiceGaps = [], practiceOk = 0;
   try { for (const k of LS_KEYS) keepLS[k] = localStorage.getItem(k); } catch (e) {}
   const ok = (cond, msg) => { if (!cond) fails.push(msg); return cond; };
-  // ДИАМЕТР — ДЕТЕКТОР ИЗМЕНЕНИЙ, А НЕ ТРЕБОВАНИЕ К ПРОДУКТУ. Владелец 27.08: «диаметры мне вообще
-  // особо не важны… если он стал больше, но ничего не разрывается, всё в порядке». Это верно: ролл
+  // ДИАМЕТР — ДЕТЕКТОР ИЗМЕНЕНИЙ, А НЕ ТРЕБОВАНИЕ К ПРОДУКТУ. Владелец 27.08 сказала, что сами по
+  // себе диаметры ей не важны: ролл стал толще, но нигде не рвётся — значит всё в порядке. Это верно: ролл
   // на пять миллиметров толще не хуже. Но диаметр шевелится, стоит тронуть что угодно в намотке, и
   // потому остаётся самой дешёвой сигнализацией — за сегодня сработал трижды. Две разные роли, и
   // раньше они были смешаны: расхождение по диаметру роняло проверку наравне с дырой в ролле.
@@ -468,6 +469,19 @@ function runChecks(detail) {
       const f = runRollFacadeChecks();
       ok(f.passed, `facade ≠ legacy: ${f.failures.length} расхождений — ` + f.failures.slice(0, 3).join(' · '));
     } else notes.push('facade-проверки не подключены — раздел §8 пропущен');
+
+    // ── СВЕРКА С ПРАКТИКОЙ ПОВАРОВ (play/test/practice.js) ──────────────────
+    // Третий сторож: не «цела ли модель», а «сходится ли она с тем, как делают».
+    // Провал — модель посчитала число и оно вне диапазона источника. Пробел — источник есть,
+    // а мерки нет; такие не валят проверку, но печатаются, чтобы не забывались.
+    if (typeof runPracticeChecks === 'function') {
+      const pr = runPracticeChecks({ B: BASES, ING, S, touchModel, layout, getModel, windFor, topAt, TAU, U_MM,
+                                     NPIECES: (typeof NPIECES !== 'undefined' ? NPIECES : null) });
+      for (const f of pr.провалы) ok(false, 'практика: ' + f);
+      practiceGaps = pr.пробелы;
+      practiceOk = pr.сошлось.length;
+    }
+
   } catch (e) {
     fails.push('ПАДЕНИЕ: ' + e.message + (e.stack ? ' @ ' + e.stack.split('\n')[1] : ''));
   } finally {
@@ -489,7 +503,10 @@ function runChecks(detail) {
   const head = fails.length ? `ПРОВАЛ · ${fails.length}` : 'ВСЁ ЦЕЛО';
   const text = head + (fails.length ? '\n  ' + fails.join('\n  ') : '') +
     (notes.length ? `\n\nСДВИГ ⌀ · ${notes.length} — не провал, но объясни чем:\n  ` + notes.join('\n  ') : '') +
-    (known.length ? `\n\nИЗВЕСТНО · ${known.length} — заведено, ждёт решения владельца:\n  ` + known.join('\n  ') : '');
+    (known.length ? `\n\nИЗВЕСТНО · ${known.length} — заведено, ждёт решения владельца:\n  ` + known.join('\n  ') : '') +
+    // Пробелы практики печатаются ВСЕГДА и не валят проверку: источник есть, а мерки нет.
+    // Молчать о них нельзя — иначе разбор источников тихо устареет, как уже бывало.
+    (practiceGaps.length ? `\n\nПРАКТИКА · сошлось ${practiceOk}, не проверяется ${practiceGaps.length}:\n  ` + practiceGaps.join('\n  ') : '');
   return detail ? { ok: !fails.length, fails, notes, known, text } : text;
 }
 
