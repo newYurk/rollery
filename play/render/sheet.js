@@ -92,82 +92,78 @@ function drawPatchShapePix(d, x, y, w, h) {
   const x0 = q(x), y0 = q(y);
   const cols = Math.max(2, Math.round(w / P)), rows = Math.max(2, Math.round(h / P));
   const base = d.rgb;
-  // ЧЕТЫРЕ СТУПЕНИ, А НЕ ДВЕ. Спрайт эпохи строится рампой: блик, свет, тело, тень. Двух
-  // ступеней хватает на «геометрическую плашку», и именно так выглядела первая редакция.
-  // Контраст больше, чем «реалистичный»: в пиксель-арте свет условен — блик почти белый,
-  // тень уходит в цвет контура. Мягкая рампа даёт «квантованное фото», а не спрайт (31.08).
-  const ramp = [ mix(base, [255,255,255], 0.58), mix(base, [255,255,255], 0.26),
-                 base, mix(shade(base, 0.55), [40,22,14], 0.25) ];
-  // КОНТУР — ПОЧТИ ЧЁРНЫЙ, а не тёмная версия материала. Именно он собирает спрайт в предмет:
-  // на референсе владельца (31.08) обводка у всего одна и очень тёмная, тёплого тона.
-  const line = mix(base, [26, 15, 10], 0.82);
+  const ramp = [ mix(base, [255,255,255], 0.46), mix(base, [255,255,255], 0.20),
+                 base, shade(base, 0.74) ];
+  // ⚠ ЧЁРНОЙ ОБВОДКИ ЗДЕСЬ НЕТ, и это не упущение. У иконки контур уместен: она одна на фоне.
+  // А на листе кусок лежит НА РИСЕ, и тёмный контур вокруг него читается как «обёрнут в нори» —
+  // то есть врёт про игру, где «в нори» настоящий приём с отдельной кнопкой (владелец, 31.08).
+  // Кусок отделяется от риса собственной тенью снизу, а не чужой линией.
+  const edge = shade(base, 0.62);
   const round = !!d.round, lens = !!d.lens;
-
-  // ⚠ СИЛУЭТ — КАПСУЛА, А НЕ ЭЛЛИПСС. Круглым у куска является СЕЧЕНИЕ, а не вид сверху:
-  // сверху брусок остаётся полосой со скруглёнными ТОРЦАМИ. Первая редакция делала эллипс
-  // целиком — и длинный ломтик авокадо превращался в веретено с остриями (владелец увидела
-  // сразу, 31.08). Радиус — половина короткой стороны, ровно как в прежнем rr(..., h/2).
-  const shortN = Math.min(cols, rows), rad = (round ? shortN / 2 : shortN / 2.5);
+  const shortN = Math.min(cols, rows), rad = round ? shortN / 2 : lens ? shortN / 2.5 : 0;
+  const horiz = cols >= rows;
   const inside = (i, j) => {
     if (!round && !lens) return true;
-    const along = cols >= rows ? i : j, across = cols >= rows ? j : i;
-    const nAlong = cols >= rows ? cols : rows, nAcross = cols >= rows ? rows : cols;
-    const ac = (nAcross - 1) / 2, dAc = Math.abs(across - ac);
-    if (dAc > nAcross / 2) return false;
-    if (along >= rad - 0.5 && along <= nAlong - rad - 0.5) return true;   // прямая часть
-    const cc = along < nAlong / 2 ? rad - 0.5 : nAlong - rad - 0.5;       // центр торца
+    const along = horiz ? i : j, across = horiz ? j : i;
+    const nAlong = horiz ? cols : rows, nAcross = horiz ? rows : cols;
+    const ac = (nAcross - 1) / 2;
+    if (Math.abs(across - ac) > nAcross / 2) return false;
+    if (along >= rad - 0.5 && along <= nAlong - rad - 0.5) return true;
+    const cc = along < nAlong / 2 ? rad - 0.5 : nAlong - rad - 0.5;
     return (along - cc) ** 2 + (across - ac) ** 2 <= rad * rad;
   };
-
-  // ДИЗЕРИНГ — подпись эпохи. Между двумя ступенями кладётся шахматка, и переход читается
-  // как переход, а не как ступенька. Без него любая заливка выглядит плоской наклейкой.
   const dither = (i, j) => ((i + j) & 1) === 0;
 
+  // Тело: свет поперёк куска (валик круглый в сечении — светлее посередине, темнее к краям),
+  // а не сверху вниз по всей длине. Дизеринг на переходах — подпись эпохи.
   for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
     if (!inside(i, j)) continue;
-    const px = x0 + i * P, py = y0 + j * P;
-    const t = rows > 1 ? j / (rows - 1) : 0.5;          // 0 — верх куска, 1 — низ
-    // Выбор ступени по высоте + дизеринг на границах между ними.
+    const across = horiz ? j : i, nAcross = horiz ? rows : cols;
+    const t = nAcross > 1 ? across / (nAcross - 1) : 0.5;   // 0 — верхний край, 1 — нижний
     let c;
-    if (t < 0.14) c = ramp[0];
-    else if (t < 0.30) c = dither(i, j) ? ramp[0] : ramp[1];
-    else if (t < 0.62) c = ramp[1];
-    else if (t < 0.76) c = dither(i, j) ? ramp[1] : ramp[2];
-    else if (t < 0.90) c = ramp[2];
-    else c = dither(i, j) ? ramp[2] : ramp[3];
-    // Крапины: детерминированный шум по клетке — тот же hash, что у зерна, без Math.random,
-    // иначе фактура дрожала бы каждый кадр.
-    if (hash(i * 7 + 3, j * 11 + 5) > 0.82) c = mix(c, [255, 255, 255], 0.22);
-    ctx.fillStyle = rgbCss(c); ctx.fillRect(px, py, P, P);
+    if (t < 0.16) c = ramp[1];
+    else if (t < 0.26) c = dither(i, j) ? ramp[1] : ramp[0];
+    else if (t < 0.46) c = ramp[0];                          // блик по середине валика
+    else if (t < 0.58) c = dither(i, j) ? ramp[0] : ramp[1];
+    else if (t < 0.74) c = ramp[1];
+    else if (t < 0.86) c = dither(i, j) ? ramp[1] : ramp[2];
+    else c = ramp[2];
+    ctx.fillStyle = rgbCss(c); ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
   }
 
-  // Фактура — блоками по сетке, а не тонкими линиями: линия тоньше арт-пикселя даёт кашу.
-  const tex = d.tex, hi = rgbCss(mix(base, [255,255,255], 0.62)), lo = rgbCss(shade(base, 0.78));
-  if (tex === 'salmon') {           // белые прожилки лосося — поперёк, через клетку
-    ctx.fillStyle = hi;
-    for (let j = 1; j < rows - 1; j += 3) for (let i = 0; i < cols; i++)
-      if (inside(i, j) && ((i + j) % 4)) ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
-  } else if (tex === 'shrimp') {    // кольца креветки — поперечные полосы в клетку
-    ctx.fillStyle = hi;
-    for (let i = 1; i < cols - 1; i += 3) for (let j = 0; j < rows; j++)
+  // Фактура — ПОПЕРЁК куска и во всю его ширину, как прожилки на филе. Прежняя редакция ставила
+  // отдельные клетки по шахматке и складывалась в кирпичную кладку (владелец, 31.08).
+  const tex = d.tex;
+  const stripe = (colr, step, from) => {
+    ctx.fillStyle = colr;
+    const nAlong = horiz ? cols : rows, nAcross = horiz ? rows : cols;
+    for (let a = from; a < nAlong - 1; a += step)
+      for (let b = 0; b < nAcross; b++) {
+        const i = horiz ? a : b, j = horiz ? b : a;
+        if (inside(i, j)) ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
+      }
+  };
+  if (tex === 'salmon') stripe(rgbCss(mix(base, [255,255,255], 0.70)), 3, 1);
+  else if (tex === 'shrimp') stripe(rgbCss(mix(base, [255,255,255], 0.66)), 3, 1);
+  else if (tex === 'tamago') stripe(rgbCss(shade(base, 0.84)), 4, 2);
+  else if (tex === 'cucumber') {
+    // светлая сердцевина — одна полоса ВДОЛЬ, а не поперёк
+    ctx.fillStyle = rgbCss(mix(base, [255,255,255], 0.42));
+    const nAcross = horiz ? rows : cols, mid = Math.floor(nAcross / 2);
+    for (let a = 1; a < (horiz ? cols : rows) - 1; a++) {
+      const i = horiz ? a : mid, j = horiz ? mid : a;
       if (inside(i, j)) ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
-  } else if (tex === 'tamago') {    // слои омлета — тёмные швы
-    ctx.fillStyle = lo;
-    for (let j = 2; j < rows - 1; j += 3) for (let i = 0; i < cols; i++)
-      if (inside(i, j)) ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
-  } else if (tex === 'cucumber') {  // светлая сердцевина огурца
-    ctx.fillStyle = hi;
-    const j = Math.floor(rows / 2);
-    for (let i = 1; i < cols - 1; i++) if (inside(i, j)) ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
+    }
   }
 
-  // КОНТУР — по клеткам силуэта, а не рамкой: у пиксельного спрайта обводка повторяет ступени.
-  ctx.fillStyle = rgbCss(line);
-  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-    if (!inside(i, j)) continue;
-    if (inside(i - 1, j) && inside(i + 1, j) && inside(i, j - 1) && inside(i, j + 1)
-        && i > 0 && i < cols - 1 && j > 0 && j < rows - 1) continue;
-    ctx.fillRect(x0 + i * P, y0 + j * P, P, P);
+  // Нижняя грань — тень самого куска: она и отделяет его от риса.
+  ctx.fillStyle = rgbCss(edge);
+  for (let a = 0; a < (horiz ? cols : rows); a++) {
+    const nAcross = horiz ? rows : cols;
+    for (let b = nAcross - 1; b >= 0; b--) {
+      const i = horiz ? a : b, j = horiz ? b : a;
+      if (inside(i, j)) { ctx.fillRect(x0 + i * P, y0 + j * P, P, P); break; }
+    }
   }
 }
 
