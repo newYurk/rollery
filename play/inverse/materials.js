@@ -51,6 +51,14 @@ const MATERIALS = {
     minRadius: GRAIN_ACROSS,     // ⚑ inferred: замера радиуса излома нори нет
     mustBeInsideRice: true, allowOuterTurn: true,
     note: 'нерастяжима — складок не бывает, пока лист удерживают (docs/reality-check.md)',
+    // ⚠ УСЛОВНОСТЬ ЧИТАЕМОСТИ, ОБЪЯВЛЕННАЯ ЯВНО. Нори-патч в ING нарисован толщиной 0,15 ед.
+    // (0,75 мм) — в 7,5 раза толще физической. Причина: 0,02 ед. на срезе меньше пикселя, и
+    // патч исчезал бы совсем. Обёртка ту же беду решает минимумом на отрисовке (WRAP_MIN_CSS),
+    // патч — пока нет, поэтому толщина завышена в самой модели.
+    // Раньше сторож просто пропускал весь класс 'contour' — и расхождение было НЕВИДИМЫМ.
+    // Теперь условность объявлена данными и проверяется: уедет любое из двух чисел — упадёт.
+    hUConvention: { drawn: 0.15, real: 0.02,
+      why: 'патч тоньше пикселя на срезе; довести до 0,02 можно, добавив минимум отрисовки — #109' },
   },
   cucumber: {
     id: 'cucumber', name: 'Огурец', color: '#79b55c', ingKey: 'cucumber',
@@ -94,8 +102,16 @@ function matVerifyAgainstING(ing, wrappers) {
     const d = ing && ing[m.ingKey];
     if (!d) { bad.push(`${id}: в ING нет ключа ${m.ingKey}`); continue; }
     if (d.color !== m.color) bad.push(`${id}: цвет ${m.color} против ${d.color} в ING`);
-    if (m.placementClass !== 'contour' && isFinite(d.hU) && Math.abs(d.hU - m.baseThickness) > 1e-6)
-      bad.push(`${id}: baseThickness ${m.baseThickness} против hU ${d.hU} в ING`);
+    // Условность читаемости объявляется В ДАННЫХ (hUConvention) и от этого не перестаёт
+    // проверяться: сверяем ING с ОБЪЯВЛЕННЫМ значением, а саму условность — с физическим.
+    // Прежняя редакция пропускала весь класс 'contour' целиком, и нори с толщиной в 7,5 раза
+    // больше физической проходила молча — ровно то, от чего сторож и заведён.
+    const conv = m.hUConvention;
+    const expect = conv ? conv.drawn : m.baseThickness;
+    if (isFinite(d.hU) && Math.abs(d.hU - expect) > 1e-6)
+      bad.push(`${id}: ожидалось hU ${expect}${conv ? ' (условность)' : ''}, в ING ${d.hU}`);
+    if (conv && Math.abs(conv.real - m.baseThickness) > 1e-9)
+      bad.push(`${id}: условность объявляет real ${conv.real}, а baseThickness ${m.baseThickness}`);
   }
   const w = wrappers && wrappers.nori;
   if (w && Math.abs(w.mm / MAT_U_MM - MATERIALS.nori.baseThickness) > 1e-9)
