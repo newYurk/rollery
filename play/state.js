@@ -11,7 +11,7 @@
 const S = {
   mode: 'lay',                 // lay | rolled | cut | revealed | slicing | plate
   base: 'hoso',
-  lists: { hoso: [], futo: [], ura: [], cake: [] },
+  lists: { hoso: [], futo: [], ura: [] },
   sel: 'salmon',
   preview: false,
   mute: false,
@@ -102,8 +102,6 @@ const WRAPPERS = {
   rice:  { name: 'Рисовая бумага',  mm: 0.50, color: '#efe6d4', src: 'inferred' },
   soy:   { name: 'Соевая',          mm: 0.20, color: '#e3c069', src: 'inferred' },
   egg:   { name: 'Омлет',           mm: 1.50, color: '#e8b551', src: 'inferred (薄焼き卵)' },
-  crepe: { name: 'Блин',            mm: 2.00, color: '#d8a05c', src: 'inferred; якорь — лаваш 2,0 мм, Rodríguez-Noriega, Foods 10(7):1473' },
-  choco: { name: 'Шоколадный блин', mm: 2.00, color: '#4a2c20', src: 'inferred, как блин' },
 };
 for (const k in WRAPPERS) WRAPPERS[k].rgb = hexRgb(WRAPPERS[k].color);
 // Начинки общие для всех: один экран, сладкое и несладкое рядом. Деление на типы отложено

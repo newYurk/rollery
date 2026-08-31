@@ -187,22 +187,22 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "F03-wrapper-roundtrip": {
-    "turns": 1.3042,
-    "outerDiameterMm": 62.4147,
+    "turns": 1.3271,
+    "outerDiameterMm": 61.2375,
     "closePoint": -1,
     "sheetEnd": 42,
     "sheetLength": 42,
     "hasCore": true,
     "shape": "round",
-    "coreRadius": 2.3125,
+    "coreRadius": 2.2708,
     "coreFold": 6,
     "patchCount": 1,
     "materialFractions": {
       "core": 0.3333,
-      "out": 0.0417,
-      "patch:tamago": 0.0347,
-      "spread": 0.5278,
-      "wrap": 0.0625
+      "out": 0.0382,
+      "patch:tamago": 0.0451,
+      "spread": 0.5313,
+      "wrap": 0.0521
     },
     "probes": [
       "0.25|1|0=core",
@@ -211,7 +211,7 @@ const ROLL_BASELINE = {
       "0.25|1|18=core",
       "0.25|5|0=spread",
       "0.25|5|6=spread",
-      "0.25|5|12=spread",
+      "0.25|5|12=patch:tamago",
       "0.25|5|18=spread",
       "0.25|9|0=spread",
       "0.25|9|6=spread",
@@ -223,7 +223,7 @@ const ROLL_BASELINE = {
       "0.5|1|18=core",
       "0.5|5|0=spread",
       "0.5|5|6=spread",
-      "0.5|5|12=spread",
+      "0.5|5|12=patch:tamago",
       "0.5|5|18=spread",
       "0.5|9|0=spread",
       "0.5|9|6=spread",
@@ -235,7 +235,7 @@ const ROLL_BASELINE = {
       "0.75|1|18=core",
       "0.75|5|0=spread",
       "0.75|5|6=spread",
-      "0.75|5|12=spread",
+      "0.75|5|12=patch:tamago",
       "0.75|5|18=spread",
       "0.75|9|0=spread",
       "0.75|9|6=spread",
@@ -244,12 +244,12 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "0": 1010,
-        "1": 1711,
-        "2": 324,
-        "5": 91
+        "0": 1004,
+        "1": 1779,
+        "2": 254,
+        "5": 99
       },
-      "probe": "0,1,2,1,1,2,1,1,1,2,0"
+      "probe": "0,1,1,1,1,2,1,1,1,2,0"
     },
     "selfSimilarity": 1
   },

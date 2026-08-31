@@ -40,10 +40,10 @@ const ROLL_FIXTURES = [
   },
   {
     id: 'F03-wrapper-roundtrip',
-    note: 'Нестандартная обёртка (блин 2 мм): она входит в шаг витка, значит меняет ⌀ и число ' +
+    note: 'Нестандартная обёртка (омлет 1,5 мм): она входит в шаг витка, значит меняет ⌀ и число ' +
           'оборотов. Здесь же ловится потеря wrap при сериализации — см. baseline-данные.',
     recipe: {
-      base: 'futo', wrap: 'crepe', turns: null, shape: 'round',
+      base: 'futo', wrap: 'egg', turns: null, shape: 'round',
       hand: { air: 0, wobble: 0, phase: 0, press: 1 },
       list: [{ kind: 'tamago', u: 0.40, v: 0.50, z0: 0, z1: 1, phase: 0.9 }],
     },

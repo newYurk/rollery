@@ -227,7 +227,7 @@ function drawRollBody(xc, yc, R, len, pieces, squash = 1, alpha = 1, axis = 'h')
     ctx.scale(squash, 1);
     ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(R + 8, 0, R * 0.35, len / 2 + 6, 0, 0, TAU); ctx.fill();
     const gv = ctx.createLinearGradient(-R, 0, R, 0);
-    gv.addColorStop(0, rgbCss(shade(wr, 0.55))); gv.addColorStop(0.28, rgbCss(mix(wr, [255, 255, 255], S.base === 'cake' ? 0.35 : 0.22)));
+    gv.addColorStop(0, rgbCss(shade(wr, 0.55))); gv.addColorStop(0.28, rgbCss(mix(wr, [255, 255, 255], 0.22)));
     gv.addColorStop(0.55, rgbCss(wr)); gv.addColorStop(1, rgbCss(shade(wr, 0.4)));
     for (const pc of pieces) {
       const y0 = -len / 2 + pc.a * len + pc.off, h = (pc.b - pc.a) * len;
@@ -241,7 +241,7 @@ function drawRollBody(xc, yc, R, len, pieces, squash = 1, alpha = 1, axis = 'h')
   // тень
   ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(0, R + 8, len / 2 + 6, R * 0.35, 0, 0, TAU); ctx.fill();
   const g = ctx.createLinearGradient(0, -R, 0, R);
-  g.addColorStop(0, rgbCss(shade(wr, 0.55))); g.addColorStop(0.28, rgbCss(mix(wr, [255, 255, 255], S.base === 'cake' ? 0.35 : 0.22)));
+  g.addColorStop(0, rgbCss(shade(wr, 0.55))); g.addColorStop(0.28, rgbCss(mix(wr, [255, 255, 255], 0.22)));
   g.addColorStop(0.55, rgbCss(wr)); g.addColorStop(1, rgbCss(shade(wr, 0.4)));
   for (const pc of pieces) {
     const x0 = -len / 2 + pc.a * len + pc.off, w = (pc.b - pc.a) * len;

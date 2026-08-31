@@ -119,7 +119,7 @@ function strokeWrapperTurns(c, m, wd, si, scale, half, LW, alpha) {
   // окну в ползерна (опора на самое выступающее зерно окрестности) и малая амплитуда.
   // press — это и есть натяжение: сильный прижим ⇒ линия глаже.
   // ⚑ inferred: замера прогиба листа между зёрнами нет; 0,5 мм взято по фотографиям на глаз.
-  const bite = RICE.wrapBite > 0 && S.base !== 'cake' ? RICE.wrapBite : 0;
+  const bite = RICE.wrapBite > 0 ? RICE.wrapBite : 0;
   const tension = bite ? clamp((1.30 - (m.g.press == null ? 1 : m.g.press)) / 0.45, 0.12, 1) : 0;
   for (let k = 0; k < wd.kmax - 1; k++) {
     const pts = [];
@@ -277,7 +277,7 @@ function renderSection(size, vSlice, m, Rref) {
   // ⚠ Порог LOD выражен в АРТ-пикселях: при PIX=4 зерно занимает вчетверо меньше точек, и по
   // старому порогу оно просто гасло (на превью — полностью). Это и есть та поправка, без
   // которой «пиксельный срез» выходил бы гладким полем без крупы (issue #104).
-  const lod = clamp((GRAIN * scale * (PIX || 1) - 6) / 8), sweet = S.base === 'cake';
+  const lod = clamp((GRAIN * scale * (PIX || 1) - 6) / 8), sweet = false;
   for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
     const i = (py * size + px) * 4;
     const dx = (px + 0.5 - half) / scale, dy = (py + 0.5 - half) / scale;

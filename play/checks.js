@@ -5,7 +5,7 @@
 // ЗАЧЕМ. За два дня четыре поломки прошли молча, и ни одну не поймал бы список задач:
 //   • сняли флаг oneTurn — отключился подворот у всех суши-баз;
 //   • перешли на целый лист — устарела константа пола, цель касания просела до 36,8 px;
-//   • обёртка стала выбором — кеш модели про неё не знал, блин 2 мм возвращал модель нори;
+//   • обёртка стала выбором — кеш модели про неё не знал, толстая обёртка возвращала модель нори;
 //   • чипы обрезались в 3615 случаях на прогоне.
 // Все четыре — тихие: код перестал соответствовать сам себе, и об этом никто не узнал.
 //
@@ -22,7 +22,6 @@ const REF = {
   futo:  { d: 53.9, dmax: 56.7, turns: 1.42, core: true },   // 27.08: норисиро 50 → 23 мм
   ura:   { d: 33.0, dmax: 33.1, turns: 1.09, core: true },   // 27.08: получил голую полосу, ролл стал меньше
   fruit: { d: 52.9, dmax: 55.5, turns: 1.54, core: true },   // 27.08: то же
-  cake:  { d: 70.5, dmax: 71.0, turns: 2.06, core: false },
 };
 const TOL_D = 0.6, TOL_T = 0.05;      // мм и обороты; TOL_D держим УЗКИМ намеренно — он ловит изменение, а не задаёт норму
 const TOL_LEVEL = 3;                  // средняя яркость риса: |Δ| ≤ 3 (см. docs/geometry-audit.md)
@@ -109,12 +108,12 @@ function runChecks(detail) {
     }
 
     // ── 2. ОБЁРТКА ВХОДИТ В МОДЕЛЬ ──
-    // Ловит поломку кеша: без обёртки в ключе блин 2 мм возвращал модель нори.
+    // Ловит поломку кеша: без обёртки в ключе толстая обёртка возвращала модель нори.
     S.base = 'futo'; S.lists.futo = []; clean();
     const ws = Object.keys(WRAPPERS), got = [];
     for (const w of ws) { S.wrap = w; touchModel(); layout(); got.push(dia().med); }
     S.wrap = null;
-    // Считаем по РАЗНЫМ толщинам: блин и шоколадный блин оба 2,0 мм, им и положено совпасть.
+    // Считаем по РАЗНЫМ толщинам: обёртки одной толщины обязаны совпасть, разной — разойтись.
     const thick = new Set(Object.values(WRAPPERS).map(w => w.mm));
     ok(new Set(got.map(x => x.toFixed(1))).size === thick.size,
        `разные толщины дают одинаковый ⌀ — кеш не знает про обёртку: ${got.map(x => x.toFixed(1)).join(' / ')}`);
@@ -125,7 +124,7 @@ function runChecks(detail) {
 
     // ── 3. ПРОФИЛЬ НАМАЗКИ ──
     // Ловит обрыв стеной у дальнего края и потерю голой полосы у ближнего.
-    for (const k of ['hoso', 'futo', 'cake']) {
+    for (const k of ['hoso', 'futo']) {
       S.base = k; clean(); touchModel();
       const g = getModel().g, se = g.spreadEnd, n = BASES[k].name, N = 400;
       ok(spreadAt(se + 1e-4, g) === 0, `${n}: за spreadEnd намазка не ноль`);
@@ -422,21 +421,23 @@ function runChecks(detail) {
 
     // ── 7б. ОБЁРТКА ПЕРЕЖИВАЕТ СОХРАНЕНИЕ (issue #86) ──
     // Обёртка входит в шаг витка, а значит в ⌀ и число оборотов. Оба сериализатора её теряли:
-    // запись альбома с блином открывалась как нори, ссылка-пазл давала другу ДРУГОЙ ролл.
-    // Проверяем круговой путь у обоих, по ⌀: расхождение блин↔нори у футомаки ≈ 3,7 мм.
+    // запись альбома с толстой обёрткой открывалась как нори, ссылка давала другу ДРУГОЙ ролл.
+    // Проверяем круговой путь у обоих, по ⌀: расхождение омлет↔нори у футомаки заметно.
+    // ⚠ Была на блине 2,0 мм; блин ушёл вместе с базой «Рулет» (владелец 31.08, японская
+    // тематика). Омлет 1,5 мм против нори 0,10 — контраст в пятнадцать раз, для проверки хватает.
     {
-      S.base = 'futo'; S.wrap = 'crepe'; clean();
+      S.base = 'futo'; S.wrap = 'egg'; clean();
       S.lists.futo = [{ kind: 'tamago', u: 0.4, v: 0.5, z0: 0, z1: 1, phase: 0.9 }];
       touchModel(); layout();
       const dCrepe = dia().med;
       S.wrap = null; touchModel(); const dNori = dia().med;
-      ok(Math.abs(dCrepe - dNori) > 1, `#86: блин и нори дали один ⌀ (${dCrepe.toFixed(1)}) — обёртка не в модели`);
+      ok(Math.abs(dCrepe - dNori) > 1, `#86: омлет и нори дали один ⌀ (${dCrepe.toFixed(1)}) — обёртка не в модели`);
       // альбом
-      S.wrap = 'crepe'; touchModel();
+      S.wrap = 'egg'; touchModel();
       const keepAlbum = S.album.slice();
       albumSave();
       const e = S.album[0];
-      ok(!!e && e.wrap === 'crepe', `#86: albumSave не сохранил обёртку (${e && e.wrap})`);
+      ok(!!e && e.wrap === 'egg', `#86: albumSave не сохранил обёртку (${e && e.wrap})`);
       if (e) {
         const back = withRecipe(e, m => { const wd = windFor(m, 0.5), N = 360, rs = [];
           for (let i = 0; i < N; i++) rs.push(topAt(wd, i / N * TAU));
@@ -446,7 +447,7 @@ function runChecks(detail) {
       S.album = keepAlbum;
       // ссылка-пазл
       const url = encodePuzzle(S.lists.futo, null), got = decodePuzzle(url);
-      ok(!!got && got.wrap === 'crepe', `#86: ссылка-пазл не донесла обёртку (${got && got.wrap})`);
+      ok(!!got && got.wrap === 'egg', `#86: ссылка-пазл не донесла обёртку (${got && got.wrap})`);
       // и withRecipe возвращает S.wrap как было
       S.wrap = 'soy';
       if (e) withRecipe(e, () => 0);

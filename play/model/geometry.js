@@ -408,22 +408,14 @@ const SPREAD_START = 0.048;
 // при этом ступеньки дать не может — 0,1 мм при ролле в 50 мм это две тысячных диаметра.
 // ⚑ inferred: ширина схода 4 мм на целом листе — оценка по размеру зерна (7,7 мм), замера нет.
 const RIM_EDGE = 0.019;
-const CREAM_P = 0.11;                       // 3 см от ближней кромки на листе 27–28 см
-const CREAM_A0 = 1.00, CREAM_PK = 2.00, CREAM_FAR = 0.55;   // до грядки · грядка · у дальнего края
+// ⚠ ОТСЮДА УДАЛЁН КРЕМ. База «Рулет» снята решением владельца 31.08: «у нас рулета не будет,
+// бисквитный вообще просто никогда — у нас японская тематика». Вместе с ней ушли константы
+// CREAM_P / CREAM_A0 / CREAM_PK / CREAM_FAR и ветка `if (b.sweet)` в этой функции: без базы
+// её никто не звал, а мёртвый код с калибровочными комментариями — ровно то, на что ругался
+// аудит честности чисел (#109).
 function spreadAt(u, g) {
   const b = g || B();
   const se = b.spreadEnd; if (u >= se) return 0;
-  if (b.sweet) {
-    const p = Math.min(CREAM_P, se * 0.5);
-    // нормировка: крема кладут отмеренную порцию, от способа размазать его не прибавляется
-    const k = se / (p * (CREAM_A0 + CREAM_PK) / 2 + (se - p) * (CREAM_PK + CREAM_FAR) / 2);
-    // И крем сходит на нет у дальнего края: стеной он тоже не стоит.
-    const e = Math.min(RIM_EDGE, (se - p) * 0.25);
-    const kk = k * se / (se - e * CREAM_FAR / 2);   // масса та же
-    if (u >= se - e) return kk * CREAM_FAR * (se - u) / e;
-    return kk * (u < p ? CREAM_A0 + (CREAM_PK - CREAM_A0) * (u / p)
-                       : CREAM_PK + (CREAM_FAR - CREAM_PK) * ((u - p) / (se - e - p)));
-  }
   const s0 = b.spreadStart === undefined ? SPREAD_START : b.spreadStart;
   if (u < s0) return 0;                               // голая полоса у ближнего края
   const span = se - s0, w = Math.min(RIM_W, span * 0.5), e = Math.min(RIM_EDGE, w * 0.6);
@@ -860,7 +852,7 @@ function buildModel(list, only) {
   const own = JSON.parse(JSON.stringify(list));
   // g — ПАСПОРТ модели: всё, что геометрия раньше подсматривала в S и B(), теперь снято здесь один раз.
   const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), Wv: b.Wv, sStart: 0, air: hd.air * b.T, wobble: hd.wobble, phase: hd.phase,
-    press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, sweet: !!b.cream, tuck: !!b.tuck, flap: b.flap || 0, tuckMin: b.tuckMin || 0 };
+    press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, tuck: !!b.tuck, flap: b.flap || 0, tuckMin: b.tuckMin || 0 };
   restack(own, g);
   m = { key, g, shape: S.shape, list: own, wds: new Map(), Rmax: 0, core: null };
   m.core = computeCore(m.list, g);
@@ -947,7 +939,7 @@ const RICE = {
 };
 function spreadColor(gx, gy, b, ct, st, lod) {
   const c = b.spreadRgb;
-  if (S.base !== 'cake') {                                  // крупа — у всех несладких баз
+  {                                                        // крупа — у всех баз
     // ЗЕРНО, А НЕ МОЗАИКА. Раньше центры стояли на КВАДРАТНОЙ сетке, а вытягивалась только метрика:
     // клетки выходили длинными, но соседи вдоль зерна оставались через 3,5 мм вместо 7,7 — зёрна
     // сидели впритык, и глазу оставался только узор границ. Владелец так и сказала: «рис не похож
@@ -1119,7 +1111,7 @@ function spreadColor(gx, gy, b, ct, st, lod) {
 }
 function wrapperColor(px, py, b) {
   const c = b.wrapperRgb, n = hash(px, py + 999);
-  let t = (n - 0.5) * 8; if (S.base === 'cake' && n > 0.9) t -= 20;
+  let t = (n - 0.5) * 8;
   return [c[0] + t, c[1] + t, c[2] + t];
 }
 function patchColor(m, px, py) {

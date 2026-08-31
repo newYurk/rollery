@@ -69,7 +69,7 @@ function puzzleStart(level, seed) {
   level = clamp(level, 0, LEVELS.length - 1); const lv = LEVELS[level];
   S.turns = lv.turns; S.selPatch = null; S.shape = lv.shape || 'round';
   S.puzzle = { level, seed, lv, target: null, vs: puzzleSlices(lv.pieces), result: null };
-  S.puzzle.target = genTarget(lv, seed * 7919 + level * 131 + (S.base === 'cake' ? 17 : 0));
+  S.puzzle.target = genTarget(lv, seed * 7919 + level * 131);
   // СРЕЗЫ ОБЯЗАНЫ ПРОХОДИТЬ ЧЕРЕЗ КАЖДУЮ НАЧИНКУ. Иначе часть цели невидима, и её можно
   // класть куда угодно: замерено на уровне 5 — клубника занимала v 0,331…0,456, а резы
   // стояли на 0,167 / 0,5 / 0,833, и сдвиг её на 10 мм давал ЧЕСТНЫЕ 100 %. Лосось и огурец
