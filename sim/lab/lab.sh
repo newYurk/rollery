@@ -11,5 +11,16 @@
 cd "$(dirname "$0")"
 source ../.venv/bin/activate
 PORT="${LAB_PORT:-8770}"
+
+# АДРЕСА ПЕЧАТАЮТСЯ ЯВНО. README это обещал, а скрипт молчал — и когда лаборатория не
+# открывалась с телефона, не с чего было начать: непонятно, тот ли адрес набран (30.08.2026).
+NAME="$(scutil --get LocalHostName 2>/dev/null).local"
+IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)"
+printf '\n  лаборатория поднимается на порту %s\n' "$PORT"
+printf '    с мака:      http://127.0.0.1:%s\n' "$PORT"
+[ -n "$NAME" ] && printf '    с телефона:  http://%s:%s\n' "$NAME" "$PORT"
+[ -n "$IP" ]   && printf '    если имя не открылось: http://%s:%s   (адрес меняется при смене сети)\n' "$IP" "$PORT"
+printf '    телефон должен быть в ТОЙ ЖЕ сети Wi-Fi; VPN на телефоне выключить\n\n'
+
 ( sleep 1.2; open "http://127.0.0.1:$PORT" 2>/dev/null ) &
 LAB_HOST="${LAB_HOST:-0.0.0.0}" LAB_PORT="$PORT" python serve.py
