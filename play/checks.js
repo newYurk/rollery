@@ -69,7 +69,7 @@ function runChecks(detail) {
   // и возвращаем его в finally — вместе с состоянием S.
   const LS_KEYS = ['rollery.puzzle', 'rollery.preview', 'rollery.shape', 'rollery.model.v2', 'rollery.cuts'];
   const keepLS = {};
-  let practiceGaps = [], practiceOk = 0;
+  let practiceGaps = [], practiceOk = 0, practiceKnown = 0;
   try { for (const k of LS_KEYS) keepLS[k] = localStorage.getItem(k); } catch (e) {}
   const ok = (cond, msg) => { if (!cond) fails.push(msg); return cond; };
   // ДИАМЕТР — ДЕТЕКТОР ИЗМЕНЕНИЙ, А НЕ ТРЕБОВАНИЕ К ПРОДУКТУ. Владелец 27.08 сказала, что сами по
@@ -478,8 +478,10 @@ function runChecks(detail) {
       const pr = runPracticeChecks({ B: BASES, ING, S, touchModel, layout, getModel, windFor, topAt, TAU, U_MM,
                                      NPIECES: (typeof NPIECES !== 'undefined' ? NPIECES : null) });
       for (const f of pr.провалы) ok(false, 'практика: ' + f);
+      for (const f of pr.заведено) kn(false, 'практика: ' + f);
       practiceGaps = pr.пробелы;
       practiceOk = pr.сошлось.length;
+      practiceKnown = pr.заведено.length;
     }
 
   } catch (e) {
@@ -506,7 +508,7 @@ function runChecks(detail) {
     (known.length ? `\n\nИЗВЕСТНО · ${known.length} — заведено, ждёт решения владельца:\n  ` + known.join('\n  ') : '') +
     // Пробелы практики печатаются ВСЕГДА и не валят проверку: источник есть, а мерки нет.
     // Молчать о них нельзя — иначе разбор источников тихо устареет, как уже бывало.
-    (practiceGaps.length ? `\n\nПРАКТИКА · сошлось ${practiceOk}, не проверяется ${practiceGaps.length}:\n  ` + practiceGaps.join('\n  ') : '');
+    (practiceGaps.length ? `\n\nПРАКТИКА · сошлось ${practiceOk}, не проверяется ${practiceGaps.length}${practiceKnown ? ', расходится по заведённым ' + practiceKnown : ''}:\n  ` + practiceGaps.join('\n  ') : '');
   return detail ? { ok: !fails.length, fails, notes, known, text } : text;
 }
 
