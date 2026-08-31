@@ -1,4 +1,4 @@
-<title>Тело куска и цепочка представлений</title>
+<title>От нарезки до среза</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -208,6 +208,36 @@
   tbody tr:last-child td { border-bottom: 0; }
   .tbl-wrap { overflow-x: auto; }
 
+  /* Разделитель части — как титул раздела в альбоме чертежей. */
+  .part {
+    display: flex; align-items: baseline; gap: 14px;
+    margin: 16px 0 -6px; padding-bottom: 8px; border-bottom: 1.5px solid var(--ink);
+  }
+  .part .num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.16em; color: var(--ink-3);
+  }
+  .part h2 {
+    margin: 0; font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 700; font-size: clamp(19px, 3vw, 25px); letter-spacing: -0.005em;
+  }
+  .part .of { margin-left: auto; color: var(--ink-3); font-size: 13px; }
+  /* Метка незаконченного листа. Стоит в шапке, а не в примечании: читатель должен видеть
+     статус ДО того, как поверит картинке. */
+  .wip {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
+    color: var(--hot); border: 1px solid var(--hot); padding: 2px 6px 1px; white-space: nowrap;
+  }
+  .ask {
+    margin-top: 12px; padding: 11px 14px; background: var(--hot-soft);
+    border-left: 3px solid var(--hot); font-size: 14px;
+  }
+  .ask b { color: var(--ink); }
+  .ask .who {
+    display: block; margin-top: 5px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; color: var(--ink-3);
+  }
   .caveat { border-left: 3px solid var(--hot); padding-left: 15px; }
   .caveat h3 {
     margin: 0 0 6px;
@@ -232,9 +262,10 @@
 
   <section class="stamp">
     <div class="stamp-head">
-      <h1>Тело куска и цепочка представлений</h1>
-      <p>Что мы знаем о куске начинки на каждом шаге — когда он лежит на листе, когда лист свернулся
-         и когда ролл разрезали. И какая функция за что отвечает.</p>
+      <h1>От нарезки до среза</h1>
+      <p>Ядро «Ролльни» в инженерных схемах: как выбор нарезки задаёт форму куска, что
+         с ним делает раскладка, что — скрутка, и что в итоге показывает срез. Документ
+         правится вместе с математикой; расхождение ловит сторож в <span class="mono">state-check</span>.</p>
     </div>
     <div class="stamp-grid">
       <div class="cell"><span class="k">Проект</span><span class="v">Ролльня</span></div>
@@ -245,17 +276,38 @@
     </div>
     <div class="legend" id="legend"></div>
   </section>
-
-  <!-- Ф-1 ------------------------------------------------------------------->
+  <div class="part">
+    <span class="num">ЧАСТЬ I</span>
+    <h2>Что мы кладём</h2>
+    <span class="of">кусок как тело</span>
+  </div>
   <section class="sheet">
     <div class="sheet-head">
       <span class="fig-no">Ф-1</span>
+      <h2>Нарезка задаёт форму</h2><span class="wip">ЗАГОТОВКА</span>
+      <span class="sub">один продукт — три ножа</span>
+    </div>
+    <div class="plate"><svg id="figCut" viewBox="0 0 1000 330" role="img" aria-label="Нарезка задаёт форму"></svg></div>
+    <div class="note">
+      <p><strong>Цепочка начинается не с формы, а с решения, как резать.</strong> Один и тот же
+        огурец даёт кружок, брусок или ломтик — в зависимости от того, куда пошёл нож. Форма
+        сечения не свойство продукта, а <strong>следствие нарезки</strong>, и именно нарезку
+        выбирает игрок.</p>
+      <div class="ask"><b>Чего здесь ещё нет:</b> японских техник нарезки с их настоящими
+        размерами — сколько миллиметров у 拍子木切り, что даёт 半月切り, как режут каждую нашу
+        начинку в реальной практике.
+        <span class="who">ждёт разбора источников · задачи #46 «выбор нарезки», #10 «разобрать каждую начинку»</span></div>
+    </div>
+  </section>
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-2</span>
       <h2>Сечение куска: два контура</h2>
       <span class="sub">разрез поперёк куска</span>
     </div>
-    <div class="plate"><svg id="fig1" viewBox="0 0 1000 340" role="img"
-      aria-label="Три профиля сечения: брусок с фаской, кружок, линза, с размерными линиями"></svg></div>
+    <div class="plate"><svg id="fig1" viewBox="0 0 1000 340" role="img" aria-label="Сечение куска: два контура"></svg></div>
     <div class="note">
+
       <p>Кусок описан <strong>одним контуром, у которого две границы</strong>. Верхняя —
         <span class="hot">cutTop(lu)</span>, нижняя — <span class="cold">cutLow(lu)</span>, где
         <code>lu</code> отсчитывается поперёк куска от −0,5 до +0,5, а высота меряется в долях
@@ -267,19 +319,104 @@
       <p><strong>Нижний контур сейчас — зеркало верхнего.</strong> Это допущение о симметрии:
         верно для кружка, линзы и бруска, неверно для половинки авокадо (плоское дно, купол
         сверху). Допущение вынесено в отдельную функцию и снимается флагом — см. Ф-6.</p>
+    
     </div>
   </section>
-
-  <!-- Ф-2 ------------------------------------------------------------------->
   <section class="sheet">
     <div class="sheet-head">
-      <span class="fig-no">Ф-2</span>
+      <span class="fig-no">Ф-3</span>
+      <h2>Шесть классов нарезки — три описаны телом</h2>
+      <span class="sub">что каталог уже различает</span>
+    </div>
+    <div class="plate"><svg id="figClasses" viewBox="0 0 1000 360" role="img" aria-label="Шесть классов нарезки — три описаны телом"></svg></div>
+    <div class="note">
+      <p>В каталоге у каждой начинки записан класс нарезки, и их шесть. Но <strong>телом
+        описаны только три</strong>: брусок, кружок и ломтик отличаются формулой сечения.
+        Лист — это тот же брусок с очень малой толщиной. Паста и присыпка — <strong>особые
+        случаи в рисовании</strong>, у них тела нет вовсе: паста рисуется волнистой линией,
+        присыпка — цветным прямоугольником с крапом.</p>
+      <p>Это честная картина, а не упрёк: пока игра про твёрдые куски, особый случай дешевле
+        общего закона. Но как только паста должна вытеснять рис, затекать в углубление и
+        по-своему выглядеть на срезе — <strong>особый случай перестаёт работать</strong>.</p>
+      <div class="ask"><b>Открытый вопрос:</b> нужна ли пасте своя геометрия — слой переменной
+        толщины вместо куска — и что тогда считается её «сечением».
+        <span class="who">задачи #66 «пасты и присыпки как классы материала», #74 «плейсмент и классы»</span></div>
+    </div>
+  </section>
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-4</span>
+      <h2>Что допущение о симметрии запрещает</h2>
+      <span class="sub">кружок и он же с плоским дном</span>
+    </div>
+    <div class="plate"><svg id="fig6" viewBox="0 0 1000 330" role="img" aria-label="Что допущение о симметрии запрещает"></svg></div>
+    <div class="note">
+
+      <p>Слева — кружок, каким его описывает модель сейчас: низ зеркалит верх. Справа — тот же
+        верхний контур, но с плоским дном: <strong>купол, лежащий на рисе</strong>. Так выглядит
+        половинка авокадо и ломтик рыбы кожей вниз.</p>
+      <p>Разница не косметическая: площадь сечения <span class="mono">0,785 → 0,893</span> —
+        это <span class="cold">нижняя долька</span>, которую зеркало отрезало. Пока такой кусок
+        описать было нельзя вовсе; теперь допущение снимается флагом в каталоге, второго
+        описания формы не заводя.</p>
+    
+    </div>
+  </section>
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-5</span>
+      <h2>Чего в теле ещё нет</h2>
+      <span class="sub">профиль вдоль куска · задача №10</span>
+    </div>
+    <div class="plate"><svg id="fig7" viewBox="0 0 1000 300" role="img" aria-label="Чего в теле ещё нет"></svg></div>
+    <div class="note">
+
+      <h3>Тело — призма</h3>
+      <p>Сечение задано поперёк, а вдоль куска оно постоянно. Значит сверху кусок —
+        <strong>прямоугольник</strong>, и в каком месте по v ни режь, фигура на срезе одна и та
+        же. Скруглённые торцы, которые рисовались раньше, были враньём: домен тоже считает кусок
+        прямоугольным, и срез у самого торца показал бы вещество там, где рисунок обещал пустоту.</p>
+      <p>Свёрнутая креветка, половинка авокадо, полукольцо огурца требуют профиля вдоль.
+        <strong>Он обязан войти в тело и в раскладку одновременно</strong> — если нарисовать
+        его только в рендере, появится четвёртое независимое описание куска, и вся работа
+        обнулится.</p>
+    
+    </div>
+  </section>
+  <div class="part">
+    <span class="num">ЧАСТЬ II</span>
+    <h2>Как мы это кладём</h2>
+    <span class="of">раскладка и виды</span>
+  </div>
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-6</span>
+      <h2>Кусок на листе</h2>
+      <span class="sub">вид сверху · хосомаки, полулист 105 × 190 мм</span>
+    </div>
+    <div class="plate"><svg id="fig3" viewBox="0 0 1000 400" role="img" aria-label="Кусок на листе"></svg></div>
+    <div class="note">
+
+      <p>Две оси листа. <strong>u — вдоль скрутки</strong>: этот размер станет длиной дуги
+        на спирали. <strong>v — вдоль ролла</strong>: этот останется собой, вдоль него потом
+        режут. Кусок узок по u и длинен по v — поэтому он и превращается в спираль полоской,
+        а не пятном.</p>
+      <p>У каждой начинки в каталоге записаны <code>wU</code> — ширина вдоль u,
+        <code>hU</code> — толщина, <code>dv</code> — какую долю длины ролла кусок занимает.
+        Лосось 2,0 × 1,6 ед. = 10 × 8 мм; креветка та же в сечении, но <code>dv = 0,30</code> —
+        коротышка, попадает не в каждый ломтик.</p>
+    
+    </div>
+  </section>
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-7</span>
       <h2>Откуда берётся вид сверху</h2>
       <span class="sub">взгляд отвесно вниз</span>
     </div>
-    <div class="plate"><svg id="fig2" viewBox="0 0 1000 350" role="img"
-      aria-label="Лучи зрения падают на верхний контур куска; из наклона поверхности считается свет"></svg></div>
+    <div class="plate"><svg id="fig2" viewBox="0 0 1000 350" role="img" aria-label="Откуда берётся вид сверху"></svg></div>
     <div class="note">
+
       <p><strong>Глаз сверху видит ровно верхний контур.</strong> В поперечной позиции
         <code>lu</code> луч зрения упирается в поверхность на высоте <span class="hot">cutTop(lu)</span> —
         той самой границе, что в Ф-1 была верхом фигуры. Поэтому вид сверху и вид в срезе
@@ -290,40 +427,61 @@
       <p><strong>Свет считается, а не рисуется.</strong> Наклон поверхности в точке даёт нормаль,
         нормаль даёт долю света. Валик светел посередине не потому, что там нарисован блик,
         а потому что там поверхность смотрит вверх.</p>
+    
     </div>
   </section>
-
-  <!-- Ф-3 ------------------------------------------------------------------->
   <section class="sheet">
     <div class="sheet-head">
-      <span class="fig-no">Ф-3</span>
-      <h2>Кусок на листе</h2>
-      <span class="sub">вид сверху · хосомаки, полулист 105 × 190 мм</span>
+      <span class="fig-no">Ф-8</span>
+      <h2>Вид сбоку: рис расступается</h2>
+      <span class="sub">разрез листа поперёк грядки</span>
     </div>
-    <div class="plate"><svg id="fig3" viewBox="0 0 1000 400" role="img"
-      aria-label="План листа с осями u и v, куском начинки и голой полосой у дальнего края"></svg></div>
+    <div class="plate"><svg id="figSide" viewBox="0 0 1000 340" role="img" aria-label="Вид сбоку: рис расступается"></svg></div>
     <div class="note">
-      <p>Две оси листа. <strong>u — вдоль скрутки</strong>: этот размер станет длиной дуги
-        на спирали. <strong>v — вдоль ролла</strong>: этот останется собой, вдоль него потом
-        режут. Кусок узок по u и длинен по v — поэтому он и превращается в спираль полоской,
-        а не пятном.</p>
-      <p>У каждой начинки в каталоге записаны <code>wU</code> — ширина вдоль u,
-        <code>hU</code> — толщина, <code>dv</code> — какую долю длины ролла кусок занимает.
-        Лосось 2,0 × 1,6 ед. = 10 × 8 мм; креветка та же в сечении, но <code>dv = 0,30</code> —
-        коротышка, попадает не в каждый ломтик.</p>
+      <p>Сверху не видно главного: <strong>кусок не лежит НА рисе, он лежит В рисе</strong>.
+        Под ним грядка утончается, а вытесненный рис поднимается валиком по бокам — он никуда
+        не девается, а перетекает. Так модель считает сегодня, и это было отдельно починено:
+        сперва вытесненный рис просто исчезал.</p>
+      <p>Отсюда и борозда, которую видно на срезе: начинка сидит в углублении, и граница
+        «рис — кусок» идёт <strong>по зёрнам, а не по геометрической линии</strong>.</p>
+      <div class="ask"><b>Проверяется практикой:</b> модель вдавливает в рис <em>все</em>
+        куски одинаково. Владелец сомневается, что так делают повара: что-то наверняка кладут
+        прямо сверху, что-то в готовую канавку, пасту вообще размазывают.
+        <span class="who">идёт разбор источников · ляжет в #74 «surface / embedded / stacked / spread», #1 «карта высот»</span></div>
     </div>
   </section>
-
-  <!-- Ф-4 ------------------------------------------------------------------->
   <section class="sheet">
     <div class="sheet-head">
-      <span class="fig-no">Ф-4</span>
+      <span class="fig-no">Ф-9</span>
+      <h2>Жесты укладки</h2><span class="wip">ЗАГОТОВКА</span>
+      <span class="sub">чем игрок кладёт начинку</span>
+    </div>
+    <div class="plate"><svg id="figHands" viewBox="0 0 1000 320" role="img" aria-label="Жесты укладки"></svg></div>
+    <div class="note">
+      <p>Разные классы просятся под разные жесты: брусок <strong>кладут</strong> целиком,
+        ломтики лосося <strong>ведут кистью</strong> внахлёст, присыпку <strong>сыплют</strong>
+        под пальцем, пасту <strong>выдавливают</strong> жгутом. Кусок перед укладкой можно
+        <strong>покрутить</strong> и посмотреть с разных сторон — это и есть смысл того, что
+        он тело, а не картинка.</p>
+      <div class="ask"><b>Чего здесь ещё нет:</b> самих жестов — ни один не реализован, кусок
+        сейчас появляется по тапу. Схема ставит вопрос, а не описывает сделанное.
+        <span class="who">задачи #57 «правило раскладки как подсказка», #6 «развязка жеста скрутки с раскладкой», #53 «маски: произвольные формы»</span></div>
+    </div>
+  </section>
+  <div class="part">
+    <span class="num">ЧАСТЬ III</span>
+    <h2>Что с ним происходит</h2>
+    <span class="of">скрутка и срез</span>
+  </div>
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-10</span>
       <h2>Лист свернулся</h2>
       <span class="sub">спираль переменной толщины</span>
     </div>
-    <div class="plate"><svg id="fig4" viewBox="0 0 1000 400" role="img"
-      aria-label="Спираль намотки: ось u становится длиной дуги, толщина листа — шагом витка"></svg></div>
+    <div class="plate"><svg id="fig4" viewBox="0 0 1000 400" role="img" aria-label="Лист свернулся"></svg></div>
     <div class="note">
+
       <p>Скрутка — <strong>замена координат, а не новая геометрия</strong>. Точка листа
         <code>(u, v)</code> едет на спираль: u превращается в длину дуги от сердцевины,
         толщина листа — в радиальную глубину. v не участвует вовсе, он вдоль оси ролла.</p>
@@ -332,49 +490,96 @@
         тёмную линию, по которой на срезе видно витки.</p>
       <p class="mono" style="color:var(--ink-3);background:none;padding:0;">схема не в масштабе ·
         замер модели: 1,29 витка, ⌀ 31,2 мм</p>
+    
     </div>
   </section>
-
-  <!-- Ф-5 ------------------------------------------------------------------->
   <section class="sheet">
     <div class="sheet-head">
-      <span class="fig-no">Ф-5</span>
+      <span class="fig-no">Ф-11</span>
+      <h2>Обёртка задаёт шаг витка</h2>
+      <span class="sub">шесть обёрток, настоящие толщины</span>
+    </div>
+    <div class="plate"><svg id="figWrap" viewBox="0 0 1000 330" role="img" aria-label="Обёртка задаёт шаг витка"></svg></div>
+    <div class="note">
+      <p>Шаг витка — это <strong>рис плюс обёртка</strong>, поэтому толщина обёртки прямо
+        меняет диаметр ролла. Разброс огромный: нори 0,10 мм против блина 2,00 мм — в двадцать
+        раз. Замер на одной раскладке: с блином ⌀ 62,4 мм против 58,7 мм с нори.</p>
+      <p><strong>Честность чисел разная, и это записано в каталоге.</strong> Толщина нори
+        держится на источнике (FAO, Нисидзава: лист 21 × 19 см ≈ 3 г). Остальные пять помечены
+        <span class="mono">inferred</span> — предположения, у блина хотя бы с якорем на замер
+        лаваша. Схема показывает их наравне, но пометка остаётся.</p>
+      <div class="ask"><b>Открытый вопрос:</b> у выбора обёртки нет интерфейса — поле в модели
+        есть, задать его игрок не может.
+        <span class="who">задачи #13 «у выбора обёртки нет интерфейса», #98 «правила скрутки по типам»</span></div>
+    </div>
+  </section>
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-12</span>
+      <h2>Деформация: чего скрутка ещё не делает</h2><span class="wip">ЗАГОТОВКА</span>
+      <span class="sub">жёсткое тело против податливого</span>
+    </div>
+    <div class="plate"><svg id="figStiff" viewBox="0 0 1000 340" role="img" aria-label="Деформация: чего скрутка ещё не делает"></svg></div>
+    <div class="note">
+      <p>Кусок уже <strong>едет по витку и потому изогнут</strong> — это модель делает, и
+        видно на Ф-13. Но едет он как <strong>жёсткое тело</strong>: сохраняет свою форму,
+        только повёрнутую по дуге.</p>
+      <p>В жизни он ещё и <strong>сминается прижимом</strong>, и тем сильнее, чем мягче:
+        авокадо и тамаго сминаются, огурец почти нет. Прямоугольник от этого становится
+        слегка бочкообразным сектором. Сегодня этого нет ни в каком виде.</p>
+      <div class="ask"><b>Чего не хватает:</b> податливости как свойства начинки — нового поля
+        в каталоге и новой условности. Замеров модуля упругости варёного тамаго у нас нет и не
+        будет, поэтому числа придётся помечать <span class="mono">inferred</span> честно.
+        <span class="who">задача #15 «начинка не гнётся при скручивании»</span></div>
+    </div>
+  </section>
+  <section class="sheet">
+    <div class="sheet-head">
+      <span class="fig-no">Ф-13</span>
       <h2>Ролл разрезали</h2>
       <span class="sub">срез поперёк оси v</span>
     </div>
-    <div class="plate"><svg id="fig5" viewBox="0 0 1000 420" role="img"
-      aria-label="Срез ролла: спираль нори, рис, и сечение куска, изогнутое по витку"></svg></div>
+    <div class="plate"><svg id="fig5" viewBox="0 0 1000 420" role="img" aria-label="Ролл разрезали"></svg></div>
     <div class="note">
+
       <p>Нож идёт поперёк оси ролла — значит поперёк куска. <strong>На срезе появляется ровно
         та фигура из Ф-1</strong>, только изогнутая по витку: её ширина легла вдоль дуги,
         толщина — вдоль радиуса. Чем ближе к сердцевине, тем сильнее изгиб.</p>
       <p>Отсюда и главное правило игры: <strong>узор на срезе — следствие раскладки</strong>.
         Где положил по u — на каком витке окажется; где положил по v — попадёт ли вообще
         в этот ломтик.</p>
+    
     </div>
   </section>
-
-  <!-- Ф-6 ------------------------------------------------------------------->
+  <div class="part">
+    <span class="num">ЧАСТЬ IV</span>
+    <h2>Связь с артом</h2>
+    <span class="of">правило, а не стиль</span>
+  </div>
   <section class="sheet">
     <div class="sheet-head">
-      <span class="fig-no">Ф-6</span>
-      <h2>Что допущение о симметрии запрещает</h2>
-      <span class="sub">кружок и он же с плоским дном</span>
+      <span class="fig-no">Ф-14</span>
+      <h2>Схема и то, как это выглядит</h2><span class="wip">ЗАГОТОВКА</span>
+      <span class="sub">рядом, всегда парой</span>
     </div>
-    <div class="plate"><svg id="fig6" viewBox="0 0 1000 330" role="img"
-      aria-label="Слева симметричный кружок, справа тот же кружок с плоским дном — купол"></svg></div>
     <div class="note">
-      <p>Слева — кружок, каким его описывает модель сейчас: низ зеркалит верх. Справа — тот же
-        верхний контур, но с плоским дном: <strong>купол, лежащий на рисе</strong>. Так выглядит
-        половинка авокадо и ломтик рыбы кожей вниз.</p>
-      <p>Разница не косметическая: площадь сечения <span class="mono">0,785 → 0,893</span> —
-        это <span class="cold">нижняя долька</span>, которую зеркало отрезало. Пока такой кусок
-        описать было нельзя вовсе; теперь допущение снимается флагом в каталоге, второго
-        описания формы не заводя.</p>
+      <p><strong>Этот документ не описывает арт.</strong> Он описывает математику; арт из неё
+        выводится. Правило одно и записано в решении «кусок — тело»: внешний вид не рисуется,
+        а спрашивается у тела, а стиль задаётся <strong>одним числом — размером клетки</strong>.
+        Крупная клетка без сглаживания даёт пиксель-арт, мелкая со сглаживанием — гладкий вид.</p>
+      <p>Но схему трудно читать, не видя результата. Поэтому здесь будет <strong>пара</strong>:
+        слева чертёж, справа — как это выглядит на самом деле. Где кадр снят со стенда, это
+        <em>не догадка, а сама игра</em>; где стенда ещё нет — помечено «предполагаем».</p>
+      <div class="ask"><b>Место занято под пары:</b> срез, лист с разложенными начинками,
+        кусок в пиксельном и гладком режиме.
+        <span class="who">задача #104 «пиксель-арт», решение #105 «кусок — тело»</span></div>
     </div>
   </section>
-
-  <!-- Роли ------------------------------------------------------------------>
+  <div class="part">
+    <span class="num">ТАБЛИЦЫ</span>
+    <h2>Кто на что отвечает и чему верить</h2>
+    <span class="of">сводка</span>
+  </div>
   <section class="sheet">
     <div class="sheet-head">
       <span class="fig-no">Т-1</span>
@@ -422,32 +627,26 @@
         сперва с формой, потом с фактурой.</p>
     </div>
   </section>
-
-  <!-- Чего нет -------------------------------------------------------------->
   <section class="sheet">
     <div class="sheet-head">
-      <span class="fig-no">Ф-7</span>
-      <h2>Чего в теле ещё нет</h2>
-      <span class="sub">профиль вдоль куска · задача №10</span>
+      <span class="fig-no">Т-2</span>
+      <h2>Что замерено, что выведено, что придумано</h2><span class="wip">ЗАГОТОВКА</span>
+      <span class="sub">чему в этих схемах можно верить</span>
     </div>
-    <div class="plate"><svg id="fig7" viewBox="0 0 1000 300" role="img"
-      aria-label="Сверху: призма — то, что модель умеет. Снизу: свёрнутая креветка — то, что нужно"></svg></div>
-    <div class="note caveat">
-      <h3>Тело — призма</h3>
-      <p>Сечение задано поперёк, а вдоль куска оно постоянно. Значит сверху кусок —
-        <strong>прямоугольник</strong>, и в каком месте по v ни режь, фигура на срезе одна и та
-        же. Скруглённые торцы, которые рисовались раньше, были враньём: домен тоже считает кусок
-        прямоугольным, и срез у самого торца показал бы вещество там, где рисунок обещал пустоту.</p>
-      <p>Свёрнутая креветка, половинка авокадо, полукольцо огурца требуют профиля вдоль.
-        <strong>Он обязан войти в тело и в раскладку одновременно</strong> — если нарисовать
-        его только в рендере, появится четвёртое независимое описание куска, и вся работа
-        обнулится.</p>
+    <div class="note">
+      <p>Половина чисел модели помечена <span class="mono">inferred</span> — это предположения,
+        а не замеры. Смешивать их с подтверждёнными нельзя: <strong>схема, где источник и
+        догадка выглядят одинаково, опаснее отсутствия схемы</strong>.</p>
+      <p>Здесь будет полная таблица: величина → откуда взялась → подтверждена ли источником.
+        Уже видно на примере обёрток (Ф-11): нори держится на FAO, пять остальных — догадки.</p>
+      <div class="ask"><b>Ждёт:</b> сплошного разбора geometry.js и catalog.js.
+        <span class="who">опирается на docs/geometry-audit.md и docs/reality-check.md</span></div>
     </div>
   </section>
 
   <footer>
-    Ролльня · схема к решению «кусок — тело с одним источником вида» · профили Ф-1, Ф-2, Ф-6
-    построены той же формулой, что считает игра
+    Ролльня · ядро в схемах · профили считаются той же формулой, что считает игра ·
+    правится вместе с geometry.js и catalog.js, расхождение ловит state-check
   </footer>
 </div>
 
@@ -960,6 +1159,305 @@
       { anchor: 'middle', size: 11.5, fill: C('--ink-2') }));
   }
 
+  // ── Ф-1: нарезка задаёт форму ────────────────────────────────────────────
+  // Один продукт, три направления ножа, три сечения. Показывает, что форма — СЛЕДСТВИЕ
+  // нарезки, а не свойство продукта: с этого решения начинается вся цепочка.
+  function drawFigCut() {
+    const svg = document.getElementById('figCut');
+    const g = el('g'); svg.appendChild(g);
+
+    // огурец плашмя
+    const x0 = 70, cy = 150, L = 300, H = 56;
+    const cuc = [];
+    for (let i = 0; i <= 60; i++) {
+      const t = i / 60, k = Math.sin(Math.PI * Math.pow(t, 0.9)) * 0.14 + 0.86;
+      cuc.push([x0 + L * t, cy - H / 2 * k]);
+    }
+    for (let i = 60; i >= 0; i--) {
+      const t = i / 60, k = Math.sin(Math.PI * Math.pow(t, 0.9)) * 0.14 + 0.86;
+      cuc.push([x0 + L * t, cy + H / 2 * k]);
+    }
+    g.appendChild(el('path', { d: toPath(cuc) + ' Z', fill: '#79b55c' }));
+    g.appendChild(text(x0, 44, 'ОДИН ПРОДУКТ', { size: 11.5, weight: 600, ls: '0.12em', fill: C('--ink') }));
+
+    // три направления ножа
+    const cuts = [
+      { t: 0.26, ang: 0,          name: 'поперёк',      res: 'кружок' },
+      { t: 0.54, ang: Math.PI / 2, name: 'вдоль',        res: 'брусок' },
+      { t: 0.80, ang: 0.62,       name: 'по косой',     res: 'ломтик' },
+    ];
+    cuts.forEach((c, i) => {
+      const x = x0 + L * c.t;
+      const dx = Math.sin(c.ang) * 54, dy = Math.cos(c.ang) * 54;
+      g.appendChild(line(x - dx, cy - dy, x + dx, cy + dy,
+        { stroke: C('--hot'), w: 1.6, dash: '6 4' }));
+      g.appendChild(text(x, cy + 74 + (i === 1 ? 16 : 0), c.name,
+        { anchor: 'middle', size: 11, fill: C('--hot'), weight: 600 }));
+    });
+
+    // три сечения справа
+    const kinds = [
+      { d: { wU: 1.6, hU: 1.6, round: true }, label: 'кружок' },
+      { d: { wU: 1.4, hU: 1.6 },              label: 'брусок' },
+      { d: { wU: 2.4, hU: 1.1, lens: true },  label: 'ломтик' },
+    ];
+    kinds.forEach((k, i) => {
+      const cx = 520 + i * 160, S = 46;
+      g.appendChild(el('path', { d: profilePath(k.d, cx, cy, S, S, 'full'), fill: '#79b55c' }));
+      g.appendChild(el('path', { d: profilePath(k.d, cx, cy, S, S, 'top'), fill: 'none',
+        stroke: C('--hot'), 'stroke-width': 2 }));
+      g.appendChild(el('path', { d: profilePath(k.d, cx, cy, S, S, 'low'), fill: 'none',
+        stroke: C('--cold'), 'stroke-width': 2 }));
+      g.appendChild(text(cx, cy + 76, k.label, { anchor: 'middle', size: 12, weight: 600,
+        fill: C('--ink'), mono: false }));
+    });
+    g.appendChild(text(680, 44, 'ТРИ РАЗНЫХ СЕЧЕНИЯ', { anchor: 'middle', size: 11.5,
+      weight: 600, ls: '0.12em', fill: C('--ink') }));
+    g.appendChild(line(400, cy, 448, cy, { stroke: C('--ink'), w: 1.2 }));
+    g.appendChild(line(448, cy, 440, cy - 5, { stroke: C('--ink'), w: 1.2 }));
+    g.appendChild(line(448, cy, 440, cy + 5, { stroke: C('--ink'), w: 1.2 }));
+    g.appendChild(text(500, 300, 'форма — следствие нарезки, а не свойство продукта',
+      { anchor: 'middle', size: 12, fill: C('--ink-2') }));
+  }
+
+  // ── классы нарезки: что каталог различает и что из этого описано телом ───
+  function drawFigClasses() {
+    const svg = document.getElementById('figClasses');
+    const g = el('g'); svg.appendChild(g);
+    const S = 34, cy = 150;
+    const items = [
+      { label: 'брусок',   body: true,  d: { wU: 2.0, hU: 1.6 },              c: '#ef8a66' },
+      { label: 'кружок',   body: true,  d: { wU: 1.8, hU: 1.8, round: true }, c: '#f4a48c' },
+      { label: 'ломтик',   body: true,  d: { wU: 2.4, hU: 1.1, lens: true },  c: '#a7c455' },
+      { label: 'лист',     body: 'edge', d: { wU: 3.0, hU: 0.15 },            c: '#22342b' },
+      { label: 'паста',    body: false, c: '#f2883f' },
+      { label: 'присыпка', body: false, c: '#f2b3c2' },
+    ];
+    items.forEach((it, i) => {
+      const cx = 130 + i * 150;
+      if (it.d) {
+        g.appendChild(el('path', { d: profilePath(it.d, cx, cy, S, S, 'full'), fill: it.c }));
+        g.appendChild(el('path', { d: profilePath(it.d, cx, cy, S, S, 'top'), fill: 'none',
+          stroke: C('--hot'), 'stroke-width': 1.8 }));
+      } else if (it.label === 'паста') {
+        // жгут: волнистая линия — так она и нарисована в игре
+        const pts = [];
+        for (let k = 0; k <= 40; k++) {
+          const t = k / 40;
+          pts.push([cx - 46 + 92 * t, cy + Math.sin(t * Math.PI * 3) * 15]);
+        }
+        g.appendChild(el('path', { d: toPath(pts), fill: 'none', stroke: it.c,
+          'stroke-width': 11, 'stroke-linecap': 'round' }));
+      } else {
+        // присыпка: цветное поле с крапом
+        g.appendChild(el('rect', { x: cx - 46, y: cy - 20, width: 92, height: 40, fill: it.c }));
+        for (let k = 0; k < 26; k++) {
+          const hx = ((k * 37) % 88), hy = ((k * 53) % 34);
+          g.appendChild(el('rect', { x: cx - 44 + hx, y: cy - 18 + hy, width: 3, height: 2,
+            fill: '#fff', opacity: 0.55 }));
+        }
+      }
+      g.appendChild(text(cx, 232, it.label, { anchor: 'middle', size: 13, weight: 600,
+        fill: C('--ink'), mono: false }));
+      const ok = it.body === true;
+      g.appendChild(text(cx, 252, ok ? 'описан телом' : it.body === 'edge' ? 'брусок с малой hU' : 'особый случай',
+        { anchor: 'middle', size: 11, fill: ok ? C('--cold') : C('--hot') }));
+    });
+    // рамка вокруг трёх описанных телом
+    g.appendChild(el('rect', { x: 62, y: 96, width: 456, height: 176, fill: 'none',
+      stroke: C('--cold'), 'stroke-width': 1.2, 'stroke-dasharray': '6 4' }));
+    g.appendChild(text(290, 88, 'ОДНА ФОРМУЛА СЕЧЕНИЯ НА ТРОИХ', { anchor: 'middle', size: 11,
+      weight: 600, ls: '0.1em', fill: C('--cold') }));
+    g.appendChild(el('rect', { x: 526, y: 96, width: 456, height: 176, fill: 'none',
+      stroke: C('--hot'), 'stroke-width': 1.2, 'stroke-dasharray': '6 4' }));
+    g.appendChild(text(754, 88, 'КАЖДЫЙ РИСУЕТСЯ ПО-СВОЕМУ', { anchor: 'middle', size: 11,
+      weight: 600, ls: '0.1em', fill: C('--hot') }));
+    g.appendChild(text(500, 320, 'шесть классов в каталоге · телом описаны три',
+      { anchor: 'middle', size: 12, fill: C('--ink-2') }));
+  }
+
+  // ── вид сбоку: кусок сидит В рисе, вытесненный рис уходит валиком вбок ───
+  function drawFigSide() {
+    const svg = document.getElementById('figSide');
+    const g = el('g'); svg.appendChild(g);
+    const x0 = 90, x1 = 910, base = 236, T = 62;   // грядка риса
+    const d = ING.salmon, S = 62, cx = 500;
+    const hw = d.wU * S / 2;
+
+    // профиль грядки: провал под куском, валики по бокам. Форма из модели: вытесненный
+    // объём не исчезает, а перетекает вбок (issue #1 — было починено именно так).
+    const prof = [];
+    const N = 240;
+    for (let i = 0; i <= N; i++) {
+      const x = x0 + (x1 - x0) * i / N;
+      const q = (x - cx) / hw;                      // 0 в центре куска, ±1 на его краю
+      let h = T;
+      if (Math.abs(q) < 1) h = T * (1 - 0.52 * Math.cos(q * Math.PI / 2));
+      else {
+        const t = Math.min(1, (Math.abs(q) - 1) / 1.5);
+        h = T * (1 + 0.30 * (1 - t) * (1 - t));     // валик рядом с куском
+      }
+      prof.push([x, base - h]);
+    }
+    g.appendChild(el('path', { d: toPath(prof) + ` L${x1} ${base} L${x0} ${base} Z`,
+      fill: C('--rice'), stroke: 'none' }));
+    g.appendChild(el('path', { d: toPath(prof), fill: 'none', stroke: C('--ink-3'), 'stroke-width': 1.4 }));
+    g.appendChild(line(x0, base, x1, base, { stroke: C('--nori'), w: 3 }));
+    g.appendChild(text(x0, base + 22, 'нори', { size: 11, fill: C('--ink-3') }));
+
+    // кусок, сидящий в углублении
+    const sunk = base - T * 0.48 - d.hU * S / 2 + 8;
+    g.appendChild(el('path', { d: profilePath(d, cx, sunk, S, S, 'full'), fill: '#ef8a66' }));
+    g.appendChild(el('path', { d: profilePath(d, cx, sunk, S, S, 'top'), fill: 'none',
+      stroke: C('--hot'), 'stroke-width': 2.4 }));
+
+    // размеры и выноски
+    g.appendChild(line(x0 + 30, base - T, x1 - 30, base - T, { stroke: C('--rule'), w: 0.9, dash: '7 4' }));
+    g.appendChild(text(x0 + 34, base - T - 8, 'ровная грядка, какой была бы без начинки',
+      { size: 11, fill: C('--ink-3') }));
+    leader(g, cx - hw + 6, base - T * 0.40, cx - 210, base - 120, 'грядка утончилась', { dir: 'left', fill: C('--cold') });
+    leader(g, cx + hw + 42, base - T * 1.22, cx + 250, base - 132, 'рис поднялся валиком', { fill: C('--cold') });
+    dim(g, x0 + 12, base, x0 + 12, base - T, 'T', { lx: -14, ly: 4 });
+    g.appendChild(text(500, 44, 'РАЗРЕЗ ЛИСТА ПОПЕРЁК ГРЯДКИ', { anchor: 'middle', size: 11.5,
+      weight: 600, ls: '0.12em', fill: C('--ink') }));
+    g.appendChild(text(500, 316, 'вытесненный рис не исчезает — он перетекает вбок',
+      { anchor: 'middle', size: 12, fill: C('--ink-2') }));
+  }
+
+  // ── жесты укладки (заготовка: ни один не реализован) ─────────────────────
+  function drawFigHands() {
+    const svg = document.getElementById('figHands');
+    const g = el('g'); svg.appendChild(g);
+    const cyc = 140;
+    const items = [
+      { label: 'кладут',     sub: 'брусок целиком' },
+      { label: 'ведут кистью', sub: 'ломтики внахлёст' },
+      { label: 'сыплют',     sub: 'присыпка под пальцем' },
+      { label: 'выдавливают', sub: 'паста жгутом' },
+    ];
+    items.forEach((it, i) => {
+      const cx = 155 + i * 230;
+      g.appendChild(el('rect', { x: cx - 92, y: cyc - 54, width: 184, height: 108,
+        fill: 'none', stroke: C('--rule'), 'stroke-width': 1 }));
+      if (i === 0) {
+        g.appendChild(el('rect', { x: cx - 46, y: cyc - 14, width: 92, height: 26, fill: '#ef8a66' }));
+        g.appendChild(line(cx, cyc - 46, cx, cyc - 22, { stroke: C('--ink'), w: 1.4 }));
+        g.appendChild(line(cx, cyc - 22, cx - 5, cyc - 30, { stroke: C('--ink'), w: 1.4 }));
+        g.appendChild(line(cx, cyc - 22, cx + 5, cyc - 30, { stroke: C('--ink'), w: 1.4 }));
+      } else if (i === 1) {
+        for (let k = 0; k < 4; k++)
+          g.appendChild(el('path', { d: profilePath({ wU: 2.2, hU: 1.0, lens: true },
+            cx - 42 + k * 26, cyc, 26, 26, 'full'), fill: '#ef8a66', opacity: 0.9,
+            stroke: C('--field'), 'stroke-width': 1 }));
+        g.appendChild(line(cx - 60, cyc - 40, cx + 60, cyc - 40, { stroke: C('--ink'), w: 1.2, dash: '5 4' }));
+      } else if (i === 2) {
+        for (let k = 0; k < 40; k++) {
+          const hx = ((k * 41) % 150) - 75, hy = ((k * 67) % 44) - 22;
+          g.appendChild(el('rect', { x: cx + hx, y: cyc + hy, width: 3.5, height: 3, fill: '#f2b3c2' }));
+        }
+      } else {
+        const pts = [];
+        for (let k = 0; k <= 40; k++) {
+          const t = k / 40;
+          pts.push([cx - 72 + 144 * t, cyc + Math.sin(t * Math.PI * 3) * 16]);
+        }
+        g.appendChild(el('path', { d: toPath(pts), fill: 'none', stroke: '#f2883f',
+          'stroke-width': 10, 'stroke-linecap': 'round' }));
+      }
+      g.appendChild(text(cx, cyc + 78, it.label, { anchor: 'middle', size: 13, weight: 600,
+        fill: C('--ink'), mono: false }));
+      g.appendChild(text(cx, cyc + 96, it.sub, { anchor: 'middle', size: 11, fill: C('--ink-3') }));
+    });
+    g.appendChild(text(500, 44, 'ЧЕТЫРЕ ЖЕСТА — НИ ОДНОГО НЕТ В ИГРЕ', { anchor: 'middle',
+      size: 11.5, weight: 600, ls: '0.12em', fill: C('--hot') }));
+    g.appendChild(text(500, 296, 'сейчас кусок появляется по тапу, одинаково для всех классов',
+      { anchor: 'middle', size: 12, fill: C('--ink-2') }));
+  }
+
+  // ── обёртка задаёт шаг витка ─────────────────────────────────────────────
+  function drawFigWrap() {
+    const svg = document.getElementById('figWrap');
+    const g = el('g'); svg.appendChild(g);
+    // ⚠ Числа — из каталога (play/state.js, WRAPPERS), включая пометки честности.
+    const W = [
+      { n: 'Нори',            mm: 0.10, c: '#22342b', src: 'FAO · Нисидзава' },
+      { n: 'Соевая',          mm: 0.20, c: '#e3c069', src: 'inferred' },
+      { n: 'Рисовая бумага',  mm: 0.50, c: '#efe6d4', src: 'inferred' },
+      { n: 'Омлет',           mm: 1.50, c: '#e8b551', src: 'inferred' },
+      { n: 'Блин',            mm: 2.00, c: '#d8a05c', src: 'inferred · якорь лаваш' },
+      { n: 'Шоколадный блин', mm: 2.00, c: '#4a2c20', src: 'inferred' },
+    ];
+    const x0 = 210, wmax = 420, base = 92, step = 34;
+    const RICE_MM = 7.0;                              // хосомаки: T = 1,4 ед.
+    const scale = wmax / (RICE_MM + 2.0);
+    W.forEach((w, i) => {
+      const y = base + i * step;
+      g.appendChild(text(x0 - 12, y + 4, w.n, { anchor: 'end', size: 12, fill: C('--ink'), mono: false }));
+      g.appendChild(el('rect', { x: x0, y: y - 8, width: RICE_MM * scale, height: 16, fill: C('--rice') }));
+      const ww = Math.max(1.5, w.mm * scale);
+      g.appendChild(el('rect', { x: x0 + RICE_MM * scale, y: y - 8, width: ww, height: 16, fill: w.c }));
+      g.appendChild(text(700, y + 4, `${w.mm.toFixed(2)} мм · шаг ${(RICE_MM + w.mm).toFixed(2)}`,
+        { size: 11, fill: C('--ink-2') }));
+      // ⚠ Источник прижат к ПРАВОМУ КРАЮ, а не отсчитан от полосы: у толстых обёрток полоса
+      // длиннее, и подпись уезжала за границу чертежа — «inferred» превращалось в «inf».
+      g.appendChild(text(984, y + 4, w.src, { anchor: 'end', size: 10.5,
+        fill: w.src.indexOf('inferred') === 0 ? C('--hot') : C('--cold') }));
+    });
+    g.appendChild(text(x0, 62, 'РИС', { size: 10.5, ls: '0.1em', fill: C('--ink-3') }));
+    g.appendChild(text(x0 + RICE_MM * scale + 6, 62, 'ОБЁРТКА', { size: 10.5, ls: '0.1em', fill: C('--ink-3') }));
+    g.appendChild(line(x0 + RICE_MM * scale, 70, x0 + RICE_MM * scale, base + 6 * step - 14,
+      { stroke: C('--rule'), w: 1, dash: '4 4' }));
+    g.appendChild(text(500, 316, 'нори против блина — двадцатикратная разница в толщине обёртки',
+      { anchor: 'middle', size: 12, fill: C('--ink-2') }));
+  }
+
+  // ── деформация: жёсткое тело против податливого ──────────────────────────
+  function drawFigStiff() {
+    const svg = document.getElementById('figStiff');
+    const g = el('g'); svg.appendChild(g);
+    const d = ING.salmon, S = 52;
+
+    [[290, 'ЧТО МОДЕЛЬ ДЕЛАЕТ', 'жёсткое тело: форма сохраняется', 0, C('--cold')],
+     [710, 'ЧЕГО НЕ ДЕЛАЕТ', 'податливое: сминается прижимом', 1, C('--hot')]].forEach(
+    ([cx, cap, sub, squash, col]) => {
+      const cy = 190, rSpot = 150;
+      // дуга витка
+      const arc = [];
+      for (let i = 0; i <= 60; i++) {
+        const a = -Math.PI / 2 - 0.62 + 1.24 * i / 60;
+        arc.push([cx + rSpot * Math.cos(a), cy + rSpot + rSpot * Math.sin(a)]);
+      }
+      g.appendChild(el('path', { d: toPath(arc), fill: 'none', stroke: C('--nori'), 'stroke-width': 2 }));
+
+      // кусок на дуге; при squash верх приминается, бока раздаются — бочкообразный сектор
+      const bent = [];
+      const N = 60;
+      for (const [dir, fn] of [[1, cutTop], [-1, cutLow]]) {
+        for (let i = 0; i <= N; i++) {
+          const k = dir > 0 ? i / N : 1 - i / N;
+          const lu = k - 0.5;
+          const a = -Math.PI / 2 + lu * d.wU * S / rSpot;
+          let hv = fn(d, lu) - 0.5;
+          if (squash) {
+            const flat = 1 - 0.42 * Math.cos(lu * Math.PI);      // сверху примялось
+            const wide = 1 + 0.30 * Math.cos(lu * Math.PI);      // вбок раздалось
+            hv = hv * (dir > 0 ? flat : wide);
+          }
+          const r = rSpot + hv * d.hU * S;
+          bent.push([cx + r * Math.cos(a), cy + rSpot + r * Math.sin(a)]);
+        }
+      }
+      g.appendChild(el('path', { d: toPath(bent) + ' Z', fill: '#ef8a66',
+        stroke: col, 'stroke-width': 2 }));
+      g.appendChild(text(cx, 52, cap, { anchor: 'middle', size: 11.5, weight: 600,
+        ls: '0.12em', fill: col }));
+      g.appendChild(text(cx, 292, sub, { anchor: 'middle', size: 12, fill: C('--ink-2') }));
+    });
+    g.appendChild(line(500, 90, 500, 270, { stroke: C('--rule'), w: 1, dash: '5 5' }));
+    g.appendChild(text(500, 322, 'изгиб по витку модель делает · сминание — нет',
+      { anchor: 'middle', size: 12, weight: 600, fill: C('--ink') }));
+  }
+
   // ── легенда линий в штампе ───────────────────────────────────────────────
   function drawLegend() {
     const box = document.getElementById('legend');
@@ -980,12 +1478,14 @@
   }
 
   function drawAll() {
-    for (const id of ['fig1', 'fig2', 'fig3', 'fig4', 'fig5', 'fig6', 'fig7']) {
+    for (const id of ['fig1', 'fig2', 'fig3', 'fig4', 'fig5', 'fig6', 'fig7',
+                      'figCut', 'figClasses', 'figSide', 'figHands', 'figWrap', 'figStiff']) {
       const s = document.getElementById(id);
       while (s.firstChild) s.removeChild(s.firstChild);
     }
     document.getElementById('legend').textContent = '';
     drawLegend(); drawFig1(); drawFig2(); drawFig3(); drawFig4(); drawFig5(); drawFig6(); drawFig7();
+    drawFigCut(); drawFigClasses(); drawFigSide(); drawFigHands(); drawFigWrap(); drawFigStiff();
   }
 
   drawAll();
