@@ -4,10 +4,12 @@
 Reads out*/particles_<L>.npz + metrics_<L>.json, recomputes every number with ONE
 implementation so the two attempts are compared on the same ruler.
 """
-import importlib.util, json, math, sys
+import importlib.util, json, math, os, sys
 import numpy as np
 
-ROOT = '/Users/newyurk/Desktop/Home/Projects/rollery/sim'
+ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, ROOT)
+import fold                                  # одно определение посадки края на всю лабораторию
 
 
 def geometry(mod):
@@ -44,14 +46,16 @@ def predicted(mod, L):
     a_fill = info['area_fill']
     A = a_rice + a_nori + a_fill
     Rout = math.sqrt(A / math.pi)
-    # fold length: fillings lying near the near edge + 1 T, else 5 T  (same rule in both attempts)
-    rects = sorted(info['rects'], key=lambda r: r[0])
-    sel, reach = [], 5.0
-    for r in rects:
-        if r[0] <= reach:
-            sel.append(r); reach = r[0] + r[2] + 2.5
-    s_fold = (max(r[0] + r[2] for r in sel) + 1.0) if sel else 5.0
-    s_fold = min(s_fold, 0.45 * L_SHEET)
+    # Посадка ближнего края. Судья СПРАШИВАЕТ её у самого прогона — ровно так же, как выше
+    # спрашивает геометрию, и ровно по той же причине: копия здесь однажды уже разошлась с
+    # оригиналом. В комментарии на этом месте честно стояло «same rule in both attempts»,
+    # и это была неправда — редакций было три, все разные (#113, 31.08.2026).
+    # ⚠ СУДЬЯ МЕРЯЕТ ВСЕХ ОДНОЙ ЛИНЕЙКОЙ, И ЛИНЕЙКА ТЕПЕРЬ ИСПРАВЛЕНА. Прогоны, сделанные до
+    # 31.08.2026, крутились по старому правилу (конец начинок + 1 T, потолок 0,45 L) — их
+    # s_fold в дампах не совпадёт с этим числом. Это не сбой судьи, а сам результат: он и
+    # показывает, насколько старые прогоны недоводили край. Подгонять линейку под дамп нельзя,
+    # иначе судья перестанет судить.
+    s_fold = fold.fold_landing(L_SHEET, L_FLAP)
     Rcore = math.sqrt(s_fold * PITCH / math.pi)
     layers = (Rout - Rcore) / PITCH
     return dict(A=A, Rout_pred=Rout, Rcore_pred=Rcore, s_fold=s_fold,

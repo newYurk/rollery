@@ -44,6 +44,9 @@ CLI: python run.py --layout 1..6 --speed 1.0 --press 1.0 --tuck 1.0 --hold 1.0 -
 import argparse, json, math, os, sys, time
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import fold                                  # одно определение посадки края на всю лабораторию
+
 # ----------------------------------------------------------------------------- layouts
 T = 1.0
 L_SHEET = 38.7          # sheet length, T
@@ -139,11 +142,11 @@ CORE_HOLLOW = 0.5        # the crease of the first turn leaves a hollow of about
                          # Not free: with 1.0 the geometric spiral ends at R = 3.77 against the 3.49 that
                          # area conservation allows, and the roll keeps a 6 T2 void in its core for good.
 Y_BED = W_NORI + T       # thickness of the sheet lying flat ahead
-S_FOLD_EMPTY = 5.0       # fold zone of a sheet with no fillings near the edge, T
-S_FOLD_MARGIN = 1.0      # s_fold = (end of the fold zone) + this, T
-FOLD_REACH = 5.0         # a filling joins the fold zone if it starts within this of the near edge ...
-FOLD_GAP = 2.5           # ... or within this of the previous member, T
-FOLD_CAP = 0.45          # s_fold never exceeds this fraction of the sheet
+# ⚠ ПЯТЬ КОНСТАНТ СГИБА СНЯТЫ 31.08.2026 (#113), и это не уборка, а исправление.
+#     S_FOLD_EMPTY = 5.0 · S_FOLD_MARGIN = 1.0 · FOLD_REACH = 5.0 · FOLD_GAP = 2.5 · FOLD_CAP = 0.45
+# Все пять исходили из того, что край заводят «за начинки»: пустой лист сворачивался иначе,
+# чем полный, а потолок 0,45 складывал лист почти вдвое. В источниках такой зависимости нет —
+# цель края одна и та же, лежит ли на листе тунец или ничего. Определение — sim/fold.py.
 
 # --- fingers: the second kinematic support of the first turn -------------------------------------
 # "The other fingers hold the filling from above so it does not slide apart on the first turn."
@@ -249,21 +252,20 @@ def sample_layout(layout, n_target, seed=1):
 
 # ----------------------------------------------------------------------------- fold zone (phases A/B)
 def fold_zone(info):
-    """Fillings lying close to the near edge form the core (grafted from kin-mat).
+    """Куда доехал край и что оказалось внутри ядра. Определение — в sim/fold.py.
 
-    Returns (s_fold_base, selected rects, area of the selected fillings). A filling joins the zone if
-    it starts within FOLD_REACH of the near edge, or within FOLD_GAP of the previous member.
+    ⚠ ЭТА ФУНКЦИЯ БОЛЬШЕ НЕ РЕШАЕТ, КУДА ВЕДУТ КРАЙ, — она только спрашивает. До
+    31.08.2026 решала: конец начинок плюс 1 T, с потолком 0,45 L. Получалось 14–23 %
+    листа вместо 88–95 %, лист складывался вдвое, и в прогонах появлялся хвостик нори
+    внутри ролла с рисом по обе стороны. Шапка этого же файла при этом с самого начала
+    писала правду — «down exactly on the far rice line (rice meets rice over the
+    fillings)», — то есть док и код разошлись внутри одного файла, и никто не заметил.
+
+    Начинки на дальность больше не влияют вовсе; они решают только состав ядра.
     """
-    sel, reach = [], FOLD_REACH
-    for r in sorted(info['rects'], key=lambda r: r[0]):
-        if r[0] <= reach:
-            sel.append(r)
-            reach = r[0] + r[2] + FOLD_GAP
-    if not sel:
-        return S_FOLD_EMPTY, [], 0.0
-    end = max(r[0] + r[2] for r in sel) + S_FOLD_MARGIN
-    a = sum((math.pi / 4 if r[4] else 1.0) * r[2] * r[3] for r in sel)
-    return min(end, FOLD_CAP * L_SHEET), sel, a
+    s_fold = fold.fold_landing(L_SHEET, L_FLAP)
+    sel, a = fold.fold_members(info['rects'], s_fold)
+    return s_fold, sel, a
 
 def predict_layers(info, s_fold, a_fold=0.0):
     """Wrapper-layer count implied by AREA CONSERVATION (KINEMATICS.md, correction of 26.08.2026).
@@ -288,6 +290,23 @@ def predict_layers(info, s_fold, a_fold=0.0):
           layers_core  = (Rout - Rcore_hollow) / h
 
     The ray metric `nori_turns` counts the tuck nori as well, hence crossings = layers + 1.
+
+    ⚠ ОБЕ ПЛОЩАДНЫЕ ВЕТКИ, (a) И (b), ВЫРОДИЛИСЬ ПОСЛЕ ИСПРАВЛЕНИЯ ПОСАДКИ 31.08.2026 (#113),
+    и это надо знать, читая их числа. Rcore = sqrt(s_fold·h/π) писалась тогда, когда s_fold был
+    маленькой зоной сгиба у ближнего края. Теперь s_fold — вся длина риса (87 % листа), и та же
+    формула объявляет ядром почти весь ролл: замер на раскладке 1 дал Rcore 3,466 против Rout
+    3,494, то есть layers ≈ 0,02 вместо примерно одного витка.
+
+    Это не сбой посадки, а исчерпание допущения. Ролл в ОДИН оборот не имеет кольца из витков
+    снаружи ядра — считать его как «ядро плюс намотка» больше нечего. Рабочей осталась третья
+    форма, layers_close: она отсчитывает от ФИЗИЧЕСКОГО радиуса сгиба R_fold, а не от площади
+    свёрнутой длины, и в том же замере сошлась — 2,444 измеренных пересечения против 2,62
+    предсказанных, расхождение 0,18 при допуске 0,25.
+
+    Что с этим делать — отдельный вопрос (#113, комментарий от 31.08): либо снять (a) и (b) как
+    отслужившие, либо переписать Rcore через радиус, а не через свёрнутую длину. Пока они
+    остаются в выдаче помеченными, потому что тихо удалять числа, на которые кто-то мог
+    ссылаться, — тот же сорт ошибки, что их тихо оставить.
     """
     h = T + W_NORI
     area = info['area_rice'] + info['area_nori'] + info['area_fill']

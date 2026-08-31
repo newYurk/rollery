@@ -40,6 +40,9 @@ CLI: python run.py --layout 1..7 [--speed ..] [--press ..] [--tuck ..] [--seedtu
 import argparse, json, math, os, sys, time
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import fold                                  # одно определение посадки края на всю лабораторию
+
 # ----------------------------------------------------------------------------- bases and layouts
 # T = 1 is the SPREAD thickness of whatever base is being rolled (rice / cream / cream cheese).
 # Every geometric property of a base (sheet length, wrapper thickness, spread thickness, material
@@ -259,8 +262,9 @@ B_CLEAR = 0.8            # the fold arc clears the tallest filling by this much,
 V_TUCK_FRAC = 0.5        # downward tuck speed as a fraction of the grab speed
 Y_TUCK = W_NORI + 0.55 * T   # target height of the tucked edge (pressed into the rice bed)
 T_HOLD = 5.0             # hold the tucked edge before releasing the grab
-S_FOLD_EMPTY = 5.0       # s_fold for a sheet with no fillings, T
-S_FOLD_MARGIN = 1.0      # s_fold = (end of the filling zone) + this, T
+# ⚠ S_FOLD_EMPTY и S_FOLD_MARGIN сняты 31.08.2026 (#113). Здесь была ТРЕТЬЯ редакция правила
+# сгиба — без потолка и без кластеризации, просто max по всем прямоугольникам, — и она уже
+# расходилась и с mat-sdf, и с judge.py. Определение теперь одно: sim/fold.py.
 
 # --- mat
 V_PULL_REF = 0.25        # roll-centre speed during phase C at --speed 1
@@ -1466,15 +1470,16 @@ def main():
     n = len(cls)
 
     # ---------------- grab path (phases A and B) -------------------------------------------------
+    # Посадка ближнего края одна на все раскладки: дальняя кромка риса (sim/fold.py, #113).
+    # Прежде она считалась от начинок и потому у пустого листа была другой; в источниках такой
+    # зависимости нет. Начинки остались только там, где они и правда важны, — в высоте дуги.
+    s_fold_base = fold.fold_landing(L_SHEET, L_FLAP)
     if spiral:
         # no grab and no tuck at all: the coil is seeded geometrically and the machine starts at C.
-        s_fold_base = S_FOLD_EMPTY
         h_top = layout['T_spread'] + W_NORI
     elif info['rects']:
-        s_fold_base = max(r[0] + r[2] for r in info['rects']) + S_FOLD_MARGIN
         h_top = max(r[1] + r[3] for r in info['rects'])
     else:
-        s_fold_base = S_FOLD_EMPTY
         h_top = W_NORI + T
     s_fold = tuck * s_fold_base
     x_p = 0.5 * s_fold                      # half-span of the fold arc (the crease sits near here)
