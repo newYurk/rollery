@@ -33,14 +33,45 @@ function gL(g) { return g ? g.L : sheetLen(B()); }
 // Прежде обёртка собиралась из ЧЕТЫРЁХ отдельных плашек (две плоские и две торцевые), они не
 // сходились по углам, и рис затекал в щели.
 const WRAP_HU = () => ING.nori.hU;
-function dims(p, g) {
+// ⚑ КУСОК СПЛЮЩИВАЕТСЯ ПОД ПРИЖИМОМ (#118, правка 01.09).
+//
+// До этого сжимались ровно две вещи — слои риса и радиус ядра, — а начинка оставалась
+// абсолютно жёсткой: как ни тяни циновку, брусок тамаго той же высоты. Владелец 31.08:
+// «у куска есть форма, 3D-форма… она может сжиматься».
+//
+// Правило простое и обратимое: высота множится на squash, ширина растёт так, что ПЛОЩАДЬ
+// СЕЧЕНИЯ СОХРАНЯЕТСЯ — кусок не исчезает, он расплывается. Это же делает его видимым на
+// срезе: сильный прижим даёт приплюснутый, более широкий узор.
+//
+// ⚠ СВЯЗЬ «прижим → сплющивание» — ИГРОВАЯ УСЛОВНОСТЬ, и это записано в каталоге у stiff.
+// Давления при скрутке маки не мерил никто; литература меряет СВОБОДНОЕ сжатие, а в ролле
+// кусок зажат со всех сторон. Из источников взят только ПОРЯДОК кусков по жёсткости.
+// Числа условности: при нейтральном прижиме (press = 1) не сминается ничего; максимум
+// SQUASH_MAX = 0,35 высоты у самого мягкого куска при самом сильном прижиме (press 1,3).
+const SQUASH_MAX = 0.35;
+function squashOf(p, g) {
+  const d = ING[p.kind]; if (d.paint) return 1;                 // у краски нет высоты
+  const press = g ? (g.press === undefined ? 1 : g.press) : (S.hand ? S.hand.press : 1);
+  const сила = Math.max(0, press - 1) / 0.3;                    // 0 при нейтральной руке, 1 при press = 1,3
+  const stiff = d.stiff === undefined ? 1 : d.stiff;            // поле не проставлено → жёсткий, как было
+  return clamp(1 - SQUASH_MAX * сила * (1 - stiff), 1 - SQUASH_MAX, 1);
+}
+// ⚑ ЯРУСЫ РЕШАЕТ РАСКЛАДКА, А НЕ ПРИЖИМ (правка 01.09, #118). Расплющенный кусок шире, и
+// первая редакция пускала эту ширину в overlap: соседи в ряду «начинали пересекаться» под
+// прижимом, restack ставил их стопкой, коробка ядра росла — и ролл при СИЛЬНОМ прижиме
+// выходил ТОЛЩЕ (замер: ⌀ 54,6 → 65,9 мм), чего не бывает. Стопка — свойство того, как
+// игрок положил куски; прижим происходит потом и одного на другой не забрасывает. Поэтому
+// overlap, bounds и patchBox спрашивают размеры ДО прижима (`neutral = true`), а всё
+// остальное — после.
+function dims(p, g, neutral) {
   const d = ING[p.kind], T = g ? g.T : B().T, ob = p.noriWrap ? 2 * WRAP_HU() : 0;
-  return { du: ((p.wU ?? d.wU) + ob) / gL(g), dv: p.dv ?? d.dv, h: ((p.hU ?? d.hU) + ob) / T };
+  const sq = neutral ? 1 : squashOf(p, g);
+  return { du: ((p.wU ?? d.wU) / sq + ob) / gL(g), dv: p.dv ?? d.dv, h: ((p.hU ?? d.hU) * sq + ob) / T, sq };
 }
 // Патч может лежать под углом rot к оси ролла: 0 — вдоль, 90° — поперёк, 45° — по диагонали.
 // Тогда в каждом ломтике он оказывается на другом месте листа — рисунок меняется от кусочка к кусочку.
-function bounds(p, g) {
-  const d = ING[p.kind], m = dims(p, g), L = gL(g), Wv = g ? g.Wv : B().Wv, amp = d.wave ? d.wave.amp : 0, rot = p.rot || 0, c = Math.abs(Math.cos(rot)), sn = Math.abs(Math.sin(rot));
+function bounds(p, g, neutral) {
+  const d = ING[p.kind], m = dims(p, g, neutral), L = gL(g), Wv = g ? g.Wv : B().Wv, amp = d.wave ? d.wave.amp : 0, rot = p.rot || 0, c = Math.abs(Math.cos(rot)), sn = Math.abs(Math.sin(rot));
   const w = m.du * L, len = m.dv * Wv, hu = (w * c + len * sn) / 2 / L, hv = (w * sn + len * c) / 2 / Wv;
   return { u0: p.u - hu - amp, u1: p.u + hu + amp, v0: p.v - hv, v1: p.v + hv };
 }
@@ -85,8 +116,8 @@ function srCompute(p, v, g) {
 }
 // Патч в ФИЗИЧЕСКИХ координатах листа (su = u·L вдоль скрутки, sv = v·Wv вдоль оси):
 // центр, единичная ось ПОПЕРЁК куска (та же, по которой patchSRange считает across) и полуразмеры.
-function patchBox(p, g) {
-  const m = dims(p, g), L = gL(g), Wv = g ? g.Wv : B().Wv, rot = p.rot || 0;
+function patchBox(p, g, neutral) {
+  const m = dims(p, g, neutral), L = gL(g), Wv = g ? g.Wv : B().Wv, rot = p.rot || 0;
   return { cx: p.u * L, cy: p.v * Wv, ax: Math.cos(rot), ay: Math.sin(rot), hw: m.du * L / 2, hl: m.dv * Wv / 2 };
 }
 // Разделяющая ось (SAT) для двух прямоугольников: если хоть на одной из четырёх осей проекции
@@ -113,11 +144,11 @@ function boxHit(A, Bb) {
 // хотя бы на TOUCH_EPS листа — величина ниже любого перемещения мышью.
 const TOUCH_EPS = 1e-6;
 function overlap(a, b, g) {
-  const A = bounds(a, g), Bb = bounds(b, g);
+  const A = bounds(a, g, true), Bb = bounds(b, g, true);   // ярусы — по раскладке, не по прижиму (#118)
   if (!(A.u0 + TOUCH_EPS < Bb.u1 && Bb.u0 + TOUCH_EPS < A.u1 && A.v0 + TOUCH_EPS < Bb.v1 && Bb.v0 + TOUCH_EPS < A.v1)) return false;
   if (!a.rot && !b.rot) return true;                        // габарит и есть прямоугольник
   if (ING[a.kind].wave || ING[b.kind].wave) return true;    // волнистая паста — не прямоугольник, для неё габарит и остаётся
-  return boxHit(patchBox(a, g), patchBox(b, g));
+  return boxHit(patchBox(a, g, true), patchBox(b, g, true));
 }
 // Стопка: что положено позже, лежит выше. Стопка вдавлена в намазку сверху: её верх — на поверхности
 // намазки (z=1), пока стопка не выше намазки; выше — торчит и утолщает ролл.
@@ -128,7 +159,9 @@ function restack(list, g) {
   for (let i = 0; i < n; i++) {
     const p = list[i]; let base = 0;
     for (const j of adj[i]) if (j < i) base = Math.max(base, list[j].z1);
-    p.z0 = base; p.z1 = base + dims(p, g).h;
+    // Высота яруса — тоже по раскладке: под прижимом стопка садится вся разом (ниже, в обжиме),
+    // а не рассыпается на разные уровни от того, что нижний кусок мягче верхнего.
+    p.z0 = base; p.z1 = base + dims(p, g, true).h;
   }
   const seen = new Array(n).fill(false); let top = 1;
   for (let i = 0; i < n; i++) {
@@ -1187,10 +1220,29 @@ function computeCore(list, g) {
   // рис доходит вокруг начинки, и она в середине. Значит в центре ВСЕ начинки, а рис их
   // обходит. sFold остаётся как координата сгиба для coreMaterial, но отбором больше не служит.
   const inside = list.filter(p => !ING[p.kind].paint);
-  let гр0 = Infinity, гр1 = -Infinity;
+  // ⚑ КОРОБКА ЯДРА СТРОИТСЯ ДО ПРИЖИМА И СЖИМАЕТСЯ ЦЕЛИКОМ (#118, 01.09).
+  //
+  // Взять габарит уже расплющенных кусков нельзя: ширина растёт у каждого, а высота коробки —
+  // это МАКСИМУМ по ярусам, и её держит самый жёсткий кусок. Коробка пухла, а с ней и ролл:
+  // замер дал ⌀ 54,6 → 57,7 мм при усилении прижима, то есть ролл СТАНОВИЛСЯ ТОЛЩЕ, когда
+  // его сильнее сжимают. Такого не бывает.
+  //
+  // Циновка давит на связку целиком, а не на каждый кусок отдельно, и площадь связки при этом
+  // сохраняется — тот же закон, что у самого куска и у кольца риса. Поэтому: габарит берётся
+  // по раскладке (`neutral`), а потом коробка сплющивается на средний по площади squash своих
+  // кусков — высота ×sqB, ширина ÷sqB. Площадь ядра не меняется от прижима, а форма меняется,
+  // и на срезе это видно: мягкая связка расплывается вширь.
+  let гр0 = Infinity, гр1 = -Infinity, sqW = 0, sqA = 0;
   for (const p of inside) {
-    const w2 = dims(p, g).du * L / 2;
+    const w2 = dims(p, g, true).du * L / 2;
     гр0 = Math.min(гр0, p.u * L - w2); гр1 = Math.max(гр1, p.u * L + w2);
+    const a = pieceArea(ING[p.kind], dims(p, g, true).du, L);
+    sqA += a; sqW += a * squashOf(p, g);
+  }
+  const sqB = sqA > 1e-9 ? sqW / sqA : 1;
+  if (sqB < 1 && isFinite(гр0)) {           // ширина растёт вокруг середины связки
+    const c = (гр0 + гр1) / 2, half = (гр1 - гр0) / 2 / sqB;
+    гр0 = c - half; гр1 = c + half;
   }
   // Пустая петля (начинок нет вовсе) — ядра нет: лист мотается сам на себя.
   // ⚑ ОТ НАЧАЛА РИСА, А НЕ ОТ НУЛЯ ЛИСТА (01.09, #95). Первые SPREAD_START листа — голая нори,
@@ -1219,11 +1271,12 @@ function computeCore(list, g) {
   // Теперь ядро — просто связка: куски лежат в ряд по листу, высота берётся из стопки,
   // которую уже посчитал restack. Ни зеркала, ни половин.
   for (const p of inside) core.HA = Math.max(core.HA, p.z1 * T);
+  core.HA *= sqB;                            // связка садится по высоте, площадь коробки сохраняется (#118)
   core.HB = 0;
   const W = g.w;
   for (const p of inside) {
     p.inCore = true; const d = ING[p.kind];
-    core.items.push({ p, d, y0: W + p.z0 * T, y1: W + p.z1 * T, far: true, paint: false });
+    core.items.push({ p, d, y0: W + p.z0 * T * sqB, y1: W + p.z1 * T * sqB, far: true, paint: false });
   }
   // КРАСКА — НЕ ТЕЛО, А ЦВЕТ РИСА, и подворот её РЕЖЕТ, а не утаскивает целиком (issue #95).
   // Прежнее правило «по центру» давало ядро без краски вовсе: полоса у края центром лежала за
