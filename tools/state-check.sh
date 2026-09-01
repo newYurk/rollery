@@ -30,9 +30,16 @@ else
 fi
 
 say "── ветки без PR"
+# Ветка без PR — не обязательно забытая. Она может быть незаконченной работой, у которой есть
+# ЗАВЕДЁННАЯ ЗАДАЧА: тогда о ней помнят, и повторять предупреждение каждый прогон незачем —
+# сторож, который каждый раз кричит одно и то же про известное, приучает пролистывать вывод.
+# Ищем в открытых issues упоминание имени ветки; нашлось — печатаем спокойно, со ссылкой.
 for b in $(git branch --format='%(refname:short)' | grep -v '^main$'); do
   pr=$(gh pr list --head "$b" --limit 1 --json number -q '.[0].number' 2>/dev/null)
-  [ -z "$pr" ] && warn "ветка $b без открытого PR — влита и забыта?" || say "  ✓ $b → PR #$pr"
+  if [ -n "$pr" ]; then say "  ✓ $b → PR #$pr"; continue; fi
+  iss=$(gh issue list --state open --limit 100 --search "$b" --json number -q '.[0].number' 2>/dev/null)
+  [ -z "$iss" ] && warn "ветка $b без открытого PR — влита и забыта?" \
+                || say "  ✓ $b без PR, но описана в #$iss"
 done
 
 say "── доска Projects"
