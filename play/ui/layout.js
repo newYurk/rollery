@@ -327,10 +327,22 @@ function layout() {
   const areaTop = L.top, ah = Math.max(120, L.rowBtn.y - 12 - areaTop);
   L.roll = { x: ox + cw / 2, y: areaTop + ah * 0.5, len: Math.min(cw - 80, 640) };
   L.faceSize = Math.min(0.78 * cw, ah * 0.72, 520); L.faceY = areaTop + ah * 0.5;
-  const cols = (mode === 'L' || cw >= 900) ? 6 : (mode === 'P' ? 2 : 3), rows = NPIECES / cols;
+  // ⚠ СЕТКА СЧИТАЕТСЯ ОТ ЧИСЛА КУСКОВ, А НЕ ОТ ШЕСТИ (issue #116). Столбцы были жёстко
+  // 6 / 3 / 2, и rows = N / cols делило нацело только при N = 6. Футомаки режется на 8,
+  // накамаки на 4 — там получались 1,33 и 0,67 строки, то есть ячейки не той высоты и
+  // сетка, съезжающая за область. Столбцов теперь не больше, чем кусков, а строк — с
+  // округлением вверх: неполный последний ряд честнее сплющенного.
+  const N = npieces();
+  // Столбцов не больше, чем кусков, и по возможности столько, чтобы ряды вышли РОВНЫМИ:
+  // восемь кусков при потолке 6 дают 6 + 2, что выглядит обломом, а 4 + 4 — сеткой.
+  // Ищем ближайший к потолку делитель; если делителя нет (простое число вроде 5) —
+  // остаётся потолок и неполный последний ряд, он честнее сплющенных ячеек.
+  const макс = Math.min(N, (mode === 'L' || cw >= 900) ? 6 : (mode === 'P' ? 2 : 3));
+  let cols = макс; for (let k = макс; k >= 2; k--) if (N % k === 0) { cols = k; break; }
+  const rows = Math.ceil(N / cols);
   const cell = Math.max(40, Math.min((cw - 40) / cols - 10, (ah - 30) / rows - 10));
   const gx = ox + (cw - cols * (cell + 10)) / 2 + 5, gy = areaTop + (ah - rows * (cell + 10)) / 2 + 5;
-  L.grid = []; for (let i = 0; i < NPIECES; i++) L.grid.push({ x: gx + (i % cols) * (cell + 10) + cell / 2, y: gy + Math.floor(i / cols) * (cell + 10) + cell / 2, size: cell });
+  L.grid = []; for (let i = 0; i < N; i++) L.grid.push({ x: gx + (i % cols) * (cell + 10) + cell / 2, y: gy + Math.floor(i / cols) * (cell + 10) + cell / 2, size: cell });
 }
 function rr(x, y, w, h, r) {
   r = Math.min(r, w / 2, h / 2);

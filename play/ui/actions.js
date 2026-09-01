@@ -93,7 +93,7 @@ function onDown(x, y, id) {
     const { R, len } = rollDims();
     if (Math.abs(y - L.roll.y) < R + 30 && Math.abs(x - L.roll.x) < len / 2 + 20) {
       const v = clamp((x - (L.roll.x - len / 2)) / len);
-      const snapped = clamp(Math.round(v * NPIECES), 1, NPIECES - 1) / NPIECES;
+      const snapped = clamp(Math.round(v * npieces()), 1, npieces() - 1) / npieces();
       startCut(snapped); requestFrame();
     }
     return;
@@ -106,7 +106,7 @@ function onDown(x, y, id) {
   }
   if (S.mode === 'plate') {
     if (S.bigPiece >= 0) { S.bigPiece = -1; dirty = true; requestFrame(); return; }
-    for (let i = 0; i < NPIECES; i++) { const g = L.grid[i]; if (Math.hypot(x - g.x, y - g.y) < g.size / 2) { S.bigPiece = i; dirty = true; requestFrame(); return; } }
+    for (let i = 0; i < npieces(); i++) { const g = L.grid[i]; if (Math.hypot(x - g.x, y - g.y) < g.size / 2) { S.bigPiece = i; dirty = true; requestFrame(); return; } }
   }
 }
 function onMove(x, y, id) {

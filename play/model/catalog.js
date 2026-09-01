@@ -12,6 +12,23 @@
 // Единица длины — 5 мм (U_MM), та же, что во всей модели.
 
 // ---------------------------------------------------------------- данные
+// ЧИСЛО КУСКОВ — СВОЙСТВО БАЗЫ, А НЕ ИГРЫ (issue #116). Поле `pieces` у каждой базы ниже.
+//
+// До 01.09.2026 здесь ничего не было, а в state.js стояла одна константа NPIECES = 6 на все
+// типы разом. Источники говорят иначе, и говорят прямо:
+//   • 細巻き — 「6巻切り」 (ginzawatari); 江戸前寿司 「鉄火などは6つに切る」;
+//   • 中巻き — 「4つ切りにする場合が多い」;
+//   • 太巻き — 「8等分」; ja.wikipedia 巻き寿司 「厚さ2-3cm程度に輪切りに」 — при длине
+//     180–200 мм это и есть восемь;
+//   • промышленно то же самое: AUTEC печатает «6/8 Pieces: 180mm-190mm».
+// Ставить своё число там, где источник называет своё, — ровно то, что проекту запрещено.
+//
+// Урамаки — 6: своего числа источники ему не дают, а лист у него полулистовой, как у хосомаки.
+// Фруктовые — 8 по листу, но это НАША база без кухонного прототипа, и число здесь условность.
+//
+// ⚠ Сетка раскладки в ui/layout.js считает столбцы ОТ этого числа. Меняя его, смотреть туда:
+// прежняя сетка делила NPIECES на фиксированные 6/3/2 столбца и на четырёх кусках дала бы
+// две трети строки.
 const BASES = {
   // Две несладкие базы — это ОДНА техника с разным листом, а не разные игры. Толщину и длину
   // рисового пласта задаёт спецификация SUZUMO SVS-FCA: small 7 мм × 80 мм (хосомаки) и
@@ -43,10 +60,10 @@ const BASES = {
   // на обеих базах (нориcиро масштабируется с листом: 10/105 = 20/210). Развилка записана
   // в #109; менять — правкой этих двух чисел, и слепки её покажут.
   hoso: { name: 'Хосомаки', emoji: '🍣', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
-    T: 1.4, w: 0.02, sheetCm: 10.5, spreadEnd: 0.88, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 3, Wv: 38,
+    T: 1.4, w: 0.02, sheetCm: 10.5, pieces: 6, spreadEnd: 0.88, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 3, Wv: 38,
     ingredients: ['cucumber', 'salmon', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   futo: { name: 'Футомаки', emoji: '🍥', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
-    T: 2.4, w: 0.02, sheetCm: 21, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 6, Wv: 38,
+    T: 2.4, w: 0.02, sheetCm: 21, pieces: 8, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 6, Wv: 38,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   // УРАМАКИ — третий несладкий тип. ⚠ ЕГО ГЛАВНОЕ СВОЙСТВО ПОКА НЕ СМОДЕЛИРОВАНО:
   // у урамаки нори ВНУТРИ, а рис СНАРУЖИ, то есть обёртка не внешний слой намотки.
@@ -61,7 +78,7 @@ const BASES = {
   // Это по-прежнему заглушка. Настоящий урамаки — нори ВНУТРИ, рис снаружи, и нори обходит
   // только начинку, то есть радиус вдвое меньше. Правила — issue #3.
   ura:  { name: 'Урамаки', emoji: '🌀', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
-    T: 2.0, w: 0.02, sheetCm: 10.5, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 4, Wv: 38, inverted: true,
+    T: 2.0, w: 0.02, sheetCm: 10.5, pieces: 6, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 4, Wv: 38, inverted: true,
     ingredients: ['salmon', 'cucumber', 'avocado', 'shrimp', 'tamago', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   // ФРУКТОВЫЕ МАКИ — сладкое, но НЕ рулет. Формат настоящий и с родословной:
   //   Франция — «Makis de crêpes»: блин на циновку, рисовый пудинг, фрукты, крутят как маки;
@@ -73,7 +90,7 @@ const BASES = {
   // шоколадный блин вместо нори) — тот же формат, приехавший через доставку.
   // ⚑ inferred: толщина тонкого омлета 薄焼き卵 1,5 мм — оценка, замера в источниках нет.
   fruit: { name: 'Фруктовые', emoji: '🍓', kind: 'sweet', wrapKey: 'egg', wrapper: '#e8b551', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
-    T: 2.0, w: 0.30, sheetCm: 21, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 5, Wv: 38,
+    T: 2.0, w: 0.30, sheetCm: 21, pieces: 8, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 5, Wv: 38,
     ingredients: ['strawberry', 'kiwi', 'mango', 'banana', 'pinkcream', 'choco', 'jam', 'nut'] },
   // ⚑ ПОЧЕМУ РУЛЕТ ВООБЩЕ СГИБАЕТСЯ. Модель гнёт бисквит до r0 = 1,25 мм, и при толщине
   // 8,5 мм это 77 % деформации крайнего волокна — несрезанный бисквит на таком радиусе
