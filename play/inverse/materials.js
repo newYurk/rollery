@@ -68,7 +68,7 @@ const MATERIALS = {
   cucumber: {
     id: 'cucumber', name: 'Огурец', color: '#79b55c', ingKey: 'cucumber',
     placementClass: 'rigid',
-    // ⚠ Толщина ДОЛЖНА совпадать с hU в ING — сторож это проверяет. 1,0 вместо прежних 1,6:
+    // ⚠ Толщина ДОЛЖНА совпадать с hU в ING — сторож это проверяет. 1,98 вместо прежних 1,6:
     // огурец переописан сектором по источнику (см. catalog.js): ⌀28 мм на 8 долей = 14 × 9,9 мм.
     baseThickness: 1.98, compressibility: 0.15,
     minFeatureSize: GRAIN_ACROSS,

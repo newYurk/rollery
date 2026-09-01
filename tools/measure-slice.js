@@ -69,8 +69,8 @@ const ЗАМЕР = `
   // Тот же набор, что у сторожа practice.js (наКаноне): пять начинок по правилу четверти.
   // Позиции по правилу четверти (手前板前): набор занимает 0,31 ширины постели. Прежние
   // 0,34…0,66 давали 0,50 — вдвое шире источника, и «канон» канону не следовал.
-  S.lists.futo = [P('denbu', 0.44, 0.7), P('tamago', 0.48, 1.9), P('kanpyo', 0.52, 3.1),
-                  P('shiitake', 0.56, 4.4), P('cucumber', 0.60, 5.6)];
+  S.lists.futo = [P('tamago', 0.44, 0.7), P('kanpyo', 0.48, 1.9), P('cucumber', 0.52, 3.1),
+                  P('shiitake', 0.56, 4.4), P('denbu', 0.60, 5.6)];
   if (typeof touchModel === 'function') touchModel();
   if (typeof layout === 'function') layout();
   const мод = getModel(), ветер = windFor(мод, 0.5), Р = мод.Rmax;
