@@ -129,7 +129,8 @@ function decodePuzzle(hash) {
     const json = decodeURIComponent(escape(atob(mm[1].replace(/-/g, '+').replace(/_/g, '/'))));
     const data = JSON.parse(json); if (!data.l || !BASES[data.b]) return null;
     const list = data.l.map(a => { const p = { kind: a[0], u: a[1], v: a[2], z0: 0, z1: 0, phase: a[6] || 0 }; if (a[3] != null) p.wU = a[3]; if (a[4] != null) p.hU = a[4]; if (a[5] != null) p.dv = a[5]; if (a[7]) p.rot = a[7]; return p; }).filter(p => ING[p.kind]);
-    const hh = Array.isArray(data.h) ? { air: data.h[0], wobble: data.h[1], phase: data.h[2], press: data.h[3], v: 1, cv: 0, hold: 0 } : null;
+    // Рука из ссылки может прийти короткой или с мусором — handOf дополнит по полю (#36).
+    const hh = Array.isArray(data.h) ? handOf({ air: data.h[0], wobble: data.h[1], phase: data.h[2], press: data.h[3] }) : null;
     // Ссылки БЕЗ поля w (созданные до 30.08) читаются как обёртка базы по умолчанию —
     // формат расширен совместимо, старые ссылки продолжают открываться.
     const wrap = (data.w && WRAPPERS[data.w]) ? data.w : null;
@@ -138,7 +139,7 @@ function decodePuzzle(hash) {
 }
 function puzzleFromLink(pz) {
   S.base = pz.base; S.wrap = pz.wrap || null; S.sel = uiIngredients()[0] || B().ingredients[0];
-  S.turns = pz.turns || null; S.selPatch = null; S.shape = pz.shape || 'round';
+  S.turns = turnsOf(pz.turns); S.selPatch = null; S.shape = pz.shape || 'round';
   if (pz.hand) S.hand = pz.hand;
   const local = pz.list.some(p => (p.dv ?? ING[p.kind].dv) < 1), n = pz.list.filter(p => p.kind !== 'nori').length;
   const lv = { n, turns: S.turns || B().turns, pieces: local ? 3 : 1, custom: true };

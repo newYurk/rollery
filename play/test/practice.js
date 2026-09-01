@@ -90,7 +90,7 @@ const PRACTICE = [
       try {
         for (const t of [null, 2, 3, 4, 5]) {
           S.base = 'hoso'; S.wrap = 'nori'; S.lists.hoso = []; S.turns = t;
-          S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
+          S.hand = handOf();
           c.touchModel(); c.layout();
           const w = c.windFor(c.getModel(), 0.5);
           if (w.turns > пик) пик = w.turns;
@@ -640,7 +640,7 @@ function runPracticeChecks(env) {
     const keep = { base: S.base, wrap: S.wrap, turns: S.turns, shape: S.shape, hand: S.hand,
                    list: S.lists[base] };
     S.base = base; S.wrap = null; S.turns = null; S.shape = 'round';
-    S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
+    S.hand = handOf();
     S.lists[base] = [];
     let out;
     try {
@@ -670,7 +670,7 @@ function runPracticeChecks(env) {
     // свободен — 銀座渡利 「両サイドだけしめて上に丸みを残します」. Пока форму считала
     // отрисовка, здесь стоял 'round' и мерка некруглости честно давала 0,003.
     S.base = 'futo'; S.wrap = null; S.turns = null; S.shape = 'kamaboko';
-    S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
+    S.hand = handOf();
     // ⚑ РАСКЛАДКА ПО ПРАВИЛУ ЧЕТВЕРТИ, и до 01.09 она ему НЕ следовала.
     //
     // Стояли позиции 0,34…0,66 — набор шириной 0,504 постели, вдвое шире того, что требует

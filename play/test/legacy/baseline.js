@@ -21,7 +21,7 @@
 // Отсюда и разница с probe.js, который в тот же вечер чинили в обратную сторону: probe
 // ИЗМЕРЯЕТ модель и обязан брать её числа, baseline СРАВНИВАЕТ с зафиксированным прошлым
 // и обязан их не брать.
-const LEGACY_HAND_NEUTRAL = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
+const LEGACY_HAND_NEUTRAL = handOf();
 
 // Временно применить рецепт к глобальному S, посчитать fn(model), вернуть S как было.
 function withLegacyRecipe(recipe, fn) {
@@ -30,7 +30,7 @@ function withLegacyRecipe(recipe, fn) {
   try {
     S.base = recipe.base;
     S.wrap = recipe.wrap || null;
-    S.turns = recipe.turns || null;
+    S.turns = turnsOf(recipe.turns);
     S.shape = SHAPES[recipe.shape] ? recipe.shape : 'round';
     S.hand = Object.assign({}, LEGACY_HAND_NEUTRAL, recipe.hand || {});
     // Клон списка: модель не должна получить ссылку на fixture — restack проставляет z0/z1,

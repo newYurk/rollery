@@ -44,7 +44,7 @@ function createRecipe(input) {
   return {
     base: src.base || 'hoso',
     wrap: src.wrap || null,
-    turns: src.turns || null,
+    turns: turnsOf(src.turns),
     shape: src.shape || 'round',
     hand,
     // Клон: рецепт не должен делить массив с вызывающим — restack и computeCore пишут в

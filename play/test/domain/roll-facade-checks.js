@@ -157,7 +157,7 @@ function runRollFacadeChecks() {
     let want;
     try {
       W = vw; H = vh; DPR = 2;
-      S.base = recipe.base; S.wrap = recipe.wrap || null; S.turns = recipe.turns || null;
+      S.base = recipe.base; S.wrap = recipe.wrap || null; S.turns = turnsOf(recipe.turns);
       layout();
       want = { mode: L.mode, x: L.sheet.x, y: L.sheet.y, w: L.sheet.w, h: L.sheet.h,
                uAxis: L.sheet.uAxis, lenU: L.sheet.lenU, lenV: L.sheet.lenV,

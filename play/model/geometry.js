@@ -1438,12 +1438,21 @@ const listKey = list => list.map(patchKey).join(';');
 // ⚑ Ключ кэша ОБЯЗАН это видеть: сегодня 28.08 я уже поймал себя на кэше, слепом к новому
 // параметру (подбор SPREAD_W дал шесть одинаковых чисел подряд). Грабли известные — п. 2 скила game-lab.
 function buildModel(list, only) {
-  const hd = S.hand || { air: 0, wobble: 0, phase: 0, press: 1 };
+  // ⚑ РУКА ДОПОЛНЯЕТСЯ ПО ПОЛЮ, А НЕ ЦЕЛИКОМ (#36, правка 01.09). Здесь страховалась только
+  // ПОЛНОСТЬЮ отсутствующая рука, а `decodePuzzle` собирает её из `data.h[0..3]` без проверки
+  // длины: короткий массив в ссылке давал руку с undefined, и первый же `.toFixed` ронял
+  // сборку модели. Ссылку правит кто угодно — это вход, а не наши данные.
+  const hd = handOf(S.hand);
   // Обёртка входит в ключ: она меняет шаг витка (T + w), а с ним число оборотов и ⌀.
   // Без неё блин 2 мм давал ровно то же, что нори 0,1 мм — модель бралась из кэша.
   const key = S.base + '|' + (B().wrapKey || '-') + '|' + S.shape + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|s:' + (only === undefined ? 'all' : only.toFixed(4)) + '|' + listKey(list);
-  let m = modelCaches.get(key); if (m) return m;
-  if (modelCaches.size > 16) modelCaches.clear();
+  let m = modelCaches.get(key); if (m) { modelCaches.delete(key); modelCaches.set(key, m); return m; }
+  // ⚑ ВЫТЕСНЯЕМ СТАРЕЙШУЮ, А НЕ ВЫБРАСЫВАЕМ ВСЁ (#36, правка 01.09). `clear()` на
+  // семнадцатой записи ронял и те модели, которыми прямо сейчас рисуют: альбом кладёт в кадр
+  // до шести баз разом. Map хранит порядок вставки, поэтому LRU — это одна строка; чтение
+  // переставляет запись в конец (см. ниже), иначе «старейшая» значит «первая посчитанная»,
+  // а не «дольше всех не нужная».
+  if (modelCaches.size >= 16) modelCaches.delete(modelCaches.keys().next().value);
   // Клон ДО restack: стопку считаем на собственной копии, чужой список не трогаем.
   const own = JSON.parse(JSON.stringify(list));
   // g — ПАСПОРТ модели: всё, что геометрия раньше подсматривала в S и B(), теперь снято здесь один раз.

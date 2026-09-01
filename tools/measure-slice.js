@@ -64,7 +64,7 @@ const ФАЙЛЫ = ['model/util.js', 'model/catalog.js', 'state.js', 'model/geom
 
 const ЗАМЕР = `
   S.base = 'futo'; S.wrap = null; S.turns = null; S.shape = 'kamaboko';   // форма канона — как у сторожа (#19)
-  S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
+  S.hand = handOf();
   // Тот же набор, что у сторожа practice.js (наКаноне): пять начинок по правилу четверти.
   // Позиции по правилу четверти (手前板前): набор занимает 0,31 ширины постели. Прежние
   // 0,34…0,66 давали 0,50 — вдвое шире источника, и «канон» канону не следовал.

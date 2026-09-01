@@ -128,7 +128,7 @@ function runChecks(detail) {
   const kn = (cond, msg) => { if (!cond) known.push(msg); return cond; };
   const near = (a, b, t) => Math.abs(a - b) <= t;
   const clean = () => { S.shape = 'round'; S.turns = null; S.mode = 'lay';
-    S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 }; };
+    S.hand = handOf(); };
   const dia = () => {   // медиана, максимум, некруглость
     const m = getModel(), wd = windFor(m, 0.5), N = 360, rs = [];
     for (let i = 0; i < N; i++) rs.push(topAt(wd, i / N * TAU));
@@ -225,7 +225,7 @@ function runChecks(detail) {
         }
       }
     }
-    S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
+    S.hand = handOf();
 
     // ── 4. ПАЗЛ ──
     S.base = 'futo'; clean();
@@ -339,7 +339,7 @@ function runChecks(detail) {
       };
       for (const база of Object.keys(BASES)) {
         const keep = { base: S.base, hand: S.hand };
-        S.base = база; S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
+        S.base = база; S.hand = handOf();
         let пикс, плоско;
         try { пикс = withPix(8, снимок); плоско = withPix(0, снимок); }
         finally { S.base = keep.base; S.hand = keep.hand; touchModel(); layout(); }
@@ -547,7 +547,7 @@ function runChecks(detail) {
         }
         ok(S.rollP > 0.08, `${w}×${h}: тяга не крутит (rollP ${S.rollP.toFixed(2)})`);
         ok(!!drag.samples && drag.samples.length >= 5, `${w}×${h}: сэмплы скорости не копятся (${drag.samples ? drag.samples.length : 0})`);
-        S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
+        S.hand = handOf();
         onUp(lx, ly, 99);
         ok(S.hand.press !== 1, `${w}×${h}: почерк не замерился — жест умер молча`);
         // onUp на полускрутке запускает tween доскрутки/отката, а кадры в синхронной проверке
