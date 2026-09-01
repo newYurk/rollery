@@ -34,7 +34,18 @@ if [ -z "$ver" ]; then warn "в play/index.html не нашлось ни одн�
   newer=0
   while read -r f; do
     [ -f "play/$f" ] || { warn "index.html грузит play/$f, а файла нет"; continue; }
-    [ "play/$f" -nt play/index.html ] && { warn "play/$f новее index.html — маркер не поднят"; newer=1; }
+    # ⚠ ВРЕМЯ ПРАВКИ — НЕ ДОКАЗАТЕЛЬСТВО ПРАВКИ. Файл можно тронуть, не изменив: 01.09 перебор
+    # толщины риса переписывал catalog.js одним и тем же содержимым, и сторож потребовал поднять
+    # маркер там, где браузеру нечего перезагружать. Поэтому время — лишь первый фильтр, а
+    # решает git: если содержимое совпадает с закоммиченным и index.html закоммичен тем же
+    # состоянием, тревоги нет.
+    if [ "play/$f" -nt play/index.html ]; then
+      if git diff --quiet -- "play/$f" 2>/dev/null && git diff --quiet -- play/index.html 2>/dev/null; then
+        :   # оба чисты в git — содержимое то же, что при последнем бампе
+      else
+        warn "play/$f новее index.html — маркер не поднят"; newer=1
+      fi
+    fi
   done < <(grep -o 'src="[^"?]*' play/index.html | cut -d'"' -f2)
   [ "$newer" = "0" ] && ok "v=$ver, все скрипты старше index.html"
 fi

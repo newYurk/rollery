@@ -25,6 +25,11 @@
 const fs = require('fs'), vm = require('vm'), path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const JSON_OUT = process.argv.includes('--json');
+// --eval <файл>: выполнить свой замер в той же модели вместо стандартного. Нужен инструментам,
+// которым нужна загруженная игра, но другой вопрос к ней (tools/variants.js) — чтобы загрузчик
+// жил в одном месте, а не копировался. Скрипт кладёт ответ в globalThis.ВЫХОД.
+const _e = process.argv.indexOf('--eval');
+const EVAL = _e >= 0 ? process.argv[_e + 1] : null;
 
 // ── браузерные заглушки: модели нужен только document, рисование не вызывается ──
 const узел = () => ({
@@ -52,8 +57,10 @@ ctx.setTimeout = () => 0; ctx.clearTimeout = () => {};
 vm.createContext(ctx);
 
 // Порядок обязателен и повторяет play/index.html — модель на него опирается.
+// render/slice.js нужен ради touchModel — он живёт там, а не в модели. Порядок тот же,
+// что в play/index.html: менять нельзя, скрипты классические и делят один скоуп.
 const ФАЙЛЫ = ['model/util.js', 'model/catalog.js', 'state.js', 'model/geometry.js',
-               'model/canon.js', 'domain/roll.js', 'ui/layout.js'];
+               'model/canon.js', 'domain/roll.js', 'render/slice.js', 'ui/layout.js'];
 
 const ЗАМЕР = `
   const P = (kind, u, phase) => ({ kind, u, v: 0.5, z0: 0, z1: 0, phase });
@@ -95,11 +102,12 @@ const ЗАМЕР = `
 `;
 
 let текст = ФАЙЛЫ.map(f => '\n//══ ' + f + ' ══\n' + fs.readFileSync(path.join(ROOT, 'play', f), 'utf8')).join('\n');
-текст += '\n//══ замер ══\n' + ЗАМЕР;
+текст += '\n//══ замер ══\n' + (EVAL ? fs.readFileSync(EVAL, 'utf8') : ЗАМЕР);
 try { vm.runInContext(текст, ctx, { filename: 'модель.js' }); }
 catch (e) { console.error('модель не собралась: ' + e.message); process.exit(2); }
 const r = ctx.ВЫХОД;
 
+if (EVAL) { console.log(JSON.stringify(r)); process.exit(0); }
 if (JSON_OUT) { console.log(JSON.stringify(r, null, 2)); process.exit(0); }
 
 // ⟦ЧИСЛА ИСТОЧНИКОВ⟧ — коридоры из docs/kitchen-practice.md, раздел «Количественно».
