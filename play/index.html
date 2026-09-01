@@ -21,27 +21,27 @@
 <!-- Кеш браузера дважды за вечер подсовывал старую копию правленого файла, и это выглядело
      как «код не работает»: функция есть в файле, но её нет в странице. Метка версии в адресе
      снимает вопрос — меняется вместе с правкой. CACHE_BUST -->
-<script src="model/util.js?v=138"></script>
-<script src="model/catalog.js?v=138"></script>
-<script src="state.js?v=138"></script>
-<script src="model/geometry.js?v=138"></script>
+<script src="model/util.js?v=139"></script>
+<script src="model/catalog.js?v=139"></script>
+<script src="state.js?v=139"></script>
+<script src="model/geometry.js?v=139"></script>
 <!-- Канон поваров как ДАННЫЕ (не проза): одна таблица правил на двух потребителей —
      сторож ?check и будущие уровни пазла (#112). Нужен ING из каталога, модель не нужна. -->
-<script src="model/canon.js?v=138"></script>
+<script src="model/canon.js?v=139"></script>
 <!-- Тонкий compatibility facade над геометрией (issue #72). Подключён здесь, ПОСЛЕ модели и
      ДО рендера: сам он объявляет только функции, а обращения к shapeInfo/shapeK (render/slice.js)
      и W/H/DPR/L/layout (ui/layout.js) происходят при ВЫЗОВЕ, когда всё уже загружено. То есть
      домен сегодня зависит от рендера — это временно и названо в шапке roll.js. -->
-<script src="domain/roll.js?v=138"></script>
-<script src="audio.js?v=138"></script>
-<script src="ui/layout.js?v=138"></script>
-<script src="render/slice.js?v=138"></script>
-<script src="render/sheet.js?v=138"></script>
-<script src="ui/controls.js?v=138"></script>
-<script src="render/screens.js?v=138"></script>
-<script src="ui/album.js?v=138"></script>
-<script src="modes/puzzle.js?v=138"></script>
-<script src="ui/actions.js?v=138"></script>
+<script src="domain/roll.js?v=139"></script>
+<script src="audio.js?v=139"></script>
+<script src="ui/layout.js?v=139"></script>
+<script src="render/slice.js?v=139"></script>
+<script src="render/sheet.js?v=139"></script>
+<script src="ui/controls.js?v=139"></script>
+<script src="render/screens.js?v=139"></script>
+<script src="ui/album.js?v=139"></script>
+<script src="modes/puzzle.js?v=139"></script>
+<script src="ui/actions.js?v=139"></script>
 <script>
 'use strict';
 // =====================================================================

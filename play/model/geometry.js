@@ -771,7 +771,13 @@ function wind(vSlice, sMax, g, list, routOnly) {
   const top = new Float32Array(NB).fill(g.r0), prof = thicknessProfile(vSlice, g, list);
   const L = g.L, W = g.w, r0 = g.r0;
   // Рис кончается на spreadEnd; дальше голая нори — она и пойдёт нахлёстом поверх готового кольца.
-  const sRice0 = g.sStart || 0, sRice1 = Math.min(L, g.spreadEnd * L);
+  // ⚠ КОЛЬЦО СТРОИТСЯ ТОЛЬКО ПО ТОЙ ЧАСТИ ЛИСТА, ГДЕ ЕСТЬ РИС. Сперва брала от sStart = 0,
+  // и на голой полосе у ближнего края (до spreadStart) толщина выходила нулевой — в срезе
+  // появлялся тёмный клин от корки к центру, будто из ролла выкусили сектор. Владелец
+  // увидела его сразу. Рис начинается на spreadStart; голые полосы с обоих концов уходят
+  // в нахлёст, а не в кольцо.
+  const s0Bare = g.spreadStart === undefined ? SPREAD_START : g.spreadStart;
+  const sRice0 = Math.max(g.sStart || 0, s0Bare * L), sRice1 = Math.min(L, g.spreadEnd * L);
   const Lrice = Math.max(1e-6, sRice1 - sRice0);
   // Сжатие ядра, пока скрутка не доведена: тот же приём, что был у спирали.
   const сжато = sMax < L ? Math.max(0.05, sMax / L) : 1;
@@ -799,7 +805,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
   // ── зона 1: нахлёст のりしろ — голая нори поверх готового кольца ──
   // Её длина — то, что осталось от листа за spreadEnd. Она ложится от угла 0 и идёт, пока
   // не кончится; отсюда и берётся честное число витков нори, а не подгонка.
-  const Lbare = Math.max(0, L - sRice1);
+  const Lbare = Math.max(0, (L - sRice1) + sRice0);   // голые полосы с обоих концов
   const Rср = Rout - W / 2;
   const φнахл = Rср > 1e-6 ? Math.min(TAU, Lbare / Rср) : 0;
   const бинНахл = Math.round(φнахл / DPHI);
