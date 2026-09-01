@@ -182,10 +182,31 @@
 // Пересъёмка сделана ТЕМ ЖЕ коммитом, что и правка, и здесь сказано, что именно поехало —
 // как того и требует правило тремя абзацами выше.
 
+// ⚑ ПЕРЕСНЯТ ТРИНАДЦАТЫЙ РАЗ — вечер 01.09, клюв нори и крашеный рис (#129, #95).
+//
+// Что поехало, по фикстурам (⌀ · витков · доля «out» ВНУТРИ ролла):
+//   F01 hosomaki-basic     ⌀ 32,0 → 32,0 · 1,173 → 1,175 · out 0,024 → 0
+//   F03 wrapper-roundtrip  ⌀ 49,4 → 49,4 · 1,218 → 1,218 · out 0,004 → 0
+//   F04 puzzle-recipe      ⌀ 48,7 → 48,6 · 1,247 → 1,248 · out 0,031 → 0
+//   F07 edge-overload      ⌀ 44,6 → 44,5 · 1,214 → 1,215 · out 0,014 → 0
+//   F02, F05, F06 — витки на 0,001, диаметры на месте.
+//
+// Диаметры не сдвинулись, витки на тысячные. Главное — столбец out: прежний слепок ЗАМОРОЗИЛ
+// КЛЮВ — 0,4…3,1 % карты внутри ролла были «пустотой», потому что нулевой бин кольца читал
+// толщину риса на своём левом краю, то есть на границе намазки, где риса ноль (geometry.js,
+// wind, комментарий над sц). Владелец находила этот клюв глазами три раза; слепок его не
+// ловил, потому что описывал поведение «как есть» — включая дефект. Теперь бин читает середину
+// и индекс зажат опорой риса; та же правка — сглаживание профиля отражается от края намазки.
+// Отдельно: крашеный рис (mixed) красит на всю глубину, как подмешанный, а не на 64 %, как
+// присыпка; пустое ядро начинается с начала риса, а не с нуля листа. На фикстурах с краской
+// это меняет счётчики классов карты.
+//
+// Пересъёмка тем же коммитом, что и правки, — как требует правило выше.
+
 const ROLL_BASELINE = {
   "F01-hosomaki-basic": {
-    "turns": 1.173,
-    "outerDiameterMm": 31.9605,
+    "turns": 1.1746,
+    "outerDiameterMm": 31.9516,
     "closePoint": 18.48,
     "sheetEnd": 21,
     "sheetLength": 21,
@@ -196,20 +217,19 @@ const ROLL_BASELINE = {
     "patchCount": 1,
     "materialFractions": {
       "core": 0.1285,
-      "out": 0.0243,
       "patch:cucumber": 0.2882,
-      "spread": 0.559
+      "spread": 0.5833
     },
     "probes": [
       "0.25|1|0=patch:cucumber",
       "0.25|1|6=patch:cucumber",
       "0.25|1|12=core",
       "0.25|1|18=patch:cucumber",
-      "0.25|5|0=out",
+      "0.25|5|0=spread",
       "0.25|5|6=spread",
       "0.25|5|12=spread",
       "0.25|5|18=spread",
-      "0.25|9|0=out",
+      "0.25|9|0=spread",
       "0.25|9|6=spread",
       "0.25|9|12=spread",
       "0.25|9|18=spread",
@@ -217,11 +237,11 @@ const ROLL_BASELINE = {
       "0.5|1|6=patch:cucumber",
       "0.5|1|12=core",
       "0.5|1|18=patch:cucumber",
-      "0.5|5|0=out",
+      "0.5|5|0=spread",
       "0.5|5|6=spread",
       "0.5|5|12=spread",
       "0.5|5|18=spread",
-      "0.5|9|0=out",
+      "0.5|9|0=spread",
       "0.5|9|6=spread",
       "0.5|9|12=spread",
       "0.5|9|18=spread",
@@ -229,29 +249,29 @@ const ROLL_BASELINE = {
       "0.75|1|6=patch:cucumber",
       "0.75|1|12=core",
       "0.75|1|18=patch:cucumber",
-      "0.75|5|0=out",
+      "0.75|5|0=spread",
       "0.75|5|6=spread",
       "0.75|5|12=spread",
       "0.75|5|18=spread",
-      "0.75|9|0=out",
+      "0.75|9|0=spread",
       "0.75|9|6=spread",
       "0.75|9|12=spread",
       "0.75|9|18=spread"
     ],
     "map": {
       "counts": {
-        "out": 856,
-        "rice": 1999,
-        "wrap": 51,
-        "cucumber": 230
+        "out": 846,
+        "rice": 1992,
+        "wrap": 67,
+        "cucumber": 231
       },
       "probe": "out,rice,rice,rice,rice,rice,cucumber,rice,rice,rice,out"
     },
     "selfSimilarity": 1
   },
   "F02-futomaki-basic": {
-    "turns": 1.1937,
-    "outerDiameterMm": 53.349,
+    "turns": 1.1943,
+    "outerDiameterMm": 53.3339,
     "closePoint": 37.38,
     "sheetEnd": 42,
     "sheetLength": 42,
@@ -307,9 +327,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 846,
-        "rice": 2043,
-        "wrap": 41,
+        "out": 844,
+        "rice": 2050,
+        "wrap": 36,
         "salmon": 86,
         "avocado": 120
       },
@@ -318,8 +338,8 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "F03-wrapper-roundtrip": {
-    "turns": 1.2175,
-    "outerDiameterMm": 49.3869,
+    "turns": 1.2185,
+    "outerDiameterMm": 49.3791,
     "closePoint": 37.38,
     "sheetEnd": 42,
     "sheetLength": 42,
@@ -329,9 +349,8 @@ const ROLL_BASELINE = {
     "coreFold": 17.941,
     "patchCount": 1,
     "materialFractions": {
-      "out": 0.0035,
       "patch:tamago": 0.25,
-      "spread": 0.5799,
+      "spread": 0.5833,
       "wrap": 0.1667
     },
     "probes": [
@@ -343,7 +362,7 @@ const ROLL_BASELINE = {
       "0.25|5|6=spread",
       "0.25|5|12=spread",
       "0.25|5|18=spread",
-      "0.25|9|0=wrap",
+      "0.25|9|0=spread",
       "0.25|9|6=spread",
       "0.25|9|12=spread",
       "0.25|9|18=spread",
@@ -355,7 +374,7 @@ const ROLL_BASELINE = {
       "0.5|5|6=spread",
       "0.5|5|12=spread",
       "0.5|5|18=spread",
-      "0.5|9|0=wrap",
+      "0.5|9|0=spread",
       "0.5|9|6=spread",
       "0.5|9|12=spread",
       "0.5|9|18=spread",
@@ -367,16 +386,16 @@ const ROLL_BASELINE = {
       "0.75|5|6=spread",
       "0.75|5|12=spread",
       "0.75|5|18=spread",
-      "0.75|9|0=wrap",
+      "0.75|9|0=spread",
       "0.75|9|6=spread",
       "0.75|9|12=spread",
       "0.75|9|18=spread"
     ],
     "map": {
       "counts": {
-        "out": 880,
-        "rice": 1547,
-        "wrap": 553,
+        "out": 874,
+        "rice": 1552,
+        "wrap": 554,
         "tamago": 156
       },
       "probe": "out,rice,wrap,rice,rice,out,tamago,rice,rice,wrap,out"
@@ -384,8 +403,8 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "F04-puzzle-recipe": {
-    "turns": 1.2466,
-    "outerDiameterMm": 48.6517,
+    "turns": 1.2476,
+    "outerDiameterMm": 48.6435,
     "closePoint": 44.205,
     "sheetEnd": 49.6686,
     "sheetLength": 49.6686,
@@ -395,21 +414,20 @@ const ROLL_BASELINE = {
     "coreFold": 8.4152,
     "patchCount": 2,
     "materialFractions": {
-      "out": 0.0313,
-      "patch:ricePink": 0.0417,
+      "patch:ricePink": 0.0625,
       "patch:salmon": 0.25,
-      "spread": 0.6771
+      "spread": 0.6875
     },
     "probes": [
       "0.25|1|0=patch:salmon",
       "0.25|1|6=patch:salmon",
       "0.25|1|12=patch:salmon",
       "0.25|1|18=patch:salmon",
-      "0.25|5|0=out",
+      "0.25|5|0=spread",
       "0.25|5|6=spread",
       "0.25|5|12=spread",
       "0.25|5|18=spread",
-      "0.25|9|0=out",
+      "0.25|9|0=spread",
       "0.25|9|6=spread",
       "0.25|9|12=spread",
       "0.25|9|18=spread",
@@ -417,11 +435,11 @@ const ROLL_BASELINE = {
       "0.5|1|6=patch:salmon",
       "0.5|1|12=patch:salmon",
       "0.5|1|18=patch:salmon",
-      "0.5|5|0=out",
+      "0.5|5|0=spread",
       "0.5|5|6=spread",
       "0.5|5|12=spread",
       "0.5|5|18=spread",
-      "0.5|9|0=out",
+      "0.5|9|0=spread",
       "0.5|9|6=spread",
       "0.5|9|12=spread",
       "0.5|9|18=spread",
@@ -429,30 +447,30 @@ const ROLL_BASELINE = {
       "0.75|1|6=patch:salmon",
       "0.75|1|12=patch:salmon",
       "0.75|1|18=patch:salmon",
-      "0.75|5|0=out",
+      "0.75|5|0=spread",
       "0.75|5|6=spread",
       "0.75|5|12=spread",
       "0.75|5|18=spread",
-      "0.75|9|0=out",
+      "0.75|9|0=spread",
       "0.75|9|6=spread",
       "0.75|9|12=spread",
       "0.75|9|18=spread"
     ],
     "map": {
       "counts": {
-        "out": 1000,
-        "rice": 1878,
-        "wrap": 44,
+        "out": 998,
+        "rice": 1786,
+        "wrap": 39,
         "salmon": 116,
-        "ricePink": 98
+        "ricePink": 197
       },
-      "probe": "out,rice,rice,rice,rice,out,salmon,rice,rice,rice,out"
+      "probe": "out,rice,rice,rice,rice,out,salmon,rice,rice,ricePink,out"
     },
     "selfSimilarity": 1
   },
   "F05-hand-variation": {
-    "turns": 1.175,
-    "outerDiameterMm": 58.4875,
+    "turns": 1.1755,
+    "outerDiameterMm": 58.4767,
     "closePoint": 37.38,
     "sheetEnd": 42,
     "sheetLength": 42,
@@ -462,9 +480,9 @@ const ROLL_BASELINE = {
     "coreFold": 15.5051,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.3681,
+      "core": 0.375,
       "patch:avocado": 0.1667,
-      "patch:salmon": 0.0417,
+      "patch:salmon": 0.0347,
       "patch:shrimp": 0.0069,
       "spread": 0.4167
     },
@@ -508,9 +526,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 867,
-        "rice": 2031,
-        "wrap": 32,
+        "out": 859,
+        "rice": 2037,
+        "wrap": 34,
         "salmon": 86,
         "avocado": 120
       },
@@ -519,8 +537,8 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "F06-rotated-patch": {
-    "turns": 1.1802,
-    "outerDiameterMm": 57.5104,
+    "turns": 1.1808,
+    "outerDiameterMm": 57.4967,
     "closePoint": 37.38,
     "sheetEnd": 42,
     "sheetLength": 42,
@@ -575,9 +593,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 846,
-        "rice": 2129,
-        "wrap": 39,
+        "out": 844,
+        "rice": 2134,
+        "wrap": 36,
         "cucumber": 34,
         "tamago": 88
       },
@@ -586,8 +604,8 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "F07-edge-overload": {
-    "turns": 1.2138,
-    "outerDiameterMm": 44.5549,
+    "turns": 1.2152,
+    "outerDiameterMm": 44.5393,
     "closePoint": 15.96,
     "sheetEnd": 21,
     "sheetLength": 21,
@@ -598,11 +616,10 @@ const ROLL_BASELINE = {
     "patchCount": 3,
     "materialFractions": {
       "core": 0.2743,
-      "out": 0.0139,
       "patch:avocado": 0.2882,
       "patch:cucumber": 0.0521,
       "patch:salmon": 0.0521,
-      "spread": 0.3194
+      "spread": 0.3333
     },
     "probes": [
       "0.25|1|0=patch:avocado",
@@ -613,7 +630,7 @@ const ROLL_BASELINE = {
       "0.25|5|6=core",
       "0.25|5|12=core",
       "0.25|5|18=core",
-      "0.25|9|0=out",
+      "0.25|9|0=spread",
       "0.25|9|6=spread",
       "0.25|9|12=spread",
       "0.25|9|18=spread",
@@ -625,7 +642,7 @@ const ROLL_BASELINE = {
       "0.5|5|6=core",
       "0.5|5|12=core",
       "0.5|5|18=core",
-      "0.5|9|0=out",
+      "0.5|9|0=spread",
       "0.5|9|6=spread",
       "0.5|9|12=spread",
       "0.5|9|18=spread",
@@ -637,16 +654,16 @@ const ROLL_BASELINE = {
       "0.75|5|6=core",
       "0.75|5|12=core",
       "0.75|5|18=core",
-      "0.75|9|0=out",
+      "0.75|9|0=spread",
       "0.75|9|6=spread",
       "0.75|9|12=spread",
       "0.75|9|18=spread"
     ],
     "map": {
       "counts": {
-        "out": 850,
-        "rice": 1801,
-        "wrap": 60,
+        "out": 846,
+        "rice": 1807,
+        "wrap": 58,
         "salmon": 132,
         "cucumber": 113,
         "avocado": 180

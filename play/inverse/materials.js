@@ -81,7 +81,10 @@ const MATERIALS = {
   salmon: {
     id: 'salmon', name: 'Лосось', color: '#ef8a66', ingKey: 'salmon',
     placementClass: 'filling',
-    baseThickness: 1.6, compressibility: 0.6,
+    // ⚠ Толщина ДОЛЖНА совпадать с hU в ING — сторож это проверяет. 2,0 вместо прежних 1,6:
+    // лосось переописан бруском 「1cm角の棒状」 по рецептам (abc5505, catalog.js), сюда правка
+    // не доехала, и ?check краснел с того коммита до вечера 01.09 — его не открывали.
+    baseThickness: 2.0, compressibility: 0.6,
     minFeatureSize: GRAIN_ACROSS,
     // Мягкое кладут СВЕРХУ (OSUSHI STUDIO), и рассыпчатое — к ДАЛЬНЕМУ краю, потому что при
     // скрутке поднимают ближний и там его не удержать (gourmet-note.jp).
