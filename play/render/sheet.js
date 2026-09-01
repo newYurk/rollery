@@ -321,12 +321,19 @@ function strokeSliceLines(img, size) {
   const R = size / 2;
   ctx.save();
   ctx.lineWidth = 1; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(255,60,120,0.9)';
-  for (const путь of img._lines) {
-    ctx.beginPath();
-    путь.forEach(([a, rr], i) => { const px = Math.cos(a) * rr * R, py = Math.sin(a) * rr * R;
-      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
-    ctx.stroke();
+  for (const { петли, code } of img._lines) {
+    // ЦВЕТ ПО МАТЕРИАЛУ — то, чего лучевой приём дать не мог: он строил линии, не зная,
+    // ЧЬЯ это граница. Обход ячеек идёт по маске одного класса, поэтому знает всегда.
+    // Рис и обёртку ведём приглушённо, начинки — ярко: смотрят обычно на узор.
+    ctx.strokeStyle = code === 1 ? 'rgba(120,200,255,0.55)'
+                    : code === 2 ? 'rgba(90,255,180,0.7)'
+                    : 'rgba(255,60,120,0.9)';
+    for (const петля of петли) {
+      ctx.beginPath();
+      петля.forEach(([x, y], i) => (i ? ctx.lineTo(x * R, y * R) : ctx.moveTo(x * R, y * R)));
+      ctx.closePath();          // петля замкнута по построению — замыкаем и на холсте
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }
