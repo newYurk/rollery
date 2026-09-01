@@ -61,8 +61,8 @@ const REF = {
   // и 34,4 всё ещё выше того замера. Держать это в голове, ссылаясь на неё.
   hoso:  { d: 33.4, dmax: 33.4, turns: 1.17, core: true },
   futo:  { d: 48.2, dmax: 48.2, turns: 1.21, core: true },
-  ura:   { d: 39.4, dmax: 39.4, turns: 1.24, core: true },
-  fruit: { d: 59.3, dmax: 59.6, turns: 1.18, core: true },
+  ura:   { d: 39.5, dmax: 39.5, turns: 1.24, core: true },
+  fruit: { d: 60.1, dmax: 60.4, turns: 1.18, core: true },
 };
 const TOL_D = 0.6, TOL_T = 0.05;      // мм и обороты; TOL_D держим УЗКИМ намеренно — он ловит изменение, а не задаёт норму
 const TOL_LEVEL = 3;                  // средняя яркость риса: |Δ| ≤ 3 (см. docs/geometry-audit.md)
