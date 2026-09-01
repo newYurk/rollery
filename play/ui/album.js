@@ -109,13 +109,16 @@ function drawAlbum() {
   if (S.albumOpen >= 0 && S.album[S.albumOpen]) {
     const e = S.album[S.albumOpen];
     ctx.fillStyle = 'rgba(23,23,19,0.93)'; ctx.fillRect(0, 0, W, H);
-    const k = 6, fs = Math.min((cw - 40 - 5 * 8) / 6, 0.22 * L.ch, 120);
+    // Число кусков — у базы САМОЙ ЗАПИСИ, а не текущей: футомаки режется на восемь, хосомаки
+    // на шесть, и запись помнит, чем была (#134-side, правка 01.09).
+    const eb0 = BASES[e.base] || B(), k = eb0.pieces || 6;
+    const fs = Math.min((cw - 40 - (k - 1) * 8) / k, 0.22 * L.ch, 120);
     const cx = ox + cw / 2, y0 = L.top + 40;
     ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillText(`${BASES[e.base] ? BASES[e.base].name : e.base} · ${albumDate(e.at)}${e.sim != null ? ' · совпало на ' + e.sim + ' %' : ''}`, cx, y0 - 12);
-    const x0 = cx - ((k - 1) * (fs + 8)) / 2, eb = BASES[e.base] || B();
-    drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y: y0 + fs / 2, size: fs })), 1, eb, 6);
-    for (let i = 0; i < k; i++) { try { drawFaceImg(albumFace(e, fs, pieceV(i)), x0 + i * (fs + 8), y0 + fs / 2, fs); } catch (err) {} }
+    const x0 = cx - ((k - 1) * (fs + 8)) / 2, eb = eb0;
+    drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y: y0 + fs / 2, size: fs })), 1, eb, k);
+    for (let i = 0; i < k; i++) { try { drawFaceImg(albumFace(e, fs, pieceV(i, k)), x0 + i * (fs + 8), y0 + fs / 2, fs); } catch (err) {} }
     const big = Math.min(0.5 * cw, 0.42 * L.ch, 300);
     drawSlab([{ x: cx, y: y0 + fs + 24 + big / 2, size: big }], 1, eb, 8);
     try { drawFaceImg(albumFace(e, big), cx, y0 + fs + 24 + big / 2, big); } catch (err) {}
