@@ -272,7 +272,7 @@
      строки под ним во всю ширину. Разметка не меняется, только раскладка. */
   @media (max-width: 700px) {
     .tbl-wrap { overflow-x: visible; }
-    table, tbody, tr, td { display: block; width: auto; }
+    table, tbody, tr, td { display: block; width: auto; min-width: 0; }   /* min-width у первого столбца (190px в кинематике) съедал полэкрана */
     thead { position: absolute; left: -9999px; }   /* шапка не нужна: подписи вытекают из порядка */
     tr {
       border-top: 1px solid var(--rule, #333b39);
