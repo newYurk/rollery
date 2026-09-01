@@ -161,7 +161,8 @@
 // в стенку вокруг ядра. Обороты выросли туда же. У обоих сдвигов общая причина: рис в модели
 // не уплотняется при скрутке, а повар сжимает его в 1,2–1,5 раза (issue #129).
 //
-// ⚠ Пересня́т ПЯТЬ РАЗ за 01.09 (пятый — после уплотнения риса, #129: слой в ролле тоньше,
+// ⚠ Пересня́т ШЕСТЬ РАЗ за 01.09 (шестой — после обнуления фаски, #125: справочник приёмов
+// нарезки не знает скруглённых рёбер, везде прямой ход ножа) (пятый — после уплотнения риса, #129: слой в ролле тоньше,
 // чем на постели, коэффициент 1,19). Третий раз — после маски намазки (#130: рис перестал
 // растекаться сглаживанием на голую нори, и доля начинки в срезе впервые попала в источниковый
 // коридор). Четвёртый — после правки обжима: он умножал радиусы слоя целиком, растягивая вместе
@@ -250,12 +251,12 @@ const ROLL_BASELINE = {
     "hasCore": true,
     "shape": "round",
     "coreRadius": 4.6415,
-    "coreFold": 19.3082,
+    "coreFold": 19.4394,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.5521,
+      "core": 0.5451,
       "patch:avocado": 0.0382,
-      "patch:salmon": 0.0764,
+      "patch:salmon": 0.0833,
       "patch:shrimp": 0.0023,
       "spread": 0.331
     },
@@ -300,9 +301,9 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 901,
-        "rice": 2037,
+        "rice": 2032,
         "wrap": 16,
-        "salmon": 127,
+        "salmon": 132,
         "avocado": 55
       },
       "probe": "out,rice,rice,rice,rice,rice,rice,rice,rice,rice,out"
@@ -318,11 +319,11 @@ const ROLL_BASELINE = {
     "hasCore": true,
     "shape": "round",
     "coreRadius": 4.4805,
-    "coreFold": 22.1816,
+    "coreFold": 22.3234,
     "patchCount": 1,
     "materialFractions": {
-      "core": 0.3472,
-      "patch:tamago": 0.3194,
+      "core": 0.3368,
+      "patch:tamago": 0.3299,
       "spread": 0.2535,
       "wrap": 0.0799
     },
@@ -367,9 +368,9 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 866,
-        "rice": 1703,
+        "rice": 1692,
         "wrap": 206,
-        "tamago": 361
+        "tamago": 372
       },
       "probe": "out,rice,rice,rice,tamago,rice,rice,rice,rice,rice,out"
     },
@@ -377,7 +378,7 @@ const ROLL_BASELINE = {
   },
   "F04-puzzle-recipe": {
     "turns": 1.159,
-    "outerDiameterMm": 111.2289,
+    "outerDiameterMm": 111.2413,
     "closePoint": -1,
     "sheetEnd": 73.1363,
     "sheetLength": 73.1363,
@@ -432,10 +433,10 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 1033,
-        "rice": 2036,
+        "out": 1034,
+        "rice": 2034,
         "wrap": 10,
-        "salmon": 9,
+        "salmon": 10,
         "ricePink": 48
       },
       "probe": "out,rice,rice,rice,rice,out,rice,ricePink,rice,rice,out"
@@ -451,13 +452,13 @@ const ROLL_BASELINE = {
     "hasCore": true,
     "shape": "round",
     "coreRadius": 5.0991,
-    "coreFold": 19.3082,
+    "coreFold": 19.4394,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.5556,
+      "core": 0.5451,
       "out": 0.0417,
       "patch:avocado": 0.0382,
-      "patch:salmon": 0.0729,
+      "patch:salmon": 0.0833,
       "patch:shrimp": 0.0012,
       "spread": 0.2905
     },
@@ -502,9 +503,9 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 1037,
-        "rice": 1914,
+        "rice": 1908,
         "wrap": 9,
-        "salmon": 123,
+        "salmon": 129,
         "avocado": 53
       },
       "probe": "out,rice,rice,rice,rice,out,rice,rice,rice,rice,out"
@@ -513,7 +514,7 @@ const ROLL_BASELINE = {
   },
   "F06-rotated-patch": {
     "turns": 1.1632,
-    "outerDiameterMm": 69.2791,
+    "outerDiameterMm": 69.3105,
     "closePoint": -1,
     "sheetEnd": 42,
     "sheetLength": 42,
@@ -568,10 +569,10 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 922,
-        "rice": 2166,
-        "wrap": 12,
+        "rice": 2163,
+        "wrap": 14,
         "cucumber": 1,
-        "tamago": 35
+        "tamago": 36
       },
       "probe": "out,rice,rice,rice,rice,rice,rice,rice,rice,rice,out"
     },
@@ -586,7 +587,7 @@ const ROLL_BASELINE = {
     "hasCore": true,
     "shape": "round",
     "coreRadius": 2.2902,
-    "coreFold": 19.69,
+    "coreFold": 19.7853,
     "patchCount": 3,
     "materialFractions": {
       "core": 0.2813,
@@ -637,9 +638,9 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 1222,
-        "rice": 1584,
+        "rice": 1579,
         "wrap": 23,
-        "salmon": 106,
+        "salmon": 111,
         "cucumber": 167,
         "avocado": 34
       },
@@ -648,8 +649,8 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "__pairs": {
-    "F02~F05 рука": 0.9586,
-    "F02~сдвиг": 0.8189,
+    "F02~F05 рука": 0.9602,
+    "F02~сдвиг": 0.8102,
     "F04~форма": 1
   }
 };

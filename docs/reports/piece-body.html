@@ -46,8 +46,15 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* ⚑ ШИРИНА СВЕДЕНА 01.09. Владелец: «ширина разная по длине дока» — и это было правдой
+     дважды. Во-первых, .note имел предел чтения 74ch (≈644 px) внутри секции 1038 px: текст
+     занимал 62 % и обрывался, оставляя справа пустоту в треть экрана. Во-вторых, содержимое
+     самих фигур гуляло: замер по bbox дал от 619 до 1047 единиц из 1000 при левом крае от
+     −50 до 190, потому что каждая рисовалась «как получилось».
+     Контейнер сужен до 880, предел чтения поднят до 88ch — разрыв между текстом и таблицей
+     стал 9 % вместо 38 %. Поля фигур выравниваются ниже, при отрисовке. */
   .wrap {
-    max-width: 1080px;
+    max-width: 880px;
     margin: 0 auto;
     padding: 28px 20px 80px;
     display: flex;
@@ -139,7 +146,7 @@
     padding: 4px 18px 17px;
     color: var(--ink-2);
     font-size: 14.5px;
-    max-width: 74ch;
+    max-width: 88ch;
   }
   .note p { margin: 10px 0 0; }
   .note strong { color: var(--ink); font-weight: 600; }
@@ -266,7 +273,7 @@
       <div class="cell"><span class="k">Единица</span><span class="v">1 ед. = 5 мм</span></div>
       <div class="cell"><span class="k">База на схемах</span><span class="v">Хосомаки</span></div>
       <div class="cell"><span class="k">Профили</span><span class="v">по формуле кода</span></div>
-      <div class="cell"><span class="k">Ревизия</span><span class="v">31.08.2026</span></div>
+      <div class="cell"><span class="k">Ревизия</span><span class="v">01.09.2026</span></div>
     </div>
     <div class="legend" id="legend"></div>
   </section>
@@ -279,7 +286,7 @@
     <div class="sheet-head">
       <span class="fig-no">Ф-1</span>
       <h2>Нарезка задаёт форму</h2><span class="wip">ЗАГОТОВКА</span>
-      <span class="sub">один продукт — три ножа</span>
+      <span class="sub">один продукт — пять приёмов справочника</span>
     </div>
     <div class="plate"><svg id="figCut" viewBox="0 0 1000 330" role="img" aria-label="Нарезка задаёт форму"></svg></div>
     <div class="note">
@@ -341,13 +348,14 @@
   <section class="sheet">
     <div class="sheet-head">
       <span class="fig-no">Ф-3</span>
-      <h2>Восемь классов нарезки — шесть описаны телом</h2>
+      <h2>Классы нарезки: что каталог различает и что описано телом</h2>
       <span class="sub">что каталог уже различает</span>
     </div>
-    <div class="plate"><svg id="figClasses" viewBox="0 0 1000 360" role="img" aria-label="Восемь классов нарезки — шесть описаны телом"></svg></div>
+    <div class="plate"><svg id="figClasses" viewBox="0 0 1000 360" role="img" aria-label="Классы нарезки: что каталог различает и что описано телом"></svg></div>
     <div class="note">
-      <p>В каталоге у каждой начинки записан класс нарезки, и их восемь. Телом описаны
-        <strong>шесть</strong>: брусок, кружок, ломтик, полукруг, сектор и полумесяц — у каждого
+      <p>В каталоге у каждой начинки записан класс нарезки. Телом описаны
+        <strong>семь</strong>: брусок, кружок, ломтик, полукруг, сектор, полумесяц и четверть
+        круга (いちょう切り, заведена 01.09) — у каждого
         своя формула сечения. Лист — это тот же брусок с очень малой толщиной.</p>
       <p><strong>Присыпка занимает место, но не бугрит рис</strong> — это две разные вещи,
         и их легко свалить в одну. Пометка <code>paint</code> верна: дэмбу размазывают
@@ -537,13 +545,18 @@
       <p>Скрутка — <strong>замена координат, а не новая геометрия</strong>. Точка листа
         <code>(u, v)</code> едет на спираль: u превращается в длину дуги от сердцевины,
         толщина листа — в радиальную глубину. v не участвует вовсе, он вдоль оси ролла.</p>
-      <p>Шаг витка = рис + обёртка. У хосомаки это <code>1,4 + 0,02 = 1,42 ед.</code> (7,1 мм):
+      <p>Шаг витка = <b>уплотнённый</b> рис + обёртка. У хосомаки это
+        <code>1,4 / 1,19 + 0,02 = 1,20 ед.</code> (6,0 мм): рис в ролле тоньше, чем на постели,
+        потому что циновка выжимает воздух между зёрнами (#129). До 01.09 здесь стояло 1,42 —
+        шаг ненабитого слоя:
         нори тоньше риса в семьдесят раз и на шаг почти не влияет — но именно она задаёт
         тёмную линию, по которой на срезе видно витки.</p>
       <p class="mono" style="color:var(--ink-3);background:none;padding:0;">схема не в масштабе ·
-        замер модели 31.08: 1,15 витка, ⌀ 29,1 мм (хосомаки в нори, пустой лист)</p>
+        замер модели 01.09: 1,18 витка, ⌀ 35,5 мм (хосомаки в нори, пустой лист)</p>
       <p class="tiny" style="opacity:.7">Эталон в <code>play/checks.js</code> даёт те же
-        29,1 мм и 1,15 витка; у всех баз обороты лежат в 1,09–1,15.</p>
+        35,5 мм и 1,18 витка; у всех баз обороты лежат в 1,13–1,19. Диаметры выросли за
+        01.09 дважды: ядром ролла стали начинки, а не подвёрнутый рис (#98), и порог витков
+        вернулся к 1,15 ради того, чтобы нори не уходила внутрь риса (#129).</p>
     
     </div>
   </section>
@@ -949,12 +962,14 @@
         <thead><tr><th>Величина</th><th>Модель</th><th>Источник</th><th>Сходится</th></tr></thead>
         <tbody>
           <tr><td>нори по обхвату</td><td class="mono">210 мм</td><td class="mono">200–210 мм</td><td>✓</td></tr>
-          <tr><td>нахлёст</td><td class="mono">28 мм</td><td class="mono">20–30 мм</td><td>✓</td></tr>
-          <tr><td>доля начинки в срезе</td><td class="mono">24,1 %</td><td class="mono">23–29 %</td><td>✓</td></tr>
-          <tr><td>доля риса</td><td class="mono">72,8 %</td><td class="mono">71–77 %</td><td>✓</td></tr>
-          <tr><td>√доли начинки</td><td class="mono">0,491 R</td><td class="mono">0,48–0,54 R</td><td>✓</td></tr>
-          <tr><td>некруглость среза</td><td class="mono">0,035</td><td class="mono">0,195–0,270</td><td>✗ #19</td></tr>
-          <tr><td>где лежит начинка</td><td class="mono">кольцо 0,50…0,99 R</td><td class="mono">диск, медиана 0,48 R</td><td>✗ #98</td></tr>
+          <tr><td>доля начинки в срезе</td><td class="mono">27,5 %</td><td class="mono">23–29 %</td><td>✓</td></tr>
+          <tr><td>√доли начинки</td><td class="mono">0,525 R</td><td class="mono">0,48–0,54 R</td><td>✓</td></tr>
+          <tr><td>где лежит начинка</td><td class="mono">диск 0,06…0,51 R</td><td class="mono">диск, медиана 0,48 R</td><td>✓ #98</td></tr>
+          <tr><td>нори между слоями риса</td><td class="mono">0,014</td><td class="mono">0</td><td>✓ #130</td></tr>
+          <tr><td>хосомаки ⌀</td><td class="mono">34,4 мм</td><td class="mono">26–34 мм</td><td>почти, #129</td></tr>
+          <tr><td>нахлёст нори</td><td class="mono">−2,7 мм</td><td class="mono">3–60 мм</td><td>✗ <b>#132</b></td></tr>
+          <tr><td>некруглость среза</td><td class="mono">0,011</td><td class="mono">0,195–0,270</td><td>✗ #19</td></tr>
+          <tr><td>центрированность</td><td class="mono">1,62</td><td class="mono">0,85–1,35</td><td>✗ #129</td></tr>
         </tbody>
       </table>
     </div>
@@ -978,6 +993,10 @@
         один и тот же ролл. Сначала сюда записали «модель толще на 17–30 %» — вывод был неверен
         ровно из-за этой подмены. Сравнивается то, что от формы не зависит — длина нори, — а
         форма меряется отдельно, некруглостью, и вот там расхождение настоящее.</p>
+      <p>⚠ <strong>Строка «нахлёст нори» — не расхождение, а невозможность.</strong> Обхват
+        ролла π·67,7 = 212,7 мм при листе 210: нори физически не хватает его обернуть.
+        Найдено веером 01.09, проверено арифметикой. Разбор и модель, которая это чинит
+        (рис одним кольцом, а не спиралью), — issue #132.</p>
       <p><strong>Всё это меряется командой,</strong> а не глазами:
         <span class="mono">node tools/measure-slice.js</span>. До 01.09 любое число модели можно
         было увидеть только открыв <span class="mono">?check</span> и посмотрев — то есть
@@ -1013,13 +1032,26 @@
 // Сверка по датам коммитов не работала: оба файла правились одним днём, сторож печатал
 // «вровень», а в документе ядра лежала формула двух поколений назад — с флагами round/lens, без
 // сектора и полукруга, и все чертежи документа рисовались по ней.
-// Радиус фаски. ⚑ Игровая условность: ни числа, ни самого приёма в источниках нет — см.
-// разбор выше. Ограничитель H·0,25 работает чаще самого ARRIS.
+// Радиус фаски. ⚑ ОБНУЛЁН 01.09.2026 ПО СПРАВОЧНИКУ (issue #125).
+//
+// Вопрос владельца, глядя на схему: «разве углы бруска сглажены?» Ответ по источникам —
+// НЕТ. Справочник приёмов нарезки разобран целиком (docs/ingredients.md, раздел 6-бис):
+// двадцать три способа, и ни в одном не сказано, что ребро выходит скруглённым — везде
+// описан прямой ход ножа.
+//
+// Наблюдение, из которого фаска выросла («у маки края не бывают острыми», geometry-audit),
+// верное, но относится к ГОТОВОМУ РОЛЛУ, где начинку обжимает рис, а не к куску ДО скрутки,
+// куда её приложили. Скругление, если оно нужно, должно появляться в намотке — это путь 3
+// из #125, и он остаётся открытым.
+//
+// Что фаска делала: радиус 2,25 мм на тамаго 12×10 мм и минус 3,6 % площади куска.
+// Ноль оставлен ЧИСЛОМ, а не удалением формулы: ограничители и brickTop работают как были,
+// а вернуть скругление — правка одного числа, если решение переменится.
 // ⚠ ARRIS ВНУТРИ БЛОКА, И ЭТО ПРАВКА 31.08. Он стоял снаружи — а от него зависит brickTop,
 // который внутри. То есть сторож сверял формулу, но не число, которым она пользуется:
 // разойдись ARRIS между игрой и документом ядра, сторож печатал бы «вровень». Всё, от чего зависит
 // форма, обязано лежать между маркерами.
-const ARRIS = 0.45;
+const ARRIS = 0;
 
 // ── ФОРМА СЕЧЕНИЯ: ТАБЛИЦА ПРОФИЛЕЙ, А НЕ НАБОР ФЛАГОВ (issue #10) ───────────
 // Раньше форму выбирали булевы флаги round / lens / flatBottom, и каждая новая форма требовала
@@ -1394,7 +1426,7 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
   //   TURNS   ← play/checks.js REF.hoso.turns
   //   R_ROLL  ← play/checks.js REF.hoso.d / 2 / U_MM
   //   AMBIENT ← play/model/geometry.js
-  const R0 = 0.25, PITCH = 1.42;
+  const R0 = 0.25, PITCH = 1.20;
   const TURNS = 1.18;
   const R_ROLL = 3.44;
   const AMBIENT = 0.62;
@@ -1473,7 +1505,7 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
     const rA = (R0 + PITCH * phiD / (Math.PI * 2)) * S;
     const rB = (R0 + PITCH * (phiD + Math.PI * 2) / (Math.PI * 2)) * S;
     dim(g, cx - 5, cy + rA, cx - 5, cy + rB, '', { stroke: C('--hot') });
-    g.appendChild(text(cx - 15, cy + (rA + rB) / 2 + 4, 'шаг витка 1,42 ед.',
+    g.appendChild(text(cx - 15, cy + (rA + rB) / 2 + 4, 'шаг витка 1,20 ед.',
       { anchor: 'end', size: 11.5, fill: C('--hot'), weight: 600 }));
     leader(g, cx - R0 * S * 0.7, cy - R0 * S * 0.7, cx - 118, cy - 96,
       'сердцевина R₀ = 0,25 ед.', { dir: 'left', fill: C('--ink-2') });
@@ -1546,7 +1578,7 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
       { stroke: C('--ink'), w: 2 }));
     g.appendChild(text(cx, cy - rMax - 44, 'НОЖ ПОПЕРЁК ОСИ v', { anchor: 'middle', size: 11.5,
       weight: 600, ls: '0.12em', fill: C('--ink') }));
-    dim(g, cx - rMax, cy + rMax + 34, cx + rMax, cy + rMax + 34, '⌀ 29,1 мм — замер модели', { ly: 16 });
+    dim(g, cx - rMax, cy + rMax + 34, cx + rMax, cy + rMax + 34, '⌀ 35,5 мм — замер модели', { ly: 16 });
     leader(g, cx + rNori * 0.71, cy - rNori * 0.71, cx + 150, cy - 138,
       'последний виток нори · 1,15 витка', { fill: C('--ink-2') });
   }
@@ -1655,44 +1687,59 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
     g.appendChild(el('path', { d: toPath(cuc) + ' Z', fill: '#79b55c' }));
     g.appendChild(text(x0, 44, 'ОДИН ПРОДУКТ', { size: 11.5, weight: 600, ls: '0.12em', fill: C('--ink') }));
 
-    // три направления ножа
-    const cuts = [
-      { t: 0.26, ang: 0,          name: 'поперёк',      res: 'кружок' },
-      { t: 0.54, ang: Math.PI / 2, name: 'вдоль',        res: 'брусок' },
-      { t: 0.80, ang: 0.62,       name: 'по косой',     res: 'ломтик' },
+    // ⚠ ФИГУРА СТРОИТСЯ ИЗ СПРАВОЧНИКА, А НЕ ИЗ ГОЛОВЫ — правка 01.09.2026.
+    //
+    // Здесь стояло «поперёк → кружок · вдоль → брусок · по косой → ломтик», и средний случай
+    // был ложью: рез вдоль огурца даёт ПОЛОВИНКУ, а не прямоугольник со скруглёнными углами.
+    // Брусок 拍子木切り требует двух резов — пластина, потом полосы. Владелец спросила про это
+    // дважды, второй раз словами «каким образом ты нарежешь их ножом».
+    //
+    // Источник теперь тот же, что у всей нарезки: справочник приёмов ハウス食品, разобранный
+    // в docs/ingredients.md (раздел 6-бис, таблица «что даёт какое сечение»). Оттуда взяты и
+    // японские имена, и число резов — потому что именно число резов и было тем, что фигура
+    // молча искажала.
+    const приёмы = [
+      { jp: '輪切り',     ru: 'круг',      резов: 1, cut: 'кружок',   wU: 1.6, hU: 1.6 },
+      { jp: '斜め切り',   ru: 'эллипс',    резов: 1, cut: 'ломтик',   wU: 2.4, hU: 1.1 },
+      { jp: '半月切り',   ru: 'полукруг',  резов: 2, cut: 'полукруг', wU: 2.0, hU: 1.0 },
+      { jp: 'いちょう切り', ru: 'четверть',  резов: 3, cut: 'четверть', wU: 1.4, hU: 1.4 },
+      { jp: '拍子木切り', ru: 'брусок',    резов: 2, cut: 'брусок',   wU: 1.4, hU: 1.4 },
     ];
-    cuts.forEach((c, i) => {
+    // Слева показываем только те два реза, что делаются ОДНИМ движением по целому продукту.
+    const cuts = [
+      { t: 0.30, ang: 0,    name: '輪切り · поперёк' },
+      { t: 0.72, ang: 0.62, name: '斜め切り · по косой' },
+    ];
+    cuts.forEach((c) => {
       const x = x0 + L * c.t;
       const dx = Math.sin(c.ang) * 54, dy = Math.cos(c.ang) * 54;
       g.appendChild(line(x - dx, cy - dy, x + dx, cy + dy,
         { stroke: C('--hot'), w: 1.6, dash: '6 4' }));
-      g.appendChild(text(x, cy + 74 + (i === 1 ? 16 : 0), c.name,
-        { anchor: 'middle', size: 11, fill: C('--hot'), weight: 600 }));
+      g.appendChild(text(x, cy + 74, c.name,
+        { anchor: 'middle', size: 10.5, fill: C('--hot'), weight: 600 }));
     });
 
-    // три сечения справа
-    const kinds = [
-      { d: { wU: 1.6, hU: 1.6, round: true }, label: 'кружок' },
-      { d: { wU: 1.4, hU: 1.6 },              label: 'брусок' },
-      { d: { wU: 2.4, hU: 1.1, lens: true },  label: 'ломтик' },
-    ];
-    kinds.forEach((k, i) => {
-      const cx = 520 + i * 160, S = 46;
-      g.appendChild(el('path', { d: profilePath(k.d, cx, cy, S, S, 'full'), fill: '#79b55c' }));
-      g.appendChild(el('path', { d: profilePath(k.d, cx, cy, S, S, 'top'), fill: 'none',
+    приёмы.forEach((k, i) => {
+      const cx = 470 + i * 108, S = 34;
+      g.appendChild(el('path', { d: profilePath(k, cx, cy, S, S, 'full'), fill: '#79b55c' }));
+      g.appendChild(el('path', { d: profilePath(k, cx, cy, S, S, 'top'), fill: 'none',
         stroke: C('--hot'), 'stroke-width': 2 }));
-      g.appendChild(el('path', { d: profilePath(k.d, cx, cy, S, S, 'low'), fill: 'none',
+      g.appendChild(el('path', { d: profilePath(k, cx, cy, S, S, 'low'), fill: 'none',
         stroke: C('--cold'), 'stroke-width': 2 }));
-      g.appendChild(text(cx, cy + 76, k.label, { anchor: 'middle', size: 12, weight: 600,
+      g.appendChild(text(cx, cy + 62, k.jp, { anchor: 'middle', size: 10.5, fill: C('--ink') }));
+      g.appendChild(text(cx, cy + 78, k.ru, { anchor: 'middle', size: 11, weight: 600,
         fill: C('--ink'), mono: false }));
+      g.appendChild(text(cx, cy + 94, k.резов + (k.резов === 1 ? ' рез' : ' реза'),
+        { anchor: 'middle', size: 10, fill: k.резов === 1 ? C('--hot') : C('--ink-3') }));
     });
-    g.appendChild(text(680, 44, 'ТРИ РАЗНЫХ СЕЧЕНИЯ', { anchor: 'middle', size: 11.5,
+    g.appendChild(text(690, 44, 'ПЯТЬ ПРИЁМОВ ИЗ СПРАВОЧНИКА', { anchor: 'middle', size: 11.5,
       weight: 600, ls: '0.12em', fill: C('--ink') }));
-    g.appendChild(line(400, cy, 448, cy, { stroke: C('--ink'), w: 1.2 }));
-    g.appendChild(line(448, cy, 440, cy - 5, { stroke: C('--ink'), w: 1.2 }));
-    g.appendChild(line(448, cy, 440, cy + 5, { stroke: C('--ink'), w: 1.2 }));
-    g.appendChild(text(500, 300, 'форма — следствие нарезки, а не свойство продукта',
-      { anchor: 'middle', size: 12, fill: C('--ink-2') }));
+    g.appendChild(line(390, cy, 428, cy, { stroke: C('--ink'), w: 1.2 }));
+    g.appendChild(line(428, cy, 420, cy - 5, { stroke: C('--ink'), w: 1.2 }));
+    g.appendChild(line(428, cy, 420, cy + 5, { stroke: C('--ink'), w: 1.2 }));
+    g.appendChild(text(500, 300, 'форма — следствие нарезки, а не свойство продукта; ' +
+      'одним резом получаются только круг и эллипс',
+      { anchor: 'middle', size: 11.5, fill: C('--ink-2') }));
   }
 
   // ── классы нарезки: что каталог различает и что из этого описано телом ───
@@ -2066,6 +2113,30 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
     document.getElementById('legend').textContent = '';
     drawLegend(); drawFig1(); drawFig2(); drawFig3(); drawFig4(); drawFig5(); drawFig6(); drawFig7();
     drawFigCut(); drawFigClasses(); drawFigSide(); drawFigHands(); drawFigWrap(); drawFigStiff(); drawFigPair();
+    выровнятьПоля();
+  }
+
+  // ⚑ ПОЛЯ ФИГУР ВЫРАВНИВАЮТСЯ ПОСЛЕ ОТРИСОВКИ (01.09). Владелец: «Ф-9 шире, чем всё
+  // остальное выше». Замер по bbox подтвердил: содержимое занимало от 619 до 1047 единиц
+  // из 1000, а левый край гулял от −50 до 190 — каждая фигура рисовалась «как получилось».
+  // Две (Ф-2 и Ф-10) вылезали за viewBox и обрезались по краю.
+  //
+  // Содержимое ЦЕНТРИРУЕТСЯ, но НЕ масштабируется, и это выбор: подписи заданы в единицах
+  // viewBox, поэтому подгонка ширины растянула бы шрифт узких фигур в полтора раза, и они
+  // стали бы кричать громче остальных. Центрирование убирает скачки края, оставляя всем
+  // общий масштаб.
+  function выровнятьПоля() {
+    for (const s of document.querySelectorAll('.plate svg')) {
+      const vb = (s.getAttribute('viewBox') || '').trim().split(/\s+/).map(Number);
+      if (vb.length !== 4 || !isFinite(vb[2])) continue;
+      let b; try { b = s.getBBox(); } catch { continue; }
+      if (!b.width || b.width > vb[2]) {           // шире поля — только сдвигаем внутрь
+        if (b.x < vb[0]) s.setAttribute('viewBox', `${b.x - 8} ${vb[1]} ${vb[2]} ${vb[3]}`);
+        continue;
+      }
+      const x = b.x - (vb[2] - b.width) / 2;       // равные поля слева и справа
+      s.setAttribute('viewBox', `${x.toFixed(1)} ${vb[1]} ${vb[2]} ${vb[3]}`);
+    }
   }
 
   drawAll();
