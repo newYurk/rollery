@@ -62,8 +62,16 @@ const BASES = {
   hoso: { name: 'Хосомаки', emoji: '🍣', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
     T: 1.4, w: 0.02, sheetCm: 10.5, pieces: 6, spreadEnd: 0.88, kappa: 0.85, beta: 0.55, tuck: true, pack: 1.19, tuckMin: 3, Wv: 38,
     ingredients: ['cucumber', 'salmon', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
+  // ⚑ ТОЛЩИНА ПОСТЕЛИ ОТ ВЕСА, А НЕ ОТ ПАСПОРТА МАШИНЫ (01.09, #131).
+  //
+  // Стояло T = 2,4 ед. (12 мм) — размер рисового пласта SUZUMO. Наша постель при нём несла
+  // 306 г риса, тогда как рецепты называют 200: 白ごはん.com 「太巻き1本に対しては約200ｇくらい
+  // が目安」. Решение владельца: ориентир — повара, не машины.
+  //
+  // 200 г при плотности шари 0,758 г/см³ на постели 176,8 × 190 мм дают 7,85 мм → 1,57 ед.
+  // Проверить обратно можно инструментом: node tools/variants.js.
   futo: { name: 'Футомаки', emoji: '🍥', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
-    T: 2.4, w: 0.02, sheetCm: 21, pieces: 8, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, pack: 1.19, tuckMin: 6, Wv: 38,
+    T: 1.57, w: 0.02, sheetCm: 21, pieces: 8, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, pack: 1.19, tuckMin: 6, Wv: 38,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   // УРАМАКИ — третий несладкий тип. ⚠ ЕГО ГЛАВНОЕ СВОЙСТВО ПОКА НЕ СМОДЕЛИРОВАНО:
   // у урамаки нори ВНУТРИ, а рис СНАРУЖИ, то есть обёртка не внешний слой намотки.
