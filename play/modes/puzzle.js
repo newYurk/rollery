@@ -59,16 +59,13 @@ function genTarget(lv, seed) {
   const list = items.map((it, i) => { const d = ING[it.kind]; const p = { kind: it.kind, u: clamp(us[i], it.half, 1 - it.half), v: 0.5, z0: 0, z1: 0, phase: rnd() * TAU }; if (d.dv < 1) p.v = d.dv / 2 + rnd() * (1 - d.dv); return p; });
   if (lv.rot) for (let r = 0, n0 = 0; r < list.length && n0 < lv.rot; r++) { const p = list[r]; if (ING[p.kind].wave || isLong(p.kind)) continue; p.rot = rnd() < 0.5 ? Math.PI / 4 : Math.PI / 2; p.dv = 0.22; p.v = 0.25 + rnd() * 0.5; n0++; }
   for (let w = 0; w < (lv.wrap || 0); w++) {
-    // ⚠ ГЕНЕРАЦИЯ ОБЁРНУТЫХ КУСКОВ ОСТАНОВЛЕНА 31.08.2026 (#115). Обёртывание собрано из
-    // четырёх несходящихся плашек (разбор — play/index.html над wrapInNoriList), и цель,
-    // построенная на нём, требует от игрока повторить то, что модель считает неверно.
-    // Строчки оставлены, а не удалены: вернуть их — одна правка, когда механика будет расписана.
-    break;
-    // eslint-disable-next-line no-unreachable
+    // Генерация обёрнутых кусков остановлена 31.08 и ВОЗВРАЩЕНА 01.09 (#115): обёртка перестала
+    // быть четырьмя несходящимися плашками и стала свойством самого куска, так что цель больше
+    // не требует от игрока повторить то, что модель считает неверно.
     const cands = list.filter(p => p.kind !== 'nori' && !isLong(p.kind) && !p.wrapped); if (!cands.length) break;
-    const F = cands[Math.floor(rnd() * cands.length)]; F.wrapped = true; wrapInNoriList(F, list, rnd);
+    const F = cands[Math.floor(rnd() * cands.length)]; F.wrapped = true; wrapInNoriList(F, list);
   }
-  for (const p of list) delete p.wrapped;
+  for (const p of list) delete p.wrapped;   // временная метка генератора; noriWrap остаётся — он и есть обёртка
   return list;
 }
 function puzzleStart(level, seed) {

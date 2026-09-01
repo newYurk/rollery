@@ -27,7 +27,16 @@ function sheetLen(b) { if (!S.turns) return b.L; const P0 = b.T + b.w, th = TAU 
 // (замерено: 8 % пикселей карты уезжало). Поэтому всё, что зависит от базы, проходит через g;
 // g === undefined — старое поведение «по текущей базе», чтобы не ломать вызовы из UI.
 function gL(g) { return g ? g.L : sheetLen(B()); }
-function dims(p, g) { const d = ING[p.kind], T = g ? g.T : B().T; return { du: (p.wU ?? d.wU) / gL(g), dv: p.dv ?? d.dv, h: (p.hU ?? d.hU) / T }; }
+// ⚑ ОБЁРНУТЫЙ КУСОК — ОДНО ТЕЛО С ОБОЛОЧКОЙ (issue #115, решение владельца 01.09: «одно тело»).
+// Габарит растёт на толщину нори с каждой стороны; сама оболочка рисуется в matAt по тому же
+// профилю, что и кусок, поэтому круглая креветка оборачивается кругло, а полумесяц — полумесяцем.
+// Прежде обёртка собиралась из ЧЕТЫРЁХ отдельных плашек (две плоские и две торцевые), они не
+// сходились по углам, и рис затекал в щели.
+const WRAP_HU = () => ING.nori.hU;
+function dims(p, g) {
+  const d = ING[p.kind], T = g ? g.T : B().T, ob = p.noriWrap ? 2 * WRAP_HU() : 0;
+  return { du: ((p.wU ?? d.wU) + ob) / gL(g), dv: p.dv ?? d.dv, h: ((p.hU ?? d.hU) + ob) / T };
+}
 // Патч может лежать под углом rot к оси ролла: 0 — вдоль, 90° — поперёк, 45° — по диагонали.
 // Тогда в каждом ломтике он оказывается на другом месте листа — рисунок меняется от кусочка к кусочку.
 function bounds(p, g) {
@@ -45,7 +54,10 @@ function bounds(p, g) {
 // Возвращённый массив ОБЩИЙ для всех вызывающих — его нельзя менять (никто и не менял: все только читают).
 const SR_MAX = 64;   // ломтиков на модель — второй десяток; больше — значит v идёт непрерывно, и кэш пора сбросить
 function srReset(p, g) {
-  const c = { g, kind: p.kind, u: p.u, v: p.v, rot: p.rot, wU: p.wU, dv: p.dv, phase: p.phase, m: new Map() };
+  // noriWrap В КЛЮЧЕ: он меняет ГАБАРИТ (см. dims), а кэш отрезков габаритом и живёт.
+  // Без него включение обёртки не сбрасывало бы кэш, и кусок остался бы прежнего размера.
+  const c = { g, kind: p.kind, u: p.u, v: p.v, rot: p.rot, wU: p.wU, dv: p.dv, phase: p.phase,
+              noriWrap: !!p.noriWrap, m: new Map() };
   // не перечислимое: патч уходит и в JSON.parse(JSON.stringify(...)) при клонировании модели, и в localStorage
   if (Object.prototype.hasOwnProperty.call(p, '_sr')) p._sr = c;
   else Object.defineProperty(p, '_sr', { value: c, writable: true, configurable: true, enumerable: false });
@@ -54,7 +66,7 @@ function srReset(p, g) {
 function patchSRange(p, v, g) {
   if (g === undefined) return srCompute(p, v, g);   // без паспорта размеры берутся из текущей базы и могут уехать — не кэшируем
   let c = p._sr;
-  if (c === undefined || c.g !== g || c.kind !== p.kind || c.u !== p.u || c.v !== p.v || c.rot !== p.rot || c.wU !== p.wU || c.dv !== p.dv || c.phase !== p.phase) c = srReset(p, g);
+  if (c === undefined || c.g !== g || c.kind !== p.kind || c.u !== p.u || c.v !== p.v || c.rot !== p.rot || c.wU !== p.wU || c.dv !== p.dv || c.phase !== p.phase || c.noriWrap !== !!p.noriWrap) c = srReset(p, g);
   let r = c.m.get(v);
   if (r === undefined) { r = srCompute(p, v, g); if (c.m.size >= SR_MAX) c.m.clear(); c.m.set(v, r); }
   return r;
@@ -135,7 +147,24 @@ function matAt(u, v, z, list, g) {
     const du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
     const lu = across / rg[3];
     const lz = d.paint ? 0.5 : (z - p.z0) / (p.z1 - p.z0);
-    if (!d.paint) { const sp = cutSpan(d, lu); if (lz < sp[0] || lz > sp[1]) continue; }
+    if (!d.paint) {
+      // ОБОЛОЧКА ОБЁРНУТОГО КУСКА (issue #115). Габарит уже увеличен на 2·hN (см. dims), поэтому
+      // lu и lz идут по ВНЕШНЕМУ контуру. Пересчитываем их во внутренний: попал — это сам кусок,
+      // не попал — значит между контурами, и там нори. Профиль один и тот же, оттого оболочка
+      // повторяет форму куска и сходится по углам сама, без торцевых плашек.
+      if (p.noriWrap) {
+        const hN = WRAP_HU(), w0 = (p.wU ?? d.wU), h0 = (p.hU ?? d.hU);
+        const kw = (w0 + 2 * hN) / w0, kh = (h0 + 2 * hN) / h0;
+        const luIn = lu * kw, lzIn = (lz - hN / (h0 + 2 * hN)) * kh;
+        const внутри = Math.abs(luIn) <= 0.5 && lzIn >= 0 && lzIn <= 1 &&
+                       (() => { const sp = cutSpan(d, luIn); return lzIn >= sp[0] && lzIn <= sp[1]; })();
+        const spOut = cutSpan(d, lu);
+        if (lz < spOut[0] || lz > spOut[1]) continue;          // вне внешнего контура — мимо куска
+        if (!внутри) return { p, d: ING.nori, lu, lz, lv: along / rg[4], оболочка: true };
+        return { p, d, lu: luIn, lz: lzIn, lv: along / rg[4] };
+      }
+      const sp = cutSpan(d, lu); if (lz < sp[0] || lz > sp[1]) continue;
+    }
     return { p, d, lu, lz, lv: along / rg[4] };
   }
   return null;
@@ -1063,7 +1092,21 @@ function coreMaterial(m, r, phi, vSlice) {
     const sU = it.far ? half + x : half - x, du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
     let lu = across / rg[3], lz = (y - it.y0) / (it.y1 - it.y0);
     if (!it.far) { lz = 1 - lz; }
-    if (!it.paint) { const sp = cutSpan(it.d, lu); if (lz < sp[0] || lz > sp[1]) continue; }
+    if (!it.paint) {
+      const sp = cutSpan(it.d, lu); if (lz < sp[0] || lz > sp[1]) continue;
+      // ОБОЛОЧКА ОБЁРНУТОГО КУСКА В ЯДРЕ (issue #115). Та же логика, что в matAt: габарит
+      // увеличен на 2·hN, поэтому пересчитываем координаты во внутренний контур. Отдельная
+      // ветка нужна потому, что куски внутри петли рисует ЭТА функция, а не matAt, — и без
+      // неё обёрнутая креветка в ядре выглядела ровно как необёрнутая.
+      if (it.p.noriWrap) {
+        const hN = WRAP_HU(), w0 = (it.p.wU ?? it.d.wU), h0 = (it.p.hU ?? it.d.hU);
+        const luIn = lu * (w0 + 2 * hN) / w0, lzIn = (lz - hN / (h0 + 2 * hN)) * (h0 + 2 * hN) / h0;
+        const внутри = Math.abs(luIn) <= 0.5 && lzIn >= 0 && lzIn <= 1 &&
+                       (() => { const q = cutSpan(it.d, luIn); return lzIn >= q[0] && lzIn <= q[1]; })();
+        if (!внутри) return { cls: 'patch', mt: { p: it.p, d: ING.nori, lu, lz, lv: along / rg[4], оболочка: true } };
+        return { cls: 'patch', mt: { p: it.p, d: it.d, lu: luIn, lz: lzIn, lv: along / rg[4] } };
+      }
+    }
     return { cls: 'patch', mt: { p: it.p, d: it.d, lu, lz, lv: along / rg[4] } };
   }
   // ПУСТОТА БЛИЖНЕГО КЛАПАНА (issue #95). У подвёрнутой половины постели рис есть не везде:

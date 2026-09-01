@@ -21,27 +21,27 @@
 <!-- Кеш браузера дважды за вечер подсовывал старую копию правленого файла, и это выглядело
      как «код не работает»: функция есть в файле, но её нет в странице. Метка версии в адресе
      снимает вопрос — меняется вместе с правкой. CACHE_BUST -->
-<script src="model/util.js?v=123"></script>
-<script src="model/catalog.js?v=123"></script>
-<script src="state.js?v=123"></script>
-<script src="model/geometry.js?v=123"></script>
+<script src="model/util.js?v=124"></script>
+<script src="model/catalog.js?v=124"></script>
+<script src="state.js?v=124"></script>
+<script src="model/geometry.js?v=124"></script>
 <!-- Канон поваров как ДАННЫЕ (не проза): одна таблица правил на двух потребителей —
      сторож ?check и будущие уровни пазла (#112). Нужен ING из каталога, модель не нужна. -->
-<script src="model/canon.js?v=123"></script>
+<script src="model/canon.js?v=124"></script>
 <!-- Тонкий compatibility facade над геометрией (issue #72). Подключён здесь, ПОСЛЕ модели и
      ДО рендера: сам он объявляет только функции, а обращения к shapeInfo/shapeK (render/slice.js)
      и W/H/DPR/L/layout (ui/layout.js) происходят при ВЫЗОВЕ, когда всё уже загружено. То есть
      домен сегодня зависит от рендера — это временно и названо в шапке roll.js. -->
-<script src="domain/roll.js?v=123"></script>
-<script src="audio.js?v=123"></script>
-<script src="ui/layout.js?v=123"></script>
-<script src="render/slice.js?v=123"></script>
-<script src="render/sheet.js?v=123"></script>
-<script src="ui/controls.js?v=123"></script>
-<script src="render/screens.js?v=123"></script>
-<script src="ui/album.js?v=123"></script>
-<script src="modes/puzzle.js?v=123"></script>
-<script src="ui/actions.js?v=123"></script>
+<script src="domain/roll.js?v=124"></script>
+<script src="audio.js?v=124"></script>
+<script src="ui/layout.js?v=124"></script>
+<script src="render/slice.js?v=124"></script>
+<script src="render/sheet.js?v=124"></script>
+<script src="ui/controls.js?v=124"></script>
+<script src="render/screens.js?v=124"></script>
+<script src="ui/album.js?v=124"></script>
+<script src="modes/puzzle.js?v=124"></script>
+<script src="ui/actions.js?v=124"></script>
 <script>
 'use strict';
 // =====================================================================
@@ -139,15 +139,21 @@ function placeAt(u, v) {
 // До тех пор действие оставлено в интерфейсе под честной подписью «Кусок в нори», но из
 // генератора целей пазла убрано: строить задание на примитиве, который считается неверно,
 // значит закладывать ошибку в то, что игрок обязан повторить.
-function wrapInNoriList(F, list, rnd = Math.random) {
-  const i = list.indexOf(F); if (i < 0) return;
-  const m = dims(F), b = B(), L = sheetLen(b), dF = ING[F.kind], wF = F.wU ?? dF.wU, hF = F.hU ?? dF.hU, hN = ING.nori.hU, capW = 0.3;
-  const rot = F.rot || 0, cs = Math.cos(rot), sn = Math.sin(rot);
-  const mk = (u, v, wU, hU) => { const q = { kind: 'nori', u, v, wU, dv: m.dv, hU, z0: 0, z1: 0, phase: rnd() * TAU }; if (rot) q.rot = rot; return q; };
-  list.splice(i, 0, mk(F.u, F.v, wF, hN));            // под начинкой (раньше в стопке — ниже)
-  list.splice(i + 2, 0, mk(F.u, F.v, wF, hN));        // над начинкой
-  const off = (wF + capW) / 2;                          // торцы — вдоль поперечной оси патча
-  list.push(mk(F.u - off * cs / L, F.v - off * sn / b.Wv, capW, hF + 2 * hN), mk(F.u + off * cs / L, F.v + off * sn / b.Wv, capW, hF + 2 * hN));
+// ОБЁРТКА КУСКА — ОДИН ФЛАГ, А НЕ ЧЕТЫРЕ ПЛАШКИ (issue #115, решение владельца 01.09).
+//
+// Здесь собиралась обёртка из четырёх независимых патчей: один под куском, один над и два
+// торцевых фиксированной ширины 0,3. Отсюда шло всё, что было видно: по углам плашки не
+// сходились и рис затекал в щели; профиль куска не спрашивался вовсе, так что круглая
+// креветка оборачивалась как прямоугольник; а модель видела не обёрнутый кусок, а начинку и
+// рядом четыре отдельных тела — поэтому канон, площадь ядра и сравнение в пазле считали их
+// порознь. Механика вдобавок жила в файле связывания, а не в модели.
+//
+// Теперь обёртка — свойство самого куска. Габарит растёт на толщину нори (dims), оболочка
+// рисуется по ТОМУ ЖЕ профилю (matAt), поэтому сходится по углам по построению и повторяет
+// форму: полукруг оборачивается полукругом.
+function wrapInNoriList(F, list) {
+  if (list.indexOf(F) < 0) return;
+  F.noriWrap = true;
 }
 function wrapInNori(F) { wrapInNoriList(F, patches()); S.selPatch = null; touchModel(); sfx.place(); }
 
