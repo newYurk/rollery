@@ -2180,8 +2180,13 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
       const vb = (s.getAttribute('viewBox') || '').trim().split(/\s+/).map(Number);
       if (vb.length !== 4 || !isFinite(vb[2])) continue;
       let b; try { b = s.getBBox(); } catch { continue; }
-      if (!b.width || b.width > vb[2]) {           // шире поля — только сдвигаем внутрь
-        if (b.x < vb[0]) s.setAttribute('viewBox', `${b.x - 8} ${vb[1]} ${vb[2]} ${vb[3]}`);
+      if (!b.width || b.width > vb[2]) {
+        // ⚠ ШИРЕ ПОЛЯ — РАСШИРЯЕМ ПОЛЕ, а не обрезаем содержимое. Прежде здесь стоял только
+        // сдвиг влево, и у Ф-2 (bbox 1047 при поле 1000) правая размерная подпись обрезалась
+        // на «hU = 1.» вместо «1.1». Растягиваем viewBox по содержимому: SVG масштабируется
+        // сам, поэтому фигура просто становится чуть мельче, зато целой.
+        const w = b.width + 16;
+        s.setAttribute('viewBox', `${(b.x - 8).toFixed(1)} ${vb[1]} ${w.toFixed(1)} ${vb[3]}`);
         continue;
       }
       const x = b.x - (vb[2] - b.width) / 2;       // равные поля слева и справа
