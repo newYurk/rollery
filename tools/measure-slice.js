@@ -63,14 +63,12 @@ const ФАЙЛЫ = ['model/util.js', 'model/catalog.js', 'state.js', 'model/geom
                'model/canon.js', 'domain/roll.js', 'render/slice.js', 'ui/layout.js'];
 
 const ЗАМЕР = `
-  const P = (kind, u, phase) => ({ kind, u, v: 0.5, z0: 0, z1: 0, phase });
   S.base = 'futo'; S.wrap = null; S.turns = null; S.shape = 'round';
   S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
   // Тот же набор, что у сторожа practice.js (наКаноне): пять начинок по правилу четверти.
   // Позиции по правилу четверти (手前板前): набор занимает 0,31 ширины постели. Прежние
   // 0,34…0,66 давали 0,50 — вдвое шире источника, и «канон» канону не следовал.
-  S.lists.futo = [P('tamago', 0.44, 0.7), P('kanpyo', 0.48, 1.9), P('cucumber', 0.52, 3.1),
-                  P('shiitake', 0.56, 4.4), P('denbu', 0.60, 5.6)];
+  S.lists.futo = canonLayout();   // одно определение — play/model/canon.js (#129)
   if (typeof touchModel === 'function') touchModel();
   if (typeof layout === 'function') layout();
   const мод = getModel(), ветер = windFor(мод, 0.5), Р = мод.Rmax;
