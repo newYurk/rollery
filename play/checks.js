@@ -43,10 +43,10 @@ const REF = {
   //
   // ⚠ hoso остаётся ЕДИНСТВЕННОЙ базой с опорой на реальность (замер рулеткой 27.08: ⌀25–30 мм),
   // и 32,7 выходит за верх того замера. Держать это в голове, ссылаясь на неё.
-  hoso:  { d: 35.4, dmax: 35.4, turns: 1.18, core: true },
+  hoso:  { d: 35.5, dmax: 35.5, turns: 1.19, core: true },
   futo:  { d: 69.6, dmax: 69.6, turns: 1.17, core: true },
-  ura:   { d: 38.6, dmax: 38.7, turns: 1.13, core: true },
-  fruit: { d: 69.1, dmax: 69.2, turns: 1.16, core: true },
+  ura:   { d: 38.7, dmax: 38.7, turns: 1.14, core: true },
+  fruit: { d: 69.1, dmax: 69.2, turns: 1.17, core: true },
 };
 const TOL_D = 0.6, TOL_T = 0.05;      // мм и обороты; TOL_D держим УЗКИМ намеренно — он ловит изменение, а не задаёт норму
 const TOL_LEVEL = 3;                  // средняя яркость риса: |Δ| ≤ 3 (см. docs/geometry-audit.md)
