@@ -260,7 +260,36 @@
        моноширинных имён полей — они не должны рваться, — но длинные фразы вроде «глубина
        нори (не ушла ли внутрь)» под это правило попадали заодно и уносили таблицу за край
        экрана. На узком экране перенос разрешён; обёртка .tbl-wrap остаётся страховкой. */
-    td:first-child { white-space: normal; }
+
+  }
+
+  /* ⚑ НА ТЕЛЕФОНЕ ТАБЛИЦА ПЕРЕСТАЁТ БЫТЬ ТАБЛИЦЕЙ (01.09).
+     Владелец: «зачем мне читать средний столбик, когда в первом одно слово, а место
+     занято огромное». Три колонки в 390 px нечитаемы: первая держит одно слово, вторая
+     сжата в колодец, третья уходит за край. Прокрутка (.tbl-wrap) это маскировала, а не
+     лечила — непрокрученная широкая таблица выглядит ровно как обрезанная.
+     Поэтому строка становится ЗАПИСЬЮ СЛОВАРЯ: первая ячейка — заголовок, остальные —
+     строки под ним во всю ширину. Разметка не меняется, только раскладка. */
+  @media (max-width: 700px) {
+    .tbl-wrap { overflow-x: visible; }
+    table, tbody, tr, td { display: block; width: auto; }
+    thead { position: absolute; left: -9999px; }   /* шапка не нужна: подписи вытекают из порядка */
+    tr {
+      border-top: 1px solid var(--rule, #333b39);
+      padding: 12px 0 10px;
+    }
+    tr:first-child { border-top: none; }
+    td { border: none; padding: 0 0 4px; }
+    td:first-child {
+      white-space: normal;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink, #dee3df);
+      padding-bottom: 6px;
+    }
+    td + td { padding-left: 0; font-size: 14px; }
+    td:last-child { color: var(--ink-2, #9aa49d); font-size: 13px; }
   }
 </style>
 
