@@ -60,8 +60,10 @@ const ЗАМЕР = `
   S.base = 'futo'; S.wrap = null; S.turns = null; S.shape = 'round';
   S.hand = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
   // Тот же набор, что у сторожа practice.js (наКаноне): пять начинок по правилу четверти.
-  S.lists.futo = [P('denbu', 0.34, 0.7), P('tamago', 0.42, 1.9), P('kanpyo', 0.50, 3.1),
-                  P('shiitake', 0.58, 4.4), P('cucumber', 0.66, 5.6)];
+  // Позиции по правилу четверти (手前板前): набор занимает 0,31 ширины постели. Прежние
+  // 0,34…0,66 давали 0,50 — вдвое шире источника, и «канон» канону не следовал.
+  S.lists.futo = [P('denbu', 0.44, 0.7), P('tamago', 0.48, 1.9), P('kanpyo', 0.52, 3.1),
+                  P('shiitake', 0.56, 4.4), P('cucumber', 0.60, 5.6)];
   if (typeof touchModel === 'function') touchModel();
   if (typeof layout === 'function') layout();
   const мод = getModel(), ветер = windFor(мод, 0.5), Р = мод.Rmax;
