@@ -112,7 +112,11 @@ function drawTopBar(hint) {
   // если игрок пришёл по ссылке ?puzzle — тогда FULL_UI и так включён).
   const items = [...(uiBases().length > 1 ? [['base', B().emoji]] : []), ['shape', SHAPES[S.shape].glyph],
                  ...(FULL_UI ? [['album', '★'], ['puzzle', '🧩']] : []),
-                 ['preview', '👁'], ['mute', S.mute ? '🔇' : '🔊']];
+                 ['preview', '👁'], ['lines', '📐'], ['mute', S.mute ? '🔇' : '🔊']];
+  // ⚠ КНОПКА, А НЕ ТОЛЬКО КЛАВИША. Контуры сделаны 31.08 с переключателем на клавише L —
+  // и это была ошибка: владелец смотрит игру с телефона, где клавиатуры нет вовсе. Режим
+  // существовал, работал и был невидим для того единственного человека, ради кого сделан.
+  // Клавиша осталась (на маке ей удобнее), но включать можно и пальцем.
   if (FULL_UI && !B().wrapFixed) items.splice(1, 0, ['sheet', '●']);
   if (S.puzzle || S.mode === 'revealed' || S.mode === 'plate') items.splice(3, 0, ['share', '🔗']);
   const iconsW = items.length * ((narrow ? 34 : 40) + (narrow ? 4 : 6));
@@ -122,7 +126,7 @@ function drawTopBar(hint) {
   let x = ox + cw - 12;
   for (const [id, glyph] of items) {
     const w = narrow ? 34 : 40; x -= w; icons.push({ id, x, y: 4 + T0, w, h: 40 });
-    rr(x, 6 + T0, w, 36, 10); ctx.fillStyle = ((id === 'preview' && S.preview) || (id === 'puzzle' && S.puzzle) || (id === 'album' && S.mode === 'album')) ? '#4a4331' : '#26261f'; ctx.fill();
+    rr(x, 6 + T0, w, 36, 10); ctx.fillStyle = ((id === 'preview' && S.preview) || (id === 'lines' && S.lines) || (id === 'puzzle' && S.puzzle) || (id === 'album' && S.mode === 'album')) ? '#4a4331' : '#26261f'; ctx.fill();
     ctx.font = id === 'share' ? '16px system-ui' : id === 'album' ? font(19, 600) : id === 'sheet' ? font(22, 700) : '18px system-ui';
     ctx.textAlign = 'center';
     ctx.fillStyle = id === 'album' ? '#e0b25a' : id === 'sheet' ? (WRAPPERS[B().wrapKey] || WRAPPERS.nori).color : '#f3e7ca';

@@ -31,6 +31,8 @@ function action(id) {
     case 'new': S.lists[S.base] = []; touchModel(); action('back'); break;
     case 'slice': if (S.mode === 'revealed') startSlicing(); break;
     case 'preview': S.preview = !S.preview; save(); layout(); dirty = true; break;
+    // Контуры границ по модели поверх среза. Не сохраняются: это режим проверки, а не настройка.
+    case 'lines': S.lines = !S.lines; dirty = true; break;
     case 'puzzle': if (S.puzzle) puzzleStop(); else { let st = {}; try { st = JSON.parse(localStorage.getItem('rollery.puzzle') || '{}'); } catch (e) {} puzzleStart(st.level || 0, st.seed || 1); } break;
     case 'newpuzzle': if (S.puzzle) puzzleStart(Math.max(0, S.puzzle.level), S.puzzle.seed + 1); break;
     case 'share': sharePuzzle(); break;

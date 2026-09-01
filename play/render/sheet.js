@@ -313,12 +313,30 @@ function pixSilhouette(img) {
 }
 // `безТени` — для отладочного окна «что внутри»: там срез растянут почти на весь лист, и
 // тень съедала бы поле, которое нужнее под сам рисунок (решение владельца 31.08).
+// Линии границ поверх среза. Считаются один раз на картинку и живут на ней же — картинка
+// уже кеширована по ключу модели, значит и линии пересчитываются ровно тогда, когда надо.
+function strokeSliceLines(img, size) {
+  if (!img._m) return;
+  if (!img._lines) img._lines = sliceLines(img._m, img._v);
+  const R = size / 2;
+  ctx.save();
+  ctx.lineWidth = 1; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,60,120,0.9)';
+  for (const путь of img._lines) {
+    ctx.beginPath();
+    путь.forEach(([a, rr], i) => { const px = Math.cos(a) * rr * R, py = Math.sin(a) * rr * R;
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawFaceImg(img, x, y, size, scaleX = 1, alpha = 1, безТени = false) {
   ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.scale(Math.max(0.01, scaleX), 1);
   if (безТени) {
     if (PIX) { const q = v => Math.round(v / PIX) * PIX, sz = Math.max(PIX, q(size));
       ctx.imageSmoothingEnabled = false; ctx.drawImage(img, q(-sz / 2), q(-sz / 2), sz, sz); }
     else ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    if (S.lines) strokeSliceLines(img, size);
     ctx.restore(); return;
   }
   if (PIX) {
@@ -335,6 +353,10 @@ function drawFaceImg(img, x, y, size, scaleX = 1, alpha = 1, безТени = fa
     const sil = pixSilhouette(img);
     ctx.globalAlpha = alpha * 0.55; ctx.drawImage(sil, x0 + PIX, y0 + 2 * PIX, sz, sz);
     ctx.globalAlpha = alpha;        ctx.drawImage(img, x0, y0, sz, sz);
+    // ⚠ Линия кладётся по размеру ВЫВОДА (sz), а не по запрошенному size: в пиксельном режиме
+    // картинка прижата к сетке и может быть чуть крупнее. Иначе контур не совпал бы с тем,
+    // что нарисовано, — и показывал бы не ошибку модели, а мою ошибку в наложении.
+    if (S.lines) strokeSliceLines(img, sz);
     ctx.restore(); return;
   }
   ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 8;
@@ -342,6 +364,7 @@ function drawFaceImg(img, x, y, size, scaleX = 1, alpha = 1, безТени = fa
   // контактная тень: узкий тёмный ореол по силуэту — граница светлой обёртки на светлой доске
   ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1;
   ctx.drawImage(img, -size / 2, -size / 2, size, size);
+  if (S.lines) { ctx.shadowColor = 'transparent'; strokeSliceLines(img, size); }
   ctx.restore();
 }
 

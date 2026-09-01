@@ -390,6 +390,53 @@ const similarity = (mA, mB, vs) => similarityOf(mA, mB, vs);
 const faceCache = new Map();
 let modelKey = '';
 function touchModel() { modelKey = S.base + '|' + S.shape + JSON.stringify(patches()); save(); dirty = true; }
+// ГРАНИЦЫ СРЕЗА ЛИНИЕЙ — где геометрия проходит НА САМОМ ДЕЛЕ (идея владельца 31.08).
+//
+// Смысл не в отладке пикселей, а в независимости от них: точки берутся у МОДЕЛИ
+// (materialAt), а не у картинки. Поэтому линия одинаково верна поверх пиксельного вида,
+// поверх гладкого и поверх любого будущего — расхождение линии с картинкой И ЕСТЬ ошибка
+// отрисовки. Пиксельная сетка округляет край до клетки; линия показывает, где он на деле.
+//
+// Как ищем: по каждому лучу идём от центра наружу и отмечаем СМЕНУ КЛАССА материала.
+// Это даёт разом всё: наружную кромку, обёртку, границу ядра подворота и контур каждой
+// начинки — ничего не перечисляя руками, потому что перечисление разошлось бы с моделью.
+const LINE_RAYS = 240, LINE_STEPS = 170;
+function traceSlice(m, vSlice) {
+  const wd = windFor(m, vSlice), R = m.Rmax;
+  const кольца = [];                       // на каждый луч — радиусы, где класс сменился
+  for (let i = 0; i < LINE_RAYS; i++) {
+    const a = i / LINE_RAYS * TAU, ряд = [];
+    let прошлый = null;
+    for (let k = 0; k <= LINE_STEPS; k++) {
+      const r = R * 1.02 * k / LINE_STEPS;
+      const q = materialAt(m, wd, vSlice, r, a);
+      const cls = !q ? 'out' : q.cls === 'patch' ? 'p:' + (q.mt && q.mt.p ? q.mt.p.kind : '?') : q.cls;
+      if (прошлый !== null && cls !== прошлый) ряд.push(r / R);
+      прошлый = cls;
+    }
+    кольца.push(ряд);
+  }
+  return кольца;
+}
+// Полилинии из трассировки: соседние лучи соединяются, пока число границ на них совпадает.
+// Совпало — граница та же и линия продолжается; разошлось — начинается новая, и разрыв
+// честнее, чем линия, соединяющая разные границы.
+function sliceLines(m, vSlice) {
+  const к = traceSlice(m, vSlice), пути = [];
+  let текущие = null;
+  for (let i = 0; i <= LINE_RAYS; i++) {
+    const ряд = к[i % LINE_RAYS], пред = i ? к[(i - 1) % LINE_RAYS] : null;
+    if (!пред || пред.length !== ряд.length) {
+      if (текущие) пути.push(...текущие);
+      текущие = ряд.map(rr => [[i / LINE_RAYS * TAU, rr]]);
+      continue;
+    }
+    ряд.forEach((rr, j) => текущие[j] && текущие[j].push([i / LINE_RAYS * TAU, rr]));
+  }
+  if (текущие) пути.push(...текущие);
+  return пути.filter(p => p.length > 2);
+}
+
 function face(vSlice, cssSize, m, Rref) {
   m = m || getModel(); const size = Math.round(cssSize * DPR);
   const key = m.key + '|' + vSlice.toFixed(3) + '|' + size + '|' + (Rref ? Rref.toFixed(3) : '') + '|' + S.shape + (PIX ? '|p' + PIX : '');
@@ -409,6 +456,10 @@ function face(vSlice, cssSize, m, Rref) {
     } else img = renderSection(size, vSlice, m, Rref);
     faceCache.set(key, img);
   }
+  // ⚑ Модель цепляется к картинке, а не передаётся через все точки вызова: drawFaceImg
+  // зовут из десяти мест, и добавлять туда параметр значило бы править десять строк ради
+  // отладочного режима. Линии считаются лениво и живут на том же кеше, что и картинка.
+  img._m = m; img._v = vSlice;
   return img;
 }
 const pieceV = i => i / NPIECES + 0.002;   // левая грань кусочка; кусочек 0 — торец ролла
