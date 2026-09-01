@@ -60,10 +60,10 @@ const BASES = {
   // на обеих базах (нориcиро масштабируется с листом: 10/105 = 20/210). Развилка записана
   // в #109; менять — правкой этих двух чисел, и слепки её покажут.
   hoso: { name: 'Хосомаки', emoji: '🍣', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
-    T: 1.4, w: 0.02, sheetCm: 10.5, pieces: 6, spreadEnd: 0.88, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 3, Wv: 38,
+    T: 1.4, w: 0.02, sheetCm: 10.5, pieces: 6, spreadEnd: 0.88, kappa: 0.85, beta: 0.55, tuck: true, pack: 1.19, tuckMin: 3, Wv: 38,
     ingredients: ['cucumber', 'salmon', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   futo: { name: 'Футомаки', emoji: '🍥', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
-    T: 2.4, w: 0.02, sheetCm: 21, pieces: 8, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 6, Wv: 38,
+    T: 2.4, w: 0.02, sheetCm: 21, pieces: 8, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, pack: 1.19, tuckMin: 6, Wv: 38,
     ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   // УРАМАКИ — третий несладкий тип. ⚠ ЕГО ГЛАВНОЕ СВОЙСТВО ПОКА НЕ СМОДЕЛИРОВАНО:
   // у урамаки нори ВНУТРИ, а рис СНАРУЖИ, то есть обёртка не внешний слой намотки.
@@ -78,7 +78,7 @@ const BASES = {
   // Это по-прежнему заглушка. Настоящий урамаки — нори ВНУТРИ, рис снаружи, и нори обходит
   // только начинку, то есть радиус вдвое меньше. Правила — issue #3.
   ura:  { name: 'Урамаки', emoji: '🌀', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
-    T: 2.0, w: 0.02, sheetCm: 10.5, pieces: 6, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 4, Wv: 38, inverted: true,
+    T: 2.0, w: 0.02, sheetCm: 10.5, pieces: 6, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuck: true, pack: 1.19, tuckMin: 4, Wv: 38, inverted: true,
     ingredients: ['salmon', 'cucumber', 'avocado', 'shrimp', 'tamago', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
   // ФРУКТОВЫЕ МАКИ — сладкое, но НЕ рулет. Формат настоящий и с родословной:
   //   Франция — «Makis de crêpes»: блин на циновку, рисовый пудинг, фрукты, крутят как маки;
