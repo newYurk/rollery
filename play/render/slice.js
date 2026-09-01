@@ -1,10 +1,10 @@
 'use strict';
 // РЕНДЕР СРЕЗА: форма сечения, цвет материала в точке, готовая картинка среза.
 //
-// Формы (SHAPES, shapeInfo) — это ОТОБРАЖЕНИЕ готового круглого среза в суперэллипс с
-// сохранением площади, а не прессовка: настоящая прессовка живёт в физике и пока не сделана
-// (docs/shapes.md). Ключ shapeCache обязан видеть Rout — иначе роллы разного диаметра делят
-// один силуэт (issue #88, починено 29.08).
+// Формы (SHAPES) — только имена и глифы: сама форма с 01.09 считается моделью как набор
+// зажатых граней (geometry.js, FACE_SETS), а shapeInfo здесь — тождество (#19). Прежнее
+// отображение круга в суперэллипс с сохранением площади снято; issue #88 (ключ кеша силуэта)
+// исчез вместе с кешем.
 //
 // Условности отрисовки (минимальная экранная ширина обёртки, рельеф зерна) держатся ЗДЕСЬ и
 // не имеют права протекать в модель: разбор — docs/geometry-audit.md, «Условности отрисовки».
@@ -19,58 +19,24 @@
 //   · углы набирают повторами и прижимом — слабый прижим даёт скруглённые углы, сильный острые;
 //   · шов кладут вниз, на грань, а не на угол;
 //   · треугольник в маки — капля с «горкой» сзади, а не равносторонний.
-const SHAPES = { round: { k: 0, p: 0, glyph: '⭕' }, square: { k: 4, p: 0.62, glyph: '◻' }, triangle: { k: 3, p: 0.58, glyph: '△', drop: 0.22 } };
-const R_THIN = 3.2, R_THICK = 5.0;   // тоньше — квадратится целиком, толще — только бока
+// ⚑ ФОРМУ ТЕПЕРЬ СЧИТАЕТ МОДЕЛЬ (#19, 01.09): грани в geometry.js (FACE_SETS, pressFaces в wind).
+// Здесь остались только имена и глифы для переключателя; k/p/drop — параметры снятого
+// суперэллипса — убраны, чтобы никто не решил, что форма всё ещё живёт здесь.
+// kamaboko — низ и бока зажаты, верх свободен: по 銀座渡利 это и есть футомаки повара.
+const SHAPES = { round: { glyph: '⭕' }, kamaboko: { glyph: '⌓' }, square: { glyph: '◻' }, triangle: { glyph: '△' } };
 // Угол не может быть острее зерна: сколько ни дави, кромка скругляется на его размер — «углы нельзя
 // добрать нажимом, зёрна давятся» (docs/shapes.md). Отсюда скругление берётся не на глаз, а из зерна.
 // Варёное зерно косихикари — 7,7 x 3,5 мм (Matsui T., Hokuriku Crop Science 36:21-23, 2001: сырое
 // 4,7 x 2,8 мм, при варке длина x1,64, ширина x1,25). Поперечник = 3,5 мм = 0,7 ед. Прежние 2,5 мм
 // были толщиной зерна, а не шириной. Слой риса 7 мм — это ровно ДВА зерна поперёк.
-const shapeCache = {};
-function shapeInfo(name, Rout, press) {
-  const sh = SHAPES[name] || SHAPES.round;
-  // A: с ростом диаметра углы сдаются; D: прижим их возвращает, но не выше предела
-  const fat = clamp(((Rout || 3.5) - R_THIN) / (R_THICK - R_THIN));
-  const pr = clamp(0.55 + 0.45 * (press == null ? 1 : press), 0.4, 1.25);
-  const p = clamp(sh.p * (1 - 0.55 * fat) * pr, 0, 0.9);
-  // ⚠ Rout ОБЯЗАН быть в ключе. Через p он не проходит: fat насыщается при Rout ≥ 5 и ≤ 3,2,
-  // а halfWin ниже зависит от Rout напрямую и не насыщается никогда. Без него футомаки (5,39),
-  // фруктовые (5,29) и рулет (7,05) получали ОДИН ключ 'square|0.279' при разном halfWin —
-  // силуэт задавал тот, кто отрисовался первым, и в альбоме, где базы рисуются в одном кадре,
-  // это видно. Округляем до 0,05, чтобы кеш продолжал работать (issue #88).
-  const key = name + '|' + p.toFixed(3) + '|' + (Math.round((Rout || 3.5) / 0.05) * 0.05).toFixed(2);
-  if (shapeCache[key]) return shapeCache[key];
-  const N = 720, rho = new Float32Array(N); let A = 0, rhoMax = 0;
-  for (let i = 0; i < N; i++) {
-    const phi = i / N * TAU; let r = 1;
-    if (sh.k) {
-      // B: фаза подобрана так, чтобы φ = 0 (шов) пришёлся на середину нижней грани
-      const sector = TAU / sh.k, a = ((phi + Math.PI / 2 + sector / 2) % sector) - sector / 2;
-      r = lerp(1, Math.cos(Math.PI / sh.k) / Math.cos(a), p);
-      // A: у толстого ролла бока зажаты сильнее верха
-      if (fat > 0 && sh.k === 4) r = lerp(r, lerp(1, r, Math.abs(Math.cos(phi))), fat * 0.7);
-      // C: треугольник — капля: вершина напротив шва скруглена, сзади «горка»
-      if (sh.drop) r *= 1 + sh.drop * p * Math.cos(phi + Math.PI);
-    }
-    rho[i] = r; A += r * r; rhoMax = Math.max(rhoMax, r);
-  }
-  // скругление зерном: усредняем ρ(φ) по дуге шириной в рисинку
-  const halfWin = Math.max(1, Math.round(N * (GRAIN / Math.max(1.2, Rout || 3.5)) / TAU));
-  if (sh.k) {
-    const src = Float32Array.from(rho);
-    let acc = 0;
-    for (let d = -halfWin; d <= halfWin; d++) acc += src[(d + N) % N];
-    for (let i = 0; i < N; i++) {
-      rho[i] = acc / (2 * halfWin + 1);
-      acc += src[(i + halfWin + 1) % N] - src[(i - halfWin + N) % N];
-    }
-    A = 0; rhoMax = 0;
-    for (let i = 0; i < N; i++) { A += rho[i] * rho[i]; rhoMax = Math.max(rhoMax, rho[i]); }
-  }
-  A /= N;
-  if (Object.keys(shapeCache).length > 40) for (const k in shapeCache) delete shapeCache[k];
-  return (shapeCache[key] = { rho, sqrtA: Math.sqrt(A), margin: rhoMax / Math.sqrt(A), p });
-}
+// ⚑ ТОЖДЕСТВО С 01.09 (#19). Отображение круга в суперэллипс с сохранением площади жило
+// здесь с 27.08 и делало форму СВОЙСТВОМ КАРТИНКИ: карты и линейка видели квадрат, мерки
+// модели — круг. Теперь контур приходит из модели уже с гранями (wind → pressFaces), и
+// r_экрана = r_модели. Сигнатура и поля (rho, sqrtA, margin) сохранены, чтобы потребители —
+// materialMapOf, wrapLoops, renderSection — не менялись; margin = 1, потому что Rref, по
+// которому они масштабируются, — это m.Rmax, уже максимум зажатого контура.
+const SHAPE_IDENTITY = { rho: new Float32Array(720).fill(1), sqrtA: 1, margin: 1, p: 0 };
+function shapeInfo(name, Rout, press) { return SHAPE_IDENTITY; }
 function shapeK(phi, info) { const i = Math.floor(phi / TAU * 720) % 720; return info.sqrtA / info.rho[i]; }
 // УСЛОВНОСТЬ ОТРИСОВКИ, не физика. Лента нори — 0,02 ед. (0,10 мм, по источнику), и на срезе 260 css-px
 // она занимает 1,6 device-px у хосомаки и 0,9 у футомаки: alpha-blend выбеливает её в серую паутинку,

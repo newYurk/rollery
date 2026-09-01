@@ -203,6 +203,19 @@
 //
 // Пересъёмка тем же коммитом, что и правки, — как требует правило выше.
 
+// ⚑ ПЕРЕСНЯТ ЧЕТЫРНАДЦАТЫЙ РАЗ — ночь 01.09, форма переехала в модель (#19).
+//
+// Поехала одна фикстура — F04 puzzle-recipe, единственная с shape: 'square':
+//   ⌀ по углам 48,6 → 54,6 (это ДИАГОНАЛЬ квадрата со стороной ≈ 43,7 мм; промышленный
+//   футомаки — 45 мм角) · доля ricePink 0,059 → 0,0625 · пара F04~форма 1 → 0,98.
+// Остальные шесть фикстур — 'round', у них не изменилось ни одно число.
+//
+// Почему: до этого форма была свойством КАРТИНКИ (shapeInfo в render/slice.js натягивал
+// круглую модель на суперэллипс), и слепок, снятый с модели, квадрата не видел вовсе —
+// отсюда «пара F04~форма: 1»: круг и квадрат были одной моделью. Теперь грани считает wind
+// (FACE_SETS: плоскости на q·R' от оси, площадь сохраняется), и квадрат стал квадратом
+// в модели, картах и слепке одинаково.
+
 const ROLL_BASELINE = {
   "F01-hosomaki-basic": {
     "turns": 1.1746,
@@ -404,7 +417,7 @@ const ROLL_BASELINE = {
   },
   "F04-puzzle-recipe": {
     "turns": 1.2476,
-    "outerDiameterMm": 48.6435,
+    "outerDiameterMm": 54.6459,
     "closePoint": 44.205,
     "sheetEnd": 49.6686,
     "sheetLength": 49.6686,
@@ -414,9 +427,11 @@ const ROLL_BASELINE = {
     "coreFold": 8.4152,
     "patchCount": 2,
     "materialFractions": {
-      "patch:ricePink": 0.0625,
-      "patch:salmon": 0.25,
-      "spread": 0.6875
+      "core": 0.0347,
+      "out": 0.1111,
+      "patch:ricePink": 0.059,
+      "patch:salmon": 0.2153,
+      "spread": 0.5799
     },
     "probes": [
       "0.25|1|0=patch:salmon",
@@ -458,13 +473,13 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 998,
-        "rice": 1786,
-        "wrap": 39,
-        "salmon": 116,
-        "ricePink": 197
+        "out": 1292,
+        "rice": 1514,
+        "wrap": 47,
+        "salmon": 92,
+        "ricePink": 191
       },
-      "probe": "out,rice,rice,rice,rice,out,salmon,rice,rice,ricePink,out"
+      "probe": "out,out,rice,rice,rice,out,rice,rice,rice,out,out"
     },
     "selfSimilarity": 1
   },
@@ -675,6 +690,6 @@ const ROLL_BASELINE = {
   "__pairs": {
     "F02~F05 рука": 0.9837,
     "F02~сдвиг": 0.7254,
-    "F04~форма": 1
+    "F04~форма": 0.9795
   }
 };

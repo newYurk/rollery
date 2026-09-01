@@ -966,9 +966,75 @@ function wind(vSlice, sMax, g, list, routOnly) {
       top[b2] = tgt; if (tgt > Rout) Rout = tgt;
     }
   }
+  // ⚑ ФОРМА — НАБОР ЗАЖАТЫХ ГРАНЕЙ, И ЕЁ СЧИТАЕТ МОДЕЛЬ (#19, правка 01.09).
+  //
+  // До этого форма жила в ДВУХ местах и ни в одном не была едой: модель обжимала кольцо
+  // к кругу (выше), а отрисовка натягивала готовый круг на суперэллипс (shapeInfo в
+  // render/slice.js) — карты и линейка видели квадрат, мерки модели видели круг, сторож
+  // практики «срез — скруглённый квадрат» держал 0,003 при источниковых 0,15…0,38.
+  //
+  // Повар описывает форму не как цель, а как ДЕЙСТВИЕ: три пальца на трёх гранях, купол
+  // получается тем, что верх не зажимают (銀座渡利 「上をしめずに、親指と中指だけで横をしめます」;
+  // 「一度強めにギュッとしめます」, потом 「両サイドだけしめて上に丸みを残します」). Отсюда
+  // одна формула: грань — плоскость на расстоянии q·R' от оси; зажатых граней ноль → круг,
+  // три (низ и бока) → камабоко, четыре → квадрат. Остроту углов задаёт прижим руки: q — доля
+  // свободного радиуса, на которой стоит плоскость; при q = cos(π/4) четыре грани сходятся
+  // в острый квадрат, чего в еде не бывает — потому q не опускается ниже 0,72, а углы
+  // сверх того скругляет зерно (окно шириной в рисинку, как и было в отрисовке).
+  // Площадь кольца сохраняется тем же приёмом, что у обжима: рис не исчезает, он
+  // перераспределяется; нори переносится как есть, сжимается только рис.
+  if (closed) {
+    const грани = FACE_SETS[g.shape] || [];
+    if (грани.length) {
+      const пресс = g.press === undefined ? (S.hand ? S.hand.press : 1) : g.press;
+      // Нейтральный прижим → q = 0,80: некруглость (r_макс−r_мин)/r_мед ≈ 0,25 — середина
+      // коридора 0,15…0,38, снятого по фотографиям настоящих роллов (0,195 и 0,270, #19).
+      const q = clamp(0.80 - 0.35 * (пресс - 1), 0.72, 0.95);
+      const ρ = new Float32Array(NB);
+      for (let b2 = 0; b2 < NB; b2++) {
+        const φ = b2 * DPHI; let r = 1;
+        for (const φf of грани) { const c = Math.cos(φ - φf); if (c > 1e-6) r = Math.min(r, q / c); }
+        ρ[b2] = r;
+      }
+      // скругление зерном: усредняем по дуге шириной в рисинку
+      const Rср = Rout > g.r0 ? Rout : 1, half = Math.max(1, Math.round(NB * (GRAIN / Math.max(1.2, Rср)) / TAU));
+      { const src = Float32Array.from(ρ); let acc = 0;
+        for (let d = -half; d <= half; d++) acc += src[(d + NB) % NB];
+        for (let b2 = 0; b2 < NB; b2++) { ρ[b2] = acc / (2 * half + 1); acc += src[(b2 + half + 1) % NB] - src[(b2 - half + NB) % NB]; } }
+      // масштаб R' из сохранения площади кольца: Σ((R'ρ)² − r0²) = Σ(top² − r0²)
+      let a0 = 0, sρ2 = 0;
+      for (let b2 = 0; b2 < NB; b2++) { a0 += top[b2] * top[b2] - g.r0 * g.r0; sρ2 += ρ[b2] * ρ[b2]; }
+      const R1 = Math.sqrt(Math.max(0, (a0 + NB * g.r0 * g.r0) / sρ2));
+      Rout = g.r0;
+      for (let b2 = 0; b2 < NB; b2++) {
+        const tgt = Math.max(g.r0 + 1e-6, R1 * ρ[b2]), f = (tgt - g.r0) / (top[b2] - g.r0);
+        if (!routOnly) {
+          let r = g.r0;
+          for (let k2 = 0; k2 < KMAX; k2++) {
+            const i2 = k2 * NB + b2; if (rin[i2] < 0) break;
+            const t2 = rout[i2] - rin[i2], рис = Math.max(0, t2 - g.w);
+            rin[i2] = r; r += рис * f + Math.min(g.w, t2); rout[i2] = r;
+          }
+          top[b2] = r;
+        } else top[b2] = tgt;
+        if (top[b2] > Rout) Rout = top[b2];
+      }
+    }
+  }
   if (routOnly) return Rout;
   return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax, turns, sClose, sEnd, sTurn1 };
 }
+// ГРАНИ ПО ФОРМАМ — углы плоскостей, φ = 0 это шов (кладут вниз, на грань, а не на угол).
+// round — ни одной (「カンピョウなら丸に」); kamaboko — низ и бока, верх свободен (銀座渡利);
+// square — четыре (「鉄火なら四角く」); triangle — три плоскости через 120°, шов на грани.
+// ⚠ «Капля с горкой сзади» у треугольника (docs/shapes.md) здесь не моделируется: это была
+// игровая условность отрисовки без замера, и в грани она не переводится одной плоскостью.
+const FACE_SETS = {
+  round:    [],
+  kamaboko: [0, Math.PI / 2, 3 * Math.PI / 2],
+  square:   [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2],
+  triangle: [0, 2 * Math.PI / 3, 4 * Math.PI / 3],
+};
 // Внешний радиус намотки без массивов витков — для Rmax модели и для превью скрутки.
 const windRout = (vSlice, sMax, g, list) => wind(vSlice, sMax, g, list, true);
 // Пиксель среза (r, φ) → на каком витке и где на листе. null — вне листа.
@@ -1331,6 +1397,7 @@ function buildModel(list, only) {
   const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), Wv: b.Wv, sStart: 0, air: hd.air * b.T, wobble: hd.wobble, phase: hd.phase,
     press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, tuck: !!b.tuck, flap: b.flap || 0, tuckMin: b.tuckMin || 0,
     pack: b.pack || 1,
+    shape: S.shape,                       // ⚑ форма — в паспорте, её считает МОДЕЛЬ (#19), см. pressFaces
     inverted: !!b.inverted };
   restack(own, g);
   m = { key, g, shape: S.shape, list: own, wds: new Map(), Rmax: 0, core: null };
