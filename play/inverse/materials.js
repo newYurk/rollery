@@ -121,6 +121,13 @@ function matVerifyAgainstING(ing, wrappers) {
   const w = wrappers && wrappers.nori;
   if (w && Math.abs(w.mm / MAT_U_MM - MATERIALS.nori.baseThickness) > 1e-9)
     bad.push(`nori: baseThickness ${MATERIALS.nori.baseThickness} против ${w.mm} мм в WRAPPERS`);
+  // ЗЕРНО СВЕРЯЕТСЯ ЗДЕСЬ ЖЕ (issue #119). Шапка модуля обещает, что дублирование чисел
+  // прикрыто этой проверкой, — а зерно мимо неё проходило: сверялись только цвета и толщины.
+  // GRAIN_ACROSS считается из 3,5 мм, GRAIN в игре записан числом 0,7; сойтись они обязаны,
+  // и молчаливое расхождение здесь означало бы, что порог «тоньше рисинки не выложить»
+  // в поиске раскладки и в отрисовке зерна — разные пороги.
+  if (typeof GRAIN === 'number' && Math.abs(GRAIN_ACROSS - GRAIN) > 1e-9)
+    bad.push(`зерно: GRAIN_ACROSS ${GRAIN_ACROSS} (из ${GRAIN_ACROSS_MM} мм) против GRAIN ${GRAIN} в модели`);
   return bad;
 }
 
