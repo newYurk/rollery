@@ -327,7 +327,11 @@
         <code>() =&gt; 0</code> (плоское дно), у полумесяца — своя дуга
         <code>CRESCENT_INNER · √q</code>. Каждое записано <strong>в самом профиле</strong>, а не
         выведено допущением снаружи; флагов <code>round / lens / flatBottom</code> как способа
-        выбрать форму больше нет. Блок формы лежит ниже в этом же файле — можно сверить.</p>
+        выбрать форму больше нет — форму задаёт класс нарезки <code>cut</code>.
+        <em>Читаться</em> они при этом ещё умеют: сохранённые роллы в альбоме и ссылки на пазл
+        записаны до перехода, а <code>flatBottom</code> вдобавок остался ручным снятием зеркала
+        для форм без своего класса — им и рисует чертёж Ф-4 ниже.
+        Блок формы лежит ниже в этом же файле — можно сверить.</p>
       <p class="tiny" style="opacity:.7">Ссылка «см. Ф-6» вела не туда и тоже исправлена:
         симметрии посвящена <strong>Ф-4</strong>, а Ф-6 — «Кусок на листе». Ошибка от того, что
         у фигуры Ф-4 идентификатор <code>svg id="fig6"</code>: ссылались на имя в коде вместо
@@ -381,6 +385,12 @@
         половинка авокадо и ломтик рыбы кожей вниз.</p>
       <p>Разница не косметическая: площадь сечения <span class="mono">0,785 → 0,893</span> —
         это <span class="cold">нижняя долька</span>, которую зеркало отрезало.</p>
+      <p class="tiny" style="opacity:.7">⚠ Уточнение 01.09: обе доли — про <strong>кружок</strong>,
+        целый и со срезанным дном, а не про класс <code>полукруг</code>. У полукруга доля тела
+        ровно 0,785 — та же, что у кружка, потому что его профиль это полный купол
+        (<code>top = √q, low = 0</code>), а не кружок с плоским низом. Замер <code>cutFill</code>:
+        кружок и полукруг дают одинаково 0,7854, а 0,8927 — только связка кружок + плоское дно,
+        которую этот чертёж и рисует.</p>
       <p><strong>Правка 31.08.</strong> Здесь стояло «теперь допущение снимается флагом в
         каталоге». Флага больше нет: форма выбирается <em>классом нарезки</em>
         (<code>cut</code>), и у каждого класса своя пара функций верх/низ. То есть картинка
@@ -1263,7 +1273,10 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
       const lu = (i + 0.5) / N - 0.5;
       const slp = (cutTop(d, lu + e) - cutTop(d, lu - e)) / (2 * e);
       const lightv = clamp((-slp * -0.58 + 0.815) / Math.hypot(slp, 1), 0, 1);
-      const k = 0.34 + 0.66 * lightv;
+      // ⚠ 0,62 — нынешний AMBIENT (geometry.js). Стояло 0,34: то самое число, из-за которого
+      // владелец увидела коричневую креветку, поднято 31.08. Полоса ниже показывает,
+      // как считается вид сверху, и обязана считать тем же, чем игра.
+      const k = 0.62 + 0.38 * lightv;
       g.appendChild(el('rect', {
         x: bx, y: by + i * (bh / N) * 1.0, width: bw, height: bh / N + 0.6,
         fill: `rgb(${Math.round(239 * k)}, ${Math.round(138 * k)}, ${Math.round(102 * k)})`
@@ -1317,7 +1330,12 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
   }
 
   // ── спираль: r(φ) = R0 + P·φ/2π ──────────────────────────────────────────
-  const R0 = 0.25, PITCH = 1.42, TURNS = 1.29;
+  // ⚠ ЧИСЛА ПО НЫНЕШНЕЙ МОДЕЛИ, сверено 01.09 прогоном пустого хосомаки. Здесь стояло
+  // TURNS = 1.29 и радиус 3,12 — геометрия ДО правки подворота (#113), когда лишний виток
+  // ещё не исчез. Проза документа это уже признавала (лист Ф-10), а чертежи рисовались
+  // по старому: текст поправили, картинку нет.
+  //   модель: витков 1,146 · ⌀ 29,1 мм → радиус 2,91 ед. · эталон play/checks.js:28
+  const R0 = 0.25, PITCH = 1.42, TURNS = 1.146, R_ROLL = 2.91;
 
   function spiralPts(scale, cx, cy, turns = TURNS, phi0 = 0) {
     const pts = [];
@@ -1361,8 +1379,8 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
     g.appendChild(text(cx, 44, 'СВЁРНУТЫЙ ЛИСТ', { anchor: 'middle', size: 11.5, weight: 600,
       ls: '0.12em', fill: C('--ink') }));
 
-    g.appendChild(el('circle', { cx, cy, r: 3.12 * S, fill: C('--rice'), opacity: 0.5 }));
-    g.appendChild(el('circle', { cx, cy, r: 3.12 * S, fill: 'none', stroke: C('--nori'), 'stroke-width': 2.4 }));
+    g.appendChild(el('circle', { cx, cy, r: R_ROLL * S, fill: C('--rice'), opacity: 0.5 }));
+    g.appendChild(el('circle', { cx, cy, r: R_ROLL * S, fill: 'none', stroke: C('--nori'), 'stroke-width': 2.4 }));
     g.appendChild(el('path', { d: toPath(spiralPts(S, cx, cy)), fill: 'none', stroke: C('--nori'),
       'stroke-width': 2, opacity: 0.9 }));
     g.appendChild(el('circle', { cx, cy, r: R0 * S, fill: 'none', stroke: C('--rule'),
@@ -1411,7 +1429,7 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
     // формуле шага. Они не совпадают, и это не ошибка: последний виток нори лежит на 2,08 ед.,
     // а поверх него ещё слой риса. Нарисовать диск по спирали и подписать замер было бы враньём.
     const rNori = (R0 + PITCH * TURNS) * S;
-    const rMax = 3.12 * S;
+    const rMax = R_ROLL * S;
     g.appendChild(el('circle', { cx, cy, r: rMax, fill: C('--rice'), opacity: 0.55 }));
     g.appendChild(el('circle', { cx, cy, r: rMax, fill: 'none', stroke: C('--nori'), 'stroke-width': 2.6 }));
     // спираль нори внутри
@@ -1465,9 +1483,9 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
       { stroke: C('--ink'), w: 2 }));
     g.appendChild(text(cx, cy - rMax - 44, 'НОЖ ПОПЕРЁК ОСИ v', { anchor: 'middle', size: 11.5,
       weight: 600, ls: '0.12em', fill: C('--ink') }));
-    dim(g, cx - rMax, cy + rMax + 34, cx + rMax, cy + rMax + 34, '⌀ 31,2 мм — замер модели', { ly: 16 });
+    dim(g, cx - rMax, cy + rMax + 34, cx + rMax, cy + rMax + 34, '⌀ 29,1 мм — замер модели', { ly: 16 });
     leader(g, cx + rNori * 0.71, cy - rNori * 0.71, cx + 150, cy - 138,
-      'последний виток нори · 1,29 витка', { fill: C('--ink-2') });
+      'последний виток нори · 1,15 витка', { fill: C('--ink-2') });
   }
 
   // ── Ф-6: симметрия и её отсутствие ───────────────────────────────────────
@@ -1925,8 +1943,8 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
     const svg = document.getElementById('figPair');
     const g = el('g'); svg.appendChild(g);
     const cx = 150, cy = 150, S = 40;
-    g.appendChild(el('circle', { cx, cy, r: 3.12 * S, fill: C('--rice'), opacity: 0.55 }));
-    g.appendChild(el('circle', { cx, cy, r: 3.12 * S, fill: 'none', stroke: C('--nori'), 'stroke-width': 2.4 }));
+    g.appendChild(el('circle', { cx, cy, r: R_ROLL * S, fill: C('--rice'), opacity: 0.55 }));
+    g.appendChild(el('circle', { cx, cy, r: R_ROLL * S, fill: 'none', stroke: C('--nori'), 'stroke-width': 2.4 }));
     g.appendChild(el('path', { d: toPath(spiralPts(S, cx, cy)), fill: 'none', stroke: C('--nori'),
       'stroke-width': 1.8, opacity: 0.9 }));
     // те же четыре начинки, что на кадрах, на своих витках
@@ -1945,11 +1963,16 @@ function cutSpan(d, lu) { return [cutLow(d, lu), cutTop(d, lu)]; }
       }
       g.appendChild(el('path', { d: toPath(pts) + ' Z', fill: col }));
     };
-    // Настоящие габариты из каталога и та же четвёрка, что на кадрах справа.
-    put({ wU: 2.4, hU: 2.0 }, '#f3c94f', 0.34);   // тамаго
-    put({ wU: 1.4, hU: 1.6 }, '#79b55c', 0.55);   // огурец
-    put({ wU: 2.0, hU: 1.1, lens: true }, '#a7c455', 0.72);   // авокадо
-    put({ wU: 2.0, hU: 1.6 }, '#ef8a66', 0.90);   // лосось
+    // ⚠ ГАБАРИТЫ И КЛАССЫ — ИЗ КАТАЛОГА ДОСЛОВНО, сверено 01.09. Подпись обещала «настоящие
+    // габариты», а стояли снятые: огурец бруском 1,4 × 1,6 (в каталоге сектор 2,8 × 1,98),
+    // лосось 2,0 × 1,6 (в каталоге 1,6 × 1,6), авокадо линзой (в каталоге полумесяц).
+    // И четвёрка была не та, что на кадрах справа: проза обещает канон — おぼろ · 卵焼き ·
+    // 煮物 · 青味, — а схема рисовала лосося и авокадо, которых в каноне нет.
+    // Теперь слева и справа один и тот же ролл.
+    put({ wU: 6.0, hU: 1.0, cut: 'присыпка' },  '#f4a7bb', 0.34);   // дэмбу · おぼろ
+    put({ wU: 2.4, hU: 2.0, cut: 'брусок' },    '#f3c94f', 0.48);   // тамаго · 卵焼き
+    put({ wU: 2.4, hU: 0.5, cut: 'лист' },      '#7a5230', 0.62);   // кампё · 煮物
+    put({ wU: 2.8, hU: 1.98, cut: 'сектор' },   '#79b55c', 0.78);   // огурец · 青味
   }
 
   // ── легенда линий в штампе ───────────────────────────────────────────────
