@@ -161,7 +161,8 @@
 // в стенку вокруг ядра. Обороты выросли туда же. У обоих сдвигов общая причина: рис в модели
 // не уплотняется при скрутке, а повар сжимает его в 1,2–1,5 раза (issue #129).
 //
-// ⚠ Пересня́т ШЕСТЬ РАЗ за 01.09 (шестой — после обнуления фаски, #125: справочник приёмов
+// ⚠ Пересня́т СЕМЬ РАЗ за 01.09 (седьмой — после правки полумесяца: долька режется двумя
+// радиальными резами, у неё плоские боковые грани, а не сходящиеся в точку рожки) (шестой — после обнуления фаски, #125: справочник приёмов
 // нарезки не знает скруглённых рёбер, везде прямой ход ножа) (пятый — после уплотнения риса, #129: слой в ролле тоньше,
 // чем на постели, коэффициент 1,19). Третий раз — после маски намазки (#130: рис перестал
 // растекаться сглаживанием на голую нори, и доля начинки в срезе впервые попала в источниковый
@@ -251,11 +252,11 @@ const ROLL_BASELINE = {
     "hasCore": true,
     "shape": "round",
     "coreRadius": 4.6415,
-    "coreFold": 19.4394,
+    "coreFold": 19.668,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.5451,
-      "patch:avocado": 0.0382,
+      "core": 0.5278,
+      "patch:avocado": 0.0556,
       "patch:salmon": 0.0833,
       "patch:shrimp": 0.0023,
       "spread": 0.331
@@ -301,10 +302,10 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 901,
-        "rice": 2032,
+        "rice": 2014,
         "wrap": 16,
         "salmon": 132,
-        "avocado": 55
+        "avocado": 73
       },
       "probe": "out,rice,rice,rice,rice,rice,rice,rice,rice,rice,out"
     },
@@ -452,12 +453,12 @@ const ROLL_BASELINE = {
     "hasCore": true,
     "shape": "round",
     "coreRadius": 5.0991,
-    "coreFold": 19.4394,
+    "coreFold": 19.668,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.5451,
+      "core": 0.5278,
       "out": 0.0417,
-      "patch:avocado": 0.0382,
+      "patch:avocado": 0.0556,
       "patch:salmon": 0.0833,
       "patch:shrimp": 0.0012,
       "spread": 0.2905
@@ -503,10 +504,10 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 1037,
-        "rice": 1908,
+        "rice": 1890,
         "wrap": 9,
         "salmon": 129,
-        "avocado": 53
+        "avocado": 71
       },
       "probe": "out,rice,rice,rice,rice,out,rice,rice,rice,rice,out"
     },
@@ -587,12 +588,12 @@ const ROLL_BASELINE = {
     "hasCore": true,
     "shape": "round",
     "coreRadius": 2.2902,
-    "coreFold": 19.7853,
+    "coreFold": 19.9535,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.2813,
+      "core": 0.2743,
       "out": 0.1042,
-      "patch:avocado": 0.0243,
+      "patch:avocado": 0.0313,
       "patch:cucumber": 0.2326,
       "patch:salmon": 0.0451,
       "spread": 0.3125
@@ -638,19 +639,19 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 1222,
-        "rice": 1579,
+        "rice": 1569,
         "wrap": 23,
         "salmon": 111,
         "cucumber": 167,
-        "avocado": 34
+        "avocado": 44
       },
       "probe": "out,rice,rice,out,rice,out,rice,rice,rice,rice,out"
     },
     "selfSimilarity": 1
   },
   "__pairs": {
-    "F02~F05 рука": 0.9602,
-    "F02~сдвиг": 0.8102,
+    "F02~F05 рука": 0.9609,
+    "F02~сдвиг": 0.8202,
     "F04~форма": 1
   }
 };
