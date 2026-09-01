@@ -108,6 +108,49 @@ def contour(xs, cen, nb=36, pct=98.0, half=2):
     return r, b, c, sm
 
 
+# ⚑ КРИТЕРИЙ 3 ПРИЁМКИ: ПО ЛУЧУ ИЗ ЦЕНТРА НОРИ ПЕРЕСЕКАЕТСЯ РОВНО ОДИН РАЗ
+# (кроме дуги шва длиной в нориcиро). Заведён 01.09 по issue #113: из четырёх критериев,
+# записанных в sim/KINEMATICS.md 31.08, судья считал ОДИН — посадку в окно. Остальные три
+# существовали прозой, то есть проверялись глазами или никак.
+#
+# Как меряется. Луч — сектор шириной 360°/NB. Частицы нори внутри сектора сортируются по
+# радиусу; разрыв больше GAP медианных шагов между соседями означает, что лента прошла здесь
+# ещё раз. Порог по МЕДИАННОМУ ШАГУ, а не по абсолютной длине: разрешение прогонов разное,
+# и абсолютный порог пришлось бы править вслед за числом частиц — ровно та ошибка, которую
+# разбирает «Поправка 11» в KINEMATICS.md (планка разрыва уехала сама вслед за толщинами).
+#
+# Что это ловит: лишний виток («гармошку»), разорванную ленту, лист не по размеру ролла.
+# Чего НЕ ловит: одно пересечение при неверной ПОСАДКЕ края — за это отвечает критерий 1.
+def nori_crossings(x, cls, cen, nb=72, gap=5.0):
+    nori = cls == 2
+    if nori.sum() < 4:
+        return None
+    rel = x - np.asarray(cen)
+    r = np.hypot(rel[:, 0], rel[:, 1])
+    a = np.arctan2(rel[:, 1], rel[:, 0])
+    out = []
+    for k in range(nb):
+        lo = -math.pi + k * 2 * math.pi / nb
+        hi = -math.pi + (k + 1) * 2 * math.pi / nb
+        m = nori & (a >= lo) & (a < hi)
+        if m.sum() < 2:
+            out.append(0)
+            continue
+        rr = np.sort(r[m])
+        d = np.diff(rr)
+        pos = d[d > 0]
+        step = float(np.median(pos)) if pos.size else 1e-9
+        out.append(1 + int((d > gap * step).sum()))
+    c = np.array(out)
+    # Дуга шва: нориcиро 1,5–3 см при обхвате ~18 см — до ~17 % окружности законно даёт два.
+    seam = max(1, int(round(nb * 0.17)))
+    over = int((c > 1).sum())
+    return dict(cross_rays_med=float(np.median(c)), cross_rays_max=int(c.max()),
+                cross_rays_one=round(float((c == 1).mean()), 3),
+                # ⚑ Критерий: всё, что сверх одного пересечения, обязано уместиться в дугу шва.
+                single_layer_ok=bool(over <= seam))
+
+
 def judge(attempt, out, L, mod):
     pred, (xs0, cls0, vol, nr, nc, info) = predicted(mod, L)
     z = np.load(f'{ROOT}/{attempt}/{out}/particles_{L}.npz')
@@ -154,10 +197,24 @@ def judge(attempt, out, L, mod):
         out_nori=int((out_m & nori).sum()), out_max=round(float(excess.max()), 3),
         r_near=round(r_near, 3), r_far=round(r_far, 3),
         core_rmax=round(core_rmax, 2), order_x=order_x,
+        # ⚑ КРИТЕРИЙ 4: ближняя кромка нори лежит В СТЕНКЕ, а не между начинкой и рисом
+        # (#113). Данные для него собирались (r_near), а самой проверки не было. Кромка в
+        # стенке значит: её радиус БОЛЬШЕ внешнего радиуса начинок. Допуск 2 % — толщина
+        # ленты и разброс частиц.
+        edge_in_wall=bool(r_near * rmed > core_rmax * 1.02) if core_rmax > 0 else None,
+        r_near_abs=round(r_near * rmed, 3),
         core=[(c[0], round(c[1], 2), round(c[2], 1)) for c in core],
         sec=met['timing']['seconds'], stable=met['stable'], esc=met['escaped'],
         gap=met['nori_max_gap_T'], torn=met['nori_torn'],
+        **(nori_crossings(x, cls, cen) or {}),
     )
+# ⚠ КРИТЕРИЙ 2 («рис к рису торцами») ПО-ПРЕЖНЕМУ НЕ МЕРЯЕТСЯ, и это не забывчивость.
+# В .npz лежат координаты и класс частицы, но НЕ её исходное положение на листе, а «торцы
+# риса» — это два конца исходной постели. Отличить их от любых других частиц риса после
+# скрутки нечем. Чтобы критерий стал измеримым, прогон должен сохранять исходную координату
+# вдоль листа (аналог nc, который уже есть у нори). Это правка run.py и пересъёмка прогонов,
+# то есть работа отдельной задачи, а не судьи. В ИГРЕ критерий снят построением: в кольце
+# (#132) постель непрерывна, два конца — одна лента, встреча торцов выполнена тождественно.
 
 
 if __name__ == '__main__':
@@ -172,7 +229,8 @@ if __name__ == '__main__':
                 pass
     hdr = ['attempt', 'L', 'turns', 'cross_pred', 'd_turns', 'cons', 'cons_rice', 'map_ratio',
            'Rout_med', 'Rout_pred', 'round_cv', 'out_frac', 'out_max', 'out_nori', 'r_near', 'r_far',
-           'core_rmax', 'sec', 'stable', 'gap']
+           'core_rmax', 'sec', 'stable', 'gap',
+           'cross_rays_med', 'cross_rays_max', 'single_layer_ok', 'edge_in_wall']
     print(' | '.join(f'{h:>10}' for h in hdr))
     for r in rows:
         print(' | '.join(f'{str(r[h]):>10}' for h in hdr))
