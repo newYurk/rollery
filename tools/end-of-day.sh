@@ -107,8 +107,16 @@ for name in S_FOLD_MARGIN FOLD_CAP rollMapDigest cutSpan; do
           | grep -v '__pycache__' | grep -v '/out/')
   cnt=$(printf '%s\n' "$files" | grep -c . )
   if [ "$cnt" -gt 1 ]; then
-    decls=$(printf '%s\n' "$files" | xargs grep -l "$name *=\|function $name\|def $name" 2>/dev/null | grep -c .)
-    [ "${decls:-0}" -gt 1 ] && { warn "$name объявлено в $decls файлах:"; printf '%s\n' "$files" | sed 's/^/      /'; n=1; }
+    # ⚠ ПАТТЕРН ОБЪЯВЛЕНИЯ, А НЕ УПОМИНАНИЯ. Прежний искал "$name *=" — и ловил СРАВНЕНИЕ:
+    # строка `typeof rollMapDigest === 'function'` подходила под него и давала ложное красное
+    # 01.09. Ложное срабатывание дороже пропуска: сторож, который кричит на исправном коде,
+    # приучает не читать его вывод. Требуем ключевое слово объявления слева.
+    decl_files=$(printf '%s\n' "$files" | xargs grep -l \
+        "^\s*\(const\|let\|var\)\s\+$name\s*=\|^\s*function\s\+$name\b\|^\s*def\s\+$name\b" 2>/dev/null)
+    decls=$(printf '%s\n' "$decl_files" | grep -c .)
+    # И печатаем ФАЙЛЫ С ОБЪЯВЛЕНИЯМИ, а не все, где имя встретилось: прежний вывод показывал
+    # четыре файла на два объявления, и разобраться в нём было нельзя.
+    [ "${decls:-0}" -gt 1 ] && { warn "$name объявлено в $decls файлах:"; printf '%s\n' "$decl_files" | sed 's/^/      /'; n=1; }
   fi
 done
 [ "$n" = "0" ] && ok "известные определения — по одному месту"
