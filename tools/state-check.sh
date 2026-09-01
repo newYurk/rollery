@@ -94,6 +94,12 @@ guide=docs/reports/piece-body.html
 say "── размеры начинок: документ ядра против каталога"
 python3 tools/guide-ingredients-check.py "$guide" play/model/catalog.js || bad=$((bad+1))
 
+# И третья: числа, которыми ЧЕРТЕЖИ кормят формулу. Сверялась формула, но не её вход —
+# 01.09 нашлось, что TURNS в чертежах 1,29 при модельных 1,15, радиус 3,12 при 2,91,
+# фоновый свет 0,34 при 0,62. Проза документа к тому времени уже признавала, что 1,29 старое.
+say "── числа чертежей: документ ядра против кода"
+python3 tools/guide-numbers-check.py || bad=$((bad+1))
+
 math_block=$(блок play/model/geometry.js)
 guide_block=$(блок "$guide")
 if [ -z "$math_block" ] || [ -z "$guide_block" ]; then
