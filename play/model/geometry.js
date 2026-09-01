@@ -1034,7 +1034,8 @@ function buildModel(list, only) {
   const own = JSON.parse(JSON.stringify(list));
   // g — ПАСПОРТ модели: всё, что геометрия раньше подсматривала в S и B(), теперь снято здесь один раз.
   const b = B(), g = { T: b.T, w: b.w, r0: R0, L: sheetLen(b), Wv: b.Wv, sStart: 0, air: hd.air * b.T, wobble: hd.wobble, phase: hd.phase,
-    press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, tuck: !!b.tuck, flap: b.flap || 0, tuckMin: b.tuckMin || 0 };
+    press: hd.press, beta: b.beta, kappa: b.kappa, spreadEnd: b.spreadEnd, tuck: !!b.tuck, flap: b.flap || 0, tuckMin: b.tuckMin || 0,
+    inverted: !!b.inverted };
   restack(own, g);
   m = { key, g, shape: S.shape, list: own, wds: new Map(), Rmax: 0, core: null };
   m.core = computeCore(m.list, g);
@@ -1063,7 +1064,15 @@ function materialAt(m, wd, vSlice, r, phi) {
   if (r < coreR) return m.core ? coreMaterial(m, r, phi, vSlice) : { cls: 'core' };
   const sm = sampleWind(wd, r, phi);
   if (!sm) return { cls: 'out' };
-  let zn = (sm.t - g.w - sm.zr) / g.T;
+  // ⚠ У УРАМАКИ ОБЁРТКА НА ВНУТРЕННЕМ КРАЮ ВИТКА, А НЕ НА ВНЕШНЕМ (#124, 01.09).
+  // Так его и делают: рис намазан на нори, лист ПЕРЕВОРАЧИВАЮТ рисом на циновку, начинку
+  // кладут на голую нори — и она заворачивает начинку первой, а рис остаётся снаружи.
+  // До этой правки `inverted` жил в ОДНОЙ строке отрисовки: «рис снаружи» было нарисовано,
+  // но не смоделировано — модель наматывала урамаки как обычный маки.
+  //
+  // zn — высота над обёрткой, вдоль которой растёт стопка (рис, потом начинки). У обычного
+  // маки обёртка снаружи витка, и стопка растёт ВНУТРЬ; у вывернутого наоборот.
+  let zn = g.inverted ? (sm.zr - g.w) / g.T : (sm.t - g.w - sm.zr) / g.T;
   if (zn < 0) return { cls: 'wrap', sm };
   const H = stackTopAt(sm.u, vSlice, m.list, g), bandN = (sm.t - g.w - (m.g.air || 0)) / g.T; if (bandN > 1e-6) zn *= Math.max(1, H) / bandN;   // сжатый слой → собственные z стопки
   const mt = matAt(sm.u, vSlice, zn, m.list, g);
