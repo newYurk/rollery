@@ -563,7 +563,10 @@ function runChecks(detail) {
       // не могла упасть: обнули SPREAD_START — она всё равно напечатает 1,01 см. Мерке нужен
       // доступ к самой намазке, иначе «сверка с практикой» сверяется сама с собой.
       const pr = runPracticeChecks({ B: BASES, ING, S, touchModel, layout, getModel, windFor, topAt, materialAt, TAU, U_MM,
-                                     spreadAt });
+                                     spreadAt,
+                                     // Число заведённых профилей нарезки: сама таблица живёт в
+                                     // geometry.js и наружу не отдаётся, поэтому считаем здесь.
+                                     профилей: () => Object.keys(CUT_PROFILES).length });
       for (const f of pr.провалы) ok(false, 'практика: ' + f);
       // ── КАНОН КАК ДАННЫЕ: правила не должны разойтись с источником ────────
       // play/model/canon.js хранит правила поваров исполняемыми. Здесь гоняем их на
