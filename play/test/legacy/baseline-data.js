@@ -161,8 +161,11 @@
 // в стенку вокруг ядра. Обороты выросли туда же. У обоих сдвигов общая причина: рис в модели
 // не уплотняется при скрутке, а повар сжимает его в 1,2–1,5 раза (issue #129).
 //
-// ⚠ Пересня́т ТРИЖДЫ за 01.09 (третий — после маски намазки, #130: рис перестал растекаться
-// сглаживанием на голую нори, и доля начинки в срезе впервые попала в источниковый коридор). Первый раз — при пороге витков 1,35; владелец посмотрела на
+// ⚠ Пересня́т ЧЕТЫРЕЖДЫ за 01.09. Третий раз — после маски намазки (#130: рис перестал
+// растекаться сглаживанием на голую нори, и доля начинки в срезе впервые попала в источниковый
+// коридор). Четвёртый — после правки обжима: он умножал радиусы слоя целиком, растягивая вместе
+// с рисом и плёнку нори, и на голой полосе слой 0,02 превращался в 0,03. Отсюда `доля wrap`
+// в фикстурах меняется с нуля на сотые: нори стала видна как нори там, где раньше читалась рисом. Первый раз — при пороге витков 1,35; владелец посмотрела на
 // срез и увидела хвост нори внутри риса, которого числа не показывали. Порог вернули к 1,15,
 // дефект упал с 0,278 до 0,083 доли лучей, диаметры выросли ещё раз. Разбор обмена — в
 // geometry.js над MAX_TURNS.
@@ -185,7 +188,8 @@ const ROLL_BASELINE = {
     "materialFractions": {
       "core": 0.2604,
       "patch:cucumber": 0.3229,
-      "spread": 0.4167
+      "spread": 0.4132,
+      "wrap": 0.0035
     },
     "probes": [
       "0.25|1|0=core",
@@ -227,9 +231,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 857,
-        "rice": 1884,
-        "wrap": 38,
+        "out": 885,
+        "rice": 1862,
+        "wrap": 32,
         "cucumber": 357
       },
       "probe": "out,rice,rice,rice,cucumber,rice,rice,rice,rice,rice,out"
@@ -294,9 +298,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 888,
-        "rice": 2081,
-        "wrap": 10,
+        "out": 897,
+        "rice": 2067,
+        "wrap": 15,
         "salmon": 109,
         "avocado": 48
       },
@@ -318,8 +322,8 @@ const ROLL_BASELINE = {
     "materialFractions": {
       "core": 0.2917,
       "patch:tamago": 0.2917,
-      "spread": 0.3264,
-      "wrap": 0.0903
+      "spread": 0.3299,
+      "wrap": 0.0868
     },
     "probes": [
       "0.25|1|0=patch:tamago",
@@ -361,9 +365,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 847,
-        "rice": 1773,
-        "wrap": 205,
+        "out": 867,
+        "rice": 1759,
+        "wrap": 199,
         "tamago": 311
       },
       "probe": "out,rice,rice,rice,tamago,rice,rice,rice,rice,rice,out"
@@ -383,8 +387,9 @@ const ROLL_BASELINE = {
     "patchCount": 2,
     "materialFractions": {
       "core": 0.75,
+      "out": 0.0104,
       "patch:ricePink": 0.0104,
-      "spread": 0.2396
+      "spread": 0.2292
     },
     "probes": [
       "0.25|1|0=core",
@@ -426,9 +431,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 1022,
-        "rice": 2039,
-        "wrap": 7,
+        "out": 1040,
+        "rice": 2020,
+        "wrap": 8,
         "salmon": 13,
         "ricePink": 55
       },
@@ -449,11 +454,11 @@ const ROLL_BASELINE = {
     "patchCount": 3,
     "materialFractions": {
       "core": 0.5556,
-      "out": 0.0104,
+      "out": 0.0417,
       "patch:avocado": 0.0347,
       "patch:salmon": 0.0764,
       "patch:shrimp": 0.0023,
-      "spread": 0.3183,
+      "spread": 0.287,
       "wrap": 0.0023
     },
     "probes": [
@@ -465,7 +470,7 @@ const ROLL_BASELINE = {
       "0.25|5|6=core",
       "0.25|5|12=core",
       "0.25|5|18=core",
-      "0.25|9|0=spread",
+      "0.25|9|0=out",
       "0.25|9|6=spread",
       "0.25|9|12=spread",
       "0.25|9|18=spread",
@@ -477,7 +482,7 @@ const ROLL_BASELINE = {
       "0.5|5|6=core",
       "0.5|5|12=core",
       "0.5|5|18=core",
-      "0.5|9|0=spread",
+      "0.5|9|0=out",
       "0.5|9|6=spread",
       "0.5|9|12=spread",
       "0.5|9|18=spread",
@@ -489,16 +494,16 @@ const ROLL_BASELINE = {
       "0.75|5|6=core",
       "0.75|5|12=core",
       "0.75|5|18=core",
-      "0.75|9|0=spread",
+      "0.75|9|0=out",
       "0.75|9|6=spread",
       "0.75|9|12=spread",
       "0.75|9|18=spread"
     ],
     "map": {
       "counts": {
-        "out": 930,
-        "rice": 2037,
-        "wrap": 13,
+        "out": 1049,
+        "rice": 1922,
+        "wrap": 9,
         "salmon": 109,
         "avocado": 47
       },
@@ -562,9 +567,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 895,
-        "rice": 2185,
-        "wrap": 20,
+        "out": 922,
+        "rice": 2157,
+        "wrap": 21,
         "tamago": 36
       },
       "probe": "out,rice,rice,rice,rice,rice,rice,rice,rice,rice,out"
@@ -584,11 +589,11 @@ const ROLL_BASELINE = {
     "patchCount": 3,
     "materialFractions": {
       "core": 0.3125,
-      "out": 0.0208,
+      "out": 0.1042,
       "patch:avocado": 0.0104,
       "patch:cucumber": 0.2118,
       "patch:salmon": 0.0486,
-      "spread": 0.3958
+      "spread": 0.3125
     },
     "probes": [
       "0.25|1|0=patch:cucumber",
@@ -599,7 +604,7 @@ const ROLL_BASELINE = {
       "0.25|5|6=patch:salmon",
       "0.25|5|12=core",
       "0.25|5|18=core",
-      "0.25|9|0=spread",
+      "0.25|9|0=out",
       "0.25|9|6=spread",
       "0.25|9|12=spread",
       "0.25|9|18=spread",
@@ -611,7 +616,7 @@ const ROLL_BASELINE = {
       "0.5|5|6=patch:salmon",
       "0.5|5|12=core",
       "0.5|5|18=core",
-      "0.5|9|0=spread",
+      "0.5|9|0=out",
       "0.5|9|6=spread",
       "0.5|9|12=spread",
       "0.5|9|18=spread",
@@ -623,21 +628,21 @@ const ROLL_BASELINE = {
       "0.75|5|6=patch:salmon",
       "0.75|5|12=core",
       "0.75|5|18=core",
-      "0.75|9|0=spread",
+      "0.75|9|0=out",
       "0.75|9|6=spread",
       "0.75|9|12=spread",
       "0.75|9|18=spread"
     ],
     "map": {
       "counts": {
-        "out": 925,
-        "rice": 1929,
-        "wrap": 21,
+        "out": 1262,
+        "rice": 1593,
+        "wrap": 20,
         "salmon": 91,
         "cucumber": 142,
         "avocado": 28
       },
-      "probe": "out,rice,rice,rice,rice,out,rice,rice,rice,rice,out"
+      "probe": "out,rice,rice,out,rice,out,rice,rice,rice,rice,out"
     },
     "selfSimilarity": 1
   },
