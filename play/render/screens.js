@@ -333,7 +333,19 @@ function drawRevealed() {
   drawSlab([{ x: cx, y: L.faceY, size: L.faceSize }], 1, B(), 10);
   drawFaceImg(c.img, cx, L.faceY, L.faceSize);
   ctx.fillStyle = '#8d846f'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины`, cx, L.faceY + L.faceSize / 2 + 14);
+  // ⚑ ЧИСЛО ВИТКОВ СКАЗАНО ВСЛУХ (02.09, #162, просьба владельца ещё от 02.09: «а какое
+  // количество? можно как-то обозначать?»). Без него срез спирали неотличим от среза кольца
+  // на глаз: и там и там видно тёмные дуги, и разница в том, СКОЛЬКО их — 2,31 у футомаки
+  // против 9,85 у узумаки. Владелец трижды приняла второй виток с хвостом за сломанную
+  // спираль, и была права в жалобе: спирали там нет, просто числа этого не говорили.
+  {
+    const mm = getModel(), wd = windFor(mm, c.v);
+    const вит = +wd.turns;
+    const режим = mm.g.winding === 'spiral' ? 'спираль' : 'кольцо';
+    const хвост = вит < 3 && mm.g.winding === 'spiral' ? ' — мало для узора' : '';
+    ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины · ${режим}, ${вит.toFixed(1).replace('.', ',')} витка${хвост}`,
+                 cx, L.faceY + L.faceSize / 2 + 14);
+  }
   const hl = handLabel(); if (hl) { ctx.fillStyle = '#6f6754'; ctx.font = font(12); ctx.fillText(hl, cx, L.faceY + L.faceSize / 2 + 32); }
   buttons = []; buttonRow([['slice', `Нарезать на ${npieces()}`, true], ['albumsave', S.saved > performance.now() ? '✓ В альбоме' : '★ В альбом'], ['back', 'Ещё начинки']]);
   if (S.saved > performance.now()) dirty = true;
