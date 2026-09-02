@@ -48,7 +48,7 @@
   "play/ui/layout.js": 1
  },
  "S_writes": {
-  "play/checks.js": 45,
+  "play/checks.js": 51,
   "play/domain/roll.js": 10,
   "play/modes/puzzle.js": 11,
   "play/render/screens.js": 5,
@@ -72,10 +72,10 @@
   "withRollRecipeState": "play/domain/roll.js:76"
  },
  "date": "2026-09-02",
- "geometry_code": 977,
- "geometry_total": 2269,
+ "geometry_code": 984,
+ "geometry_total": 2307,
  "guard": {
-  "известно": 31,
+  "известно": 32,
   "практика_не_проверяется": 10,
   "практика_сошлось": 25,
   "сдвиг_диаметра": 1,
@@ -157,13 +157,13 @@
  },
  "lines": {
   "play/audio.js": 101,
-  "play/checks.js": 805,
+  "play/checks.js": 861,
   "play/domain/roll.js": 303,
   "play/inverse/materials.js": 161,
   "play/inverse/primitives.js": 119,
   "play/model/canon.js": 268,
   "play/model/catalog.js": 359,
-  "play/model/geometry.js": 2269,
+  "play/model/geometry.js": 2307,
   "play/model/util.js": 45,
   "play/modes/puzzle.js": 162,
   "play/render/screens.js": 372,
@@ -172,7 +172,7 @@
   "play/state.js": 188,
   "play/test/domain/roll-facade-checks.js": 195,
   "play/test/fixtures/fixtures.js": 106,
-  "play/test/legacy/baseline-data.js": 748,
+  "play/test/legacy/baseline-data.js": 766,
   "play/test/legacy/baseline.js": 85,
   "play/test/practice.js": 853,
   "play/test/probe.js": 155,
@@ -188,17 +188,17 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "9ac685c",
+ "ref": "ca5d2a5",
  "scripts": {
   "count": 15,
   "versions": [
-   "172"
+   "173"
   ]
  },
- "subject": "The roll was 28% bigger than the material on the sheet",
- "total_lines": 9135,
+ "subject": "Three issues turn out to be one, and the spiral already solves two of them",
+ "total_lines": 9247,
  "touchModel": {
-  "play/checks.js": 23,
+  "play/checks.js": 27,
   "play/modes/puzzle.js": 3,
   "play/render/slice.js": 1,
   "play/state.js": 1,
