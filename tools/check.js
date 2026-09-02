@@ -142,6 +142,20 @@ try {
   process.exit(2);
 }
 
+// --eval <файл>: выполнить свой код в загруженной игре ВМЕСТЕ С ПРОВЕРКАМИ и слепком, вместо
+// прогона сторожа. У tools/measure-slice.js такой ключ есть давно, но он грузит только модель;
+// здесь доступны ещё practice, fixtures, baseline и фасадные проверки. Нужно, например, чтобы
+// переснять слепок (captureLegacyBaseline) без браузера. Ответ класть в globalThis.ВЫХОД.
+const _e = process.argv.indexOf('--eval');
+if (_e >= 0) {
+  const код = fs.readFileSync(process.argv[_e + 1], 'utf8');
+  try { vm.runInContext(код, ctx, { filename: 'eval.js' }); }
+  catch (e) { console.error('НЕ ВЫПОЛНИЛОСЬ:', e && e.message); process.exit(2); }
+  const out = ctx.ВЫХОД;
+  console.log(typeof out === 'string' ? out : JSON.stringify(out));
+  process.exit(0);
+}
+
 let r;
 try { r = ctx.runChecks(true); }
 catch (e) { console.error('ПРОВЕРКИ УПАЛИ:', e && e.message); process.exit(2); }
