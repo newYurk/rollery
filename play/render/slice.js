@@ -152,11 +152,18 @@ function strokeWrapperTurns(c, m, wd, si, scale, half, LW, alpha) {
 }
 function strokeWrapperRim(c, m, wd, si, scale, half) {
   const b = B();
-  // У урамаки обёртка внутри витка, а эта обводка ведёт линию по НАРУЖНОЙ кромке —
-  // для вывернутого ролла её там нет. Модель это теперь умеет (#124): materialAt кладёт
-  // нори на внутренний край, замер на корке даёт рис 87 %. Отрисовку внутренней линии
-  // ещё предстоит завести — тогда `return` уйдёт.
-  if (b.inverted) return;
+  // ⚑ У ВЫВЕРНУТОГО ОБВОДИТСЯ ВНУТРЕННЯЯ КРОМКА (#124, заведено 02.09 — то самое «предстоит»,
+  // что стояло здесь комментарием).
+  //
+  // Нори толщиной 0,10 мм при масштабе 13 px/мм занимает 1,3 ПИКСЕЛЯ, а в пиксельном режиме
+  // сетка ещё крупнее. У обычного маки её спасает эта же обводка по внешней кромке; у
+  // вывернутого её не было вовсе, и лента рвалась: замер заливкой дал 99 отдельных пятен
+  // вместо одного кольца. Владелец увидела это как «херня в середине».
+  //
+  // Ведём ту же линию, но по ВНУТРЕННЕЙ границе — там, где модель кладёт обёртку. Радиус
+  // берётся из `innerAt`, а не из `topAt`, и штрих сдвигается НАРУЖУ на половину ширины
+  // (у внешней кромки — внутрь), чтобы лечь ровно на ленту, а не рядом с ней.
+  const внутр = !!b.inverted;
   // В пиксельном режиме минимум — ОДИН арт-пиксель, а не 1,6 device-px: иначе лента выходит
   // вчетверо жирнее задуманного и забивает узор (issue #104).
   // ДВА арт-пикселя, а не один: контур в один пиксель читается как дефект разрешения, а не как
@@ -169,11 +176,13 @@ function strokeWrapperRim(c, m, wd, si, scale, half) {
   const p = new Path2D();
   let first = true;
   for (let i = 0; i <= NB; i += step) {
-    const bb = i % NB, phi = bb * DPHI, rOut = topAt(wd, phi);
-    if (rOut <= m.g.r0) continue;
+    const bb = i % NB, phi = bb * DPHI;
+    const rOut = внутр ? innerAt(wd, phi) : topAt(wd, phi);
+    if (rOut <= 1e-6 || (!внутр && rOut <= m.g.r0)) continue;
     // половина ширины вычитается в ЭКРАННЫХ px, а не в единицах модели: на плоских гранях квадрата и
-    // треугольника shapeK < 1, и сдвиг в единицах модели вытолкнул бы штрих за силуэт
-    const rpx = rOut / shapeK(phi, si) * scale - LW / 2;
+    // треугольника shapeK < 1, и сдвиг в единицах модели вытолкнул бы штрих за силуэт.
+    // У вывернутого штрих ложится НАРУЖУ от внутренней кромки — там и лежит сама лента.
+    const rpx = rOut / shapeK(phi, si) * scale + (внутр ? LW / 2 : -LW / 2);
     const x = half + Math.cos(phi) * rpx, y = half + Math.sin(phi) * rpx;
     if (first) { p.moveTo(x, y); first = false; } else p.lineTo(x, y);
   }
@@ -185,7 +194,7 @@ function strokeWrapperRim(c, m, wd, si, scale, half) {
   // краевые точки, то есть ровно то, чего в 16-битном арте не бывает.
   c.globalAlpha = PIX ? 1 : a;
   c.lineJoin = PIX ? 'miter' : 'round'; c.lineCap = PIX ? 'butt' : 'round';
-  if (!PIX) { c.strokeStyle = 'rgba(24,40,30,0.28)'; c.lineWidth = LW + 1.7 * MIN; c.stroke(p); }   // контактная тень; `inferred`
+  if (!PIX && !внутр) { c.strokeStyle = 'rgba(24,40,30,0.28)'; c.lineWidth = LW + 1.7 * MIN; c.stroke(p); }   // контактная тень; `inferred`. У вывернутого её нет: линия внутри риса, а не на силуэте
   c.strokeStyle = rgbCss(b.wrapperRgb);   c.lineWidth = LW;             c.stroke(p);
   c.restore();
   strokeWrapperTurns(c, m, wd, si, scale, half, LW, a);   // и внутренние витки — той же шириной
