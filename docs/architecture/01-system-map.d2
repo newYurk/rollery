@@ -77,7 +77,7 @@ model: "geometry · что из этого получится" {
     **Ядро продукта.**
   | {class: note}
   geo: |md
-    **model/geometry.js** · 2269 всего, 977 кода \
+    **model/geometry.js** · 2460 всего, 1003 кода \
     buildModel → g (паспорт) → restack \
     computeCore · wind · windFor · matAt \
     две ветки намотки: кольцо и `winding: 'spiral'` \
@@ -105,7 +105,7 @@ render: "render · как это выглядит" {
     Canvas 2D. Здесь же кеши картинок.
   | {class: note}
   slice: |md
-    **render/slice.js** · 591 \
+    **render/slice.js** · 604 \
     renderSection · face · faceCache \
     marchMask · sliceLines
   | {class: file}
@@ -171,13 +171,13 @@ storage: "storage · что переживает перезагрузку" {
 checks: "сторож · чем доказывается, что не сломали" {
   class: zone
   ch: |md
-    **play/checks.js** · 805 \
+    **play/checks.js** · 1001 \
     **`node tools/check.js`** — 5,6 с, без браузера (#147) \
     ВСЁ ЦЕЛО · известно 31 · сдвиг ⌀ 1 \
     он же `?check` в браузере: холст и DPR только там
   | {class: guard}
   practice: |md
-    **test/practice.js** · 853 \
+    **test/practice.js** · 1065 \
     практика поваров: сошлось 25 \
     не проверяется 10 — и каждое со ссылкой на issue
   | {class: guard}

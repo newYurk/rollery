@@ -41,21 +41,21 @@
   "play/state.js": 16,
   "play/test/domain/roll-facade-checks.js": 6,
   "play/test/legacy/baseline.js": 3,
-  "play/test/practice.js": 9,
+  "play/test/practice.js": 15,
   "play/ui/actions.js": 22,
   "play/ui/album.js": 20,
   "play/ui/controls.js": 9,
   "play/ui/layout.js": 1
  },
  "S_writes": {
-  "play/checks.js": 51,
+  "play/checks.js": 55,
   "play/domain/roll.js": 10,
   "play/modes/puzzle.js": 11,
   "play/render/screens.js": 5,
   "play/state.js": 12,
   "play/test/domain/roll-facade-checks.js": 2,
   "play/test/legacy/baseline.js": 8,
-  "play/test/practice.js": 21,
+  "play/test/practice.js": 37,
   "play/ui/actions.js": 28,
   "play/ui/album.js": 15
  },
@@ -63,22 +63,22 @@
   "B": "play/state.js:139",
   "L": "play/ui/layout.js:34",
   "S": "play/state.js:11",
-  "buildModel": "play/model/geometry.js:1899",
+  "buildModel": "play/model/geometry.js:2000",
   "deriveSheetLayout": "play/domain/roll.js:259",
-  "g_passport": "play/model/geometry.js:1918",
+  "g_passport": "play/model/geometry.js:2019",
   "targetModel": "play/modes/puzzle.js:97",
-  "touchModel": "play/render/slice.js:374",
+  "touchModel": "play/render/slice.js:387",
   "withRecipe": "play/ui/album.js:34",
   "withRollRecipeState": "play/domain/roll.js:76"
  },
  "date": "2026-09-02",
- "geometry_code": 984,
- "geometry_total": 2307,
+ "geometry_code": 1001,
+ "geometry_total": 2460,
  "guard": {
-  "известно": 32,
-  "практика_не_проверяется": 10,
-  "практика_сошлось": 25,
-  "сдвиг_диаметра": 1,
+  "известно": 45,
+  "практика_не_проверяется": 4,
+  "практика_сошлось": 31,
+  "сдвиг_диаметра": 2,
   "целостность": "ВСЁ ЦЕЛО"
  },
  "issues": {
@@ -107,7 +107,7 @@
    "title": "Ярусы в пазле: многослойность разрешена источниками, и правило лучше взять настоящее"
   },
   "142": {
-   "state": "OPEN",
+   "state": "CLOSED",
    "title": "Вторая база со спиральной намоткой: у кольца один слой, и дотачивать его бесполезно"
   },
   "146": {
@@ -157,24 +157,24 @@
  },
  "lines": {
   "play/audio.js": 101,
-  "play/checks.js": 861,
+  "play/checks.js": 1001,
   "play/domain/roll.js": 303,
   "play/inverse/materials.js": 161,
   "play/inverse/primitives.js": 119,
   "play/model/canon.js": 268,
   "play/model/catalog.js": 359,
-  "play/model/geometry.js": 2307,
+  "play/model/geometry.js": 2460,
   "play/model/util.js": 45,
   "play/modes/puzzle.js": 162,
   "play/render/screens.js": 372,
   "play/render/sheet.js": 383,
-  "play/render/slice.js": 591,
+  "play/render/slice.js": 604,
   "play/state.js": 188,
   "play/test/domain/roll-facade-checks.js": 195,
   "play/test/fixtures/fixtures.js": 106,
-  "play/test/legacy/baseline-data.js": 766,
+  "play/test/legacy/baseline-data.js": 772,
   "play/test/legacy/baseline.js": 85,
-  "play/test/practice.js": 853,
+  "play/test/practice.js": 1065,
   "play/test/probe.js": 155,
   "play/ui/actions.js": 215,
   "play/ui/album.js": 139,
@@ -188,21 +188,21 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "ca5d2a5",
+ "ref": "3801e40",
  "scripts": {
   "count": 15,
   "versions": [
-   "173"
+   "179"
   ]
  },
- "subject": "Three issues turn out to be one, and the spiral already solves two of them",
- "total_lines": 9247,
+ "subject": "The document's captions had drifted, and a hand-written \"this is stale\" note had gone stale too",
+ "total_lines": 9771,
  "touchModel": {
-  "play/checks.js": 27,
+  "play/checks.js": 29,
   "play/modes/puzzle.js": 3,
   "play/render/slice.js": 1,
   "play/state.js": 1,
-  "play/test/practice.js": 10,
+  "play/test/practice.js": 22,
   "play/ui/actions.js": 8,
   "play/ui/album.js": 1
  }
