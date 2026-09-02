@@ -52,6 +52,18 @@ function action(id) {
       wrapNoteT = performance.now();
       save(); touchModel(); layout(); dirty = true; break;
     }
+    // ⚑ ПЕРЕБОР РЕЖИМА НАМОТКИ: авто → кольцо → спираль → авто (#141, 02.09).
+    // Подпись всплывает той же дорогой, что у обёртки, — иначе три одинаковых кружка ничего
+    // не говорят. «Авто» показывает, ЧТО модель выбрала сама.
+    case 'winding': {
+      S.winding = S.winding === null ? 'ring' : S.winding === 'ring' ? 'spiral' : null;
+      const реж = S.winding === null ? (getModel().g.winding === 'spiral' ? 'спираль' : 'кольцо') : null;
+      wrapNote = S.winding === 'ring' ? 'кольцо — как маки'
+               : S.winding === 'spiral' ? 'спираль — лист сам на себя'
+               : `авто · сейчас ${реж}`;
+      wrapNoteT = performance.now();
+      touchModel(); save(); dirty = true; break;
+    }
     case 'shape': { const ks = Object.keys(SHAPES); S.shape = ks[(ks.indexOf(S.shape) + 1) % ks.length]; save(); if (S.puzzle && S.puzzle.result) S.puzzle.result = null; dirty = true; break; }
     case 'next': if (S.puzzle && S.puzzle.result && S.puzzle.result.pass) puzzleStart(Math.max(0, S.puzzle.level + 1), S.puzzle.seed + 1); break;
     case 'lvprev': if (S.puzzle && S.puzzle.level > 0) puzzleStart(S.puzzle.level - 1, S.puzzle.seed); else if (S.puzzle && S.puzzle.level < 0) puzzleStart(0, 1); break;
