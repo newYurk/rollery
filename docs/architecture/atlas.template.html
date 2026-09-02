@@ -359,10 +359,11 @@
   <div class="steps">
     <div class="step pre"><span class="no">0</span>
       <span class="ttl">Сторож из терминала — ✅ сделано 01.09 · #147</span>
-      <span class="txt"><code>node tools/check.js</code> — весь <code>checks.js</code>
-      идёт headless, правок игрового кода ноль. Единственный пункт, который сам
-      ничего не чинил и разблокировал всё: до него каждый шаг ниже был правкой
-      вслепую с ручным открыванием браузера.</span></div>
+      <span class="txt"><code>node tools/check.js</code> — 160 строк, 5,6 с, правок
+      игрового кода ноль: ВСЁ ЦЕЛО, известно 31, практика сошлось 25. Вшит
+      в <code>end-of-day.sh</code>. Единственный пункт, который сам ничего не чинил
+      и разблокировал всё. Числа про вёрстку по-прежнему только из
+      <code>?check</code> в браузере — холст и DPR там настоящие.</span></div>
     <div class="step"><span class="no">1</span>
       <span class="ttl">ES-модули · #72</span>
       <span class="txt">Гасит узел ①. Поведение не меняется вовсе. ⚠ Модули не заменяют

@@ -57,6 +57,7 @@ SHEETS = {
     "scripts": "лист 2 узел ①, лист 4 шаг 1 · страница",
     "markers": "лист 2 «Чего здесь нет», лист 3 заметка n6, лист 4 «Работа рядом»",
     "issues": "листы 2 и 4 · страница, секции s2 и s4",
+    "guard": "лист 1 (зона «сторож»), лист 4 (зона proof и шаг 0) · страница, шаг 0",
 }
 
 # Номера задач, на которые ссылается атлас. Закрылся такой, а лист говорит о нём
@@ -184,6 +185,35 @@ def measure(ref):
     }
 
 
+def guard_counters():
+    """Счётчики самого сторожа игры: ВСЁ ЦЕЛО / известно N / практика сошлось M.
+
+    Их атлас цитирует на листах 1 и 4, и ровно они протухли первыми: в первой
+    редакции стояло «22 известных» и «22 сошлось», а через сутки было 31 и 25.
+    Число известных расхождений растёт от каждого нового вопроса к владельцу —
+    то есть меняется чаще всего остального в этом файле.
+
+    Гоняется настоящий прогон, а не парсится исходник: контракт сторожа —
+    «ни одним известным больше», и проверять его надо тем же способом,
+    каким он даётся. Нет node или файла — раздел помечается «не снято».
+    """
+    r = sh(["node", "tools/check.js"])
+    if r.returncode not in (0, 1) or not r.stdout:
+        return None
+    out = r.stdout
+    def num(marker):
+        m = re.search(marker + r"\s*·\s*(\d+)", out)
+        return int(m.group(1)) if m else None
+    m = re.search(r"сошлось\s+(\d+),\s*не проверяется\s+(\d+)", out)
+    return {
+        "целостность": "ВСЁ ЦЕЛО" if "ВСЁ ЦЕЛО" in out else "НЕ ЦЕЛО",
+        "известно": num("ИЗВЕСТНО"),
+        "сдвиг_диаметра": num("СДВИГ ⌀"),
+        "практика_сошлось": int(m.group(1)) if m else None,
+        "практика_не_проверяется": int(m.group(2)) if m else None,
+    }
+
+
 def issue_states():
     r = sh(["gh", "issue", "list", "--repo", "newYurk/rollery", "--state", "all",
             "--limit", "300", "--json", "number,state,title"])
@@ -197,6 +227,7 @@ def issue_states():
 def main():
     now = measure("HEAD")
     now["issues"] = issue_states()
+    now["guard"] = guard_counters()
 
     if "--snapshot" in sys.argv:
         SNAP.write_text(json.dumps(now, ensure_ascii=False, indent=1, sort_keys=True),
@@ -205,6 +236,12 @@ def main():
         print(f"  файлов play/**/*.js: {len(now['lines'])}, строк всего: {now['total_lines']}")
         if now["issues"] is None:
             print("  ⚠ статусы issues не сняты: нет gh или сети")
+        if now["guard"] is None:
+            print("  ⚠ счётчики сторожа не сняты: нет node или tools/check.js")
+        else:
+            g = now["guard"]
+            print(f"  сторож: {g['целостность']} · известно {g['известно']} · "
+                  f"практика сошлось {g['практика_сошлось']}")
         return 0
 
     if not SNAP.exists():
@@ -212,27 +249,40 @@ def main():
         return 2
     was = json.loads(SNAP.read_text(encoding="utf-8"))
 
-    if was["ref"] == now["ref"]:
-        print(f"атлас снят на этом же коммите ({now['ref']}) — сверять нечего")
-        return 0
-
-    behind = sh(["git", "rev-list", "--count", f"{was['ref']}..HEAD"]).stdout.strip()
-    print(f"слепок на {was['ref']} ({was['date']}) «{was['subject']}»")
-    print(f"сейчас   {now['ref']} ({now['date']}) «{now['subject']}»")
-    print(f"коммитов сверху: {behind}\n")
+    # ⚠ ТОТ ЖЕ КОММИТ — НЕ ЗНАЧИТ «СВЕРЯТЬ НЕЧЕГО». Первая редакция здесь
+    # выходила с нулём, и это была дыра ровно того сорта, ради которого весь
+    # файл написан: статусы issues и счётчики сторожа меняются БЕЗ КОММИТА.
+    # Задачу закрывают в браузере, «известных расхождений» становится больше от
+    # нового вопроса владельцу — код при этом не двинулся ни на строку.
+    # Поэтому на том же коммите пропускается только то, что выведено ИЗ КОДА.
+    same = was["ref"] == now["ref"]
+    if same:
+        print(f"коммит тот же ({now['ref']}) — сверяю только то, что меняется без коммита:\n"
+              f"статусы задач и счётчики сторожа\n")
+    else:
+        behind = sh(["git", "rev-list", "--count", f"{was['ref']}..HEAD"]).stdout.strip()
+        print(f"слепок на {was['ref']} ({was['date']}) «{was['subject']}»")
+        print(f"сейчас   {now['ref']} ({now['date']}) «{now['subject']}»")
+        print(f"коммитов сверху: {behind}\n")
 
     drift = []
-    for key in ("lines", "S_reads", "S_writes", "B_calls", "L_calls",
-                "touchModel", "anchors", "markers"):
+    for key in ([] if same else ("lines", "S_reads", "S_writes", "B_calls", "L_calls",
+                                 "touchModel", "anchors", "markers")):
         a, b = was.get(key) or {}, now.get(key) or {}
         for k in sorted(set(a) | set(b)):
             if a.get(k) != b.get(k):
                 drift.append((key, k, a.get(k), b.get(k)))
-    for key in ("total_lines", "geometry_total", "geometry_code"):
+    for key in ([] if same else ("total_lines", "geometry_total", "geometry_code")):
         if was.get(key) != now.get(key):
             drift.append(("числа", key, was.get(key), now.get(key)))
-    if was.get("scripts") != now.get("scripts"):
+    if not same and was.get("scripts") != now.get("scripts"):
         drift.append(("scripts", "теги и версия", was.get("scripts"), now.get("scripts")))
+    if now.get("guard") is None:
+        print("⚠ счётчики сторожа не сняты: нет node или tools/check.js\n")
+    elif was.get("guard"):
+        for k in sorted(set(was["guard"]) | set(now["guard"])):
+            if was["guard"].get(k) != now["guard"].get(k):
+                drift.append(("guard", k, was["guard"].get(k), now["guard"].get(k)))
 
     issue_drift = []
     if was.get("issues") and now.get("issues"):

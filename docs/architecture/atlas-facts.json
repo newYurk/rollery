@@ -74,6 +74,13 @@
  "date": "2026-09-01",
  "geometry_code": 967,
  "geometry_total": 2233,
+ "guard": {
+  "известно": 31,
+  "практика_не_проверяется": 10,
+  "практика_сошлось": 25,
+  "сдвиг_диаметра": 1,
+  "целостность": "ВСЁ ЦЕЛО"
+ },
  "issues": {
   "109": {
    "state": "OPEN",
@@ -181,14 +188,14 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "e6ae124",
+ "ref": "fe09750",
  "scripts": {
   "count": 15,
   "versions": [
    "170"
   ]
  },
- "subject": "Uzumaki gets a core, because a sheet does not bend tighter than its own thickness",
+ "subject": "The atlas now has a watchdog, because it went stale in under an hour",
  "total_lines": 9009,
  "touchModel": {
   "play/checks.js": 19,
