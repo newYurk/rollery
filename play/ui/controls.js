@@ -115,10 +115,45 @@ let wrapNote = '', wrapNoteT = 0;   // имя выбранной обёртки:
 // (иконка загорается, в подсказке сказано, что будет), второе чистит; после очистки на пять
 // секунд выходит плашка «Лист очищен · ↶ Вернуть», и тап по ней возвращает раскладку.
 let clearArm = 0, undoNote = 0;
+// ОБРАЗЕЦ БАЗЫ НА КНОПКЕ (#158, 02.09) — тем же приёмом, что уже стоит у обёртки: там глиф не
+// эмодзи, а кружок цвета самой обёртки, «так видно выбор не читая».
+//
+// Эмодзи этого не умели и молча врали: 🍥 стояло И у тюмаки, И у футомаки, 🌀 — И у урамаки,
+// И у узумаки. Две базы, заведённые в #142 и #145, проверяются сторожем и для игрока не
+// существовали: переключившись, он не узнавал, куда попал.
+//
+// Образец говорит ТРИ вещи разом, и все три — правда из каталога, а не украшение:
+//   · РАЗМЕР кружка ∝ √(L·T) — ровно та величина, что задаёт радиус ролла в модели
+//     (площадь материала → радиус). Хосомаки мельче футомаки, и это видно до нажатия;
+//   · ЦВЕТ кольца — обёртка базы, цвет заливки — её намазка;
+//   · УСТРОЙСТВО: у вывернутого рис снаружи, а тёмное внутри; у спирали — виток, а не кольцо.
+function рисоватьОбразецБазы(cx, cy, ключ) {
+  const b = BASES[ключ], мера = k => Math.sqrt(BASES[k].L * BASES[k].T);
+  const макс = Math.max(...uiBases().map(мера)) || 1;
+  const R = 5.5 + 6.5 * (мера(ключ) / макс);
+  const обёртка = (WRAPPERS[b.wrapKey] || WRAPPERS.nori).color, намазка = b.spread || '#e4ded6';
+  ctx.save(); ctx.lineWidth = 2.2;
+  if (b.winding === 'spiral') {                       // виток, а не кольцо: у спирали ядра нет
+    ctx.strokeStyle = обёртка; ctx.beginPath();
+    for (let t = 0; t <= 1.001; t += 0.02) {
+      const a = t * TAU * 1.75, r = 1.5 + (R - 1.5) * t;
+      const px = cx + r * Math.cos(a), py = cy + r * Math.sin(a);
+      t ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.stroke();
+  } else if (b.inverted) {                            // рис снаружи, обёртка внутри
+    ctx.fillStyle = намазка; ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fill();
+    ctx.fillStyle = обёртка; ctx.beginPath(); ctx.arc(cx, cy, R * 0.52, 0, TAU); ctx.fill();
+  } else {
+    ctx.fillStyle = намазка; ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fill();
+    ctx.strokeStyle = обёртка; ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawTopBar(hint) {
   const T0 = SAFE.top, ox = L.ox, cw = L.cw, narrow = cw < 480;
-  ctx.fillStyle = '#f3e7ca'; ctx.font = font(17, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText('Ролльня', ox + 16, 24 + T0);
+  ctx.font = font(17, 700);
+  const заголовокW = 16 + ctx.measureText('Ролльня').width + 12;   // с зазором до первой иконки
   // Обёртка — кнопка-образец: глиф не эмодзи, а кружок цвета самой обёртки, так видно выбор
   // не читая. Перебором, а не списком: раскладку только что перебрали, и лишний ряд сейчас
   // рискован. Настоящий выбор — образцы на циновке вплотную к листу, issue #13.
@@ -143,12 +178,24 @@ function drawTopBar(hint) {
   // цвет. Прятать переключатель между ними значит прятать половину модели.
   if (!B().wrapFixed) items.splice(1, 0, ['sheet', '●']);
   if (S.puzzle || S.mode === 'revealed' || S.mode === 'plate') items.splice(3, 0, ['share', '🔗']);
-  const iconsW = items.length * ((narrow ? 34 : 40) + (narrow ? 4 : 6));
+  // ⚑ ИКОНКИ УЖИМАЮТСЯ, А НЕ НАЕЗЖАЮТ НА ЗАГОЛОВОК (02.09, #158). Ширина иконки была
+  // константой, и ряд просто рос вправо-влево от неё: с открытием всех шести баз иконок стало
+  // восемь, ряд занял 304 px из 393, и «Ролльня» уехала под первую кнопку. Теперь ряд знает,
+  // сколько места оставил заголовок, и сужается до 30 px; если и этого мало — заголовок
+  // уступает целиком. Обрезанное слово хуже отсутствующего, это уже разбиралось с подписью.
+  let шир = narrow ? 34 : 40, зазор = narrow ? 4 : 6;
+  while (шир > 30 && заголовокW + items.length * (шир + зазор) > cw) шир--;
+  const iconsW = items.length * (шир + зазор);
+  const заголовокВлез = заголовокW + iconsW <= cw;
+  if (заголовокВлез) {
+    ctx.fillStyle = '#f3e7ca'; ctx.font = font(17, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('Ролльня', ox + 16, 24 + T0);
+  }
   // ⚑ ПОДПИСЬ УСТУПАЕТ ИКОНКАМ, А НЕ ОБРЕЗАЕТСЯ (02.09, #157). Она рисовалась всегда и просто
   // резалась рамкой: с седьмой иконкой (🗑) на iPhone 15 Pro от неё оставалось 15 px, и в шапке
   // читалось «Ролльня ст». Обрезанное слово хуже отсутствующего — оно выглядит поломкой.
   // Теперь смотрим, сколько места ОСТАЛОСЬ, и берём ту редакцию, которая в него влезает.
-  const свободно = cw - iconsW - 20 - 92;
+  const свободно = cw - iconsW - 20 - (заголовокВлез ? 92 : 16);
   if (свободно >= 60) {
     ctx.save(); ctx.beginPath(); ctx.rect(ox, T0, cw - iconsW - 20, 50); ctx.clip();
     ctx.fillStyle = '#8d846f'; ctx.font = font(12); ctx.textAlign = 'left';
@@ -157,18 +204,21 @@ function drawTopBar(hint) {
     const текст = ctx.measureText(полная).width <= свободно ? полная
                 : ctx.measureText(средняя).width <= свободно ? средняя
                 : `срезов: ${S.cuts}`;
-    ctx.fillText(текст, ox + 92, 25 + T0);
+    ctx.fillText(текст, ox + (заголовокВлез ? 92 : 16), 25 + T0);
     ctx.restore();
   }
   let x = ox + cw - 12;
   for (const [id, glyph] of items) {
-    const w = narrow ? 34 : 40; x -= w; icons.push({ id, x, y: 4 + T0, w, h: 40 });
+    const w = шир; x -= w; icons.push({ id, x, y: 4 + T0, w, h: 40 });
     rr(x, 6 + T0, w, 36, 10); ctx.fillStyle = ((id === 'preview' && S.preview) || (id === 'lines' && S.lines) || (id === 'puzzle' && S.puzzle) || (id === 'album' && S.mode === 'album') || (id === 'clear' && clearArm > performance.now())) ? '#4a4331' : '#26261f'; ctx.fill();
     ctx.font = id === 'share' ? '16px system-ui' : id === 'album' ? font(19, 600) : id === 'sheet' ? font(22, 700) : '18px system-ui';
     ctx.textAlign = 'center';
     ctx.fillStyle = id === 'album' ? '#e0b25a' : id === 'sheet' ? (WRAPPERS[B().wrapKey] || WRAPPERS.nori).color : '#f3e7ca';
-    ctx.globalAlpha = (id === 'preview' && !S.preview) ? 0.45 : 1; ctx.fillText(glyph, x + w / 2, 25 + T0); ctx.globalAlpha = 1;
-    x -= narrow ? 4 : 6;
+    ctx.globalAlpha = (id === 'preview' && !S.preview) ? 0.45 : 1;
+    if (id === 'base') рисоватьОбразецБазы(x + w / 2, 24 + T0, S.base);
+    else ctx.fillText(glyph, x + w / 2, 25 + T0);
+    ctx.globalAlpha = 1;
+    x -= зазор;
   }
   const arrows = S.puzzle && S.mode === 'lay';
   // Имя выбранной обёртки на пару секунд поверх подсказки: на кнопке-образце оно не помещается
