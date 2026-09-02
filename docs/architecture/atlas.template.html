@@ -194,11 +194,15 @@
   не отвечает ни на один вопрос</strong> — он показывает всё сразу и потому не помогает
   решить ничего. Здесь каждый лист держит ровно тот уровень детали, который нужен
   для одного решения, и молчит про остальное.</p>
+  <p class="lede" style="margin-top:16px;font-size:16.5px">Числа на листах верны на один
+  коммит и стареют молча — за первый же день под атласом закрылись
+  <code>#146</code> и <code>#147</code>. Поэтому у него есть свой сторож:
+  <code>atlas-facts.py</code> меряет их заново и говорит, на каком листе править.</p>
   <div class="meta">
     <span><b>исходники</b> docs/architecture/*.d2</span>
     <span><b>листы</b> 4</span>
     <span><b>для обсуждения</b> rollery-atlas.excalidraw</span>
-    <span><b>код на</b> 01.09.2026, 8776 строк</span>
+    <span><b>снято на</b> {{STAMP}}</span>
   </div>
 </header>
 
@@ -276,9 +280,14 @@
     значит посчитать ролл, не тронув живую сессию, нельзя. Все шесть редакций подмены
     <code>S</code> существуют ровно потому, что безымянный вход надо чем-то подсунуть.</p>
     <p>Половина лечения уже стоит в коде: объект <code>g</code> в
-    <code>geometry.js:1730</code> — «паспорт модели: всё, что геометрия раньше
+    <code>geometry.js:1866</code> — «паспорт модели: всё, что геометрия раньше
     подсматривала в S и B(), снято здесь один раз». Это готовый <code>ModelInput</code>,
     только собранный внутри функции, а не переданный снаружи.</p>
+    <p><strong>Одна поправка к первой редакции листа.</strong> Файлы были разнесены
+    на «писателей» и «читателей» — деление было моё, а не измеренное. На самом деле
+    ни один файл не является только тем или только другим: <code>ui/actions.js</code>
+    пишет 28 раз и читает 22. Это не смягчает картину, а делает её хуже: у объекта
+    нет ни одной границы — ни на запись, ни на чтение.</p>
   </div>
 
   <div class="scroll">
@@ -289,11 +298,11 @@
       </tr></thead>
       <tbody>
         <tr><td class="num">1-м</td><td><b class="red">① порядок скриптов</b></td>
-          <td><code>play/index.html</code> — 15 тегов</td>
+          <td><code>play/index.html</code> — 15 тегов, <code>?v=170</code></td>
           <td class="num">15</td><td>шаг 1 · ES-модули</td></tr>
         <tr><td class="num">2-м</td><td><b class="red">② S</b></td>
-          <td><code>state.js:11</code> — 4 пишут, 6 читают</td>
-          <td class="num">176</td><td>шаги 2 и 4</td></tr>
+          <td><code>state.js:11</code> — 151 запись, 161 чтение</td>
+          <td class="num">312</td><td>шаги 2 и 4</td></tr>
         <tr><td class="num">2-м</td><td><b class="red">③ B()</b></td>
           <td><code>state.js:133</code> — ключ на два поля</td>
           <td class="num">66</td><td>шаг 2 · ModelInput</td></tr>
@@ -304,8 +313,8 @@
           <td><code>domain/roll.js:259</code></td>
           <td class="num">1</td><td>шаг 3 · удалением</td></tr>
         <tr><td class="num">5-м</td><td><b class="red">⑤ touchModel()</b></td>
-          <td><code>render/slice.js:373</code> — 6 файлов</td>
-          <td class="num">26</td><td>шаг 5 · распадается сам</td></tr>
+          <td><code>render/slice.js:374</code> — 7 файлов</td>
+          <td class="num">43</td><td>шаг 5 · распадается сам</td></tr>
       </tbody>
     </table>
   </div>
@@ -349,10 +358,11 @@
 
   <div class="steps">
     <div class="step pre"><span class="no">0</span>
-      <span class="ttl">Сторож из терминала — предусловие, не шаг · #147</span>
-      <span class="txt">Загрузчик ~50 строк, правок игрового кода ноль. Весь
-      <code>checks.js</code> идёт headless за 5,3 с. Без него ни один шаг ниже
-      не доказуем.</span></div>
+      <span class="ttl">Сторож из терминала — ✅ сделано 01.09 · #147</span>
+      <span class="txt"><code>node tools/check.js</code> — весь <code>checks.js</code>
+      идёт headless, правок игрового кода ноль. Единственный пункт, который сам
+      ничего не чинил и разблокировал всё: до него каждый шаг ниже был правкой
+      вслепую с ручным открыванием браузера.</span></div>
     <div class="step"><span class="no">1</span>
       <span class="ttl">ES-модули · #72</span>
       <span class="txt">Гасит узел ①. Поведение не меняется вовсе. ⚠ Модули не заменяют
@@ -380,11 +390,17 @@
     <p>Работа, которая идёт рядом и путается с миграцией, потому что тоже «про
     архитектуру». Разница одна и она проверяемая: <strong>пять шагов выше не меняют
     ни одного числа</strong>, а эти меняют модель.</p>
-    <p><code>#146</code> — топология кольца за имя: <code>slice.js:530</code> читает
-    <code>wd.rin[NB + b]</code>, зная, что слой k=1 — обёртка. Настоящий блокер второй
-    ветки намотки, и стороннее ревью его не назвало. Дальше <code>#142</code> — спиральная
-    база, <code>#74</code> — роль как свойство укладки, <code>#3</code> и
-    <code>#124</code> — урамаки.</p>
+    <p><strong><code>#146</code> — топология кольца за имя — закрыт 01.09, пока
+    собирался атлас.</strong> Пять мест снаружи читали <code>wd.rin[NB + b]</code>,
+    зная, что слой k = 1 — обёртка. Теперь намотка отдаёт наружу восемь вопросов
+    вместо массивов: <code>внутр</code>, <code>внеш</code>, <code>есть</code>,
+    <code>толщина</code>, <code>витокЕсть</code>, <code>накрыт</code>,
+    <code>крайВитка</code>, <code>голый</code>. Это и был настоящий блокер второй
+    ветки намотки — тот самый, которого стороннее ревью не назвало.</p>
+    <p>Следом закрыт <code>#147</code>, а в каталоге появилась база <strong>узумаки</strong>
+    с <code>winding: 'spiral'</code>: <code>#142</code> уже строится. Остаются
+    <code>#74</code> — роль как свойство укладки, <code>#3</code> и <code>#124</code> —
+    урамаки.</p>
   </div>
   {{SVG:04-target-migration}}
 </section>
@@ -410,7 +426,14 @@ d2 --watch 02-danger-edges.d2
 python3 docs/architecture/build-atlas-excalidraw.py
 
 <span class="c"># эта страница</span>
-python3 docs/architecture/build-atlas-page.py</pre>
+python3 docs/architecture/build-atlas-page.py
+
+<span class="c"># не разошёлся ли атлас с кодом (и на каком листе править)</span>
+python3 docs/architecture/atlas-facts.py
+python3 docs/architecture/atlas-facts.py --snapshot   <span class="c"># после правки листов</span>
+
+<span class="c"># сторож самой игры — теперь без браузера (#147)</span>
+node tools/check.js</pre>
 
   <div class="col">
     <h3>Чем открывать</h3>
@@ -437,14 +460,20 @@ python3 docs/architecture/build-atlas-page.py</pre>
 
     <h3>Что править, если код разошёлся с чертежом</h3>
     <p>Править <code>.d2</code>, а не SVG: SVG перезаписывается при следующей сборке.
-    Цифры на листе 2 — это <code>grep -c</code>, их можно пересчитать той же командой,
-    она записана в шапке файла. Excalidraw-карта собирается скриптом, поэтому её тоже
-    правит генератор, а не рука — иначе следующая пересборка сотрёт правку.</p>
+    Excalidraw-карта собирается скриптом, поэтому её тоже правит генератор, а не рука —
+    иначе следующая пересборка сотрёт правку.</p>
+    <p><strong>Числа руками не считать.</strong> <code>atlas-facts.py</code> меряет их
+    сам — счётчики, адреса <code>file:line</code>, длины файлов, статусы задач — и
+    сверяет со слепком, показывая, на каком листе править каждое расхождение. Меряет
+    через <code>git show</code>, а не по рабочему каталогу: над «Ролльней» работает
+    вторая сессия, и замер с полусохранённого файла не соответствует ни одному
+    состоянию проекта.</p>
   </div>
 </section>
 
 <footer>
-  Атлас собран 01.09.2026 по коду на <code>8776</code> строк.
+  Числа сняты на коммите, который назван в шапке; сверяет их
+  <code>docs/architecture/atlas-facts.py</code>.
   Исходники: <code>docs/architecture/</code>.
   Целевая архитектура целиком — <code>docs/domain-contract.md</code> §4, §8, §11.
   Точка входа проекта — <code>STATE.md</code>.

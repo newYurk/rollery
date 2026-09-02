@@ -35,6 +35,7 @@ D2 кладёт внутрь каждого SVG свой <style> со шрифт
 """
 
 import html
+import json
 import pathlib
 import re
 import urllib.parse
@@ -128,8 +129,19 @@ def figure(stem: str) -> str:
     )
 
 
+def stamp() -> str:
+    """Коммит, на котором сняты числа. Берётся из слепка atlas-facts.py, а не
+    из HEAD: страница обязана называть то состояние, которое реально измерено,
+    даже если репозиторий с тех пор уехал вперёд."""
+    snap = HERE / "atlas-facts.json"
+    if not snap.exists():
+        return "слепок не снят — python3 docs/architecture/atlas-facts.py --snapshot"
+    d = json.loads(snap.read_text(encoding="utf-8"))
+    return f'{d["ref"]} · {d["date"]} · {d["total_lines"]} строк'
+
+
 def main():
-    html = TPL.read_text(encoding="utf-8")
+    html = TPL.read_text(encoding="utf-8").replace("{{STAMP}}", stamp())
     for stem in CAPTIONS:
         token = "{{SVG:" + stem + "}}"
         if token not in html:

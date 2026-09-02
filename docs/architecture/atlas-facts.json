@@ -1,0 +1,202 @@
+{
+ "B_calls": {
+  "play/checks.js": 4,
+  "play/domain/roll.js": 1,
+  "play/model/geometry.js": 14,
+  "play/modes/puzzle.js": 4,
+  "play/render/screens.js": 18,
+  "play/render/sheet.js": 6,
+  "play/render/slice.js": 4,
+  "play/state.js": 3,
+  "play/ui/actions.js": 2,
+  "play/ui/album.js": 4,
+  "play/ui/controls.js": 3,
+  "play/ui/layout.js": 3
+ },
+ "L_calls": {
+  "play/checks.js": 13,
+  "play/domain/roll.js": 3,
+  "play/model/geometry.js": 2,
+  "play/render/screens.js": 53,
+  "play/render/sheet.js": 7,
+  "play/state.js": 1,
+  "play/test/domain/roll-facade-checks.js": 5,
+  "play/test/practice.js": 1,
+  "play/ui/actions.js": 11,
+  "play/ui/album.js": 6,
+  "play/ui/controls.js": 8,
+  "play/ui/layout.js": 42
+ },
+ "S_reads": {
+  "play/audio.js": 2,
+  "play/checks.js": 15,
+  "play/domain/roll.js": 7,
+  "play/model/canon.js": 2,
+  "play/model/geometry.js": 12,
+  "play/model/util.js": 1,
+  "play/modes/puzzle.js": 11,
+  "play/render/screens.js": 15,
+  "play/render/sheet.js": 7,
+  "play/render/slice.js": 4,
+  "play/state.js": 15,
+  "play/test/domain/roll-facade-checks.js": 6,
+  "play/test/legacy/baseline.js": 3,
+  "play/test/practice.js": 9,
+  "play/ui/actions.js": 22,
+  "play/ui/album.js": 20,
+  "play/ui/controls.js": 9,
+  "play/ui/layout.js": 1
+ },
+ "S_writes": {
+  "play/checks.js": 39,
+  "play/domain/roll.js": 10,
+  "play/modes/puzzle.js": 11,
+  "play/render/screens.js": 5,
+  "play/state.js": 12,
+  "play/test/domain/roll-facade-checks.js": 2,
+  "play/test/legacy/baseline.js": 8,
+  "play/test/practice.js": 21,
+  "play/ui/actions.js": 28,
+  "play/ui/album.js": 15
+ },
+ "anchors": {
+  "B": "play/state.js:133",
+  "L": "play/ui/layout.js:34",
+  "S": "play/state.js:11",
+  "buildModel": "play/model/geometry.js:1847",
+  "deriveSheetLayout": "play/domain/roll.js:259",
+  "g_passport": "play/model/geometry.js:1866",
+  "targetModel": "play/modes/puzzle.js:97",
+  "touchModel": "play/render/slice.js:374",
+  "withRecipe": "play/ui/album.js:34",
+  "withRollRecipeState": "play/domain/roll.js:76"
+ },
+ "date": "2026-09-01",
+ "geometry_code": 967,
+ "geometry_total": 2233,
+ "issues": {
+  "109": {
+   "state": "OPEN",
+   "title": "Аудит честности чисел: 11 помечено неверно, ~65 догадок без пометки"
+  },
+  "115": {
+   "state": "CLOSED",
+   "title": "Нори вокруг куска собрана из четырёх несходящихся плашек, а не как конверт"
+  },
+  "121": {
+   "state": "CLOSED",
+   "title": "Контуры среза рвутся на краях кусков: лучами замкнутую границу не построить, нужен обход (marching squares)"
+  },
+  "124": {
+   "state": "OPEN",
+   "title": "Урамаки устроен иначе, а смоделирован как обычный маки: inverted живёт в одной строке отрисовки"
+  },
+  "130": {
+   "state": "CLOSED",
+   "title": "Нори между двумя слоями риса в зоне нахлёста: 12 лучей из 144, видно на срезе"
+  },
+  "140": {
+   "state": "OPEN",
+   "title": "Ярусы в пазле: многослойность разрешена источниками, и правило лучше взять настоящее"
+  },
+  "142": {
+   "state": "OPEN",
+   "title": "Вторая база со спиральной намоткой: у кольца один слой, и дотачивать его бесполезно"
+  },
+  "146": {
+   "state": "CLOSED",
+   "title": "Устройство кольца вытекло из wind() в отрисовку и в сторожа: спираль сломает их согласованно и молча"
+  },
+  "147": {
+   "state": "CLOSED",
+   "title": "Сторож ?check прогоняется из терминала за 5,3 с — не хватает только загрузчика на 50 строк"
+  },
+  "148": {
+   "state": "OPEN",
+   "title": "Ключ кэша модели слеп к noriWrap: обёрнутый кусок возвращается из кэша необёрнутым"
+  },
+  "150": {
+   "state": "OPEN",
+   "title": "Три дыры в истории, пустые catch в альбоме и один try на семь чтений: что из ревью действительно сломано"
+  },
+  "3": {
+   "state": "OPEN",
+   "title": "Урамаки: правила не написаны, числа в коде — заглушка"
+  },
+  "57": {
+   "state": "OPEN",
+   "title": "Правило раскладки начинки как подсказка в UI"
+  },
+  "72": {
+   "state": "OPEN",
+   "title": "Выход из монолита: миграция по docs/domain-contract.md §11"
+  },
+  "74": {
+   "state": "OPEN",
+   "title": "Роль — свойство укладки, а не вещества: surface/embedded/stacked/spread в домене"
+  },
+  "80": {
+   "state": "OPEN",
+   "title": "Inverse design: ЗАМОРОЖЕНО 01.09 — спецификация писалась до кольца, ядра и отмены классов"
+  },
+  "86": {
+   "state": "CLOSED",
+   "title": "Обёртка не входит в «рецепт»: альбом и ссылка на пазл её теряют"
+  },
+  "94": {
+   "state": "OPEN",
+   "title": "Живой срез во время скрутки: показывать, как элементы встают в спираль (как проигрыватель лаборатории)"
+  }
+ },
+ "lines": {
+  "play/audio.js": 101,
+  "play/checks.js": 751,
+  "play/domain/roll.js": 303,
+  "play/inverse/materials.js": 161,
+  "play/inverse/primitives.js": 119,
+  "play/model/canon.js": 268,
+  "play/model/catalog.js": 359,
+  "play/model/geometry.js": 2233,
+  "play/model/util.js": 45,
+  "play/modes/puzzle.js": 162,
+  "play/render/screens.js": 372,
+  "play/render/sheet.js": 383,
+  "play/render/slice.js": 591,
+  "play/state.js": 182,
+  "play/test/domain/roll-facade-checks.js": 195,
+  "play/test/fixtures/fixtures.js": 106,
+  "play/test/legacy/baseline-data.js": 724,
+  "play/test/legacy/baseline.js": 85,
+  "play/test/practice.js": 852,
+  "play/test/probe.js": 155,
+  "play/ui/actions.js": 215,
+  "play/ui/album.js": 134,
+  "play/ui/controls.js": 161,
+  "play/ui/layout.js": 352
+ },
+ "markers": {
+  "classic_scripts": 15,
+  "es_modules": 0,
+  "geometry_reads_S": 21,
+  "ring_leak": 0,
+  "state_swaps": 1
+ },
+ "ref": "e6ae124",
+ "scripts": {
+  "count": 15,
+  "versions": [
+   "170"
+  ]
+ },
+ "subject": "Uzumaki gets a core, because a sheet does not bend tighter than its own thickness",
+ "total_lines": 9009,
+ "touchModel": {
+  "play/checks.js": 19,
+  "play/modes/puzzle.js": 3,
+  "play/render/slice.js": 1,
+  "play/state.js": 1,
+  "play/test/practice.js": 10,
+  "play/ui/actions.js": 8,
+  "play/ui/album.js": 1
+ }
+}
