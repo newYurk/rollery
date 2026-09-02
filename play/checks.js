@@ -221,7 +221,7 @@ function runChecks(detail) {
         say(d.round <= ROUND_MAX_HAND, `${tag}: некруглость ${d.round.toFixed(1)} %, потолок ${ROUND_MAX_HAND}${sfx}`);
         // ни один угол не должен остаться без листа
         let bare = 0;
-        for (let b2 = 0; b2 < NB; b2++) if (d.wd.top[b2] <= d.m.g.r0 + 1e-6) bare++;
+        for (let b2 = 0; b2 < NB; b2++) if (d.wd.обёртка.голый(b2, d.m.g.r0)) bare++;   // #146
         say(bare === 0, `${tag}: ${bare} углов из ${NB} НЕ НАКРЫТЫ листом${sfx}`);
         // Хвост ЗА НАМАЗКОЙ — это голая нори, а не рис. Проверять надо по u, а не по углу:
         // если ролл делает 1,34 оборота, а голая полоса — только 0,29 оборота, то часть
@@ -231,9 +231,9 @@ function runChecks(detail) {
           const b2 = Math.round(deg / 360 * NB) % NB;
           for (let kk = KMAX - 1; kk > 0; kk--) {
             const i = kk * NB + b2;
-            if (wdd.rin[i] < 0) continue;
+            if (wdd.обёртка.толщина(kk, b2) === null) continue;   // #146
             if (wdd.u0[i] / d.m.g.L > seK) {          // этот кусок листа уже голый
-              const th = (wdd.rout[i] - wdd.rin[i]) * U_MM;
+              const th = wdd.обёртка.толщина(kk, b2) * U_MM;   // #146
               ok(th < 1.0, `${tag}: голый хвост на ${deg}° несёт ${th.toFixed(2)} мм — должна быть нори 0,1`);
             }
             break;
@@ -308,7 +308,7 @@ function runChecks(detail) {
         S.hand = Object.assign({}, hh.h); touchModel(); layout();
         const d = dia(), tag = `${BASES[k].name} · всё у края · ${hh.name}`;
         let bare = 0;
-        for (let b2 = 0; b2 < NB; b2++) if (d.wd.top[b2] <= d.m.g.r0 + 1e-6) bare++;
+        for (let b2 = 0; b2 < NB; b2++) if (d.wd.обёртка.голый(b2, d.m.g.r0)) bare++;   // #146
         // ⚠ ПОЛУЛИСТ С ТРЕМЯ НАЧИНКАМИ — ЭТО ВНЕ КАНОНА, И НЕЗАМЫКАНИЕ ЗДЕСЬ ЧЕСТНЫЙ ОТВЕТ.
         //
         // Урамаки: грядка 10 мм на полулисте, пустой идёт впритык 1,03 оборота (issue #3).

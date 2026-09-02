@@ -245,8 +245,8 @@ const PRACTICE = [
       for (const base of Object.keys(c.B)) {
         const wd = c.наБазе(base).wd, NB = wd.top.length, тол = [];
         for (let b = 0; b < NB; b++) {
-          const a = wd.rin[b], z = wd.rout[b];
-          if (a >= 0 && z >= 0) тол.push(z - a);
+          const t = wd.обёртка.толщина(0, b);   // #146: слой риса — спрашиваем намотку
+          if (t !== null) тол.push(t);
         }
         if (!тол.length) continue;
         тол.sort((x, y) => x - y);
