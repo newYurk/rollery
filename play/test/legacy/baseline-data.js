@@ -268,30 +268,31 @@
 //
 // ⚠ Хосомаки — единственная база с опорой на реальность, и он подошёл к коридору рулетки, а не
 // ушёл от него. Это независимое подтверждение, что правка в верную сторону.
-// ⚑ ПЕРЕСНЯТО 02.09.2026 — дыра в середине спирали закрыта рисом (#154).
+// ⚑ ПЕРЕСНЯТО 02.09.2026 — обрывы ленты носителя, три правки (#155).
 //
-// Владелец обвела красным два конца спирали. Веер нашёл, что класс 'core' — «полая трубка,
-// где листа физически нет», как говорит сама модель, — падал в общий цвет и КРАСИЛСЯ РИСОМ.
-// Стоило дать полости свой цвет, как проявилась дыра на 16 % площади: 17 мм в ролле 51 мм.
-// Ни одна мерка её не видела: раздел Л считает только класс 'out', а его там ноль.
+// Владелец обвела два конца спирали. Оба оказались не «концами», а РАДИАЛЬНЫМИ ОБРЫВАМИ:
+// дуга бина 0,1 мм, а вертикальная стена профиля — миллиметры, уклон до 55:1.
 //
-// Дыра неверна: рис у ближнего края мягкий, его прижимают при начале скрутки
-// (「巻き始めは少し強めに締めて芯を作り」 — затягивают плотнее и формируют СЕРДЕЧНИК, не дыру).
-// Трубка заполняется рисом, её площадь вычитается из постели — тем же путём, что промежутки
-// ядра у кольца (#151). Материал не появляется из ниоткуда.
+// 1. Растекание пересчитывало слои побиновым множителем от скалярного r0 — той же ошибкой,
+//    что была в обжиме. Ступенька хвоста, убранная обжимом, возвращалась после растекания
+//    (замер скептика на похожей правке: 1,349 → 0,020 мм до растекания и снова 1,460 после).
+//    Теперь растекание зовёт тот же `переложить`.
+// 2. Ближняя кромка постели стояла стеной (`if (u < s0) return 0` и сразу плато). Теперь
+//    сходит, как дальняя, шириной тем же `RIM_EDGE`. Масса не меняется, а перераспределяется.
+// 3. Отражение размытия на краю намазки — заплатка от клюва нори — само возвращало стену,
+//    от которой ставилось: `spreadAt` давала 1,77 мм, а профиль 3,51. Причина клюва была в
+//    СТЕНЕ, стены больше нет, заплатка снята. Клюв не вернулся — мерка практики зелёная.
 //
-// F07-edge-overload сдвинулся сильно, и правильно: у него доля 'core' была 0,5868 — больше
-// половины ролла была дырой. Стало 0. ⌀ 36,16 → 29,13, витков 1,160 → 1,296.
+// Скачок ленты 5,67 → 3,47 мм. Слепок поехал широко и мелко: пары похожести в четвёртом
+// знаке, витки в третьем, карты классов на клетку-две — профиль стал плавнее у обеих кромок,
+// и это задевает всё сразу понемногу.
 //
-// ⚠ И ПОРОГ ПЕРЕХОДА ПОДНЯТ С 1,0 ДО 1,10 — по мерке ИЗ ИСТОЧНИКА, а не по вкусу. При 1,0
-// канонический эхомаки (恵方巻, семь начинок) давал отношение 1,01 и уходил в спираль, хотя
-// эхомаки — футомаки и его крутят кольцом каждый год. Поймала это доля начинки: 0,357 при
-// коридоре 0,23…0,34. Теперь эхомаки кольцо с долей 0,282, а семь полос по листу (отношение
-// 1,15, срез, названный «не едой») — спираль. Границы 1,01 и 1,15 замерены, 1,10 между ними.
+// ⚠ ОСТАТОК НАЗВАН: 3 мм приносит нормировка массы после размытия. Мерка #155 держит
+// достигнутое (порог 4 мм жёсткий, 1 мм в мягком канале).
 const ROLL_BASELINE = {
  "F01-hosomaki-basic": {
-  "turns": 1.1816,
-  "outerDiameterMm": 30.6987,
+  "turns": 1.1795,
+  "outerDiameterMm": 30.6806,
   "closePoint": 18.48,
   "sheetEnd": 21,
   "sheetLength": 21,
@@ -303,7 +304,8 @@ const ROLL_BASELINE = {
   "materialFractions": {
    "core": 0.1146,
    "patch:cucumber": 0.3021,
-   "spread": 0.5833
+   "spread": 0.581,
+   "wrap": 0.0023
   },
   "probes": [
    "0.25|1|0=patch:cucumber",
@@ -345,9 +347,9 @@ const ROLL_BASELINE = {
   ],
   "map": {
    "counts": {
-    "out": 846,
-    "rice": 1961,
-    "wrap": 67,
+    "out": 858,
+    "rice": 1946,
+    "wrap": 70,
     "cucumber": 262
    },
    "probe": "out,rice,rice,rice,rice,rice,cucumber,rice,rice,rice,out"
@@ -355,8 +357,8 @@ const ROLL_BASELINE = {
   "selfSimilarity": 1
  },
  "F02-futomaki-basic": {
-  "turns": 1.2217,
-  "outerDiameterMm": 46.921,
+  "turns": 1.2206,
+  "outerDiameterMm": 46.9455,
   "closePoint": 37.38,
   "sheetEnd": 42,
   "sheetLength": 42,
@@ -412,9 +414,9 @@ const ROLL_BASELINE = {
   ],
   "map": {
    "counts": {
-    "out": 844,
-    "rice": 2023,
-    "wrap": 45,
+    "out": 853,
+    "rice": 2009,
+    "wrap": 50,
     "salmon": 88,
     "avocado": 136
    },
@@ -423,8 +425,8 @@ const ROLL_BASELINE = {
   "selfSimilarity": 1
  },
  "F03-wrapper-roundtrip": {
-  "turns": 1.2205,
-  "outerDiameterMm": 48.9336,
+  "turns": 1.2188,
+  "outerDiameterMm": 48.9187,
   "closePoint": 37.38,
   "sheetEnd": 42,
   "sheetLength": 42,
@@ -478,18 +480,18 @@ const ROLL_BASELINE = {
   ],
   "map": {
    "counts": {
-    "out": 868,
-    "rice": 1536,
-    "wrap": 572,
+    "out": 876,
+    "rice": 1511,
+    "wrap": 589,
     "tamago": 160
    },
-   "probe": "out,rice,wrap,rice,rice,wrap,tamago,rice,rice,wrap,out"
+   "probe": "out,rice,wrap,rice,rice,wrap,tamago,wrap,rice,wrap,out"
   },
   "selfSimilarity": 1
  },
  "F04-puzzle-recipe": {
-  "turns": 1.2473,
-  "outerDiameterMm": 54.682,
+  "turns": 1.2454,
+  "outerDiameterMm": 54.6503,
   "closePoint": 44.205,
   "sheetEnd": 49.6686,
   "sheetLength": 49.6686,
@@ -503,8 +505,8 @@ const ROLL_BASELINE = {
    "out": 0.1111,
    "patch:ricePink": 0.059,
    "patch:salmon": 0.2431,
-   "spread": 0.5741,
-   "wrap": 0.0058
+   "spread": 0.5775,
+   "wrap": 0.0023
   },
   "probes": [
    "0.25|1|0=patch:salmon",
@@ -516,9 +518,9 @@ const ROLL_BASELINE = {
    "0.25|5|12=spread",
    "0.25|5|18=spread",
    "0.25|9|0=wrap",
-   "0.25|9|6=wrap",
-   "0.25|9|12=wrap",
-   "0.25|9|18=wrap",
+   "0.25|9|6=spread",
+   "0.25|9|12=spread",
+   "0.25|9|18=spread",
    "0.5|1|0=patch:salmon",
    "0.5|1|6=patch:salmon",
    "0.5|1|12=patch:salmon",
@@ -546,19 +548,19 @@ const ROLL_BASELINE = {
   ],
   "map": {
    "counts": {
-    "out": 1292,
-    "rice": 1513,
-    "wrap": 44,
+    "out": 1296,
+    "rice": 1460,
+    "wrap": 94,
     "salmon": 96,
-    "ricePink": 191
+    "ricePink": 190
    },
    "probe": "out,out,rice,rice,rice,out,rice,rice,rice,out,out"
   },
   "selfSimilarity": 1
  },
  "F05-hand-variation": {
-  "turns": 1.1993,
-  "outerDiameterMm": 51.5976,
+  "turns": 1.1983,
+  "outerDiameterMm": 51.6474,
   "closePoint": 37.38,
   "sheetEnd": 42,
   "sheetLength": 42,
@@ -614,9 +616,9 @@ const ROLL_BASELINE = {
   ],
   "map": {
    "counts": {
-    "out": 861,
-    "rice": 2016,
-    "wrap": 35,
+    "out": 873,
+    "rice": 2001,
+    "wrap": 38,
     "salmon": 88,
     "avocado": 136
    },
@@ -625,8 +627,8 @@ const ROLL_BASELINE = {
   "selfSimilarity": 1
  },
  "F06-rotated-patch": {
-  "turns": 1.2264,
-  "outerDiameterMm": 46.3463,
+  "turns": 1.2257,
+  "outerDiameterMm": 46.3711,
   "closePoint": 37.38,
   "sheetEnd": 42,
   "sheetLength": 42,
@@ -681,9 +683,9 @@ const ROLL_BASELINE = {
   ],
   "map": {
    "counts": {
-    "out": 848,
-    "rice": 2069,
-    "wrap": 49,
+    "out": 855,
+    "rice": 2065,
+    "wrap": 46,
     "cucumber": 31,
     "tamago": 139
    },
@@ -692,8 +694,8 @@ const ROLL_BASELINE = {
   "selfSimilarity": 1
  },
  "F07-edge-overload": {
-  "turns": 1.2958,
-  "outerDiameterMm": 29.1342,
+  "turns": 1.2993,
+  "outerDiameterMm": 29.1145,
   "closePoint": 21,
   "sheetEnd": 21,
   "sheetLength": 21,
@@ -703,12 +705,12 @@ const ROLL_BASELINE = {
   "coreFold": 0,
   "patchCount": 3,
   "materialFractions": {
-   "out": 0.037,
+   "out": 0.0359,
    "patch:avocado": 0.0127,
-   "patch:cucumber": 0.0127,
-   "patch:salmon": 0.0324,
-   "spread": 0.9028,
-   "wrap": 0.0023
+   "patch:cucumber": 0.0104,
+   "patch:salmon": 0.0301,
+   "spread": 0.9097,
+   "wrap": 0.0012
   },
   "probes": [
    "0.25|1|0=spread",
@@ -750,11 +752,11 @@ const ROLL_BASELINE = {
   ],
   "map": {
    "counts": {
-    "out": 968,
-    "rice": 1942,
+    "out": 967,
+    "rice": 1946,
     "wrap": 21,
-    "salmon": 97,
-    "cucumber": 44,
+    "salmon": 96,
+    "cucumber": 42,
     "avocado": 64
    },
    "probe": "out,rice,rice,rice,rice,rice,rice,rice,salmon,rice,out"
@@ -762,8 +764,8 @@ const ROLL_BASELINE = {
   "selfSimilarity": 1
  },
  "__pairs": {
-  "F02~F05 рука": 0.9564,
+  "F02~F05 рука": 0.9572,
   "F02~сдвиг": 0.568,
-  "F04~форма": 0.9796
+  "F04~форма": 0.9821
  }
 };
