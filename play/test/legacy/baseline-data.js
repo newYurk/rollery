@@ -216,6 +216,24 @@
 // (FACE_SETS: плоскости на q·R' от оси, площадь сохраняется), и квадрат стал квадратом
 // в модели, картах и слепке одинаково.
 
+// ⚑ ПЕРЕСНЯТ ПЯТНАДЦАТЫЙ РАЗ — ночь 01.09, три правки механики подряд.
+//
+// Диаметры и витки НЕ СДВИНУЛИСЬ НИ У ОДНОЙ фикстуры — все семь до третьего знака те же.
+// Поехали только карты классов и межмодельные пары, и вот почему:
+//
+//   · ИЗГИБ ПО ЖЁСТКОСТИ (#15): мягкий кусок ложится по кругу ядра, жёсткий держит свои
+//     прямые. Форма куска на срезе изменилась у всех, кроме самых жёстких. Отсюда пара
+//     F02~сдвиг 0,725 → 0,629: сдвинутая раскладка теперь и по форме отличается, а не
+//     только по месту.
+//   · ОГРАНИЧЕНИЕ ЯДРА ПО ВЫТЯНУТОСТИ, а не по размаху (#141). Прежний потолок брался из
+//     правила четверти и выбрасывал из ядра лосося в F02 — обычной футомаки-фикстуре.
+//     Теперь потолок 10:1 по вытянутости коробки, F02 снова целиком в ядре.
+//   · КОНЕЧНАЯ ДЛИНА НОРИ (#141): лист больше не оборачивает ролл безусловно. На фикстурах
+//     не сказалось — все они закрываются, — но у ХОСОМАКИ в REF витков стало 1,00 вместо
+//     1,17, потому что ⌀33,4 даёт периметр ровно в полулист. Разбор там же, в checks.js.
+//
+// Пересъёмка тем же коммитом, что и правки, как требует правило выше.
+
 const ROLL_BASELINE = {
   "F01-hosomaki-basic": {
     "turns": 1.1746,
@@ -274,9 +292,9 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 846,
-        "rice": 1992,
+        "rice": 1981,
         "wrap": 67,
-        "cucumber": 231
+        "cucumber": 242
       },
       "probe": "out,rice,rice,rice,rice,rice,cucumber,rice,rice,rice,out"
     },
@@ -294,10 +312,10 @@ const ROLL_BASELINE = {
     "coreFold": 15.5051,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.3681,
+      "core": 0.3831,
       "patch:avocado": 0.1667,
-      "patch:salmon": 0.0417,
-      "patch:shrimp": 0.0069,
+      "patch:salmon": 0.0278,
+      "patch:shrimp": 0.0058,
       "spread": 0.4167
     },
     "probes": [
@@ -341,9 +359,9 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 844,
-        "rice": 2050,
+        "rice": 2060,
         "wrap": 36,
-        "salmon": 86,
+        "salmon": 76,
         "avocado": 120
       },
       "probe": "out,rice,rice,rice,rice,rice,rice,rice,rice,rice,out"
@@ -407,9 +425,9 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 874,
-        "rice": 1552,
+        "rice": 1548,
         "wrap": 554,
-        "tamago": 156
+        "tamago": 160
       },
       "probe": "out,rice,wrap,rice,rice,out,tamago,rice,rice,wrap,out"
     },
@@ -427,10 +445,10 @@ const ROLL_BASELINE = {
     "coreFold": 8.4152,
     "patchCount": 2,
     "materialFractions": {
-      "core": 0.0347,
+      "core": 0.0069,
       "out": 0.1111,
       "patch:ricePink": 0.059,
-      "patch:salmon": 0.2153,
+      "patch:salmon": 0.2431,
       "spread": 0.5799
     },
     "probes": [
@@ -474,9 +492,9 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 1292,
-        "rice": 1514,
+        "rice": 1510,
         "wrap": 47,
-        "salmon": 92,
+        "salmon": 96,
         "ricePink": 191
       },
       "probe": "out,out,rice,rice,rice,out,rice,rice,rice,out,out"
@@ -495,10 +513,10 @@ const ROLL_BASELINE = {
     "coreFold": 15.5051,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.375,
+      "core": 0.3831,
       "patch:avocado": 0.1667,
-      "patch:salmon": 0.0347,
-      "patch:shrimp": 0.0069,
+      "patch:salmon": 0.0278,
+      "patch:shrimp": 0.0058,
       "spread": 0.4167
     },
     "probes": [
@@ -542,9 +560,9 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 859,
-        "rice": 2037,
+        "rice": 2049,
         "wrap": 34,
-        "salmon": 86,
+        "salmon": 74,
         "avocado": 120
       },
       "probe": "out,rice,rice,rice,rice,rice,rice,rice,rice,rice,out"
@@ -563,8 +581,8 @@ const ROLL_BASELINE = {
     "coreFold": 8.4152,
     "patchCount": 2,
     "materialFractions": {
-      "core": 0.6053,
-      "patch:cucumber": 0.0162,
+      "core": 0.61,
+      "patch:cucumber": 0.0116,
       "patch:tamago": 0.0451,
       "spread": 0.3333
     },
@@ -609,10 +627,10 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 844,
-        "rice": 2134,
+        "rice": 2151,
         "wrap": 36,
-        "cucumber": 34,
-        "tamago": 88
+        "cucumber": 19,
+        "tamago": 86
       },
       "probe": "out,rice,rice,rice,rice,rice,rice,rice,rice,rice,out"
     },
@@ -630,10 +648,10 @@ const ROLL_BASELINE = {
     "coreFold": 21,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.2743,
-      "patch:avocado": 0.2882,
-      "patch:cucumber": 0.0521,
-      "patch:salmon": 0.0521,
+      "core": 0.2975,
+      "patch:avocado": 0.272,
+      "patch:cucumber": 0.0486,
+      "patch:salmon": 0.0486,
       "spread": 0.3333
     },
     "probes": [
@@ -677,10 +695,10 @@ const ROLL_BASELINE = {
     "map": {
       "counts": {
         "out": 846,
-        "rice": 1807,
+        "rice": 1812,
         "wrap": 58,
-        "salmon": 132,
-        "cucumber": 113,
+        "salmon": 126,
+        "cucumber": 114,
         "avocado": 180
       },
       "probe": "out,rice,rice,rice,avocado,rice,avocado,rice,rice,rice,out"
@@ -688,8 +706,8 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "__pairs": {
-    "F02~F05 рука": 0.9837,
-    "F02~сдвиг": 0.7254,
-    "F04~форма": 0.9795
+    "F02~F05 рука": 0.9806,
+    "F02~сдвиг": 0.6286,
+    "F04~форма": 0.9798
   }
 };

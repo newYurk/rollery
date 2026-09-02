@@ -61,7 +61,7 @@ const BASES = {
   // в #109; менять — правкой этих двух чисел, и слепки её покажут.
   hoso: { name: 'Хосомаки', emoji: '🍣', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
     T: 1.4, w: 0.02, sheetCm: 10.5, pieces: 6, spreadEnd: 0.88, kappa: 0.85, beta: 0.55, tuck: true, pack: 1.19, tuckMin: 3, Wv: 38,
-    ingredients: ['cucumber', 'salmon', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
+    ingredients: ['cucumber', 'salmon', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack', 'riceRidge', 'riceDip'] },
   // ⚑ ТОЛЩИНА ПОСТЕЛИ ОТ ВЕСА, А НЕ ОТ ПАСПОРТА МАШИНЫ (01.09, #131).
   //
   // Стояло T = 2,4 ед. (12 мм) — размер рисового пласта SUZUMO. Наша постель при нём несла
@@ -72,7 +72,7 @@ const BASES = {
   // Проверить обратно можно инструментом: node tools/variants.js.
   futo: { name: 'Футомаки', emoji: '🍥', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
     T: 1.57, w: 0.02, sheetCm: 21, pieces: 8, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, pack: 1.19, tuckMin: 6, Wv: 38,
-    ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
+    ingredients: ['salmon', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack', 'riceRidge', 'riceDip'] },
   // УРАМАКИ — третий несладкий тип. ⚠ ЕГО ГЛАВНОЕ СВОЙСТВО ПОКА НЕ СМОДЕЛИРОВАНО:
   // у урамаки нори ВНУТРИ, а рис СНАРУЖИ, то есть обёртка не внешний слой намотки.
   // Модель умеет только «обёртка снаружи», поэтому сейчас урамаки считается как футомаки
@@ -87,7 +87,7 @@ const BASES = {
   // только начинку, то есть радиус вдвое меньше. Правила — issue #3.
   ura:  { name: 'Урамаки', emoji: '🌀', kind: 'savoury', wrapper: '#22342b', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
     T: 2.0, w: 0.02, sheetCm: 10.5, pieces: 6, spreadEnd: 0.76, kappa: 0.85, beta: 0.55, tuck: true, pack: 1.19, tuckMin: 4, Wv: 38, inverted: true,
-    ingredients: ['salmon', 'cucumber', 'avocado', 'shrimp', 'tamago', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack'] },
+    ingredients: ['salmon', 'cucumber', 'avocado', 'shrimp', 'tamago', 'nori', 'mayo', 'ricePink', 'riceYellow', 'riceGreen', 'riceBlack', 'riceRidge', 'riceDip'] },
   // ФРУКТОВЫЕ МАКИ — сладкое, но НЕ рулет. Формат настоящий и с родословной:
   //   Франция — «Makis de crêpes»: блин на циновку, рисовый пудинг, фрукты, крутят как маки;
   //   Испания — «тирами-суши» и «мисс-фреса» (клубника, застывшая желатином В ЛИСТ);
@@ -299,6 +299,22 @@ const ING = {
   // 「酢飯に混ぜ込んで」 (см. canon.js): он цветной на всю толщину. Правило поверхностной краски
   // 「塗るようにおいて」 (#132) — про присыпку おぼろ, и на подмешанный рис распространялось
   // по ошибке: под кистью оставалось 36 % белого риса, сторож #95 краснел (570 точек).
+  // ⚑ ГРЯДКА И ЛОЖБИНКА — РИС КАК ИНСТРУМЕНТ РИСОВАНИЯ (#17, заведено 01.09).
+  //
+  // Наблюдение владельца 27.08: «рис на срезе — это белое поле рисунка», а расстояние между
+  // двумя начинками по радиусу равно толщине риса между ними на листе. Значит толщина постели
+  // в конкретном месте — не служебный параметр, а КИСТЬ, и игроку она была недоступна вовсе:
+  // `spreadAt` отдавал фиксированный профиль базы.
+  //
+  // Источник за то, что рисом управляют: разведка 01.09 нашла прямое указание поварам —
+  // 「中具が多い場合はグラム数を減らして、うすく広げてください」 (если начинки много, уменьшите
+  // граммы риса и раскатайте тоньше). То есть повар меняет ИМЕННО РИС, а не начинку, и делает
+  // это местами: 「手前に少し山をつくって」 — у ближнего края небольшой валик.
+  //
+  // Два инструмента, обратные друг другу: грядка добавляет толщину, ложбинка снимает. `bedDelta`
+  // в долях толщины постели; сама эта величина — игровая условность, миллиметров у неё нет.
+  riceRidge:  { name: 'Грядка',   color: '#efe7d6', wU: 3, hU: 0.6, dv: 1.00, tex: 'rice', bedDelta:  0.5, stiff: 0.30, cut: 'присыпка' },
+  riceDip:    { name: 'Ложбинка', color: '#e6ddc9', wU: 3, hU: 0.6, dv: 1.00, tex: 'rice', bedDelta: -0.5, stiff: 0.30, cut: 'присыпка' },
   ricePink:   { name: 'Розовый', color: '#f2b3c2', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true, mixed: true, cut: 'присыпка' },
   riceYellow: { name: 'Жёлтый', color: '#f0d27a', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true, mixed: true, cut: 'присыпка' },
   riceGreen:  { name: 'Зелёный', color: '#b7cf86', wU: 4, hU: 1.0, dv: 1.00, tex: 'rice', paint: true, mixed: true, cut: 'присыпка' },
