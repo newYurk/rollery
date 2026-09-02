@@ -150,6 +150,26 @@ function drawLay() {
   if (S.preview && p === 0) { ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(40,30,20,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x + s.w / 2, s.y); ctx.lineTo(s.x + s.w / 2, s.y + s.h); ctx.stroke(); ctx.setLineDash([]); }
   const core = p === 0 && !drag.patch ? getModel().core : null;   // линия подворота: что ниже неё, сомнётся в ядро
   if (core) { const yf = s.y + (1 - core.sFold / getModel().g.L) * s.h; ctx.setLineDash([2, 5]); ctx.strokeStyle = 'rgba(40,30,20,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x, yf); ctx.lineTo(s.x + s.w, yf); ctx.stroke(); ctx.setLineDash([]); unrot(s.x + s.w - 6, yf - 2, () => { ctx.fillStyle = 'rgba(40,30,20,0.55)'; ctx.font = font(10); ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText('подворот — ядро', 0, 0); }); }
+  // ⚑ «БУДЕТ СПИРАЛЬ» ВИДНО ДО СКРУТКИ (правка 02.09, просьба владельца).
+  //
+  // Она сказала: «если добавишь обозначение в тот момент, когда я что-то положила и всё, это
+  // перешло уже в спираль, было бы здорово. Хотя я увижу это на срезе, можно и не обозначать».
+  // Обозначать надо: на срезе — это ПОСЛЕ, а решение принимается ДО, когда ещё можно подвинуть
+  // начинку. Переход считается по охвату (см. buildModel), и игрок должен видеть, что перешёл
+  // черту, в тот же миг, а не после скрутки.
+  //
+  // ⚠ Подпись только у спирали. У кольца молчим: «кольцо» — это обычное дело, а надпись на
+  // каждом ролле превращается в шум и перестаёт читаться тогда, когда она важна.
+  if (p === 0 && !drag.patch) {
+    const mm = getModel();
+    if (mm.g.winding === 'spiral') {
+      unrot(s.x + s.w - 6, s.y + 14, () => {
+        ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
+        ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+        ctx.fillText('начинка по всему листу — свернётся спиралью', 0, 0);
+      });
+    }
+  }
   ctx.restore();
   sheetPop();
   // Ролл в процессе скрутки — ВНЕ трансформа: у цилиндра свой свет (блик, тень), и внутри
