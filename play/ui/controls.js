@@ -55,17 +55,23 @@ function iconImg(kind) {
   }
   return im && im.complete && im.naturalWidth ? im : null;
 }
-function drawChips() {
+// ПОСЛЕДНИЙ РЯД ПАЛИТРЫ — ОБЩИЙ СЛОТ С КНОПКАМИ ДЕЙСТВИЙ (#158, 02.09). Пока кусок выбран,
+// в этом слоте стоят «⟳» и «Убрать», и ряд чипов не рисуется. Пропускать надо не только
+// РИСОВАНИЕ, но и запись в `chips`: иначе под кнопкой остались бы живые цели касания, и тап
+// по «Убрать» менял бы заодно выбранную начинку.
+function drawChips(скрытьПоследний) {
   chips = []; const c = L.chips, ings = uiIngredients(), n = ings.length, gap = 8, size = c.size;
   const perRow = c.perRow || n, rowH = size + (c.labels ? 18 : 6), rowW = perRow * (size + gap) - gap;
+  const видимыхРядов = скрытьПоследний ? Math.max(0, c.rows - 1) : c.rows;
   // Подпись шире чипа, а полоса отсекается по своей рамке, поэтому содержимое живёт с отступом
   // pad от краёв: иначе крайняя подпись («Огурец» → «гурец») срезана даже при нулевой прокрутке.
   const pad = c.pad || 0, inner = Math.max(size, c.w - 2 * pad);
   const maxScroll = Math.max(0, rowW - inner); chipScrollX = clamp(chipScrollX, 0, L.chipScroll ? maxScroll : 0);
-  ctx.save(); ctx.beginPath(); ctx.rect(c.x - 2, c.y - 4, c.w + 4, c.rows * rowH + 8); ctx.clip();
+  ctx.save(); ctx.beginPath(); ctx.rect(c.x - 2, c.y - 4, c.w + 4, видимыхРядов * rowH + 8); ctx.clip();
   const x0 = c.x + pad + (L.chipScroll ? -chipScrollX : Math.max(0, (inner - rowW) / 2));
   ings.forEach((kind, i) => {
     const row = Math.floor(i / perRow), col = i % perRow, x = x0 + col * (size + gap), y = c.y + row * rowH, d = ING[kind], selected = kind === S.sel;
+    if (row >= видимыхРядов) return;
     chips.push({ kind, x, y, w: size, h: rowH });
     rr(x, y, size, size, 12); ctx.fillStyle = '#26261f'; ctx.fill();
     if (selected) { ctx.strokeStyle = '#f3e7ca'; ctx.lineWidth = 2.5; ctx.stroke(); }
@@ -83,7 +89,7 @@ function drawChips() {
       if (d.paint) { ctx.fillStyle = d.color; rr(-gh / 2, -gw / 2, gh, gw, 6); ctx.fill(); } else drawPatchShape(d, -gh / 2, -gw / 2, gh, gw, true);
     }
     ctx.restore();
-    if (c.labels) { ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(d.name, x + size / 2, y + size + 3); }
+    if (c.labels) { ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(chipLabel(kind, size + gap), x + size / 2, y + size + 3); }
   });
   ctx.restore();
   if (L.chipScroll) {   // край прокрутки: гасим и ставим шеврон — и только с той стороны, где чипы ЕСТЬ
@@ -101,6 +107,14 @@ function drawChips() {
 }
 let icons = [];
 let wrapNote = '', wrapNoteT = 0;   // имя выбранной обёртки: на кнопке оно не помещается
+// «ОЧИСТИТЬ» В ДВА КАСАНИЯ И С ВОЗВРАТОМ (#158, 02.09).
+//
+// Действие разрушительное и необратимое: история пишется (`pushHistory`), но отмена висела
+// ТОЛЬКО на ⌘Z и Backspace — то есть на телефоне, с которого владелец и смотрит игру, отмены
+// не было вовсе. Отсюда два предохранителя вместо одного: первое касание взводит на 2,5 с
+// (иконка загорается, в подсказке сказано, что будет), второе чистит; после очистки на пять
+// секунд выходит плашка «Лист очищен · ↶ Вернуть», и тап по ней возвращает раскладку.
+let clearArm = 0, undoNote = 0;
 function drawTopBar(hint) {
   const T0 = SAFE.top, ox = L.ox, cw = L.cw, narrow = cw < 480;
   ctx.fillStyle = '#f3e7ca'; ctx.font = font(17, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
@@ -117,6 +131,7 @@ function drawTopBar(hint) {
                  // Три положения: авто (модель решает по охвату начинок) · кольцо · спираль.
                  // Глиф показывает ТЕКУЩЕЕ состояние, а не следующее: ◎ авто, ○ кольцо, ◍ спираль.
                  ['winding', S.winding === 'ring' ? '○' : S.winding === 'spiral' ? '◍' : '◎'],
+                 ...(S.mode === 'lay' ? [['clear', '🗑']] : []),
                  ['mute', S.mute ? '🔇' : '🔊']];
   // ⚠ КНОПКА, А НЕ ТОЛЬКО КЛАВИША. Контуры сделаны 31.08 с переключателем на клавише L —
   // и это была ошибка: владелец смотрит игру с телефона, где клавиатуры нет вовсе. Режим
@@ -129,13 +144,26 @@ function drawTopBar(hint) {
   if (!B().wrapFixed) items.splice(1, 0, ['sheet', '●']);
   if (S.puzzle || S.mode === 'revealed' || S.mode === 'plate') items.splice(3, 0, ['share', '🔗']);
   const iconsW = items.length * ((narrow ? 34 : 40) + (narrow ? 4 : 6));
-  ctx.save(); ctx.beginPath(); ctx.rect(ox, T0, cw - iconsW - 20, 50); ctx.clip();
-  ctx.fillStyle = '#8d846f'; ctx.font = font(12); ctx.textAlign = 'left'; ctx.fillText((narrow ? 'стенд' : 'стенд · лист → спираль → срез') + ` · срезов: ${S.cuts}`, ox + 92, 25 + T0);
-  ctx.restore();
+  // ⚑ ПОДПИСЬ УСТУПАЕТ ИКОНКАМ, А НЕ ОБРЕЗАЕТСЯ (02.09, #158). Она рисовалась всегда и просто
+  // резалась рамкой: с седьмой иконкой (🗑) на iPhone 15 Pro от неё оставалось 15 px, и в шапке
+  // читалось «Ролльня ст». Обрезанное слово хуже отсутствующего — оно выглядит поломкой.
+  // Теперь смотрим, сколько места ОСТАЛОСЬ, и берём ту редакцию, которая в него влезает.
+  const свободно = cw - iconsW - 20 - 92;
+  if (свободно >= 60) {
+    ctx.save(); ctx.beginPath(); ctx.rect(ox, T0, cw - iconsW - 20, 50); ctx.clip();
+    ctx.fillStyle = '#8d846f'; ctx.font = font(12); ctx.textAlign = 'left';
+    const полная = 'стенд · лист → спираль → срез' + ` · срезов: ${S.cuts}`;
+    const средняя = 'стенд' + ` · срезов: ${S.cuts}`;
+    const текст = ctx.measureText(полная).width <= свободно ? полная
+                : ctx.measureText(средняя).width <= свободно ? средняя
+                : `срезов: ${S.cuts}`;
+    ctx.fillText(текст, ox + 92, 25 + T0);
+    ctx.restore();
+  }
   let x = ox + cw - 12;
   for (const [id, glyph] of items) {
     const w = narrow ? 34 : 40; x -= w; icons.push({ id, x, y: 4 + T0, w, h: 40 });
-    rr(x, 6 + T0, w, 36, 10); ctx.fillStyle = ((id === 'preview' && S.preview) || (id === 'lines' && S.lines) || (id === 'puzzle' && S.puzzle) || (id === 'album' && S.mode === 'album')) ? '#4a4331' : '#26261f'; ctx.fill();
+    rr(x, 6 + T0, w, 36, 10); ctx.fillStyle = ((id === 'preview' && S.preview) || (id === 'lines' && S.lines) || (id === 'puzzle' && S.puzzle) || (id === 'album' && S.mode === 'album') || (id === 'clear' && clearArm > performance.now())) ? '#4a4331' : '#26261f'; ctx.fill();
     ctx.font = id === 'share' ? '16px system-ui' : id === 'album' ? font(19, 600) : id === 'sheet' ? font(22, 700) : '18px system-ui';
     ctx.textAlign = 'center';
     ctx.fillStyle = id === 'album' ? '#e0b25a' : id === 'sheet' ? (WRAPPERS[B().wrapKey] || WRAPPERS.nori).color : '#f3e7ca';
@@ -147,6 +175,9 @@ function drawTopBar(hint) {
   // («Шоколадный блин» — 72,5 px при кнопке 34), а знать, что выбрал, надо.
   if (wrapNote && performance.now() - wrapNoteT < 2600) hint = wrapNote;
   else if (wrapNote) wrapNote = '';
+  // Взведённое «Очистить» говорит вслух, что случится, и просит кадр — чтобы через 2,5 с
+  // иконка сама погасла, а не осталась гореть до следующего касания.
+  if (clearArm > performance.now()) { hint = 'Ещё раз — очистить весь лист'; dirty = true; }
   if (hint) {
     ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const maxW = cw - 24 - (arrows ? 88 : 0), parts = hint.split(' · '), lines = []; let cur = '';
@@ -160,6 +191,16 @@ function drawTopBar(hint) {
     icons.push({ id: 'lvprev', x: ox + 4, y: y - 22, w: 44, h: 44 }, { id: 'lvnext', x: ox + cw - 48, y: y - 22, w: 44, h: 44 });
     ctx.fillStyle = '#efe4cd'; ctx.font = font(22, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('‹', ox + 26, y); ctx.fillText('›', ox + cw - 26, y);
+  }
+  if (undoNote > performance.now() && S.mode === 'lay') {
+    const w = 236, h = 36, x0 = ox + cw / 2 - w / 2, y0 = L.top + 8;
+    icons.push({ id: 'undo', x: x0, y: y0, w, h });
+    rr(x0, y0, w, h, 12); ctx.fillStyle = '#2a2a25'; ctx.fill();
+    ctx.strokeStyle = '#4a4331'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#b8ad95'; ctx.fillText('Лист очищен', x0 + 74, y0 + h / 2);
+    ctx.fillStyle = '#e0b25a'; ctx.fillText('↶ Вернуть', x0 + 172, y0 + h / 2);
+    dirty = true;
   }
   if (shareNote > performance.now()) { ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; rr(ox + cw / 2 - 120, L.oy + L.ch - 60, 240, 34, 12); ctx.fillStyle = '#2a2a25'; ctx.fill(); ctx.fillStyle = '#e0b25a'; ctx.fillText('Ссылка на пазл скопирована', ox + cw / 2, L.oy + L.ch - 43); dirty = true; }
 }

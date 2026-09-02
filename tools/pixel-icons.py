@@ -172,6 +172,17 @@ ITEMS = [
     ('mayo',     'a swirl of white mayonnaise sauce'),
     ('ricePink', 'a small mound of pink coloured sushi rice, grains visible'),
     ('riceGreen','a small mound of green coloured sushi rice, grains visible'),
+    # Второй заход 02.09 (#158): палитра стенда росла с 9 до 15, и шесть новых выбраны не
+    # «для разнообразия», а по канону футомаки из canon.js — кампё, шиитакэ, краб-палочка
+    # достраивают праздничный ряд CANON7_ORDER до собираемого игроком. Тунец взят против
+    # лосося (тот же приём, другой цвет), наруто — единственный материал со своей спиралью
+    # на срезе, угорь — единственное тёмно-глянцевое в наборе.
+    ('tuna',     'a raw tuna fillet slice, deep red with fine pale sinew lines'),
+    ('kanikama', 'a japanese crab stick, white with red outer skin, one end cut showing fibres'),
+    ('naruto',   'a slice of narutomaki fish cake, white disc with a pink spiral and scalloped edge'),
+    ('shiitake', 'a simmered shiitake mushroom cap, dark brown with a pale cross-shaped crack on top'),
+    ('kanpyo',   'three simmered kanpyo gourd ribbons, amber brown, glossy, lying side by side'),
+    ('anago',    'a piece of grilled sea eel fillet glazed with dark tare sauce, glossy amber'),
 ]
 
 # LoRA подключается ПРЯМО В ЗАПРОСЕ — проверено 31.08: API её принимает, а вот выбор в

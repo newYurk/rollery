@@ -12,9 +12,17 @@ function action(id) {
   switch (id) {
     // Отмена и возврат — по ИСТОРИИ ДЕЙСТВИЙ, а не по концу списка (issue #84). Каждое
     // действие ниже, меняющее раскладку, кладёт снимок ПЕРЕД собой: pushHistory().
-    case 'undo': if (S.mode === 'lay' && undo()) sfx.place(); break;
+    case 'undo': if (S.mode === 'lay' && undo()) { sfx.place(); undoNote = 0; } break;
     case 'redo': if (S.mode === 'lay' && redo()) sfx.place(); break;
-    case 'clear': if (S.mode === 'lay' && patches().length) { pushHistory(); S.lists[S.base] = []; S.selPatch = null; touchModel(); } break;
+    // ОЧИСТКА — В ДВА КАСАНИЯ (#158). Первое взводит, второе чистит; разбор — над `clearArm`
+    // в controls.js. Пустой лист чистить нечего, и взводить тоже: касание просто гаснет.
+    case 'clear': {
+      if (S.mode !== 'lay' || !patches().length) { clearArm = 0; break; }
+      const т = performance.now();
+      if (clearArm < т) { clearArm = т + 2500; break; }
+      clearArm = 0; pushHistory(); S.lists[S.base] = []; S.selPatch = null; touchModel();
+      undoNote = т + 5000; break;
+    }
     case 'wrap': if (S.mode === 'lay' && S.selPatch) { pushHistory(); wrapInNori(S.selPatch); } break;
     // ПОВОРОТ — ТОЛЬКО В ПЛОСКОСТИ ЛИСТА, вокруг вертикали. Кусок нельзя положить на другую
     // грань: сектор огурца всегда лежит плоской гранью на рисе, кожицей вверх. Это решение
