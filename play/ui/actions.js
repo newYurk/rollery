@@ -28,7 +28,7 @@ function action(id) {
     case 'remove': if (S.mode === 'lay' && S.selPatch) { pushHistory(); const l = patches(), i = l.indexOf(S.selPatch); if (i >= 0) l.splice(i, 1); S.selPatch = null; touchModel(); } break;
     case 'deselect': S.selPatch = null; dirty = true; break;
     case 'back': S.mode = 'lay'; S.rollP = 0; S.bigPiece = -1; S.albumOpen = -1; cut = null; slicing = null; if (S.puzzle) S.puzzle.result = null; dirty = true; break;
-    case 'new': S.lists[S.base] = []; touchModel(); action('back'); break;
+    case 'new': S.lists[S.base] = []; histReset(); touchModel(); action('back'); break;   // #150
     case 'slice': if (S.mode === 'revealed') startSlicing(); break;
     case 'preview': S.preview = !S.preview; save(); layout(); dirty = true; break;
     // Контуры границ по модели поверх среза. Не сохраняются: это режим проверки, а не настройка.

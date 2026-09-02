@@ -52,7 +52,12 @@ function albumLoad(i) {
   S.turns = turnsOf(e.turns); S.shape = SHAPES[e.shape] ? e.shape : 'round';
   S.hand = Object.assign(handOf(), e.hand || {});
   S.sel = uiIngredients()[0] || B().ingredients[0]; S.selPatch = null;
-  S.lists[e.base] = JSON.parse(JSON.stringify(e.list));
+  // ⚠ ФИЛЬТР ПО KIND, КАК ПРИ ЗАГРУЗКЕ СОХРАНЁННОГО (#150). Альбом хранит рецепты и открывает
+  // их СЕГОДНЯШНЕЙ моделью, а начинки со временем снимают: pepper, pinkcream и choco уже сняты.
+  // `load()` в state.js такие отсеивает, а этот путь клал список как есть — и запись со снятой
+  // начинкой валила не плитку, а саму игру.
+  S.lists[e.base] = JSON.parse(JSON.stringify(e.list)).filter(p => ING[p.kind]);
+  histReset();                                   // #150: пришла другая раскладка — прошлого нет
   S.albumOpen = -1; S.mode = 'lay'; S.rollP = 0; anim = null; cut = null; slicing = null;
   touchModel(); layout(); dirty = true; requestFrame();
 }

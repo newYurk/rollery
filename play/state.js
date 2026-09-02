@@ -75,6 +75,12 @@ const uiIngredients = () => FULL_UI ? B().ingredients : B().ingredients.filter(k
 const HIST_MAX = 60;
 const hist = { past: [], future: [], base: null };
 const histSnap = () => JSON.stringify(patches());
+// ⚑ ЗАМЕНА РАСКЛАДКИ ЦЕЛИКОМ СБРАСЫВАЕТ ИСТОРИЮ, А НЕ ПРОДОЛЖАЕТ ЕЁ (#150, 01.09).
+// Три места ставят новый список мимо истории: «Новый лист», загрузка из альбома и старт пазла.
+// Снимки при этом оставались от ПРЕЖНЕЙ раскладки, и ⌘Z после них не отменял действие, а
+// подставлял чужое состояние — воскрешал один кусок из двух. Отмена осмысленна только внутри
+// одной раскладки; пришла другая — прошлого больше нет.
+function histReset() { hist.past.length = 0; hist.future.length = 0; hist.base = S.base; }
 function pushHistory() {
   // при смене базы история не переносится: раскладки у баз разные, и откат в чужую был бы ложью
   if (hist.base !== S.base) { hist.past.length = 0; hist.future.length = 0; hist.base = S.base; }

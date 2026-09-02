@@ -88,7 +88,7 @@ function puzzleStart(level, seed) {
     for (let i = 0; i < S.puzzle.vs.length; i++) { const dd = Math.abs(S.puzzle.vs[i] - t.v); if (dd < bd) { bd = dd; bi = i; } }
     S.puzzle.vs[bi] = clamp(t.v, 0.03, 0.97);
   }
-  S.lists[S.base] = []; touchModel(); layout();
+  S.lists[S.base] = []; histReset(); touchModel(); layout();   // #150
   try { localStorage.setItem('rollery.puzzle', JSON.stringify({ level, seed, max: Math.max(level, puzzleMax()) })); } catch (e) {}
   if (S.mode !== 'lay') action('back'); dirty = true; requestFrame();
 }
@@ -144,7 +144,7 @@ function puzzleFromLink(pz) {
   const local = pz.list.some(p => (p.dv ?? ING[p.kind].dv) < 1), n = pz.list.filter(p => p.kind !== 'nori').length;
   const lv = { n, turns: S.turns || B().turns, pieces: local ? 3 : 1, custom: true };
   S.puzzle = { level: -1, seed: 0, lv, target: pz.list, vs: puzzleSlices(lv.pieces), result: null };
-  S.lists[S.base] = []; touchModel(); layout(); if (S.mode !== 'lay') action('back'); dirty = true; requestFrame();
+  S.lists[S.base] = []; histReset(); touchModel(); layout();   // #150 if (S.mode !== 'lay') action('back'); dirty = true; requestFrame();
 }
 let shareNote = 0;
 function sharePuzzle() {

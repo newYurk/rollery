@@ -6,7 +6,7 @@
 // Слепок ожидаемых чисел лежит отдельно (play/test/legacy/baseline-data.js) и снят прогоном.
 //
 // ФОРМАТ РЕЦЕПТА ЗДЕСЬ — НЕ НОВЫЙ. Это ровно то, что проект уже сохраняет в альбом
-// (albumSave, play/ui/album.js:14): { base, wrap, turns, shape, hand, list }. Новую схему
+// (albumSave в play/ui/album.js): { base, wrap, turns, shape, hand, list }. Новую схему
 // (Recipe v2, слои от центра к краю) в этом PR НЕ вводим — она обсуждается отдельным RFC,
 // и предрешать её тестами нельзя.
 //
