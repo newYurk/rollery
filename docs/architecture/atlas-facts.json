@@ -188,14 +188,14 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "3801e40",
+ "ref": "ea79163",
  "scripts": {
   "count": 15,
   "versions": [
    "179"
   ]
  },
- "subject": "The document's captions had drifted, and a hand-written \"this is stale\" note had gone stale too",
+ "subject": "All three HTML reports brought back to what the code says",
  "total_lines": 9771,
  "touchModel": {
   "play/checks.js": 29,

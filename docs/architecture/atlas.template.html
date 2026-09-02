@@ -171,6 +171,22 @@
     .decision{grid-template-columns:1fr;gap:6px}
     .decision .n{grid-column:1}
     .frame.tall img{max-height:62vh}
+
+    /* ⚑ НА ТЕЛЕФОНЕ ТАБЛИЦА ПЕРЕСТАЁТ БЫТЬ ТАБЛИЦЕЙ (правка 02.09) — то же правило, что в
+       документе ядра и в кинематике. Владелец: «зачем мне читать средний столбик, когда в
+       первом одно слово, а место занято огромное».
+       Здесь таблица одна, но пять колонок в 500 px дают 594 px ширины: страница вбок не едет
+       (контейнер прокручивается), а читать всё равно надо боком. Прокрутка это маскировала,
+       а не лечила — непрокрученная широкая таблица выглядит ровно как обрезанная.
+       Строка становится записью словаря: первая ячейка — заголовок, остальные под ним. */
+    table,tbody,tr,td{display:block;width:auto;min-width:0}
+    thead{position:absolute;left:-9999px}
+    tr{border-top:1px solid var(--rule,#2a2f2c);padding:12px 0 10px}
+    tr:first-child{border-top:none}
+    td{border:none;padding:0 0 4px;text-align:left}
+    td:first-child{font-size:15px;font-weight:600;color:var(--ink,#e8e4db);padding-bottom:6px;white-space:normal}
+    td+td{font-size:14px}
+    td:last-child{font-size:13px;opacity:.82}
   }
 </style>
 

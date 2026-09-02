@@ -96,6 +96,41 @@ fi
 # функцию, константу, набор: имя переживает правку, номер нет.
 # ⚠ Имена переменных здесь ЛАТИНИЦЕЙ. Кириллическое имя bash не принимает («not a valid
 # identifier»), цикл молча не выполняется, и проверка рапортует зелёным. Поймано трижды.
+# ⚑ ВЁРСТКА ОТЧЁТОВ НА ТЕЛЕФОНЕ (правка 02.09). Владелец просила проверить, читаются ли
+# документы на телефоне, — и единственным виновником оказалась таблица, которую я же добавила
+# часом раньше: шапка стояла в обычном <tr> вместо <thead>, правило @media её не спрятало, и
+# `th` уносил ВСЮ СТРАНИЦУ вбок на 56 px. Проверка механическая, потому что глазами это
+# ловится только на том размере, где ломается.
+#
+# Что проверяется: в каждом отчёте есть viewport, есть правило превращения таблицы в список
+# (иначе пять колонок в 390 px читаются боком — «прокрутка маскировала, а не лечила»), и шапки
+# таблиц лежат в <thead>, а не в потоке.
+say "── вёрстка отчётов: телефон"
+for rep in docs/reports/*.html; do
+  [ -f "$rep" ] || continue
+  nm=$(basename "$rep")
+  grep -q 'name="viewport"' "$rep" || warn "$nm — нет <meta name=viewport>"
+  grep -q 'thead{position:absolute\|thead { position: absolute' "$rep" \
+    || warn "$nm — нет правила «таблица становится списком» (@media + thead position:absolute)"
+  # шапка в потоке: <tr> с <th> вне <thead>
+  python3 - "$rep" <<'PYEOF'
+import re, sys, os
+s = open(sys.argv[1], encoding='utf-8').read()
+без = 0
+for m in re.finditer(r'<table\b.*?</table>', s, re.S):
+    t = m.group(0)
+    for tr in re.finditer(r'<tr\b.*?</tr>', t, re.S):
+        if '<th' not in tr.group(0):
+            continue
+        до = t[:tr.start()]
+        if до.count('<thead') <= до.count('</thead>'):
+            без += 1
+if без:
+    print(f"  ✗ {os.path.basename(sys.argv[1])} — шапок таблиц вне <thead>: {без} (правило @media их не спрячет)")
+PYEOF
+done
+ok "вёрстка отчётов проверена"
+
 say "── ссылки по номеру строки в комментариях"
 linerefs=$(grep -rn -E '(geometry|slice|sheet|checks|practice|actions|controls|catalog|util|state|album|puzzle|fixtures|roll)\.js:[0-9]+' play tools 2>/dev/null | grep -v 'end-of-day.sh' | grep -E '^\S+:[0-9]+: *(//|\*|#)' || true)
 if [ -z "$linerefs" ]; then ok "ссылок по номеру строки нет"; else
