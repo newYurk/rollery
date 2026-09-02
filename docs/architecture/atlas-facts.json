@@ -29,7 +29,7 @@
  },
  "S_reads": {
   "play/audio.js": 2,
-  "play/checks.js": 15,
+  "play/checks.js": 17,
   "play/domain/roll.js": 7,
   "play/model/canon.js": 2,
   "play/model/geometry.js": 12,
@@ -38,7 +38,7 @@
   "play/render/screens.js": 15,
   "play/render/sheet.js": 7,
   "play/render/slice.js": 4,
-  "play/state.js": 15,
+  "play/state.js": 16,
   "play/test/domain/roll-facade-checks.js": 6,
   "play/test/legacy/baseline.js": 3,
   "play/test/practice.js": 9,
@@ -48,7 +48,7 @@
   "play/ui/layout.js": 1
  },
  "S_writes": {
-  "play/checks.js": 39,
+  "play/checks.js": 45,
   "play/domain/roll.js": 10,
   "play/modes/puzzle.js": 11,
   "play/render/screens.js": 5,
@@ -60,20 +60,20 @@
   "play/ui/album.js": 15
  },
  "anchors": {
-  "B": "play/state.js:133",
+  "B": "play/state.js:139",
   "L": "play/ui/layout.js:34",
   "S": "play/state.js:11",
-  "buildModel": "play/model/geometry.js:1847",
+  "buildModel": "play/model/geometry.js:1899",
   "deriveSheetLayout": "play/domain/roll.js:259",
-  "g_passport": "play/model/geometry.js:1866",
+  "g_passport": "play/model/geometry.js:1918",
   "targetModel": "play/modes/puzzle.js:97",
   "touchModel": "play/render/slice.js:374",
   "withRecipe": "play/ui/album.js:34",
   "withRollRecipeState": "play/domain/roll.js:76"
  },
- "date": "2026-09-01",
- "geometry_code": 967,
- "geometry_total": 2233,
+ "date": "2026-09-02",
+ "geometry_code": 977,
+ "geometry_total": 2269,
  "guard": {
   "известно": 31,
   "практика_не_проверяется": 10,
@@ -119,11 +119,11 @@
    "title": "Сторож ?check прогоняется из терминала за 5,3 с — не хватает только загрузчика на 50 строк"
   },
   "148": {
-   "state": "OPEN",
+   "state": "CLOSED",
    "title": "Ключ кэша модели слеп к noriWrap: обёрнутый кусок возвращается из кэша необёрнутым"
   },
   "150": {
-   "state": "OPEN",
+   "state": "CLOSED",
    "title": "Три дыры в истории, пустые catch в альбоме и один try на семь чтений: что из ревью действительно сломано"
   },
   "3": {
@@ -157,27 +157,27 @@
  },
  "lines": {
   "play/audio.js": 101,
-  "play/checks.js": 751,
+  "play/checks.js": 805,
   "play/domain/roll.js": 303,
   "play/inverse/materials.js": 161,
   "play/inverse/primitives.js": 119,
   "play/model/canon.js": 268,
   "play/model/catalog.js": 359,
-  "play/model/geometry.js": 2233,
+  "play/model/geometry.js": 2269,
   "play/model/util.js": 45,
   "play/modes/puzzle.js": 162,
   "play/render/screens.js": 372,
   "play/render/sheet.js": 383,
   "play/render/slice.js": 591,
-  "play/state.js": 182,
+  "play/state.js": 188,
   "play/test/domain/roll-facade-checks.js": 195,
   "play/test/fixtures/fixtures.js": 106,
-  "play/test/legacy/baseline-data.js": 724,
+  "play/test/legacy/baseline-data.js": 748,
   "play/test/legacy/baseline.js": 85,
-  "play/test/practice.js": 852,
+  "play/test/practice.js": 853,
   "play/test/probe.js": 155,
   "play/ui/actions.js": 215,
-  "play/ui/album.js": 134,
+  "play/ui/album.js": 139,
   "play/ui/controls.js": 161,
   "play/ui/layout.js": 352
  },
@@ -188,17 +188,17 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "fe09750",
+ "ref": "9ac685c",
  "scripts": {
   "count": 15,
   "versions": [
-   "170"
+   "172"
   ]
  },
- "subject": "The atlas now has a watchdog, because it went stale in under an hour",
- "total_lines": 9009,
+ "subject": "The roll was 28% bigger than the material on the sheet",
+ "total_lines": 9135,
  "touchModel": {
-  "play/checks.js": 19,
+  "play/checks.js": 23,
   "play/modes/puzzle.js": 3,
   "play/render/slice.js": 1,
   "play/state.js": 1,
