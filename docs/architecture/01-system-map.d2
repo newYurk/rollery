@@ -1,0 +1,217 @@
+...@_style
+
+# ═══════════════════════════════════════════════════════════════════════
+#  ЛИСТ 1 — КАРТА СИСТЕМЫ
+#
+#  ОДНО РЕШЕНИЕ, РАДИ КОТОРОГО ЛИСТ СУЩЕСТВУЕТ:
+#    «я пишу новое — в какую зону это кладётся и кого ей можно звать?»
+#
+#  Поэтому здесь НЕТ ни одной стрелки между файлами: стрелки только между
+#  зонами. Внутренности зоны — опись, а не граф. Кто кого зовёт на самом
+#  деле и почему это больно — лист 2. Как проходит одно действие — лист 3.
+#
+#  Числа строк — `wc -l play/**/*.js` на 01.09.2026, то есть ВЕСЬ файл.
+#  У geometry.js подписано отдельно и код, и всего: 1136 из 2077 строк там —
+#  комментарии, и стороннее ревью на этом ошиблось, назвав «2000 строк кода».
+#
+#  ⚠ ПРО ПЕРЕНОСЫ. Каждая строка внутри |md …| кончается обратной косой:
+#  это жёсткий перенос markdown. Без него d2 сливает абзац в одну строку и
+#  лист растягивается в ленту в двадцать тысяч пикселей — проверено.
+# ═══════════════════════════════════════════════════════════════════════
+
+direction: down
+
+title: |md
+  # 1 · Карта системы: что существует
+
+  Стрелки — между **зонами**, не между файлами: это право вызова, а не поток. \
+  Внутри зоны — опись. Как оно устроено на самом деле — лист 2.
+| {class: head; near: top-center}
+
+catalog: "catalog · что бывает на свете" {
+  class: zone
+  about: |md
+    Статические данные. Не знают \
+    ни про сессию, ни про холст.
+  | {class: note}
+  util: |md
+    **model/util.js** · 45 \
+    TAU · clamp · hash · handOf · turnsOf
+  | {class: file}
+  cat: |md
+    **model/catalog.js** · 338 \
+    BASES · ING · R0 · U_MM · turnsFor
+  | {class: file}
+  canon: |md
+    **model/canon.js** · 268 \
+    CANON · canonLayout · canonCheck
+  | {class: file}
+  inv: |md
+    **inverse/** · 280 \
+    primitives.js · materials.js \
+    чистые каталоги, сверяются с ING
+  | {class: file}
+}
+
+session: "state · что выбрал игрок" {
+  class: zone
+  about: |md
+    Единственное место в стенде, \
+    которое трогает localStorage.
+  | {class: note}
+  st: |md
+    **state.js** · 182 \
+    S · patches() · B() \
+    история · load() · save() · uiBases()
+  | {class: file}
+}
+
+model: "geometry · что из этого получится" {
+  class: zone
+  about: |md
+    Детерминированный расчёт. \
+    **Ядро продукта.**
+  | {class: note}
+  geo: |md
+    **model/geometry.js** · 2077 всего, 925 кода \
+    buildModel → g (паспорт) → restack \
+    computeCore · wind · windFor · matAt
+  | {class: file}
+}
+
+facade: "domain · шов наружу" {
+  class: zone
+  about: |md
+    Тонкий фасад над геометрией (#72). \
+    Боевого потребителя нет: зовёт \
+    только собственный сторож.
+  | {class: note}
+  roll: |md
+    **domain/roll.js** · 303 \
+    createRecipe · evaluateRoll · sliceAt \
+    materialMapOf · compareRolls
+  | {class: file}
+}
+
+render: "render · как это выглядит" {
+  class: zone
+  about: |md
+    Canvas 2D. Здесь же кеши картинок.
+  | {class: note}
+  slice: |md
+    **render/slice.js** · 590 \
+    renderSection · face · faceCache \
+    marchMask · sliceLines
+  | {class: file}
+  sheet: |md
+    **render/sheet.js** · 383 \
+    лист · ролл · нож · силуэты
+  | {class: file}
+  screens: |md
+    **render/screens.js** · 372 \
+    drawLay · drawCut · drawSlicing · drawPlate
+  | {class: file}
+}
+
+ui: "ui · ввод и раскладка экрана" {
+  class: zone
+  layout: |md
+    **ui/layout.js** · 352 \
+    L — вся раскладка экрана \
+    W · H · DPR · resize
+  | {class: file}
+  actions: |md
+    **ui/actions.js** · 215 \
+    onDown · onMove · onUp · action() \
+    measureHand — почерк из жеста
+  | {class: file}
+  controls: |md
+    **ui/controls.js** · 157 \
+    кнопки · чипы · верхняя панель
+  | {class: file}
+  album: |md
+    **ui/album.js** · 134 \
+    сохранённые роллы, миниатюры
+  | {class: file}
+}
+
+modes: "modes · игровая оболочка" {
+  class: zone
+  about: |md
+    Правила конкретного опыта. \
+    Геометрию менять не вправе.
+  | {class: note}
+  puzzle: |md
+    **modes/puzzle.js** · 162 \
+    LEVELS · genTarget · puzzleEvaluate \
+    encodePuzzle / decodePuzzle
+  | {class: file}
+}
+
+storage: "storage · что переживает перезагрузку" {
+  class: zone
+  ls: |md
+    **localStorage** \
+    rollery.model.v2 · album · preview \
+    mute · shape · cuts
+  | {class: store}
+  url: |md
+    **адрес страницы** \
+    #p=… — пазл-ссылка \
+    ?full · ?puzzle · ?check
+  | {class: store}
+}
+
+checks: "сторож · чем доказывается, что не сломали" {
+  class: zone
+  ch: |md
+    **play/checks.js** · 738 \
+    ?check — 22 известных расхождения
+  | {class: guard}
+  practice: |md
+    **test/practice.js** · 814 \
+    практика: 22 сошлось · 0 провалов
+  | {class: guard}
+  base: |md
+    **test/legacy/** · 809 \
+    слепок поведения до переезда
+  | {class: guard}
+}
+
+sim: "sim · лаборатория (Python)" {
+  class: zone-off
+  about: |md
+    В рантайме игры её **НЕТ**. Числа \
+    переезжают в каталог руками, через доки.
+  | {class: note}
+  labs: |md
+    fold.py · spiral · mpm-shell · kin-mat \
+    reference · lab
+  | {class: file}
+}
+
+# ── право вызова ────────────────────────────────────────────────────────
+catalog -> session: определения {class: ok}
+catalog -> model: определения {class: ok}
+session -> model: текущий выбор {class: ok}
+model -> render: модель и материал в точке {class: ok}
+ui -> session: команды игрока {class: ok}
+ui -> render: раскладка экрана {class: ok}
+modes -> session: цель и уровень {class: ok}
+modes -> model: сравнение с эталоном {class: ok}
+session -> storage: load / save {class: ok}
+modes -> storage: ссылка-пазл {class: ok}
+facade -> model {class: ok}
+checks -> model: прогон инвариантов {class: faint}
+checks -> facade: единственный потребитель {class: faint}
+sim -> catalog: калибровка — руками, через доки {class: faint}
+
+legend: |md
+  **Как читать.** Зона — право вызова, а не папка на диске: `catalog` живёт \
+  в `play/model/`, `state` — один файл в корне `play/`.
+
+  **Чего на этом листе нарочно нет.** Ни одной обратной стрелки. Здесь \
+  нарисовано, как система **задумана** — целевые зоны доменного контракта \
+  §4. Как она устроена на самом деле, показывает лист 2, и стрелок там \
+  больше, чем здесь.
+| {class: note; near: bottom-center}
