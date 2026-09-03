@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rollery-play",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tools/serve.js", "8137"],
+      "port": 8137
+    }
+  ]
+}
