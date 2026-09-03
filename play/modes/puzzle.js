@@ -17,13 +17,13 @@ const LEVELS = [
   { n: 1, turns: 3, pieces: 1 },
   { n: 2, turns: 3, pieces: 1 },
   { n: 3, turns: 3, pieces: 1 },
-  { n: 2, turns: 3, pieces: 1, wrap: 1 },
+  { n: 2, turns: 3, pieces: 1, wrap: 1, rot: 1 },   // rot добавлен 02.09: без wrap уровень был копией второго (#159)
   { n: 3, turns: 2, pieces: 1, shape: 'square' },
   { n: 3, turns: 3, pieces: 3, local: 1 },
   { n: 4, turns: 4, pieces: 1, shape: 'triangle' },
   { n: 3, turns: 3, pieces: 6, local: 2 },
   { n: 3, turns: 3, pieces: 6, rot: 1 },
-  { n: 3, turns: 3, pieces: 3, local: 1, wrap: 1 },
+  { n: 3, turns: 3, pieces: 3, local: 1, wrap: 1, rot: 1 },   // то же: без wrap был копией шестого (#159)
   { n: 4, turns: 4, pieces: 6, local: 2, wrap: 1 },
   { n: 4, turns: 2, pieces: 3, local: 1, wrap: 1, sheet: 1, shape: 'square' },
   { n: 3, turns: 3, pieces: 1, paint: 1, shape: 'triangle' },
@@ -58,7 +58,9 @@ function genTarget(lv, seed) {
   if (!us) { let u = 0.03; us = items.map(it => { const x = u + it.half; u += 2 * it.half + 0.02; return x; }); }
   const list = items.map((it, i) => { const d = ING[it.kind]; const p = { kind: it.kind, u: clamp(us[i], it.half, 1 - it.half), v: 0.5, z0: 0, z1: 0, phase: rnd() * TAU }; if (d.dv < 1) p.v = d.dv / 2 + rnd() * (1 - d.dv); return p; });
   if (lv.rot) for (let r = 0, n0 = 0; r < list.length && n0 < lv.rot; r++) { const p = list[r]; if (ING[p.kind].wave || isLong(p.kind)) continue; p.rot = rnd() < 0.5 ? Math.PI / 4 : Math.PI / 2; p.dv = 0.22; p.v = 0.25 + rnd() * 0.5; n0++; }
-  for (let w = 0; w < (lv.wrap || 0); w++) {
+  // Уровни свои `wrap` не теряют — их просто не исполняем, пока приём выключен: иначе цель
+  // потребовала бы того, чего игрок сделать не может (#159). Разбор — над WRAP_PIECE_ON.
+  for (let w = 0; WRAP_PIECE_ON && w < (lv.wrap || 0); w++) {
     // Генерация обёрнутых кусков остановлена 31.08 и ВОЗВРАЩЕНА 01.09 (#115): обёртка перестала
     // быть четырьмя несходящимися плашками и стала свойством самого куска, так что цель больше
     // не требует от игрока повторить то, что модель считает неверно.
