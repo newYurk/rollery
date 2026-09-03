@@ -68,13 +68,18 @@ Renderer adapter → Core V2 RenderSnapshot
 
 ```ts
 validateRecipe(recipe: RecipeV2): ValidationResult
+
 buildWinding(recipe: RecipeV2): WindingResult
+// WindingResult = valid winding | invalid/outsideModelScope diagnostic
+
 sampleSection(winding: ValidWinding, options: SectionOptions): SectionResult
+
 measure(winding: ValidWinding, section: SectionResult): Measurements
+
 runFixture(fixture: Fixture): FixtureReport
 ```
 
-`sampleSection` не строит намотку сам, не меняет рецепт и не делает fallback для invalid result.
+`sampleSection` не строит namотку сам, не меняет рецепт и не делает fallback для invalid result.
 
 ## Нормализация данных
 
@@ -92,7 +97,11 @@ Adapter не должен исправлять геометрию, угадыв�
 До UI делается только следующая цепочка:
 
 ```text
-F01 RecipeV2 → validateRecipe → buildWinding → sampleSection at central vSlice → FixtureReport
+F01 RecipeV2
+  → validateRecipe
+  → buildWinding
+  → sampleSection at central vSlice
+  → FixtureReport
 ```
 
 Это пустой хосомаки: лист 105 мм, одна нори, стандартная рисовая постель, нет ингредиентов, `neutralHand`. В нём должны появиться не пиксели, а отчёт о покрытии листа, шве, диапазоне координат и пересечениях обёртки.
