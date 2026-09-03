@@ -260,7 +260,21 @@ function smearAt(p, d, sU, g) {
   return hash(Math.round(sU * 40), Math.round(p.u * 997)) < плотность;
 }
 // Какой материал лежит в точке листа (u, v, z). null — намазка.
-function matAt(u, v, z, list, g) {
+// ⚑ У ТЕЛА И У КРАСКИ РАЗНАЯ ГЛУБИНА, И ЭТО НЕ ПРИДИРКА (#134, 02.09).
+//
+// Слой в намотке толще или тоньше стопки, которую он несёт: профиль сглажен и в него входит
+// раздача вытесненного риса, а `stackTopAt` отдаёт стопку сырой. Прежде это лечилось одной
+// растяжкой — вся стопка натягивалась на слой, — и вместе с рисом растягивалось ТЕЛО куска.
+// Замер: один тамаго, двигаемый вдоль листа, менял площадь среза с 80 % до 164 % каталожной.
+//
+// Разделяем. КРАСКА — это «рис такого цвета», она обязана заполнять ровно столько, сколько
+// заполняет рис, и тянется со слоем как раньше. ТЕЛО имеет собственную толщину и тянуться не
+// должно: избыток слоя над стопкой — это рис, а не разбухший кусок. Сжатие телу оставлено:
+// когда слой ТОНЬШЕ стопки, кусок обязан в него влезть, иначе он вылезет за виток.
+//
+// Проба «убрать растяжку всем» провалила #95: краска переставала доходить до конца листа,
+// в намотке оставался белый рис на 1339 точек. Это и показало, что величины две, а не одна.
+function matAt(u, v, z, list, g, zКраска) {
   const L = gL(g);
   for (let pass = 0; pass < 2; pass++) for (let i = list.length - 1; i >= 0; i--) {
     const p = list[i], d = ING[p.kind];
@@ -277,12 +291,13 @@ function matAt(u, v, z, list, g) {
     // тот же множитель, что у ширины, и считается от НИЗА — кусок лежит на рисе, а не висит.
     const kA = rg[8] === undefined ? 1 : rg[8];
     const z1k = p.z0 + (p.z1 - p.z0) * kA;
-    if (z < p.z0 || z > z1k) continue;
+    const zz = (d.paint && zКраска !== undefined) ? zКраска : z;
+    if (zz < p.z0 || zz > z1k) continue;
     const sU = u * L;
     if (sU < rg[0] || sU > rg[1]) { if (!smearAt(p, d, sU, g)) continue; }
     const du_ = sU - rg[2] * L, across = du_ * rg[5] + rg[7] * rg[6], along = -du_ * rg[6] + rg[7] * rg[5];
     const lu = across / rg[3];
-    const lz = d.paint ? 0.5 : (z - p.z0) / Math.max(1e-9, z1k - p.z0);
+    const lz = d.paint ? 0.5 : (zz - p.z0) / Math.max(1e-9, z1k - p.z0);
     if (!d.paint) {
       // ОБОЛОЧКА ОБЁРНУТОГО КУСКА (issue #115). Габарит уже увеличен на 2·hN (см. dims), поэтому
       // lu и lz идут по ВНЕШНЕМУ контуру. Пересчитываем их во внутренний: попал — это сам кусок,
@@ -2418,8 +2433,11 @@ function materialAt(m, wd, vSlice, r, phi) {
   if (g.inverted) { if (sm.t <= g.w * 1.5) return { cls: 'wrap', sm }; }
   else if (zn < 0) return { cls: 'wrap', sm };
   if (zn < 0) zn = 0;
-  const H = stackTopAt(sm.u, vSlice, m.list, g), bandN = (sm.t - g.w - (m.g.air || 0)) / g.T; if (bandN > 1e-6) zn *= Math.max(1, H) / bandN;   // сжатый слой → собственные z стопки
-  const mt = matAt(sm.u, vSlice, zn, m.list, g);
+  const H = stackTopAt(sm.u, vSlice, m.list, g), bandN = (sm.t - g.w - (m.g.air || 0)) / g.T;
+  const натяг = bandN > 1e-6 ? Math.max(1, H) / bandN : 1;
+  // Телу — только сжатие (натяг > 1), краске — и сжатие, и растяжение: разбор над matAt.
+  const znТело = натяг > 1 ? zn * натяг : zn, znКраска = zn * натяг;
+  const mt = matAt(sm.u, vSlice, znТело, m.list, g, znКраска);
   return mt ? { cls: 'patch', mt, sm } : { cls: 'spread', sm };
 }
 
