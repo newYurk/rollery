@@ -1,0 +1,108 @@
+# Core V2 — граница с legacy и план безопасной миграции
+
+- **Статус:** proposed
+- **Связанные документы:** `ADR-001-core-v2-scope.md`, `ADR-001-erratum-001-neutral-hand-only.md`, `core-v2-fixtures.md`
+- **Цель:** дать разработчику чёткую границу. Новый kernel не должен импортировать поведение legacy случайно.
+
+## Решение о границе
+
+`play/core-v2/` строится как независимый чистый слой. До прохождения F01–F06 он не имеет production-потребителей и не заменяет `play/model/geometry.js`.
+
+```text
+UI / URL / global S / modes
+        ↓ adapter only
+RecipeV2 (mm, immutable)
+        ↓
+play/core-v2/validate.js
+        ↓
+play/core-v2/winding.js
+        ↓
+play/core-v2/section.js
+        ↓
+FixtureReport / RenderSnapshot
+        ↓ adapter only
+renderer
+```
+
+## Карта компонентов
+
+| Legacy-зона | Статус для V2 | Правило |
+|---|---|---|
+| `play/model/geometry.js` | Reference only | Не импортировать. Использовать только для чтения старых форматов и визуального сравнения в документированной области legacy |
+| `play/model/catalog.js` | Adapt | Допустим только data-adapter: V2 получает нормализованные мм, не читает каталог напрямую |
+| `play/model/canon.js` | Reference only | Канонические рецепты можно перенести вручную в V2 fixtures после проверки чисел; правила канона не импортировать |
+| `play/model/util.js` | Copy selectively | Только маленькие чистые утилиты после локального копирования, теста и указания источника; никаких импортов legacy util по умолчанию |
+| `play/domain/roll.js` | Adapt later | Может стать границей session/app, но не является входом kernel до определения адаптера RecipeV1 → RecipeV2 |
+| `play/state.js` | Do not port | Глобальное состояние UI не может быть источником доменной геометрии |
+| `play/index.html` | Do not port | DOM, URL, жесты и рендерные параметры запрещены в Core V2 |
+| `play/modes/` | Do not port | Puzzle и другие режимы вызывают V2 только через adapter после V2 alpha |
+| `play/render/` | Keep behind adapter | Рендер получает `RenderSnapshot`; он не вызывает `buildWinding` и не читает RecipeV2 напрямую |
+| `play/checks.js` | Reference then replace | Старые проверки не являются oracle. Из него можно перенести только измерения, которые имеют ясный физический смысл и mutation test |
+| `sim/` | Separate reference | Не импортировать и не переписывать. Общими могут быть только fixture-данные и будущие сравнимые измерения |
+| `docs/` и GitHub issues | Evidence only | Документы и issue — доказательства, но не исполняемый контракт. При конфликте приоритет: accepted ADR → fixture → код V2 → архив |
+
+## Запрещённые зависимости
+
+В файлах `play/core-v2/**` запрещены:
+
+- доступ к `window`, `document`, canvas, URL и localStorage;
+- импорт `play/state.js`, `play/index.html`, `play/modes/**`, `play/render/**`;
+- чтение или изменение глобального `S`;
+- `Date.now`, `performance.now`, `Math.random`, FPS и кадрозависимое состояние;
+- импорт `play/model/geometry.js`;
+- неявные единицы вида `* 5`, `÷ 5` или unitless координаты;
+- silent fallback: исправление, обрезание, центрирование или замена невалидного рецепта.
+
+## Разрешённые направления зависимости
+
+```text
+Legacy/UI adapter → Core V2
+Fixture runner → Core V2
+Core V2 → plain immutable data
+Renderer adapter → Core V2 RenderSnapshot
+```
+
+Обратные направления запрещены. Core V2 не знает, вызвал его пазл, ручной режим или тест.
+
+## Минимальный API V2
+
+```ts
+validateRecipe(recipe: RecipeV2): ValidationResult
+buildWinding(recipe: RecipeV2): WindingResult
+sampleSection(winding: ValidWinding, options: SectionOptions): SectionResult
+measure(winding: ValidWinding, section: SectionResult): Measurements
+runFixture(fixture: Fixture): FixtureReport
+```
+
+`sampleSection` не строит намотку сам, не меняет рецепт и не делает fallback для invalid result.
+
+## Нормализация данных
+
+До входа в V2 существует единственный adapter `recipe-v1-adapter.js` в слое приложения. Его задача ограничена:
+
+1. Прочитать legacy recipe/state.
+2. Явно преобразовать единицы в мм.
+3. Явно назначить `baseId`, профиль риса и `neutralHand`.
+4. Выдать `RecipeV2` или список диагностик преобразования.
+
+Adapter не должен исправлять геометрию, угадывать пропущенные значения или интерпретировать puzzle `turns` как длину листа.
+
+## Первый вертикальный срез
+
+До UI делается только следующая цепочка:
+
+```text
+F01 RecipeV2 → validateRecipe → buildWinding → sampleSection at central vSlice → FixtureReport
+```
+
+Это пустой хосомаки: лист 105 мм, одна нори, стандартная рисовая постель, нет ингредиентов, `neutralHand`. В нём должны появиться не пиксели, а отчёт о покрытии листа, шве, диапазоне координат и пересечениях обёртки.
+
+## Критерий готовности границы
+
+Разработчик может начать Core V2 только когда выполняет все условия:
+
+- не импортирует legacy geometry;
+- знает, какой exact input использует F01;
+- может вернуть typed diagnostic вместо fallback;
+- понимает, что legacy числа не задают expected output V2;
+- готов начать с Node-compatible runner, а не с browser UI.
