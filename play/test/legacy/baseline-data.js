@@ -317,10 +317,32 @@
 //
 // Найдено независимым разбором математики (скептик, 02.09), проверено отдельным замером.
 
+// ⚑ ПЕРЕСНЯТО 02.09.2026 — постель перестала платить за голую полосу (#166).
+//
+// Нормировка `spreadAt` делила на `spreadEnd`, а грядка лежит от `spreadStart`: у ближнего края
+// голая полоса под подворот. `∫spreadAt du` выходил равен ровно `spreadEnd` — лишку 5,0…5,8 %
+// риса на всех базах.
+//
+// ПОДТВЕРЖДЕНО ИСТОЧНИКОМ, А НЕ ВКУСОМ. Толщина постели ВЫВЕДЕНА из массы риса (#131), значит
+// обратный ход обязан вернуть те же граммы. С правкой: тюмаки 140 г, футомаки 200 г — ровно как
+// в источниках (SUZUMO/トップ, 白ごはん.com). Без правки: 148 и 211.
+//
+// Вывернутый пересчитан заодно: его `T` выводилась по ПОЛНОЙ длине листа, тогда как у футомаки
+// в том же выводе — по грядке. По собственной грядке выходит 1,528 вместо 1,455, и модель
+// отдаёт ровно 110 г (justonecookbook).
+//
+// ЧТО ПОЕХАЛО В СЛЕПКЕ: диаметры упали у всех фикстур на 3…4 % — постели стало меньше ровно на
+// её же лишку. Витки почти не двинулись (длина листа та же, изменилась толщина слоя):
+// F01 хосомаки 30,75 → 30,10 при витках 1,170 → 1,175.
+//
+// Той же правкой снята ТАВТОЛОГИЧНАЯ МЕРКА «∫ намазки равен spreadEnd»: нормировка ровно это и
+// обеспечивала, покраснеть проверка не могла никогда. На её месте — масса риса против граммов
+// из источников, и это уже привязка вне модели.
+
 const ROLL_BASELINE = {
   "F01-hosomaki-basic": {
-    "turns": 1.1702,
-    "outerDiameterMm": 30.752,
+    "turns": 1.1746,
+    "outerDiameterMm": 30.1028,
     "closePoint": 18.48,
     "sheetEnd": 21,
     "sheetLength": 21,
@@ -330,18 +352,18 @@ const ROLL_BASELINE = {
     "coreFold": 13.7379,
     "patchCount": 1,
     "materialFractions": {
-      "core": 0.1632,
-      "patch:cucumber": 0.2743,
-      "spread": 0.5625
+      "core": 0.1563,
+      "patch:cucumber": 0.2882,
+      "spread": 0.5556
     },
     "probes": [
       "0.25|1|0=patch:cucumber",
       "0.25|1|6=patch:cucumber",
       "0.25|1|12=patch:cucumber",
       "0.25|1|18=patch:cucumber",
-      "0.25|5|0=spread",
+      "0.25|5|0=core",
       "0.25|5|6=spread",
-      "0.25|5|12=spread",
+      "0.25|5|12=core",
       "0.25|5|18=spread",
       "0.25|9|0=spread",
       "0.25|9|6=spread",
@@ -351,9 +373,9 @@ const ROLL_BASELINE = {
       "0.5|1|6=patch:cucumber",
       "0.5|1|12=patch:cucumber",
       "0.5|1|18=patch:cucumber",
-      "0.5|5|0=spread",
+      "0.5|5|0=core",
       "0.5|5|6=spread",
-      "0.5|5|12=spread",
+      "0.5|5|12=core",
       "0.5|5|18=spread",
       "0.5|9|0=spread",
       "0.5|9|6=spread",
@@ -363,9 +385,9 @@ const ROLL_BASELINE = {
       "0.75|1|6=patch:cucumber",
       "0.75|1|12=patch:cucumber",
       "0.75|1|18=patch:cucumber",
-      "0.75|5|0=spread",
+      "0.75|5|0=core",
       "0.75|5|6=spread",
-      "0.75|5|12=spread",
+      "0.75|5|12=core",
       "0.75|5|18=spread",
       "0.75|9|0=spread",
       "0.75|9|6=spread",
@@ -374,18 +396,18 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 872,
-        "rice": 1991,
-        "wrap": 31,
-        "cucumber": 242
+        "out": 906,
+        "rice": 1949,
+        "wrap": 34,
+        "cucumber": 247
       },
       "probe": "out,rice,rice,rice,cucumber,rice,cucumber,rice,rice,rice,out"
     },
     "selfSimilarity": 1
   },
   "F02-futomaki-basic": {
-    "turns": 1.2121,
-    "outerDiameterMm": 47.0413,
+    "turns": 1.2171,
+    "outerDiameterMm": 46.0243,
     "closePoint": 37.38,
     "sheetEnd": 42,
     "sheetLength": 42,
@@ -395,11 +417,11 @@ const ROLL_BASELINE = {
     "coreFold": 15.5051,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.0856,
-      "patch:avocado": 0.1528,
-      "patch:salmon": 0.1493,
+      "core": 0.0926,
+      "patch:avocado": 0.1632,
+      "patch:salmon": 0.1597,
       "patch:shrimp": 0.0081,
-      "spread": 0.6042
+      "spread": 0.5764
     },
     "probes": [
       "0.25|1|0=patch:avocado",
@@ -441,19 +463,19 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 864,
-        "rice": 1979,
-        "wrap": 29,
-        "salmon": 132,
-        "avocado": 132
+        "out": 888,
+        "rice": 1937,
+        "wrap": 23,
+        "salmon": 144,
+        "avocado": 144
       },
       "probe": "out,rice,rice,rice,salmon,rice,rice,rice,rice,rice,out"
     },
     "selfSimilarity": 1
   },
   "F03-wrapper-roundtrip": {
-    "turns": 1.2188,
-    "outerDiameterMm": 48.9638,
+    "turns": 1.2244,
+    "outerDiameterMm": 47.9219,
     "closePoint": 37.38,
     "sheetEnd": 42,
     "sheetLength": 42,
@@ -463,10 +485,10 @@ const ROLL_BASELINE = {
     "coreFold": 17.941,
     "patchCount": 1,
     "materialFractions": {
-      "core": 0.0347,
-      "patch:tamago": 0.2431,
-      "spread": 0.6204,
-      "wrap": 0.1019
+      "core": 0.0139,
+      "patch:tamago": 0.2639,
+      "spread": 0.6181,
+      "wrap": 0.1042
     },
     "probes": [
       "0.25|1|0=patch:tamago",
@@ -508,9 +530,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 879,
-        "rice": 1765,
-        "wrap": 324,
+        "out": 897,
+        "rice": 1744,
+        "wrap": 327,
         "tamago": 168
       },
       "probe": "out,rice,rice,rice,rice,wrap,tamago,rice,rice,rice,out"
@@ -518,8 +540,8 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "F04-puzzle-recipe": {
-    "turns": 1.2463,
-    "outerDiameterMm": 54.6495,
+    "turns": 1.2534,
+    "outerDiameterMm": 53.3252,
     "closePoint": 44.205,
     "sheetEnd": 49.6686,
     "sheetLength": 49.6686,
@@ -574,19 +596,19 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 1292,
-        "rice": 1528,
-        "wrap": 27,
+        "out": 1300,
+        "rice": 1482,
+        "wrap": 66,
         "salmon": 100,
-        "ricePink": 189
+        "ricePink": 188
       },
       "probe": "out,out,rice,rice,rice,out,rice,rice,rice,out,out"
     },
     "selfSimilarity": 1
   },
   "F05-hand-variation": {
-    "turns": 1.1952,
-    "outerDiameterMm": 51.0059,
+    "turns": 1.1995,
+    "outerDiameterMm": 49.9797,
     "closePoint": 37.38,
     "sheetEnd": 42,
     "sheetLength": 42,
@@ -596,11 +618,11 @@ const ROLL_BASELINE = {
     "coreFold": 15.5051,
     "patchCount": 3,
     "materialFractions": {
-      "core": 0.0868,
-      "patch:avocado": 0.1424,
-      "patch:salmon": 0.1458,
-      "patch:shrimp": 0.0069,
-      "spread": 0.6169,
+      "core": 0.0926,
+      "patch:avocado": 0.1458,
+      "patch:salmon": 0.1493,
+      "patch:shrimp": 0.0081,
+      "spread": 0.603,
       "wrap": 0.0012
     },
     "probes": [
@@ -643,9 +665,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 913,
-        "rice": 1969,
-        "wrap": 12,
+        "out": 922,
+        "rice": 1958,
+        "wrap": 14,
         "salmon": 121,
         "avocado": 121
       },
@@ -654,8 +676,8 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "F06-rotated-patch": {
-    "turns": 1.2021,
-    "outerDiameterMm": 46.6998,
+    "turns": 1.2066,
+    "outerDiameterMm": 45.6738,
     "closePoint": 37.38,
     "sheetEnd": 42,
     "sheetLength": 42,
@@ -710,9 +732,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 886,
-        "rice": 1975,
-        "wrap": 34,
+        "out": 912,
+        "rice": 1964,
+        "wrap": 19,
         "cucumber": 73,
         "tamago": 168
       },
@@ -721,15 +743,15 @@ const ROLL_BASELINE = {
     "selfSimilarity": 1
   },
   "F07-edge-overload": {
-    "turns": 1.0393,
-    "outerDiameterMm": 36.8276,
+    "turns": 1.0394,
+    "outerDiameterMm": 36.9182,
     "closePoint": 21,
     "sheetEnd": 21,
     "sheetLength": 21,
     "hasCore": true,
     "shape": "round",
     "coreRadius": 2.2624,
-    "coreFold": 19.6073,
+    "coreFold": 19.9927,
     "patchCount": 3,
     "materialFractions": {
       "core": 0.1354,
@@ -779,8 +801,9 @@ const ROLL_BASELINE = {
     ],
     "map": {
       "counts": {
-        "out": 877,
-        "rice": 1645,
+        "out": 901,
+        "rice": 1617,
+        "wrap": 4,
         "salmon": 225,
         "cucumber": 164,
         "avocado": 225
@@ -792,6 +815,6 @@ const ROLL_BASELINE = {
   "__pairs": {
     "F02~F05 рука": 1,
     "F02~сдвиг": 1,
-    "F04~форма": 0.9793
+    "F04~форма": 0.9799
   }
 };
