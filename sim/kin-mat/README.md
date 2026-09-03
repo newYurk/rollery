@@ -7,8 +7,9 @@
 Запуск:
 
 ```
-source /Users/newyurk/Desktop/Home/Projects/rollery/sim/.venv/bin/activate
-cd /Users/newyurk/Desktop/Home/Projects/rollery/sim/kin-mat
+R=$(git rev-parse --show-toplevel)   # окружение локальное, в git его нет
+source "$R/sim/.venv/bin/activate"
+cd "$R/sim/kin-mat"
 python run.py --layout 4 --speed 1.0 --press 1.0 --tuck 1.0 --grid 240 --particles 16000 --frames 10
 ```
 

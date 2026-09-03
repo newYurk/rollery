@@ -5,8 +5,9 @@
 `../KINEMATICS.md`. Добавлена метрика `tail_outside` и ключ `--tuck`.
 
 ```
-source /Users/newyurk/Desktop/Home/Projects/rollery/sim/.venv/bin/activate
-cd /Users/newyurk/Desktop/Home/Projects/rollery/sim/kin-grab
+R=$(git rev-parse --show-toplevel)   # окружение локальное, в git его нет
+source "$R/sim/.venv/bin/activate"
+cd "$R/sim/kin-grab"
 python run.py --layout 1 --grid 240 --particles 16000 --frames 10
 ```
 

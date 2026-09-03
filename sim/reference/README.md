@@ -13,8 +13,9 @@
 ближнего края), в неё пересажены четыре идеи из `../kin-mat`. Разбор — §2.
 
 ```
-source /Users/newyurk/Desktop/Home/Projects/rollery/sim/.venv/bin/activate
-cd /Users/newyurk/Desktop/Home/Projects/rollery/sim/reference
+R=$(git rev-parse --show-toplevel)   # окружение локальное, в git его нет
+source "$R/sim/.venv/bin/activate"
+cd "$R/sim/reference"
 python run.py --layout 1 --grid 240 --particles 16000 --frames 8
 python table.py            # таблица результатов из out/metrics_*.json
 ```
