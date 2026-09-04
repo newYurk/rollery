@@ -7,7 +7,7 @@ import {
   NB,
   TAU,
   baseOf,
-  patchCoreXmm,
+  patchCorePos,
   riceSpanMm,
 } from './units.js';
 
@@ -24,9 +24,9 @@ function coreBoxMm(recipe) {
   let halfW = base.emptyCoreWidthMm / 2;
   let halfH = base.emptyCoreHeightMm / 2;
   for (const p of recipe.patches) {
-    const x = patchCoreXmm(recipe, p);
+    const { x, y } = patchCorePos(recipe, p);
     halfW = Math.max(halfW, Math.abs(x) + p.widthMm / 2);
-    halfH = Math.max(halfH, p.heightMm / 2 + base.noriThicknessMm);
+    halfH = Math.max(halfH, Math.abs(y) + p.heightMm / 2 + base.noriThicknessMm);
   }
   return { Wc: 2 * halfW, Hc: 2 * halfH };
 }

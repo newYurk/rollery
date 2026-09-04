@@ -1,7 +1,7 @@
 // Debug slice. Presentation only — does not feed hashes or acceptance.
 // Colors from catalog.js (hoso wrapper / spread / ING), not from geometry.js.
 
-import { DPHI, HOSOGIRI, NB, TAU, hosogiriSticks, patchCoreXmm, placementWindowMm } from './units.js';
+import { DPHI, HOSOGIRI, NB, TAU, hosogiriSticks, patchCorePos, placementWindowMm } from './units.js';
 import { sectorTop } from './section.js';
 
 export const MAT = {
@@ -184,37 +184,40 @@ export function drawSlice(ctx, recipe, winding, css) {
     riceGrains(ctx, winding, zero, winding.r0b, 40);
   }
   for (const p of recipe.patches) {
-    const ox = patchCoreXmm(recipe, p);
+    const pos = patchCorePos(recipe, p);
+    ctx.save();
+    ctx.translate(pos.x, pos.y);
     const mat = MAT[p.materialId] || { fill: '#888', edge: '#444' };
     if (p.cut === 'hosogiri') {
-      hosogiriPath(ctx, p, ox);
+      hosogiriPath(ctx, p, 0);
       ctx.fillStyle = mat.fill;
       ctx.fill();
       ctx.strokeStyle = mat.skin || mat.edge;
       ctx.lineWidth = 0.45;
       ctx.stroke();
     } else if (p.materialId === 'cucumber' && p.cut !== 'сектор') {
-      barPath(ctx, p, ox);
+      barPath(ctx, p, 0);
       ctx.fillStyle = mat.fill;
       ctx.fill();
       const w = p.widthMm;
       const h = p.heightMm;
       ctx.fillStyle = mat.skin;
-      ctx.fillRect(ox - w / 2, h / 2 - 0.7, w, 0.7);
+      ctx.fillRect(-w / 2, h / 2 - 0.7, w, 0.7);
       ctx.strokeStyle = mat.skin;
       ctx.lineWidth = 0.45;
-      barPath(ctx, p, ox);
+      barPath(ctx, p, 0);
       ctx.stroke();
     } else {
       ctx.beginPath();
-      if (p.materialId === 'cucumber') cucumberPath(ctx, p, ox);
-      else barPath(ctx, p, ox);
+      if (p.materialId === 'cucumber') cucumberPath(ctx, p, 0);
+      else barPath(ctx, p, 0);
       ctx.fillStyle = mat.fill;
       ctx.fill();
       ctx.strokeStyle = mat.skin || mat.edge;
       ctx.lineWidth = 0.45;
       ctx.stroke();
     }
+    ctx.restore();
   }
   ctx.restore();
 

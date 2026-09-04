@@ -3,27 +3,27 @@
     "status": "valid",
     "hashes": {
       "recipe": "3f9d69034422a05858274b65dc14f636ded6ef1f461ec0ab23effc3c9a1b9ad9",
-      "winding": "7288e8b509aec075fbcab1c0d6fedea60ad321bb5d2edc19242954acc679156a",
-      "section": "b86fe51404ed8e81613ec19267f9b78a0cda0f50f9aab40c5e221ce27389db05"
+      "winding": "0d838e2f0e6599332a15af3427cff42c78390ca6f09b02c8ac94e79e50baba66",
+      "section": "346d1f60143fecd5fb9710e644000677ac3ad6d423c77e2a48c192ffc15c2835"
     },
     "visiblePatches": [
       {
         "id": "cucumber-0",
         "areaMm2": 64,
-        "centerXmm": -6.470588235294118,
-        "centerYmm": 0
+        "centerXmm": 6.328899074556418,
+        "centerYmm": 7.742418001120769
       },
       {
         "id": "salmon-0",
         "areaMm2": 100,
-        "centerXmm": 4.117647058823529,
-        "centerYmm": 0
+        "centerXmm": -7.918095229681357,
+        "centerYmm": 6.107681060246788
       },
       {
         "id": "tamago-0",
         "areaMm2": 120,
-        "centerXmm": -1.7647058823529411,
-        "centerYmm": 0
+        "centerXmm": -0.2540433310871481,
+        "centerYmm": 9.996772578484025
       }
     ]
   },
@@ -31,27 +31,27 @@
     "status": "valid",
     "hashes": {
       "recipe": "02554d679ddcd65be1611eb60d7c746ca8c7fbcc230db9cbf9568f94497f1dee",
-      "winding": "7288e8b509aec075fbcab1c0d6fedea60ad321bb5d2edc19242954acc679156a",
-      "section": "b86fe51404ed8e81613ec19267f9b78a0cda0f50f9aab40c5e221ce27389db05"
+      "winding": "0d838e2f0e6599332a15af3427cff42c78390ca6f09b02c8ac94e79e50baba66",
+      "section": "346d1f60143fecd5fb9710e644000677ac3ad6d423c77e2a48c192ffc15c2835"
     },
     "visiblePatches": [
       {
         "id": "cucumber-0",
         "areaMm2": 64,
-        "centerXmm": -6.470588235294118,
-        "centerYmm": 0
+        "centerXmm": 6.328899074556418,
+        "centerYmm": 7.742418001120769
       },
       {
         "id": "salmon-0",
         "areaMm2": 100,
-        "centerXmm": 4.117647058823529,
-        "centerYmm": 0
+        "centerXmm": -7.918095229681357,
+        "centerYmm": 6.107681060246788
       },
       {
         "id": "tamago-0",
         "areaMm2": 120,
-        "centerXmm": -1.7647058823529411,
-        "centerYmm": 0
+        "centerXmm": -0.2540433310871481,
+        "centerYmm": 9.996772578484025
       }
     ]
   }

@@ -1,6 +1,6 @@
 // Central slice. Fillings sit in the core (rest-state area). Hard fillings do not stretch.
 
-import { SECTOR_ANGLE, patchCoreXmm } from './units.js';
+import { SECTOR_ANGLE, patchCorePos } from './units.js';
 import { catalogAreaMm2, cutFillSector } from './recipe.js';
 
 export function sectorTop(t) {
@@ -36,20 +36,20 @@ function sampleSector(patch, originX) {
   return { id: patch.id, areaMm2: catalog, centerXmm: originX, centerYmm: 0, _gridAreaMm2: area };
 }
 
-function sampleBar(patch, originX) {
+function sampleBar(patch, origin) {
   return {
     id: patch.id,
     areaMm2: catalogAreaMm2(patch),
-    centerXmm: originX,
-    centerYmm: 0,
+    centerXmm: origin.x,
+    centerYmm: origin.y,
   };
 }
 
 export function samplePatch(recipe, patch) {
-  const originX = patchCoreXmm(recipe, patch);
-  if (patch.cut === 'hosogiri') return sampleBar(patch, originX);
-  if (patch.cut === 'сектор') return sampleSector(patch, originX);
-  return sampleBar(patch, originX);
+  const origin = patchCorePos(recipe, patch);
+  if (patch.cut === 'hosogiri') return sampleBar(patch, origin);
+  if (patch.cut === 'сектор') return sampleSector(patch, origin.x);
+  return sampleBar(patch, origin);
 }
 
 export function sampleSection(recipe, winding, vSliceMm) {

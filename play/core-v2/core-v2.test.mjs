@@ -7,7 +7,7 @@ import {
 } from './fixtures.js';
 import { validateRecipe } from './validate.js';
 import { buildWinding, independentLayerArcs } from './winding.js';
-import { CUCUMBER, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, hosogiriBox, placementWindowMm } from './units.js';
+import { CUCUMBER, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, hosogiriBox, patchCorePos, placementWindowMm } from './units.js';
 import {
   cutFractions, firstCutFraction, pieceCountOf, pieceLeftOfCut,
   pieceLengthMm, snapCutFraction,
@@ -228,6 +228,15 @@ test('F05 array order does not change hashes', () => {
   assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
   assert.equal(r.abc.report.hashes.winding, r.cab.report.hashes.winding);
   assert.equal(r.abc.report.hashes.section, r.cab.report.hashes.section);
+});
+
+test('F05 fillings sit on the winding angle, not a line', () => {
+  const recipe = makeF05Recipe();
+  const pos = recipe.patches.map((p) => ({ id: p.id, ...patchCorePos(recipe, p) }));
+  const ys = pos.map((p) => p.y);
+  assert.ok(Math.max(...ys) - Math.min(...ys) > 2, JSON.stringify(pos));
+  const xs = new Set(pos.map((p) => p.x.toFixed(2)));
+  assert.equal(xs.size, 3);
 });
 
 test('F06 round-trip and new instance', () => {
