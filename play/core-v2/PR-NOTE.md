@@ -14,7 +14,7 @@ One filling sits at the core origin (F01–F04). Several fillings: `centerX = uM
 |---|---|
 | F01 empty hosomaki | `valid` |
 | F02 cucumber at 36.25 mm | `valid` |
-| F03 43.5–45.5 | `valid`; 46.5+ `outsideModelScope` |
+| F03 lastValid ± 2 мм (farEdge − width/2) | `valid` до границы следа; дальше `outsideModelScope` |
 | F04a u=100 | `invalid: patch_out_of_sheet` |
 | F04b u=70 | `outsideModelScope: closure_window` |
 | F05 futomaki [A,B,C] vs [C,A,B] | same hashes |

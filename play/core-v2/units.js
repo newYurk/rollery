@@ -56,9 +56,6 @@ export const MAX_CENTER_DELTA_MM = EPS_LENGTH_MM;
 /** |a/b − 1| площадей соседних валидных F03. */
 export const MAX_AREA_RATIO_DELTA = 0.02;
 
-/** Серия F03, шаг 1 мм через границу следа (erratum-004). */
-export const F03_U_MM = Object.freeze([43.5, 44.5, 45.5, 46.5, 47.5]);
-
 /** Полный угол сектора огурца. geometry.js:514. */
 export const SECTOR_ANGLE = Math.PI / 4;
 
@@ -84,18 +81,39 @@ export const HOSOMAKI = Object.freeze({
 });
 
 /**
- * Снимок огурца F02 в мм. catalog.js:305.
- * catalogAreaMm2 считается cutFill в recipe.js, не здесь: формула зависит от профиля.
+ * Коридор 職人 для готового хосомаки. 江戸前 「直径3cm程度」.
+ * Не калибр SUZUMO □25. Пустой ролл V2 уже внутри; каппамаки — после 芯.
+ */
+export const HOSOMAKI_DIAMETER_MM = Object.freeze({ min: 28, max: 32 });
+
+/**
+ * Снимок огурца F02 в мм.
+ * Было: catalog.js:305, плод ⌀28 мм / 8 долей → 14 × 9,9. Это магазинный
+ * огурец, не 芯 хосомаки. 白ごはん.com: 6–8 долей, 「細めに」; 鉄火 7–8 мм 角.
+ * Сектор 45° лежит на одном срезе: короткая сторона = 8 мм (= верх 鉄火),
+ * длинная = 8√2 ≈ 11,3 мм. Live catalog.js не трогаем.
+ * catalogAreaMm2 считается cutFill в recipe.js, не здесь.
  */
 export const CUCUMBER = Object.freeze({
   materialId: 'cucumber',
-  widthMm: 14,            // 2.8 × 5
-  heightMm: 9.9,          // 1.98 × 5
+  widthMm: 11.3,          // 8√2, округление как у старых 9,9
+  heightMm: 8,            // короткая сторона = 鉄火 7–8 мм
   lengthFactor: 1,        // dv: на всю ширину ролла
   cut: 'сектор',
-  wU: 2.8,
-  hU: 1.98,
+  wU: 11.3 / U_MM,
+  hU: 8 / U_MM,
 });
+
+/**
+ * F03: шаг 1 мм через границу следа. erratum-004 фиксировал 43.5–47.5 под огурец
+ * 14 мм; серия следует из farEdge − width/2, иначе тонкий 芯 зеленеет за старой
+ * границей, хотя окно L/2 не двигалось.
+ */
+export const F03_U_MM = Object.freeze((() => {
+  const far = HOSOMAKI.lengthMm / 2;
+  const lastValid = Math.floor((far - CUCUMBER.widthMm / 2) * 2) / 2;
+  return [lastValid - 2, lastValid - 1, lastValid, lastValid + 1, lastValid + 2];
+})());
 
 export function placementWindowMm(sheet) {
   return {

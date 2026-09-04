@@ -12,8 +12,8 @@
           "farEdgeMm": 52.5
         },
         "observedFootprintMm": [
-          63,
-          77
+          64.35,
+          75.65
         ]
       }
     }
@@ -33,7 +33,7 @@
   },
   "visiblePatches": [],
   "hashes": {
-    "recipe": "8a0064bd3f01e2b16733e4cdfbb48c3bdc84d5cb609d531d896c9e85528e9904",
+    "recipe": "fba715a9a77dad4493c7001ca1dd0ca0d5964535448cfcf3ef1929db91f4488c",
     "winding": "",
     "section": ""
   },

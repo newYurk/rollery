@@ -6,8 +6,8 @@ import {
   makeF01Recipe, makeCucumberRecipe, cucumberCatalogAreaMm2,
 } from './fixtures.js';
 import { validateRecipe } from './validate.js';
-import { independentLayerArcs } from './winding.js';
-import { EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, NB, placementWindowMm } from './units.js';
+import { buildWinding, independentLayerArcs } from './winding.js';
+import { CUCUMBER, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, placementWindowMm } from './units.js';
 import {
   cutFractions, firstCutFraction, pieceCountOf, pieceLeftOfCut,
   pieceLengthMm, snapCutFraction,
@@ -26,6 +26,17 @@ test('F02 green', () => {
   const r = runF02();
   assert.equal(r.report.status, 'valid');
   assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
+});
+
+test('hosomaki diameter in chef corridor 28-32 mm', () => {
+  const check = (name, w) => {
+    const dmin = 2 * Math.min(...w.rn);
+    const dmax = 2 * w.Rout;
+    assert.ok(dmin >= HOSOMAKI_DIAMETER_MM.min, `${name} dmin ${dmin}`);
+    assert.ok(dmax <= HOSOMAKI_DIAMETER_MM.max, `${name} dmax ${dmax}`);
+  };
+  check('F01', buildWinding(makeF01Recipe()));
+  check('F02', buildWinding(makeCucumberRecipe(36.25)));
 });
 
 test('F06 hashes repeat', () => {
@@ -92,7 +103,7 @@ test('mutation: innerBoundaryByRay scalar', () => {
 
 test('mutation: catalogArea = width×height without cutFill', () => {
   const r = runF02();
-  const rect = 14 * 9.9;
+  const rect = CUCUMBER.widthMm * CUCUMBER.heightMm;
   const catalog = cucumberCatalogAreaMm2();
   const fake = r.report.visiblePatches[0].areaMm2 * (rect / catalog);
   const ratio = Math.max(fake / catalog, catalog / fake);
@@ -146,7 +157,7 @@ test('empty core asymmetry exceeds EPS_CORE_ASYMMETRY_MM', () => {
   assert.ok(Math.max(...r0) - Math.min(...r0) > EPS_CORE_ASYMMETRY_MM);
 });
 
-test('F03 series: valid through 45.5, refuse from 46.5, continuous inside', () => {
+test('F03 series: last three-minus-two valid, then refuse, continuous inside', () => {
   const r = runF03();
   assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
   assert.equal(r.series[2].report.status, 'valid');

@@ -1,27 +1,5 @@
 [
   {
-    "uMm": 43.5,
-    "status": "valid",
-    "diagnostics": [],
-    "placementWindowMm": {
-      "nearEdgeMm": 20,
-      "farEdgeMm": 52.5
-    },
-    "visiblePatches": [
-      {
-        "id": "cucumber-0",
-        "areaMm2": 76.97437355950484,
-        "centerXmm": 0,
-        "centerYmm": 0
-      }
-    ],
-    "hashes": {
-      "recipe": "9648f34fcb4320c3158fa7bfb2d634127654da5928a0cd6a621523471072df53",
-      "winding": "a37b953f8225244ce7c69c7649ac590973e23dec8d9bfb001e70b0e036ceafb4",
-      "section": "d8bd1bdc939babec71fe530e2053c1743545cfd81fbcd0052c4d3eba5b94d823"
-    }
-  },
-  {
     "uMm": 44.5,
     "status": "valid",
     "diagnostics": [],
@@ -32,15 +10,15 @@
     "visiblePatches": [
       {
         "id": "cucumber-0",
-        "areaMm2": 76.97437355950484,
+        "areaMm2": 50.20550771846492,
         "centerXmm": 0,
         "centerYmm": 0
       }
     ],
     "hashes": {
-      "recipe": "0272593a645299894f1d1c5b08f2cf5e7e6088663730c094b34f0cd9a54bfa34",
-      "winding": "a37b953f8225244ce7c69c7649ac590973e23dec8d9bfb001e70b0e036ceafb4",
-      "section": "d8bd1bdc939babec71fe530e2053c1743545cfd81fbcd0052c4d3eba5b94d823"
+      "recipe": "9b10b1dd404ae011057cc6852bbe8658fbe7ef730bbbb131774cce8db29398ab",
+      "winding": "362433ec1cee58579317253c9d5905f89bd9a10357491a3b454667e08c4fbbb6",
+      "section": "42511caa743034f706a0ffc04342df2ac8cd42674857e2b3ebab22a79106d710"
     }
   },
   {
@@ -54,46 +32,37 @@
     "visiblePatches": [
       {
         "id": "cucumber-0",
-        "areaMm2": 76.97437355950484,
+        "areaMm2": 50.20550771846492,
         "centerXmm": 0,
         "centerYmm": 0
       }
     ],
     "hashes": {
-      "recipe": "3f4a66049a41e25f4598a1f849d537060aadbc53e4c4e80f11075b20316a4509",
-      "winding": "a37b953f8225244ce7c69c7649ac590973e23dec8d9bfb001e70b0e036ceafb4",
-      "section": "d8bd1bdc939babec71fe530e2053c1743545cfd81fbcd0052c4d3eba5b94d823"
+      "recipe": "518298249634784a7ad652657a412a08d7cf1138276c94842f5f36d3e3ac18e8",
+      "winding": "362433ec1cee58579317253c9d5905f89bd9a10357491a3b454667e08c4fbbb6",
+      "section": "42511caa743034f706a0ffc04342df2ac8cd42674857e2b3ebab22a79106d710"
     }
   },
   {
     "uMm": 46.5,
-    "status": "outsideModelScope",
-    "diagnostics": [
-      {
-        "code": "closure_window",
-        "message": "patch footprint outside placementWindowMm",
-        "context": {
-          "patchId": "cucumber-0",
-          "placementWindowMm": {
-            "nearEdgeMm": 20,
-            "farEdgeMm": 52.5
-          },
-          "observedFootprintMm": [
-            39.5,
-            53.5
-          ]
-        }
-      }
-    ],
+    "status": "valid",
+    "diagnostics": [],
     "placementWindowMm": {
       "nearEdgeMm": 20,
       "farEdgeMm": 52.5
     },
-    "visiblePatches": [],
+    "visiblePatches": [
+      {
+        "id": "cucumber-0",
+        "areaMm2": 50.20550771846492,
+        "centerXmm": 0,
+        "centerYmm": 0
+      }
+    ],
     "hashes": {
-      "recipe": "161500d6b6e04ecb99ceb2747832f4e7d6e5b33e18dcb7bcac2c145da9cdb3f0",
-      "winding": "",
-      "section": ""
+      "recipe": "c89c057268968300ee895115429a8bf50c0be903d7705b82a463a9bd09c08aec",
+      "winding": "362433ec1cee58579317253c9d5905f89bd9a10357491a3b454667e08c4fbbb6",
+      "section": "42511caa743034f706a0ffc04342df2ac8cd42674857e2b3ebab22a79106d710"
     }
   },
   {
@@ -110,8 +79,8 @@
             "farEdgeMm": 52.5
           },
           "observedFootprintMm": [
-            40.5,
-            54.5
+            41.85,
+            53.15
           ]
         }
       }
@@ -122,7 +91,38 @@
     },
     "visiblePatches": [],
     "hashes": {
-      "recipe": "a48f2850d319ee676345d1d003d0e9cef17e45143fbca84c0e1a5ad3c7fa032a",
+      "recipe": "03ef462ce36c7e79e95356661ec714b8ff500fc88d803b44cae01e18ed2ff05e",
+      "winding": "",
+      "section": ""
+    }
+  },
+  {
+    "uMm": 48.5,
+    "status": "outsideModelScope",
+    "diagnostics": [
+      {
+        "code": "closure_window",
+        "message": "patch footprint outside placementWindowMm",
+        "context": {
+          "patchId": "cucumber-0",
+          "placementWindowMm": {
+            "nearEdgeMm": 20,
+            "farEdgeMm": 52.5
+          },
+          "observedFootprintMm": [
+            42.85,
+            54.15
+          ]
+        }
+      }
+    ],
+    "placementWindowMm": {
+      "nearEdgeMm": 20,
+      "farEdgeMm": 52.5
+    },
+    "visiblePatches": [],
+    "hashes": {
+      "recipe": "daa01f3dc065aa11432dedff8d1aa06a29a4ca8df102ecfe5ae919bab4a43dd2",
       "winding": "",
       "section": ""
     }
