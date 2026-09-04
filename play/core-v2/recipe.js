@@ -56,10 +56,8 @@ export function makeF01Recipe() {
   });
 }
 
-export function makeF02Recipe() {
+export function makeCucumberRecipe(uMm) {
   const sheet = { lengthMm: HOSOMAKI.lengthMm, widthMm: HOSOMAKI.widthMm };
-  const window = placementWindowMm(sheet);
-  const uMm = (window.nearEdgeMm + window.farEdgeMm) / 2;
   return deepFreeze({
     version: 2,
     baseId: HOSOMAKI.baseId,
@@ -81,6 +79,21 @@ export function makeF02Recipe() {
     ],
     hand: { mode: 'neutral', seed: 0 },
   });
+}
+
+export function makeF02Recipe() {
+  const window = placementWindowMm({ lengthMm: HOSOMAKI.lengthMm });
+  return makeCucumberRecipe((window.nearEdgeMm + window.farEdgeMm) / 2);
+}
+
+/** F04a: след [93, 107] на листе 105 мм. */
+export function makeF04aRecipe() {
+  return makeCucumberRecipe(100);
+}
+
+/** F04b: след [63, 77] на листе, вне окна [20, 52.5]. */
+export function makeF04bRecipe() {
+  return makeCucumberRecipe(70);
 }
 
 export { placementWindowMm };
