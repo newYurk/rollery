@@ -3,33 +3,50 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runF01, runF02, allPassed } from './fixtures.js';
+import { runF01, runF02, runF03, runF04a, runF04b, allPassed } from './fixtures.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+function displayStatus(r) {
+  if (r.status === 'valid') return 'valid';
+  const code = r.diagnostics[0]?.code;
+  return code ? `${r.status}:${code}` : r.status;
+}
 
 function row(id, result) {
   const r = result.report;
   const failed = result.checks.filter((c) => !c.ok);
-  const status = r.status === 'valid' && failed.length === 0 ? 'PASS' : 'FAIL';
-  const seam = r.seam ? r.seam.overlapMm.toFixed(2) : '-';
+  const pass = failed.length === 0 ? 'PASS' : 'FAIL';
+  const seam = r.seam?.overlapMm != null ? r.seam.overlapMm.toFixed(2) : '-';
   const cov = r.sheet.coveredLengthMm.toFixed(2);
   const ph = r.sheet.phantomLengthMm.toFixed(3);
   const u = `${r.sheet.uMinMm.toFixed(1)}–${r.sheet.uMaxMm.toFixed(1)}`;
   const h = r.hashes.winding ? r.hashes.winding.slice(0, 10) : '-';
   const nDiag = r.diagnostics.length;
   const why = failed.map((c) => `${c.name}:${c.detail}`).join('; ');
-  return { id, status, cov, ph, u, seam, h, nDiag, why, report: r, checks: result.checks };
+  return { id, pass, shown: displayStatus(r), cov, ph, u, seam, h, nDiag, why, report: r, checks: result.checks };
 }
 
 const f01 = row('F01', runF01());
 const f02 = row('F02', runF02());
+const f03run = runF03();
+const f03rows = f03run.series.map((s) => row(`F03-${s.uMm}`, {
+  report: s.report,
+  checks: f03run.checks.filter((c) => c.name.startsWith(`F03-${s.uMm}`) || c.name.startsWith('F03-cont')),
+}));
+const f03 = { ...row('F03', { report: f03run.series[2].report, checks: f03run.checks }), series: f03run.series };
+const f04a = row('F04a', runF04a());
+const f04b = row('F04b', runF04b());
 const f01b = row('F01-repeat', runF01());
 const f02b = row('F02-repeat', runF02());
+const f04a2 = row('F04a-repeat', runF04a());
+const f04b2 = row('F04b-repeat', runF04b());
 
+const all = [f01, f02, ...f03rows, f04a, f04b, f01b, f02b, f04a2, f04b2];
 const lines = [
-  'id          status  covered  phantom  uMm          seamMm  hash       diag',
-  ...[f01, f02, f01b, f02b].map((x) =>
-    `${x.id.padEnd(12)}${x.status.padEnd(8)}${x.cov.padEnd(9)}${x.ph.padEnd(9)}${x.u.padEnd(13)}${String(x.seam).padEnd(8)}${x.h.padEnd(11)}${x.nDiag}${x.why ? '  ' + x.why : ''}`,
+  'id            gate  status                           covered  phantom  uMm          seamMm  hash       diag',
+  ...all.map((x) =>
+    `${x.id.padEnd(14)}${x.pass.padEnd(6)}${x.shown.padEnd(32)}${x.cov.padEnd(9)}${x.ph.padEnd(9)}${x.u.padEnd(13)}${String(x.seam).padEnd(8)}${x.h.padEnd(11)}${x.nDiag}${x.why ? '  ' + x.why : ''}`,
   ),
 ];
 console.log(lines.join('\n'));
@@ -40,13 +57,32 @@ if (f01.report.hashes.winding !== f01b.report.hashes.winding) {
 if (f02.report.hashes.winding !== f02b.report.hashes.winding) {
   console.error('F06: F02 winding hash mismatch across reruns');
 }
+if (f04a.report.diagnostics[0]?.code !== f04a2.report.diagnostics[0]?.code) {
+  console.error('F06: F04a diagnostic mismatch');
+}
+if (f04b.report.diagnostics[0]?.code !== f04b2.report.diagnostics[0]?.code) {
+  console.error('F06: F04b diagnostic mismatch');
+}
 
 const outDir = join(here, 'reports');
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, 'F01.json'), JSON.stringify(f01.report, null, 2));
 writeFileSync(join(outDir, 'F02.json'), JSON.stringify(f02.report, null, 2));
+writeFileSync(join(outDir, 'F03.json'), JSON.stringify(f03run.series.map((s) => ({
+  uMm: s.uMm,
+  status: s.report.status,
+  diagnostics: s.report.diagnostics,
+  placementWindowMm: s.report.placementWindowMm,
+  visiblePatches: s.report.visiblePatches,
+  hashes: s.report.hashes,
+})), null, 2));
+writeFileSync(join(outDir, 'F04a.json'), JSON.stringify(f04a.report, null, 2));
+writeFileSync(join(outDir, 'F04b.json'), JSON.stringify(f04b.report, null, 2));
 
-const failed = [f01, f02].some((x) => x.status !== 'PASS')
+const failed = [f01, f02, f03, f04a, f04b].some((x) => x.pass !== 'PASS')
+  || !allPassed(f03run.checks)
   || f01.report.hashes.winding !== f01b.report.hashes.winding
-  || f02.report.hashes.winding !== f02b.report.hashes.winding;
+  || f02.report.hashes.winding !== f02b.report.hashes.winding
+  || f04a.report.diagnostics[0]?.code !== f04a2.report.diagnostics[0]?.code
+  || f04b.report.diagnostics[0]?.code !== f04b2.report.diagnostics[0]?.code;
 process.exit(failed ? 1 : 0);

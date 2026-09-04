@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  runF01, runF02, acceptF01, acceptF02, allPassed,
-  makeF01Recipe, cucumberCatalogAreaMm2,
+  runF01, runF02, runF03, runF04a, runF04b, acceptF01, acceptF02, allPassed,
+  makeF01Recipe, makeCucumberRecipe, cucumberCatalogAreaMm2,
 } from './fixtures.js';
 import { validateRecipe } from './validate.js';
 import { independentLayerArcs } from './winding.js';
-import { EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, NB } from './units.js';
+import { EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, NB, placementWindowMm } from './units.js';
 
 function clone(x) { return structuredClone(x); }
 
@@ -138,4 +138,39 @@ test('empty core asymmetry exceeds EPS_CORE_ASYMMETRY_MM', () => {
   const r = runF01();
   const r0 = r.report.roll.innerBoundaryByRay;
   assert.ok(Math.max(...r0) - Math.min(...r0) > EPS_CORE_ASYMMETRY_MM);
+});
+
+test('F03 series: valid through 45.5, refuse from 46.5, continuous inside', () => {
+  const r = runF03();
+  assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
+  assert.equal(r.series[2].report.status, 'valid');
+  assert.equal(r.series[3].report.status, 'outsideModelScope');
+  assert.equal(r.series[3].report.diagnostics[0].code, 'closure_window');
+});
+
+test('F04a: footprint past sheet is invalid, not outsideModelScope', () => {
+  const r = runF04a();
+  assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
+  assert.equal(r.report.status, 'invalid');
+  assert.equal(r.report.diagnostics[0].code, 'patch_out_of_sheet');
+});
+
+test('F04b: on-sheet but past L/2 is outsideModelScope, not invalid', () => {
+  const r = runF04b();
+  assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
+  assert.equal(r.report.status, 'outsideModelScope');
+  assert.equal(r.report.diagnostics[0].code, 'closure_window');
+});
+
+test('mutation: full-sheet window would legalize F04b', () => {
+  const w = placementWindowMm({ lengthMm: 105 });
+  assert.notEqual(w.nearEdgeMm, 0);
+  assert.notEqual(w.farEdgeMm, 105);
+  const v = validateRecipe(makeCucumberRecipe(70));
+  assert.equal(v.status, 'outsideModelScope');
+});
+
+test('F04a/F04b diagnostics repeat', () => {
+  assert.equal(runF04a().report.diagnostics[0].code, runF04a().report.diagnostics[0].code);
+  assert.equal(runF04b().report.diagnostics[0].code, runF04b().report.diagnostics[0].code);
 });

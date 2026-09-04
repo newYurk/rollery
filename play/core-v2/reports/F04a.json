@@ -1,0 +1,46 @@
+{
+  "fixtureId": "F04a",
+  "status": "invalid",
+  "diagnostics": [
+    {
+      "code": "patch_out_of_sheet",
+      "message": "patch footprint leaves the sheet",
+      "context": {
+        "patchId": "cucumber-0",
+        "sheetLengthMm": 105,
+        "observedFootprintMm": [
+          93,
+          107
+        ]
+      }
+    }
+  ],
+  "placementWindowMm": {
+    "nearEdgeMm": 20,
+    "farEdgeMm": 52.5
+  },
+  "sheet": {
+    "lengthMm": 105,
+    "coveredLengthMm": 0,
+    "uncoveredLengthMm": 0,
+    "phantomLengthMm": 0,
+    "uMinMm": 0,
+    "uMaxMm": 0,
+    "arcByLayerMm": []
+  },
+  "visiblePatches": [],
+  "hashes": {
+    "recipe": "c7739a5c125ee60006818900d9c4c9382461f5856752e930c01441d8172400ea",
+    "winding": "",
+    "section": ""
+  },
+  "eps": {
+    "EPS_LENGTH_MM": 0.15,
+    "EPS_INVERT_MM": 0.15,
+    "EPS_CORE_ASYMMETRY_MM": 0.5,
+    "EPS_RAY_FRACTION": 0.002777777777777778,
+    "EPS_AREA_RATIO": 1.05,
+    "PLACEMENT_EDGE_MARGIN_MM": 20,
+    "NB": 1440
+  }
+}

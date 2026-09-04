@@ -1,0 +1,49 @@
+{
+  "fixtureId": "F04b",
+  "status": "outsideModelScope",
+  "diagnostics": [
+    {
+      "code": "closure_window",
+      "message": "patch footprint outside placementWindowMm",
+      "context": {
+        "patchId": "cucumber-0",
+        "placementWindowMm": {
+          "nearEdgeMm": 20,
+          "farEdgeMm": 52.5
+        },
+        "observedFootprintMm": [
+          63,
+          77
+        ]
+      }
+    }
+  ],
+  "placementWindowMm": {
+    "nearEdgeMm": 20,
+    "farEdgeMm": 52.5
+  },
+  "sheet": {
+    "lengthMm": 105,
+    "coveredLengthMm": 0,
+    "uncoveredLengthMm": 0,
+    "phantomLengthMm": 0,
+    "uMinMm": 0,
+    "uMaxMm": 0,
+    "arcByLayerMm": []
+  },
+  "visiblePatches": [],
+  "hashes": {
+    "recipe": "8a0064bd3f01e2b16733e4cdfbb48c3bdc84d5cb609d531d896c9e85528e9904",
+    "winding": "",
+    "section": ""
+  },
+  "eps": {
+    "EPS_LENGTH_MM": 0.15,
+    "EPS_INVERT_MM": 0.15,
+    "EPS_CORE_ASYMMETRY_MM": 0.5,
+    "EPS_RAY_FRACTION": 0.002777777777777778,
+    "EPS_AREA_RATIO": 1.05,
+    "PLACEMENT_EDGE_MARGIN_MM": 20,
+    "NB": 1440
+  }
+}

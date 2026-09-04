@@ -1,0 +1,130 @@
+[
+  {
+    "uMm": 43.5,
+    "status": "valid",
+    "diagnostics": [],
+    "placementWindowMm": {
+      "nearEdgeMm": 20,
+      "farEdgeMm": 52.5
+    },
+    "visiblePatches": [
+      {
+        "id": "cucumber-0",
+        "areaMm2": 76.97437355950484,
+        "centerXmm": 1.4033068649352944,
+        "centerYmm": -1.4691782287355497
+      }
+    ],
+    "hashes": {
+      "recipe": "9648f34fcb4320c3158fa7bfb2d634127654da5928a0cd6a621523471072df53",
+      "winding": "a37b953f8225244ce7c69c7649ac590973e23dec8d9bfb001e70b0e036ceafb4",
+      "section": "9a2364eb61d6e8350fd49734bd9d89c8a32b8d61ffd187e88657df57ed68855c"
+    }
+  },
+  {
+    "uMm": 44.5,
+    "status": "valid",
+    "diagnostics": [],
+    "placementWindowMm": {
+      "nearEdgeMm": 20,
+      "farEdgeMm": 52.5
+    },
+    "visiblePatches": [
+      {
+        "id": "cucumber-0",
+        "areaMm2": 76.97437355950484,
+        "centerXmm": 1.4033068649352944,
+        "centerYmm": -1.4691782287355497
+      }
+    ],
+    "hashes": {
+      "recipe": "0272593a645299894f1d1c5b08f2cf5e7e6088663730c094b34f0cd9a54bfa34",
+      "winding": "a37b953f8225244ce7c69c7649ac590973e23dec8d9bfb001e70b0e036ceafb4",
+      "section": "9a2364eb61d6e8350fd49734bd9d89c8a32b8d61ffd187e88657df57ed68855c"
+    }
+  },
+  {
+    "uMm": 45.5,
+    "status": "valid",
+    "diagnostics": [],
+    "placementWindowMm": {
+      "nearEdgeMm": 20,
+      "farEdgeMm": 52.5
+    },
+    "visiblePatches": [
+      {
+        "id": "cucumber-0",
+        "areaMm2": 76.97437355950484,
+        "centerXmm": 1.4033068649352944,
+        "centerYmm": -1.4691782287355497
+      }
+    ],
+    "hashes": {
+      "recipe": "3f4a66049a41e25f4598a1f849d537060aadbc53e4c4e80f11075b20316a4509",
+      "winding": "a37b953f8225244ce7c69c7649ac590973e23dec8d9bfb001e70b0e036ceafb4",
+      "section": "9a2364eb61d6e8350fd49734bd9d89c8a32b8d61ffd187e88657df57ed68855c"
+    }
+  },
+  {
+    "uMm": 46.5,
+    "status": "outsideModelScope",
+    "diagnostics": [
+      {
+        "code": "closure_window",
+        "message": "patch footprint outside placementWindowMm",
+        "context": {
+          "patchId": "cucumber-0",
+          "placementWindowMm": {
+            "nearEdgeMm": 20,
+            "farEdgeMm": 52.5
+          },
+          "observedFootprintMm": [
+            39.5,
+            53.5
+          ]
+        }
+      }
+    ],
+    "placementWindowMm": {
+      "nearEdgeMm": 20,
+      "farEdgeMm": 52.5
+    },
+    "visiblePatches": [],
+    "hashes": {
+      "recipe": "161500d6b6e04ecb99ceb2747832f4e7d6e5b33e18dcb7bcac2c145da9cdb3f0",
+      "winding": "",
+      "section": ""
+    }
+  },
+  {
+    "uMm": 47.5,
+    "status": "outsideModelScope",
+    "diagnostics": [
+      {
+        "code": "closure_window",
+        "message": "patch footprint outside placementWindowMm",
+        "context": {
+          "patchId": "cucumber-0",
+          "placementWindowMm": {
+            "nearEdgeMm": 20,
+            "farEdgeMm": 52.5
+          },
+          "observedFootprintMm": [
+            40.5,
+            54.5
+          ]
+        }
+      }
+    ],
+    "placementWindowMm": {
+      "nearEdgeMm": 20,
+      "farEdgeMm": 52.5
+    },
+    "visiblePatches": [],
+    "hashes": {
+      "recipe": "a48f2850d319ee676345d1d003d0e9cef17e45143fbca84c0e1a5ad3c7fa032a",
+      "winding": "",
+      "section": ""
+    }
+  }
+]

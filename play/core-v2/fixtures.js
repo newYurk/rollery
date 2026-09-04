@@ -6,14 +6,20 @@ import {
   EPS_INVERT_MM,
   EPS_LENGTH_MM,
   EPS_RAY_FRACTION,
+  F03_U_MM,
+  MAX_AREA_RATIO_DELTA,
+  MAX_CENTER_DELTA_MM,
   NB,
   TAU,
 } from './units.js';
 import {
   cucumberCatalogAreaMm2,
   deepClone,
+  makeCucumberRecipe,
   makeF01Recipe,
   makeF02Recipe,
+  makeF04aRecipe,
+  makeF04bRecipe,
 } from './recipe.js';
 import { validateRecipe } from './validate.js';
 import { buildWinding, independentLayerArcs } from './winding.js';
@@ -176,8 +182,115 @@ export function runF02() {
   return { recipe, report, winding, checks };
 }
 
+function dist2d(a, b) {
+  const dx = (a.centerXmm ?? 0) - (b.centerXmm ?? 0);
+  const dy = (a.centerYmm ?? 0) - (b.centerYmm ?? 0);
+  return Math.hypot(dx, dy);
+}
+
+export function acceptF03(series) {
+  const checks = [];
+  const expected = ['valid', 'valid', 'valid', 'outsideModelScope', 'outsideModelScope'];
+  const codes = [null, null, null, 'closure_window', 'closure_window'];
+  for (let i = 0; i < series.length; i++) {
+    const { report, winding, recipe, uMm } = series[i];
+    const want = expected[i];
+    if (report.status !== want) {
+      checks.push(fail(`F03-${uMm}:status`, `${report.status} want ${want}`));
+      continue;
+    }
+    checks.push(ok(`F03-${uMm}:status`));
+    const w = report.placementWindowMm;
+    checks.push(w.nearEdgeMm === 20 && w.farEdgeMm === 52.5
+      ? ok(`F03-${uMm}:window`)
+      : fail(`F03-${uMm}:window`, JSON.stringify(w)));
+    if (want === 'valid') {
+      checks.push(...acceptF02(report, winding, recipe).map((c) => (
+        { ...c, name: `F03-${uMm}:${c.name}` }
+      )));
+    } else {
+      const d = report.diagnostics[0];
+      checks.push(d?.code === codes[i]
+        ? ok(`F03-${uMm}:code`)
+        : fail(`F03-${uMm}:code`, d?.code));
+      checks.push(report.status !== 'valid'
+        ? ok(`F03-${uMm}:no-valid-slice`)
+        : fail(`F03-${uMm}:no-valid-slice`));
+    }
+  }
+  const valid = series.filter((s) => s.report.status === 'valid');
+  for (let i = 1; i < valid.length; i++) {
+    const a = valid[i - 1].report.visiblePatches[0];
+    const b = valid[i].report.visiblePatches[0];
+    const d = dist2d(a, b);
+    checks.push(d <= MAX_CENTER_DELTA_MM
+      ? ok(`F03-cont-center-${i}`)
+      : fail(`F03-cont-center-${i}`, d));
+    const ratio = Math.max(a.areaMm2 / b.areaMm2, b.areaMm2 / a.areaMm2);
+    checks.push(ratio - 1 <= MAX_AREA_RATIO_DELTA
+      ? ok(`F03-cont-area-${i}`)
+      : fail(`F03-cont-area-${i}`, ratio));
+  }
+  return checks;
+}
+
+export function acceptF04a(report, recipe) {
+  const checks = [];
+  checks.push(report.status === 'invalid' ? ok('status') : fail('status', report.status));
+  const d = report.diagnostics[0];
+  checks.push(d?.code === 'patch_out_of_sheet' ? ok('code') : fail('code', d?.code));
+  checks.push(d?.context?.patchId === recipe.patches[0].id ? ok('patchId') : fail('patchId', d?.context?.patchId));
+  checks.push(d?.context?.sheetLengthMm === 105 ? ok('sheet') : fail('sheet', d?.context?.sheetLengthMm));
+  const fp = d?.context?.observedFootprintMm;
+  checks.push(Array.isArray(fp) && fp[1] > 105 ? ok('footprint') : fail('footprint', JSON.stringify(fp)));
+  checks.push(report.status !== 'valid' ? ok('no-valid-slice') : fail('no-valid-slice'));
+  return checks;
+}
+
+export function acceptF04b(report, recipe) {
+  const checks = [];
+  checks.push(report.status === 'outsideModelScope' ? ok('status') : fail('status', report.status));
+  const d = report.diagnostics[0];
+  checks.push(d?.code === 'closure_window' ? ok('code') : fail('code', d?.code));
+  checks.push(d?.context?.patchId === recipe.patches[0].id ? ok('patchId') : fail('patchId'));
+  const w = d?.context?.placementWindowMm;
+  checks.push(w && w.nearEdgeMm === 20 && w.farEdgeMm === 52.5 ? ok('window') : fail('window', JSON.stringify(w)));
+  const fp = d?.context?.observedFootprintMm;
+  checks.push(Array.isArray(fp) && fp[0] >= 0 && fp[1] <= 105 && fp[0] > 52.5
+    ? ok('footprint-on-sheet')
+    : fail('footprint-on-sheet', JSON.stringify(fp)));
+  checks.push(report.status !== 'valid' ? ok('no-valid-slice') : fail('no-valid-slice'));
+  return checks;
+}
+
+export function runF03() {
+  const series = F03_U_MM.map((uMm) => {
+    const recipe = makeCucumberRecipe(uMm);
+    const report = runFixture(`F03-${uMm}`, recipe);
+    const winding = report.status === 'valid' ? buildWinding(recipe) : null;
+    return { uMm, recipe, report, winding };
+  });
+  const checks = acceptF03(series);
+  return { series, checks, report: series[0].report };
+}
+
+export function runF04a() {
+  const recipe = makeF04aRecipe();
+  const report = runFixture('F04a', recipe);
+  return { recipe, report, winding: null, checks: acceptF04a(report, recipe) };
+}
+
+export function runF04b() {
+  const recipe = makeF04bRecipe();
+  const report = runFixture('F04b', recipe);
+  return { recipe, report, winding: null, checks: acceptF04b(report, recipe) };
+}
+
 export function allPassed(checks) {
   return checks.every((c) => c.ok);
 }
 
-export { makeF01Recipe, makeF02Recipe, deepClone, cucumberCatalogAreaMm2 };
+export {
+  makeF01Recipe, makeF02Recipe, makeCucumberRecipe, makeF04aRecipe, makeF04bRecipe,
+  deepClone, cucumberCatalogAreaMm2,
+};
