@@ -1,16 +1,14 @@
 # Core V2 — граница с legacy и план безопасной миграции
 
 - **Статус:** proposed
-- **Связанные документы:** `ADR-001-core-v2-scope.md`, `ADR-001-erratum-001-neutral-hand-only.md`, `ADR-001-erratum-002-no-diagonal-placement.md`, `ADR-001-erratum-003-rice-color-field.md`, `ADR-001-erratum-004-placement-window.md`, `ADR-001-erratum-005-seam-overlap.md`, `ADR-001-erratum-006-area-anchor.md`, `ADR-001-erratum-007-ordinal-vs-coordinate.md`, `ADR-001-erratum-008-wind-direction.md`, `ADR-001-erratum-009-acceptance-gate.md`, `ADR-001-erratum-010-report-completeness.md`, `ADR-001-erratum-011-hash-domain.md`, `core-v2-fixtures.md`
+- **Связанные документы:** `ADR-001-core-v2-scope.md`, `ADR-001-erratum-001-neutral-hand-only.md`, `ADR-001-erratum-002-no-diagonal-placement.md`, `ADR-001-erratum-003-rice-color-field.md`, `ADR-001-erratum-004-placement-window.md`, `ADR-001-erratum-005-seam-overlap.md`, `ADR-001-erratum-006-area-anchor.md`, `ADR-001-erratum-007-ordinal-vs-coordinate.md`, `ADR-001-erratum-008-wind-direction.md`, `ADR-001-erratum-009-acceptance-gate.md`, `ADR-001-erratum-010-report-completeness.md`, `ADR-001-erratum-011-hash-domain.md`, `ADR-001-erratum-012-diagnostic-type.md`, `core-v2-fixtures.md`
 - **Цель:** дать разработчику чёткую границу. Новый kernel не должен импортировать поведение legacy случайно.
-
-## ★ Входящее для ревью — 2026-09-04T00:50Z
-
-Владелец зафиксировала до конца текущего прогона: **диагональная укладка начинки снята с домена.** См. `ADR-001-erratum-002-no-diagonal-placement.md`. Не предлагать `rotationDeg`, fixtures на 45° и 3D-сшивку ломтиков из-за косого бруска.
 
 ## Решение о границе
 
-`play/core-v2/` строится как независимый чистый слой. До прохождения F01–F06 он не имеет production-потребителей и не заменяет `play/model/geometry.js`.
+`play/core-v2/` строится как независимый чистый слой. До прохождения F01–F08 (порог обновлён
+`ADR-001-erratum-008-wind-direction.md`; исходно F01–F06) он не имеет production-потребителей
+и не заменяет `play/model/geometry.js`.
 
 ```text
 UI / URL / global S / modes
@@ -30,7 +28,8 @@ renderer
 
 ## Область применимости legacy
 
-На неё ссылается шаг 5 плана миграции ниже. Legacy — валидный oracle для сравнения
+На неё ссылается шаг 5 плана миграции — `ADR-001-core-v2-scope.md`, раздел «План миграции»
+(план живёт там, не в этом файле). Legacy — валидный oracle для сравнения
 только там, где известные дефекты сохранения материала не проявляются:
 
 - **≤ 1 витка рисовой постели.** Кольцо кладёт ровно один виток независимо от того,

@@ -7,9 +7,16 @@
 ## Материалы
 
 - `docs/decisions/ADR-001-core-v2-scope.md`
-- `docs/decisions/ADR-001-erratum-001-neutral-hand-only.md`
+- `docs/decisions/ADR-001-erratum-001-neutral-hand-only.md` по
+  `docs/decisions/ADR-001-erratum-012-diagnostic-type.md` (все erratum по порядку — список
+  актуален на дату проверки в `docs/handoff/core-v2-developer-brief.md`, раздел «Обязательное
+  чтение»; сверить перед использованием, список растёт)
 - `docs/decisions/core-v2-fixtures.md`
 - `docs/decisions/core-v2-legacy-boundary.md`
+- `docs/handoff/core-v2-validation-findings.md` — журнал прошлых проверок: что уже найдено,
+  что закрыто и каким erratum, что оставлено как известный риск (например EPS_AREA_RATIO в
+  erratum-006). Не дублировать уже закрытые находки без нового основания; проверять НОВОЕ
+  состояние документов, а не то, что описано в журнале как факт
 - PR реализации Core V2, когда он появится
 
 ## Вопросы валидации

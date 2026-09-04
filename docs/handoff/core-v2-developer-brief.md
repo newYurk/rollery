@@ -18,15 +18,26 @@
 10. `docs/decisions/ADR-001-erratum-009-acceptance-gate.md`
 11. `docs/decisions/ADR-001-erratum-010-report-completeness.md`
 12. `docs/decisions/ADR-001-erratum-011-hash-domain.md`
-13. `docs/decisions/core-v2-fixtures.md`
-13. `docs/decisions/core-v2-legacy-boundary.md`
+13. `docs/decisions/ADR-001-erratum-012-diagnostic-type.md`
+14. `docs/decisions/core-v2-fixtures.md`
+15. `docs/decisions/core-v2-legacy-boundary.md`
 
-При конфликте приоритет такой: erratum → ADR → fixtures → этот brief →
-код `play/core-v2/**` → legacy/docs/archive.
+При конфликте между ТИПАМИ документов приоритет такой: erratum → ADR → fixtures →
+этот brief → код `play/core-v2/**` → legacy/docs/archive.
 Статус ADR (`proposed`/`accepted`) на эту лестницу не влияет — она про то,
 какой источник истины выигрывает при противоречии формулировок, а не про то,
 разрешено ли начинать реализацию (это отдельный критерий, `ADR-001-core-v2-scope.md`,
 раздел «Критерий принятия», см. `ADR-001-erratum-009-acceptance-gate.md`).
+
+При конфликте между ДВУМЯ ERRATUM, независимо правящими одну и ту же строку одной и
+той же таблицы (или одно и то же поле типа) — как случилось между erratum-005 и
+erratum-010 на приёмке F01: побеждает **более поздний номер**, но только для СТРОКИ/
+ПОЛЯ, которое они оба трогают буквально. Патч более позднего erratum — это вставка в
+НАКОПЛЕННОЕ состояние документа (все более ранние патчи уже применены), а не замена
+всего раздела базовым текстом `core-v2-fixtures.md`/`ADR-001-core-v2-scope.md`. Если
+патч erratum пишет «Было: <текст>», этот текст обязан быть текущим состоянием ПОСЛЕ
+всех более ранних erratum, а не текстом из непатченного оригинала — иначе патч рискует
+незаметно откатить более раннюю правку, ничего не сказав об этом в шапке «Заменяет».
 
 ## Scope первого PR
 
