@@ -76,6 +76,32 @@ function barPath(ctx, patch, ox) {
   ctx.roundRect(x0, y0, w, h, r);
 }
 
+function r0Path(ctx, winding) {
+  ctx.beginPath();
+  for (let i = 0; i <= 360; i++) {
+    const phi = (i / 360) * TAU;
+    const r = winding.r0b[binAt(phi)];
+    if (i === 0) ctx.moveTo(r * Math.cos(phi), r * Math.sin(phi));
+    else ctx.lineTo(r * Math.cos(phi), r * Math.sin(phi));
+  }
+  ctx.closePath();
+}
+
+function riceGrains(ctx, winding, inner, outer, n) {
+  for (let i = 0; i < n; i++) {
+    const u = seed(i + 1);
+    const v = seed(i + 17);
+    const phi = u * TAU;
+    const r0 = inner[binAt(phi)];
+    const r1 = outer[binAt(phi)];
+    const r = r0 + (r1 - r0) * (0.12 + 0.76 * v);
+    ctx.fillStyle = i % 3 === 0 ? '#d9d1c4' : '#efe8dc';
+    ctx.beginPath();
+    ctx.ellipse(r * Math.cos(phi), r * Math.sin(phi), 0.55, 0.32, phi, 0, TAU);
+    ctx.fill();
+  }
+}
+
 function seed(n) {
   let x = (n * 374761393 + 668265263) >>> 0;
   x = Math.imul(x ^ (x >>> 13), 1274126177);
@@ -107,18 +133,7 @@ export function drawSlice(ctx, recipe, winding, css) {
 
   ctx.save();
   ctx.clip();
-  for (let i = 0; i < 90; i++) {
-    const u = seed(i + 1);
-    const v = seed(i + 17);
-    const phi = u * TAU;
-    const r0 = winding.r0b[binAt(phi)];
-    const rp = winding.rp[binAt(phi)];
-    const r = r0 + (rp - r0) * (0.12 + 0.76 * v);
-    ctx.fillStyle = i % 3 === 0 ? '#d9d1c4' : '#efe8dc';
-    ctx.beginPath();
-    ctx.ellipse(r * Math.cos(phi), r * Math.sin(phi), 0.55, 0.32, phi, 0, TAU);
-    ctx.fill();
-  }
+  riceGrains(ctx, winding, winding.r0b, winding.rp, 90);
   ctx.restore();
 
   ringPath(ctx, winding.rp, winding.rn);
@@ -157,19 +172,17 @@ export function drawSlice(ctx, recipe, winding, css) {
   ctx.lineWidth = Math.max(winding.W, 3.4 / scale);
   ctx.stroke();
 
-  ctx.fillStyle = MAT.hollow;
-  ctx.beginPath();
-  for (let i = 0; i <= 360; i++) {
-    const phi = (i / 360) * TAU;
-    const r = winding.r0b[binAt(phi)];
-    if (i === 0) ctx.moveTo(r * Math.cos(phi), r * Math.sin(phi));
-    else ctx.lineTo(r * Math.cos(phi), r * Math.sin(phi));
-  }
-  ctx.closePath();
+  const packed = recipe.patches.length > 0;
+  r0Path(ctx, winding);
+  ctx.fillStyle = packed ? MAT.rice : MAT.hollow;
   ctx.fill();
 
   ctx.save();
   ctx.clip();
+  if (packed) {
+    const zero = new Float64Array(winding.r0b.length);
+    riceGrains(ctx, winding, zero, winding.r0b, 40);
+  }
   for (const p of recipe.patches) {
     const ox = patchCoreXmm(recipe, p);
     const mat = MAT[p.materialId] || { fill: '#888', edge: '#444' };

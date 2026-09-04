@@ -28,10 +28,6 @@ function coreBoxMm(recipe) {
     halfW = Math.max(halfW, Math.abs(x) + p.widthMm / 2);
     halfH = Math.max(halfH, p.heightMm / 2 + base.noriThicknessMm);
   }
-  if (recipe.patches.length > 1) {
-    const half = Math.max(halfW, halfH);
-    return { Wc: 2 * half, Hc: 2 * half };
-  }
   return { Wc: 2 * halfW, Hc: 2 * halfH };
 }
 
