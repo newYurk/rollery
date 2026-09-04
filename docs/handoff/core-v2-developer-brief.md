@@ -22,8 +22,12 @@
 14. `docs/decisions/ADR-001-erratum-013-sheet-parameter-vs-layer-arc.md`
 15. `docs/decisions/ADR-001-erratum-014-core-box-units.md`
 16. `docs/decisions/ADR-001-erratum-015-f02-catalog-area-formula.md`
-17. `docs/decisions/core-v2-fixtures.md`
-18. `docs/decisions/core-v2-legacy-boundary.md`
+17. `docs/decisions/ADR-001-erratum-016-diagnostic-context-nested.md`
+18. `docs/decisions/ADR-001-erratum-017-f07-wind-direction.md`
+19. `docs/decisions/ADR-001-erratum-018-neutral-hand-everywhere.md`
+20. `docs/decisions/ADR-001-erratum-019-invertibility-seam-cut.md`
+21. `docs/decisions/core-v2-fixtures.md`
+22. `docs/decisions/core-v2-legacy-boundary.md`
 
 При конфликте между ТИПАМИ документов приоритет такой: erratum → ADR → fixtures →
 этот brief → код `play/core-v2/**` → legacy/docs/archive.
