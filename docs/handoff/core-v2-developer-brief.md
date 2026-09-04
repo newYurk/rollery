@@ -16,8 +16,9 @@
 8. `docs/decisions/ADR-001-erratum-007-ordinal-vs-coordinate.md`
 9. `docs/decisions/ADR-001-erratum-008-wind-direction.md`
 10. `docs/decisions/ADR-001-erratum-009-acceptance-gate.md`
-11. `docs/decisions/core-v2-fixtures.md`
-12. `docs/decisions/core-v2-legacy-boundary.md`
+11. `docs/decisions/ADR-001-erratum-010-report-completeness.md`
+12. `docs/decisions/core-v2-fixtures.md`
+13. `docs/decisions/core-v2-legacy-boundary.md`
 
 При конфликте приоритет такой: erratum → ADR → fixtures → этот brief →
 код `play/core-v2/**` → legacy/docs/archive.
