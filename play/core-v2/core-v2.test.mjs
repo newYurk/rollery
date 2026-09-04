@@ -14,6 +14,7 @@ import {
 } from './knife.js';
 import { catalogAreaMm2, cutFillSector, makeF05Recipe, makeHosogiriRecipe } from './recipe.js';
 import { sampleSection } from './section.js';
+import { adapt, adaptScenario } from './adapter.js';
 
 function clone(x) { return structuredClone(x); }
 
@@ -27,6 +28,19 @@ test('F02 green', () => {
   const r = runF02();
   assert.equal(r.report.status, 'valid');
   assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
+});
+
+test('adapter snapshot: F01/F02, refuse stays refuse', () => {
+  const a = adaptScenario('empty');
+  assert.equal(a.ok, true);
+  assert.ok(a.winding.diameterMinMm >= HOSOMAKI_DIAMETER_MM.min);
+  const b = adaptScenario('kappa');
+  assert.equal(b.ok, true);
+  assert.equal(b.recipe.patches[0].cut, 'брусок');
+  assert.ok(b.winding.diameterMaxMm <= HOSOMAKI_DIAMETER_MM.max);
+  const bad = adapt(makeCucumberRecipe(70));
+  assert.equal(bad.ok, false);
+  assert.equal(bad.winding, null);
 });
 
 test('hosomaki diameter in chef corridor 28-32 mm', () => {

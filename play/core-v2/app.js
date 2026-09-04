@@ -32,6 +32,15 @@ const FIXTURES = [
   { id: 'F04b', label: 'Отказ', make: () => makeF04bRecipe() },
 ];
 
+function fixtureFromUrl() {
+  const q = new URLSearchParams(location.search);
+  const id = q.get('f') || q.get('v2');
+  if (!id || id === '1' || id === 'true') return FIXTURES[1];
+  const aliases = { empty: 'F01', kappa: 'F02', hosogiri: 'hogi' };
+  const want = aliases[id] || id;
+  return FIXTURES.find((x) => x.id === want) || FIXTURES[1];
+}
+
 const chips = document.getElementById('chips');
 const meta = document.getElementById('meta');
 const sliderWrap = document.getElementById('sliderWrap');
@@ -43,7 +52,7 @@ const refuse = document.getElementById('refuse');
 const sctx = slice.getContext('2d');
 const bctx = bar.getContext('2d');
 
-let current = FIXTURES[1];
+let current = fixtureFromUrl();
 let sliderVal = current.slider ? current.slider.value : 0;
 let vFrac = 0.5;
 let lastRecipe = null;

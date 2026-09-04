@@ -7,6 +7,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#171713">
 <title>Ролльня — лист → спираль → срез</title>
+<script>
+(function () {
+  var q = location.search;
+  if (!/[?&]v2(?:=|&|$)/.test(q)) return;
+  var v = new URLSearchParams(q).get('v2') || 'F02';
+  if (v === '1' || v === 'true') v = 'F02';
+  location.replace('core-v2/?f=' + encodeURIComponent(v));
+})();
+</script>
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #171713; overflow: hidden; overscroll-behavior: none; }
   canvas { display: block; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
