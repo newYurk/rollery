@@ -4,9 +4,10 @@
 import {
   DPHI,
   EPS_LENGTH_MM,
-  HOSOMAKI,
   NB,
   TAU,
+  baseOf,
+  patchCoreXmm,
   riceSpanMm,
 } from './units.js';
 
@@ -19,11 +20,13 @@ export function r0At(phi, Wc, Hc) {
 }
 
 function coreBoxMm(recipe) {
-  let Wc = HOSOMAKI.emptyCoreWidthMm;
-  let Hc = HOSOMAKI.emptyCoreHeightMm;
+  const base = baseOf(recipe);
+  let Wc = base.emptyCoreWidthMm;
+  let Hc = base.emptyCoreHeightMm;
   for (const p of recipe.patches) {
-    Wc = Math.max(Wc, p.widthMm);
-    Hc = Math.max(Hc, p.heightMm + 2 * HOSOMAKI.noriThicknessMm);
+    const x = patchCoreXmm(recipe, p);
+    Wc = Math.max(Wc, 2 * (Math.abs(x) + p.widthMm / 2));
+    Hc = Math.max(Hc, p.heightMm + 2 * base.noriThicknessMm);
   }
   return { Wc, Hc };
 }
@@ -63,10 +66,11 @@ export function independentLayerArcs({ Wc, Hc, T, W, Lrice }, steps = NB * 4) {
 }
 
 export function buildWinding(recipe) {
+  const base = baseOf(recipe);
   const L = recipe.sheet.lengthMm;
-  const T = HOSOMAKI.riceThicknessMm;
-  const W = HOSOMAKI.noriThicknessMm;
-  const { sRice0, sRice1, Lrice } = riceSpanMm(L);
+  const T = base.riceThicknessMm;
+  const W = base.noriThicknessMm;
+  const { sRice0, sRice1, Lrice } = riceSpanMm(L, base.spreadStart, base.spreadEnd);
   const { Wc, Hc } = coreBoxMm(recipe);
   const fromUZero = recipe.windDirection !== 'fromULength';
 
@@ -113,8 +117,9 @@ export function buildWinding(recipe) {
     if (outer > outerMax) outerMax = outer;
   }
 
-  const riceArcMm = midArc((b) => (r0b[b] + rp[b]) / 2);
-  const noriArcMm = noriPerimeter;
+  const fine = independentLayerArcs({ Wc, Hc, T, W, Lrice });
+  const riceArcMm = fine.riceArcMm;
+  const noriArcMm = fine.noriArcMm;
 
   let maxRoundTripErrMm = 0;
   for (let b = 0; b < NB; b++) {

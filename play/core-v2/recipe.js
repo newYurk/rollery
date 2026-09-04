@@ -4,8 +4,11 @@
 
 import {
   CUCUMBER,
+  FUTOMAKI,
   HOSOMAKI,
+  SALMON,
   SECTOR_ANGLE,
+  TAMAGO,
   U_MM,
   placementWindowMm,
 } from './units.js';
@@ -40,6 +43,13 @@ export function cutFillSector() {
 
 export function cucumberCatalogAreaMm2() {
   return CUCUMBER.wU * CUCUMBER.hU * cutFillSector() * U_MM * U_MM;
+}
+
+export function catalogAreaMm2(patch) {
+  if (patch.materialId === 'cucumber') {
+    return patch.widthMm * patch.heightMm * cutFillSector();
+  }
+  return patch.widthMm * patch.heightMm;
 }
 
 export function makeF01Recipe() {
@@ -96,4 +106,60 @@ export function makeF04bRecipe() {
   return makeCucumberRecipe(70);
 }
 
-export { placementWindowMm };
+function futoSheet() {
+  return { lengthMm: FUTOMAKI.lengthMm, widthMm: FUTOMAKI.widthMm };
+}
+
+function futoPatch(id, spec, uMm) {
+  const sheet = futoSheet();
+  return {
+    id,
+    materialId: spec.materialId,
+    uMm,
+    vMm: sheet.widthMm / 2,
+    widthMm: spec.widthMm,
+    lengthMm: sheet.widthMm * spec.lengthFactor,
+    heightMm: spec.heightMm,
+    placement: 'embedded',
+  };
+}
+
+function freezeFuto(patches) {
+  return deepFreeze({
+    version: 2,
+    baseId: FUTOMAKI.baseId,
+    sheet: futoSheet(),
+    wrap: { materialId: FUTOMAKI.wrapMaterialId },
+    rice: { profileId: FUTOMAKI.riceProfileId },
+    windDirection: 'fromUZero',
+    patches,
+    hand: { mode: 'neutral', seed: 0 },
+  });
+}
+
+/** F05: три непересекающихся патча внутри окна футомаки [20, 105]. */
+export function makeF05Recipe(order = ['cucumber', 'tamago', 'salmon']) {
+  const byId = {
+    cucumber: futoPatch('cucumber-0', CUCUMBER, 35),
+    tamago: futoPatch('tamago-0', TAMAGO, 55),
+    salmon: futoPatch('salmon-0', SALMON, 80),
+  };
+  return freezeFuto(order.map((k) => byId[k]));
+}
+
+export function makeF07Recipe(probeUMm, orderCucumberFirst = true, swap = false) {
+  const cuU = swap ? 56 : 60;
+  const prU = swap ? 60 : probeUMm;
+  const cucumber = futoPatch('cucumber-0', CUCUMBER, cuU);
+  const probe = futoPatch('tamago-0', TAMAGO, prU);
+  return freezeFuto(orderCucumberFirst ? [cucumber, probe] : [probe, cucumber]);
+}
+
+export function makeF07SameMaterialOverlap() {
+  return freezeFuto([
+    futoPatch('cucumber-0', CUCUMBER, 60),
+    futoPatch('cucumber-1', CUCUMBER, 60),
+  ]);
+}
+
+export { placementWindowMm, TAMAGO, SALMON, FUTOMAKI };

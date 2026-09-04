@@ -103,6 +103,63 @@ export function placementWindowMm(sheet) {
   };
 }
 
+/**
+ * Снимок тамаго. catalog.js:306. Брусок.
+ */
+export const TAMAGO = Object.freeze({
+  materialId: 'tamago',
+  widthMm: 12,
+  heightMm: 10,
+  lengthFactor: 1,
+  cut: 'брусок',
+  wU: 2.4,
+  hU: 2.0,
+});
+
+/**
+ * Снимок лосося. catalog.js:296. Брусок 10×10.
+ */
+export const SALMON = Object.freeze({
+  materialId: 'salmon',
+  widthMm: 10,
+  heightMm: 10,
+  lengthFactor: 1,
+  cut: 'брусок',
+  wU: 2.0,
+  hU: 2.0,
+});
+
+/**
+ * Снимок футомаки. catalog.js BASES.futo, × U_MM один раз.
+ * spreadEnd = 0.89 (назначение, #109). T = 1.57 из 200 г шари, не паспорт SUZUMO.
+ */
+export const FUTOMAKI = Object.freeze({
+  catalogKey: 'futo',
+  baseId: 'futomaki',
+  lengthMm: 210,
+  widthMm: 190,
+  riceThicknessMm: 7.85,
+  noriThicknessMm: 0.1,
+  spreadStart: SPREAD_START,
+  spreadEnd: 0.89,
+  wrapMaterialId: 'nori',
+  riceProfileId: 'standard',
+  emptyCoreWidthMm: 5,
+  emptyCoreHeightMm: 8.05,
+});
+
+export function baseOf(recipe) {
+  return recipe?.baseId === FUTOMAKI.baseId ? FUTOMAKI : HOSOMAKI;
+}
+
+/** Положение патча в ядре. Один патч — начало координат (F01–F04).
+ *  Несколько — чистая функция собственного uMm, без переупаковки соседями (erratum-007). */
+export function patchCoreXmm(recipe, patch) {
+  if (!recipe.patches || recipe.patches.length <= 1) return 0;
+  const w = placementWindowMm(recipe.sheet);
+  return patch.uMm - (w.nearEdgeMm + w.farEdgeMm) / 2;
+}
+
 export function riceSpanMm(sheetLengthMm, spreadStart = SPREAD_START, spreadEnd = HOSOMAKI.spreadEnd) {
   const sRice0 = spreadStart * sheetLengthMm;
   const sRice1 = spreadEnd * sheetLengthMm;
