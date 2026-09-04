@@ -19,8 +19,11 @@
 11. `docs/decisions/ADR-001-erratum-010-report-completeness.md`
 12. `docs/decisions/ADR-001-erratum-011-hash-domain.md`
 13. `docs/decisions/ADR-001-erratum-012-diagnostic-type.md`
-14. `docs/decisions/core-v2-fixtures.md`
-15. `docs/decisions/core-v2-legacy-boundary.md`
+14. `docs/decisions/ADR-001-erratum-013-sheet-parameter-vs-layer-arc.md`
+15. `docs/decisions/ADR-001-erratum-014-core-box-units.md`
+16. `docs/decisions/ADR-001-erratum-015-f02-catalog-area-formula.md`
+17. `docs/decisions/core-v2-fixtures.md`
+18. `docs/decisions/core-v2-legacy-boundary.md`
 
 При конфликте между ТИПАМИ документов приоритет такой: erratum → ADR → fixtures →
 этот brief → код `play/core-v2/**` → legacy/docs/archive.

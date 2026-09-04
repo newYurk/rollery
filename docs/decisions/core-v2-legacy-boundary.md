@@ -1,7 +1,7 @@
 # Core V2 — граница с legacy и план безопасной миграции
 
 - **Статус:** proposed
-- **Связанные документы:** `ADR-001-core-v2-scope.md`, `ADR-001-erratum-001-neutral-hand-only.md`, `ADR-001-erratum-002-no-diagonal-placement.md`, `ADR-001-erratum-003-rice-color-field.md`, `ADR-001-erratum-004-placement-window.md`, `ADR-001-erratum-005-seam-overlap.md`, `ADR-001-erratum-006-area-anchor.md`, `ADR-001-erratum-007-ordinal-vs-coordinate.md`, `ADR-001-erratum-008-wind-direction.md`, `ADR-001-erratum-009-acceptance-gate.md`, `ADR-001-erratum-010-report-completeness.md`, `ADR-001-erratum-011-hash-domain.md`, `ADR-001-erratum-012-diagnostic-type.md`, `core-v2-fixtures.md`
+- **Связанные документы:** `ADR-001-core-v2-scope.md`, `ADR-001-erratum-001-neutral-hand-only.md`, `ADR-001-erratum-002-no-diagonal-placement.md`, `ADR-001-erratum-003-rice-color-field.md`, `ADR-001-erratum-004-placement-window.md`, `ADR-001-erratum-005-seam-overlap.md`, `ADR-001-erratum-006-area-anchor.md`, `ADR-001-erratum-007-ordinal-vs-coordinate.md`, `ADR-001-erratum-008-wind-direction.md`, `ADR-001-erratum-009-acceptance-gate.md`, `ADR-001-erratum-010-report-completeness.md`, `ADR-001-erratum-011-hash-domain.md`, `ADR-001-erratum-012-diagnostic-type.md`, `ADR-001-erratum-013-sheet-parameter-vs-layer-arc.md`, `ADR-001-erratum-014-core-box-units.md`, `ADR-001-erratum-015-f02-catalog-area-formula.md`, `core-v2-fixtures.md`
 - **Цель:** дать разработчику чёткую границу. Новый kernel не должен импортировать поведение legacy случайно.
 
 ## Решение о границе
