@@ -75,5 +75,24 @@ export function validateRecipe(recipe) {
     }
   }
 
+  for (let i = 0; i < recipe.patches.length; i++) {
+    for (let j = i + 1; j < recipe.patches.length; j++) {
+      const a = recipe.patches[i];
+      const b = recipe.patches[j];
+      if (a.materialId !== b.materialId) continue;
+      if ((a.placement ?? 'embedded') !== 'embedded') continue;
+      if ((b.placement ?? 'embedded') !== 'embedded') continue;
+      const [a0, a1] = patchFootprint(a);
+      const [b0, b1] = patchFootprint(b);
+      if (a0 < b1 && b0 < a1) {
+        diagnostics.push(diagnostic('patch_material_overlap', 'same-material embedded footprints overlap', {
+          patchIds: [String(a.id), String(b.id)],
+          materialId: String(a.materialId),
+        }));
+        return { status: 'invalid', diagnostics };
+      }
+    }
+  }
+
   return { status: 'valid', diagnostics: [], placementWindowMm: window };
 }

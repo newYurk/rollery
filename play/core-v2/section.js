@@ -1,9 +1,7 @@
-// Central slice. F01: rice+nori rings, no filling. F02: cucumber sector in the core box.
-// Area is the rest-state sector in core coordinates — the filling sits in the core,
-// not in the winding wall, so #134 (stretch vs slip on the sheet) does not apply.
+// Central slice. Fillings sit in the core (rest-state area). Hard fillings do not stretch.
 
-import { SECTOR_ANGLE } from './units.js';
-import { cutFillSector } from './recipe.js';
+import { SECTOR_ANGLE, patchCoreXmm } from './units.js';
+import { catalogAreaMm2, cutFillSector } from './recipe.js';
 
 function sectorTop(t) {
   const c = Math.cos(SECTOR_ANGLE);
@@ -11,8 +9,7 @@ function sectorTop(t) {
   return t <= c ? t / c : Math.sqrt(Math.max(0, 1 - t * t)) / sn;
 }
 
-/** Grid integral of the cucumber sector, centered in the core box / roll frame. */
-export function sampleCucumberSector(patch, winding) {
+function sampleSector(patch, originX) {
   const N = 320;
   const widthMm = patch.widthMm;
   const heightMm = patch.heightMm;
@@ -24,7 +21,7 @@ export function sampleCucumberSector(patch, winding) {
     const lu = -0.5 + (i + 0.5) / N;
     const t = lu + 0.5;
     const top = sectorTop(t);
-    const x = lu * widthMm;
+    const x = originX + lu * widthMm;
     for (let j = 0; j < N; j++) {
       const hn = (j + 0.5) / N;
       if (hn > top) continue;
@@ -34,22 +31,24 @@ export function sampleCucumberSector(patch, winding) {
       sy += y * cell;
     }
   }
-  const fill = cutFillSector();
-  const catalog = widthMm * heightMm * fill;
-  // Prefer the closed catalog area for the visible patch; grid is for the centroid.
-  // Ratio grid/catalog is a sanity check that the profile matches cutFill.
-  if (area <= 0) {
-    return { id: patch.id, areaMm2: catalog, centerXmm: 0, centerYmm: 0 };
-  }
+  const catalog = catalogAreaMm2(patch);
+  if (area <= 0) return { id: patch.id, areaMm2: catalog, centerXmm: originX, centerYmm: 0 };
+  return { id: patch.id, areaMm2: catalog, centerXmm: originX, centerYmm: 0, _gridAreaMm2: area };
+}
+
+function sampleBar(patch, originX) {
   return {
     id: patch.id,
-    areaMm2: catalog,
-    centerXmm: sx / area,
-    centerYmm: sy / area,
-    _gridAreaMm2: area,
-    coreWc: winding.Wc,
-    coreHc: winding.Hc,
+    areaMm2: catalogAreaMm2(patch),
+    centerXmm: originX,
+    centerYmm: 0,
   };
+}
+
+export function samplePatch(recipe, patch) {
+  const originX = patchCoreXmm(recipe, patch);
+  if (patch.materialId === 'cucumber') return sampleSector(patch, originX);
+  return sampleBar(patch, originX);
 }
 
 export function sampleSection(recipe, winding, vSliceMm) {
@@ -57,7 +56,8 @@ export function sampleSection(recipe, winding, vSliceMm) {
     rice: { innerMm: winding.r0b, outerMm: winding.rp },
     nori: { innerMm: winding.rp, outerMm: winding.rn },
   };
-  const visiblePatches = recipe.patches.map((p) => sampleCucumberSector(p, winding));
+  const visiblePatches = recipe.patches.map((p) => samplePatch(recipe, p))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return {
     vSliceMm,
     layers,

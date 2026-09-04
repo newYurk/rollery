@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  runF01, runF02, runF03, runF04a, runF04b, acceptF01, acceptF02, allPassed,
+  runF01, runF02, runF03, runF04a, runF04b, runF05, runF06, runF07,
+  acceptF01, acceptF02, allPassed,
   makeF01Recipe, makeCucumberRecipe, cucumberCatalogAreaMm2,
 } from './fixtures.js';
 import { validateRecipe } from './validate.js';
@@ -174,3 +175,22 @@ test('F04a/F04b diagnostics repeat', () => {
   assert.equal(runF04a().report.diagnostics[0].code, runF04a().report.diagnostics[0].code);
   assert.equal(runF04b().report.diagnostics[0].code, runF04b().report.diagnostics[0].code);
 });
+
+test('F05 array order does not change hashes', () => {
+  const r = runF05();
+  assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
+  assert.equal(r.abc.report.hashes.winding, r.cab.report.hashes.winding);
+  assert.equal(r.abc.report.hashes.section, r.cab.report.hashes.section);
+});
+
+test('F06 round-trip and new instance', () => {
+  const r = runF06();
+  assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
+});
+
+test('F07 coordinate not ordinal; same-material overlap is invalid', () => {
+  const r = runF07();
+  assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
+  assert.equal(r.overlap.report.diagnostics[0].code, 'patch_material_overlap');
+});
+

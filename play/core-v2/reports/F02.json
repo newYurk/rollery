@@ -18,13 +18,13 @@
         "layerId": "rice",
         "u0Mm": 5.04,
         "u1Mm": 92.4,
-        "arcMm": 71.92322595411915
+        "arcMm": 71.94119131648597
       },
       {
         "layerId": "nori",
         "u0Mm": 5.04,
         "u1Mm": 92.4,
-        "arcMm": 98.32851663704109
+        "arcMm": 98.33582691179467
       }
     ]
   },
@@ -7260,14 +7260,14 @@
     {
       "id": "cucumber-0",
       "areaMm2": 76.97437355950484,
-      "centerXmm": 1.4033068649352944,
-      "centerYmm": -1.4691782287355497
+      "centerXmm": 0,
+      "centerYmm": 0
     }
   ],
   "hashes": {
     "recipe": "3e0e97e3faf7346c39a49f5f4d013528605e238dc90a12e3f2046909c99b73a7",
     "winding": "a37b953f8225244ce7c69c7649ac590973e23dec8d9bfb001e70b0e036ceafb4",
-    "section": "9a2364eb61d6e8350fd49734bd9d89c8a32b8d61ffd187e88657df57ed68855c"
+    "section": "d8bd1bdc939babec71fe530e2053c1743545cfd81fbcd0052c4d3eba5b94d823"
   },
   "eps": {
     "EPS_LENGTH_MM": 0.15,

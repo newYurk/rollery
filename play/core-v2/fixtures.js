@@ -14,12 +14,16 @@ import {
 } from './units.js';
 import {
   cucumberCatalogAreaMm2,
+  catalogAreaMm2,
   deepClone,
   makeCucumberRecipe,
   makeF01Recipe,
   makeF02Recipe,
   makeF04aRecipe,
   makeF04bRecipe,
+  makeF05Recipe,
+  makeF07Recipe,
+  makeF07SameMaterialOverlap,
 } from './recipe.js';
 import { validateRecipe } from './validate.js';
 import { buildWinding, independentLayerArcs } from './winding.js';
@@ -87,7 +91,8 @@ export function acceptF01(report, winding) {
   if (report.status !== 'valid') push(fail('status', report.status));
   else push(ok('status'));
 
-  const cov = Math.abs(report.sheet.coveredLengthMm - 105);
+  const L = report.sheet.lengthMm;
+  const cov = Math.abs(report.sheet.coveredLengthMm - L);
   push(cov <= EPS_LENGTH_MM ? ok('coverage') : fail('coverage', report.sheet.coveredLengthMm));
   push(report.sheet.phantomLengthMm <= EPS_LENGTH_MM ? ok('phantom') : fail('phantom', report.sheet.phantomLengthMm));
   push(report.sheet.uncoveredLengthMm <= EPS_LENGTH_MM ? ok('uncovered') : fail('uncovered', report.sheet.uncoveredLengthMm));
@@ -108,12 +113,12 @@ export function acceptF01(report, winding) {
     push(fail('arc:layers-equal', 'rice and nori arcs must differ'));
   } else push(ok('arc:layers-differ'));
 
-  push(report.sheet.uMinMm >= 0 && report.sheet.uMaxMm <= 105 ? ok('bounds') : fail('bounds'));
+  push(report.sheet.uMinMm >= 0 && report.sheet.uMaxMm <= L ? ok('bounds') : fail('bounds'));
 
   const seam = report.seam;
   const seamOk = seam
-    && seam.uStartMm >= 0 && seam.uStartMm <= 105
-    && seam.uEndMm >= 0 && seam.uEndMm <= 105
+    && seam.uStartMm >= 0 && seam.uStartMm <= L
+    && seam.uEndMm >= 0 && seam.uEndMm <= L
     && seam.angleStartRad >= 0 && seam.angleStartRad < TAU
     && seam.angleEndRad >= 0 && seam.angleEndRad < TAU
     && Math.abs(seam.overlapMm - seam.overlapArcRad * winding.Ravg) <= EPS_LENGTH_MM;
@@ -160,7 +165,8 @@ export function acceptF02(report, winding, recipe) {
     ? ok('center')
     : fail('center'));
   const w = report.placementWindowMm;
-  checks.push(w.nearEdgeMm === 20 && w.farEdgeMm === 52.5
+  const wantFar = (report.sheet.lengthMm || recipe.sheet.lengthMm) / 2;
+  checks.push(w.nearEdgeMm === 20 && w.farEdgeMm === wantFar
     ? ok('window')
     : fail('window', JSON.stringify(w)));
   return checks;
@@ -286,11 +292,195 @@ export function runF04b() {
   return { recipe, report, winding: null, checks: acceptF04b(report, recipe) };
 }
 
+function visById(report) {
+  const m = new Map();
+  for (const p of report.visiblePatches) m.set(p.id, p);
+  return m;
+}
+
+export function acceptF05(abc, cab) {
+  const checks = [];
+  for (const [name, run] of [['ABC', abc], ['CAB', cab]]) {
+    if (run.report.status !== 'valid') {
+      checks.push(fail(`${name}:status`, run.report.status));
+      continue;
+    }
+    checks.push(ok(`${name}:status`));
+    checks.push(...acceptF01(run.report, run.winding).map((c) => ({ ...c, name: `${name}:${c.name}` })));
+    checks.push(run.report.visiblePatches.length === 3
+      ? ok(`${name}:count`)
+      : fail(`${name}:count`, run.report.visiblePatches.length));
+    for (const p of run.recipe.patches) {
+      const vis = run.report.visiblePatches.find((v) => v.id === p.id);
+      const catalog = catalogAreaMm2(p);
+      const ratio = vis ? Math.max(vis.areaMm2 / catalog, catalog / vis.areaMm2) : Infinity;
+      checks.push(vis && ratio <= EPS_AREA_RATIO
+        ? ok(`${name}:area:${p.id}`)
+        : fail(`${name}:area:${p.id}`, ratio));
+    }
+  }
+  checks.push(abc.report.hashes.winding === cab.report.hashes.winding
+    ? ok('order:winding')
+    : fail('order:winding', `${abc.report.hashes.winding} vs ${cab.report.hashes.winding}`));
+  checks.push(abc.report.hashes.section === cab.report.hashes.section
+    ? ok('order:section')
+    : fail('order:section', `${abc.report.hashes.section.slice(0, 8)} vs ${cab.report.hashes.section.slice(0, 8)}`));
+  const a = visById(abc.report);
+  const b = visById(cab.report);
+  for (const id of a.keys()) {
+    const pa = a.get(id);
+    const pb = b.get(id);
+    if (!pb) {
+      checks.push(fail(`order:id:${id}`, 'missing'));
+      continue;
+    }
+    const d = Math.hypot(pa.centerXmm - pb.centerXmm, pa.centerYmm - pb.centerYmm);
+    checks.push(d <= EPS_LENGTH_MM ? ok(`order:center:${id}`) : fail(`order:center:${id}`, d));
+    const ratio = Math.max(pa.areaMm2 / pb.areaMm2, pb.areaMm2 / pa.areaMm2);
+    checks.push(ratio <= EPS_AREA_RATIO ? ok(`order:area:${id}`) : fail(`order:area:${id}`, ratio));
+  }
+  return checks;
+}
+
+export function runF05() {
+  const abc = (() => {
+    const recipe = makeF05Recipe(['cucumber', 'tamago', 'salmon']);
+    const report = runFixture('F05-ABC', recipe);
+    const winding = report.status === 'valid' ? buildWinding(recipe) : null;
+    return { recipe, report, winding };
+  })();
+  const cab = (() => {
+    const recipe = makeF05Recipe(['salmon', 'cucumber', 'tamago']);
+    const report = runFixture('F05-CAB', recipe);
+    const winding = report.status === 'valid' ? buildWinding(recipe) : null;
+    return { recipe, report, winding };
+  })();
+  return { abc, cab, report: abc.report, checks: acceptF05(abc, cab) };
+}
+
+export function runF06() {
+  const checks = [];
+  const once = (id, make) => {
+    const recipe = make();
+    const json = JSON.parse(JSON.stringify(recipe));
+    const a = runFixture(id, recipe);
+    const b = runFixture(`${id}-b`, json);
+    const c = runFixture(`${id}-c`, make());
+    checks.push(a.hashes.recipe === b.hashes.recipe ? ok(`${id}:roundtrip-recipe`) : fail(`${id}:roundtrip-recipe`));
+    checks.push(a.hashes.winding === b.hashes.winding && a.hashes.winding === c.hashes.winding
+      ? ok(`${id}:winding`)
+      : fail(`${id}:winding`, `${a.hashes.winding.slice(0, 8)}`));
+    checks.push(a.hashes.section === b.hashes.section && a.hashes.section === c.hashes.section
+      ? ok(`${id}:section`)
+      : fail(`${id}:section`));
+    return a;
+  };
+  once('F01', makeF01Recipe);
+  once('F02', makeF02Recipe);
+  once('F05', () => makeF05Recipe());
+  return { checks, report: runF01().report };
+}
+
+function findVis(report, id) {
+  return report.visiblePatches.find((p) => p.id === id);
+}
+
+export function acceptF07(steps, swapped, overlap) {
+  const checks = [];
+  for (const step of steps) {
+    const { uMm, a, b } = step;
+    for (const [tag, run] of [['AB', a], ['BA', b]]) {
+      checks.push(run.report.status === 'valid'
+        ? ok(`F07-${uMm}-${tag}:status`)
+        : fail(`F07-${uMm}-${tag}:status`, run.report.status));
+    }
+    if (a.report.status !== 'valid' || b.report.status !== 'valid') continue;
+    const pa = findVis(a.report, 'tamago-0');
+    const pb = findVis(b.report, 'tamago-0');
+    const d = Math.hypot(pa.centerXmm - pb.centerXmm, pa.centerYmm - pb.centerYmm);
+    checks.push(d <= EPS_LENGTH_MM ? ok(`F07-${uMm}:probe-order`) : fail(`F07-${uMm}:probe-order`, d));
+    const ca = findVis(a.report, 'cucumber-0');
+    const cb = findVis(b.report, 'cucumber-0');
+    const dc = Math.hypot(ca.centerXmm - cb.centerXmm, ca.centerYmm - cb.centerYmm);
+    checks.push(dc <= EPS_LENGTH_MM ? ok(`F07-${uMm}:cuc-order`) : fail(`F07-${uMm}:cuc-order`, dc));
+    checks.push(pa.areaMm2 > 0 && ca.areaMm2 > 0
+      ? ok(`F07-${uMm}:areas`)
+      : fail(`F07-${uMm}:areas`));
+  }
+  const valid = steps.filter((s) => s.a.report.status === 'valid');
+  for (let i = 1; i < valid.length; i++) {
+    const p0 = findVis(valid[i - 1].a.report, 'tamago-0');
+    const p1 = findVis(valid[i].a.report, 'tamago-0');
+    const du = Math.abs(valid[i].uMm - valid[i - 1].uMm);
+    const d = Math.hypot(p1.centerXmm - p0.centerXmm, p1.centerYmm - p0.centerYmm);
+    checks.push(d <= du + EPS_LENGTH_MM
+      ? ok(`F07-cont-${valid[i].uMm}`)
+      : fail(`F07-cont-${valid[i].uMm}`, d));
+  }
+  const c0 = findVis(valid[0].a.report, 'cucumber-0');
+  for (const s of valid) {
+    const c = findVis(s.a.report, 'cucumber-0');
+    const d = Math.hypot(c.centerXmm - c0.centerXmm, c.centerYmm - c0.centerYmm);
+    checks.push(d <= EPS_LENGTH_MM
+      ? ok(`F07-neigh-${s.uMm}`)
+      : fail(`F07-neigh-${s.uMm}`, d));
+  }
+  const step56 = steps.find((s) => s.uMm === 56);
+  if (swapped.report.status === 'valid' && step56?.a.report.status === 'valid') {
+    const probeS = findVis(swapped.report, 'tamago-0');
+    const cuc56 = findVis(step56.a.report, 'cucumber-0');
+    const cucS = findVis(swapped.report, 'cucumber-0');
+    const probe56 = findVis(step56.a.report, 'tamago-0');
+    const d1 = Math.hypot(probeS.centerXmm - cuc56.centerXmm, probeS.centerYmm - cuc56.centerYmm);
+    const d2 = Math.hypot(cucS.centerXmm - probe56.centerXmm, cucS.centerYmm - probe56.centerYmm);
+    checks.push(d1 <= EPS_LENGTH_MM ? ok('F07-swap-probe') : fail('F07-swap-probe', d1));
+    checks.push(d2 <= EPS_LENGTH_MM ? ok('F07-swap-cuc') : fail('F07-swap-cuc', d2));
+    const ar1 = Math.max(cucS.areaMm2 / cuc56.areaMm2, cuc56.areaMm2 / cucS.areaMm2);
+    const ar2 = Math.max(probeS.areaMm2 / probe56.areaMm2, probe56.areaMm2 / probeS.areaMm2);
+    checks.push(ar1 <= EPS_AREA_RATIO && ar2 <= EPS_AREA_RATIO
+      ? ok('F07-swap-area')
+      : fail('F07-swap-area', `${ar1} ${ar2}`));
+  } else {
+    checks.push(fail('F07-swap', swapped.report.status));
+  }
+  const cross = steps.find((s) => s.uMm === 60);
+  checks.push(cross?.a.report.status === 'valid' && cross.a.report.visiblePatches.length === 2
+    ? ok('F07-cross-valid')
+    : fail('F07-cross-valid', cross?.a.report.status));
+  checks.push(overlap.report.status === 'invalid' && overlap.report.diagnostics[0]?.code === 'patch_material_overlap'
+    ? ok('F07-same-material')
+    : fail('F07-same-material', overlap.report.status + ' ' + overlap.report.diagnostics[0]?.code));
+  return checks;
+}
+
+export function runF07() {
+  const steps = [];
+  for (let uMm = 56; uMm <= 64; uMm += 1) {
+    const ra = makeF07Recipe(uMm, true);
+    const rb = makeF07Recipe(uMm, false);
+    const a = { recipe: ra, report: runFixture(`F07-${uMm}-AB`, ra), winding: null };
+    const b = { recipe: rb, report: runFixture(`F07-${uMm}-BA`, rb), winding: null };
+    if (a.report.status === 'valid') a.winding = buildWinding(ra);
+    if (b.report.status === 'valid') b.winding = buildWinding(rb);
+    steps.push({ uMm, a, b });
+  }
+  const swapRecipe = makeF07Recipe(60, true, true);
+  const swapped = { recipe: swapRecipe, report: runFixture('F07-swap', swapRecipe) };
+  const ovRecipe = makeF07SameMaterialOverlap();
+  const overlap = { recipe: ovRecipe, report: runFixture('F07-overlap', ovRecipe) };
+  return {
+    steps, swapped, overlap,
+    report: steps[0].a.report,
+    checks: acceptF07(steps, swapped, overlap),
+  };
+}
+
 export function allPassed(checks) {
   return checks.every((c) => c.ok);
 }
 
 export {
   makeF01Recipe, makeF02Recipe, makeCucumberRecipe, makeF04aRecipe, makeF04bRecipe,
+  makeF05Recipe, makeF07Recipe,
   deepClone, cucumberCatalogAreaMm2,
 };

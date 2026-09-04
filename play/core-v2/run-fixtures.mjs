@@ -3,7 +3,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runF01, runF02, runF03, runF04a, runF04b, allPassed } from './fixtures.js';
+import { runF01, runF02, runF03, runF04a, runF04b, runF05, runF06, runF07, allPassed } from './fixtures.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -37,12 +37,18 @@ const f03rows = f03run.series.map((s) => row(`F03-${s.uMm}`, {
 const f03 = { ...row('F03', { report: f03run.series[2].report, checks: f03run.checks }), series: f03run.series };
 const f04a = row('F04a', runF04a());
 const f04b = row('F04b', runF04b());
+const f05run = runF05();
+const f05 = row('F05', f05run);
+const f06run = runF06();
+const f06 = row('F06', { report: f06run.report, checks: f06run.checks });
+const f07run = runF07();
+const f07 = row('F07', { report: f07run.report, checks: f07run.checks });
 const f01b = row('F01-repeat', runF01());
 const f02b = row('F02-repeat', runF02());
 const f04a2 = row('F04a-repeat', runF04a());
 const f04b2 = row('F04b-repeat', runF04b());
 
-const all = [f01, f02, ...f03rows, f04a, f04b, f01b, f02b, f04a2, f04b2];
+const all = [f01, f02, ...f03rows, f04a, f04b, f05, f06, f07, f01b, f02b, f04a2, f04b2];
 const lines = [
   'id            gate  status                           covered  phantom  uMm          seamMm  hash       diag',
   ...all.map((x) =>
@@ -78,9 +84,24 @@ writeFileSync(join(outDir, 'F03.json'), JSON.stringify(f03run.series.map((s) => 
 })), null, 2));
 writeFileSync(join(outDir, 'F04a.json'), JSON.stringify(f04a.report, null, 2));
 writeFileSync(join(outDir, 'F04b.json'), JSON.stringify(f04b.report, null, 2));
+writeFileSync(join(outDir, 'F05.json'), JSON.stringify({
+  abc: { status: f05run.abc.report.status, hashes: f05run.abc.report.hashes, visiblePatches: f05run.abc.report.visiblePatches },
+  cab: { status: f05run.cab.report.status, hashes: f05run.cab.report.hashes, visiblePatches: f05run.cab.report.visiblePatches },
+}, null, 2));
+writeFileSync(join(outDir, 'F07.json'), JSON.stringify({
+  steps: f07run.steps.map((s) => ({
+    uMm: s.uMm,
+    status: s.a.report.status,
+    visiblePatches: s.a.report.visiblePatches,
+  })),
+  overlap: { status: f07run.overlap.report.status, diagnostics: f07run.overlap.report.diagnostics },
+}, null, 2));
 
-const failed = [f01, f02, f03, f04a, f04b].some((x) => x.pass !== 'PASS')
+const failed = [f01, f02, f03, f04a, f04b, f05, f06, f07].some((x) => x.pass !== 'PASS')
   || !allPassed(f03run.checks)
+  || !allPassed(f05run.checks)
+  || !allPassed(f06run.checks)
+  || !allPassed(f07run.checks)
   || f01.report.hashes.winding !== f01b.report.hashes.winding
   || f02.report.hashes.winding !== f02b.report.hashes.winding
   || f04a.report.diagnostics[0]?.code !== f04a2.report.diagnostics[0]?.code

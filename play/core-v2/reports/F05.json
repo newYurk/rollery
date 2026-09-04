@@ -1,0 +1,58 @@
+{
+  "abc": {
+    "status": "valid",
+    "hashes": {
+      "recipe": "39ec74937bf4e84cd2ae377c410e255d9d3714781fa642ced9e65c2c312b34c0",
+      "winding": "3ddc41241144b2ab644e5be963a38d424439bf16c975d7652bbde4221a1b07b3",
+      "section": "ca4d7f6975bb732d79b33e9f021d0768a0838584e5ca74d9407ffedb866b5ff1"
+    },
+    "visiblePatches": [
+      {
+        "id": "cucumber-0",
+        "areaMm2": 76.97437355950484,
+        "centerXmm": -27.5,
+        "centerYmm": 0
+      },
+      {
+        "id": "salmon-0",
+        "areaMm2": 100,
+        "centerXmm": 17.5,
+        "centerYmm": 0
+      },
+      {
+        "id": "tamago-0",
+        "areaMm2": 120,
+        "centerXmm": -7.5,
+        "centerYmm": 0
+      }
+    ]
+  },
+  "cab": {
+    "status": "valid",
+    "hashes": {
+      "recipe": "a108638aae4f4b7cf1ed72d4b9d7e40f122de85af17d6ecc025838e45693746e",
+      "winding": "3ddc41241144b2ab644e5be963a38d424439bf16c975d7652bbde4221a1b07b3",
+      "section": "ca4d7f6975bb732d79b33e9f021d0768a0838584e5ca74d9407ffedb866b5ff1"
+    },
+    "visiblePatches": [
+      {
+        "id": "cucumber-0",
+        "areaMm2": 76.97437355950484,
+        "centerXmm": -27.5,
+        "centerYmm": 0
+      },
+      {
+        "id": "salmon-0",
+        "areaMm2": 100,
+        "centerXmm": 17.5,
+        "centerYmm": 0
+      },
+      {
+        "id": "tamago-0",
+        "areaMm2": 120,
+        "centerXmm": -7.5,
+        "centerYmm": 0
+      }
+    ]
+  }
+}
