@@ -8,6 +8,11 @@ import {
 import { validateRecipe } from './validate.js';
 import { independentLayerArcs } from './winding.js';
 import { EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, NB, placementWindowMm } from './units.js';
+import {
+  cutFractions, firstCutFraction, pieceCountOf, pieceLeftOfCut,
+  pieceLengthMm, snapCutFraction,
+} from './knife.js';
+import { makeF05Recipe } from './recipe.js';
 
 function clone(x) { return structuredClone(x); }
 
@@ -192,5 +197,21 @@ test('F07 coordinate not ordinal; same-material overlap is invalid', () => {
   const r = runF07();
   assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
   assert.equal(r.overlap.report.diagnostics[0].code, 'patch_material_overlap');
+});
+
+test('knife: 6/8 pieces, first cut at half, snap interior only', () => {
+  const hoso = makeF01Recipe();
+  const futo = makeF05Recipe();
+  assert.equal(pieceCountOf(hoso), 6);
+  assert.equal(pieceCountOf(futo), 8);
+  assert.equal(firstCutFraction(6), 0.5);
+  assert.equal(firstCutFraction(8), 0.5);
+  assert.equal(snapCutFraction(0.48, 6), 0.5);
+  assert.equal(snapCutFraction(0.02, 6), 1 / 6);
+  assert.equal(snapCutFraction(0.99, 6), 5 / 6);
+  assert.deepEqual(cutFractions(6), [1, 2, 3, 4, 5].map((i) => i / 6));
+  assert.equal(pieceLeftOfCut(0.5, 6), 3);
+  assert.equal(+pieceLengthMm(hoso).toFixed(2), 31.67);
+  assert.equal(pieceLengthMm(futo), 190 / 8);
 });
 

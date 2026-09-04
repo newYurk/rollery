@@ -80,6 +80,7 @@ export const HOSOMAKI = Object.freeze({
   riceProfileId: 'standard',
   emptyCoreWidthMm: 5,    // Wc = max(0, 1) × 5
   emptyCoreHeightMm: 7.2, // Hc = T + 2w = 1.44 × 5
+  pieces: 6,              // catalog.js BASES.hoso; AUTEC 6 на 180–190 мм
 });
 
 /**
@@ -146,6 +147,7 @@ export const FUTOMAKI = Object.freeze({
   riceProfileId: 'standard',
   emptyCoreWidthMm: 5,
   emptyCoreHeightMm: 8.05,
+  pieces: 8,              // catalog.js BASES.futo; AUTEC 8 на 180–190 мм
 });
 
 export function baseOf(recipe) {

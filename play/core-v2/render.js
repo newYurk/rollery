@@ -216,3 +216,88 @@ export function drawSheet(ctx, recipe, winding, cssW, cssH) {
   ctx.fillText(`${L}`, uToX(L) - 18, cssH - 6);
   ctx.fillText('окно', uToX((win.nearEdgeMm + win.farEdgeMm) / 2) - 12, 16);
 }
+
+export function rollSideLayout(cssW, cssH) {
+  const pad = 28;
+  return { x0: pad, y0: cssH / 2, innerW: cssW - pad * 2, pad };
+}
+
+export function drawBar(ctx, recipe, winding, cssW, cssH, cuts, vFrac, knifeY) {
+  const rollH = Math.round(cssH * 0.64);
+  drawRollSide(ctx, winding, cssW, rollH, cuts, vFrac, knifeY);
+  ctx.save();
+  ctx.translate(0, rollH);
+  drawSheet(ctx, recipe, winding, cssW, cssH - rollH);
+  ctx.restore();
+}
+
+export function drawRollSide(ctx, winding, cssW, cssH, cuts, vFrac, knifeY) {
+  const Rout = winding.Rout + winding.W;
+  const { x0, y0, innerW } = rollSideLayout(cssW, cssH);
+  const Rpx = Math.min(22, cssH * 0.28);
+
+  ctx.fillStyle = '#171713';
+  ctx.fillRect(0, 0, cssW, cssH);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(x0 + innerW / 2, y0 + Rpx + 6, innerW / 2 + 4, 7, 0, 0, TAU);
+  ctx.fill();
+
+  const g = ctx.createLinearGradient(0, y0 - Rpx, 0, y0 + Rpx);
+  g.addColorStop(0, '#3a4a40');
+  g.addColorStop(0.45, '#2a3a32');
+  g.addColorStop(1, '#1a241e');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.roundRect(x0, y0 - Rpx, innerW, Rpx * 2, Rpx);
+  ctx.fill();
+  ctx.strokeStyle = '#1a211c';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.beginPath();
+  ctx.roundRect(x0 + 8, y0 - Rpx * 0.55, innerW - 16, Rpx * 0.28, 6);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(243,231,202,0.22)';
+  ctx.lineWidth = 1;
+  for (const c of cuts) {
+    const x = x0 + c * innerW;
+    ctx.beginPath();
+    ctx.moveTo(x, y0 - Rpx - 4);
+    ctx.lineTo(x, y0 + Rpx + 4);
+    ctx.stroke();
+  }
+
+  const kx = x0 + vFrac * innerW;
+  const ky = knifeY != null ? knifeY : y0 - Rpx - 18;
+  drawYanagiba(ctx, kx, ky, Rpx);
+}
+
+function drawYanagiba(ctx, x, y, Rpx) {
+  const bl = Rpx * 3.4;
+  const bw = Math.max(5, Rpx * 0.28);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-0.08);
+  ctx.fillStyle = '#d9e5e8';
+  ctx.beginPath();
+  ctx.moveTo(-bw * 0.15, -bl);
+  ctx.lineTo(bw * 0.45, -bl * 0.08);
+  ctx.lineTo(bw * 0.12, 8);
+  ctx.lineTo(-bw * 0.35, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillRect(-bw * 0.02, -bl + 10, bw * 0.12, bl - 18);
+  ctx.fillStyle = '#2c2420';
+  ctx.beginPath();
+  ctx.roundRect(-bw * 0.55, -bl - Rpx * 1.05, bw * 1.15, Rpx * 1.05, 4);
+  ctx.fill();
+  ctx.fillStyle = '#4a3a30';
+  ctx.fillRect(-bw * 0.55, -bl - 2, bw * 1.15, 4);
+  ctx.restore();
+}
+

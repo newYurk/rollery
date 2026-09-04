@@ -9,8 +9,17 @@ import {
 import { validateRecipe } from './validate.js';
 import { buildWinding } from './winding.js';
 import { sampleSection } from './section.js';
-import { drawSheet, drawSlice } from './render.js';
+import { drawBar, drawSlice, rollSideLayout } from './render.js';
 import { placementWindowMm } from './units.js';
+import {
+  cutFractions,
+  firstCutFraction,
+  pieceCountOf,
+  pieceLeftOfCut,
+  pieceLengthMm,
+  snapCutFraction,
+  vSliceMm,
+} from './knife.js';
 
 const FIXTURES = [
   { id: 'F01', label: 'Пустой', make: () => makeF01Recipe() },
@@ -27,20 +36,34 @@ const sliderWrap = document.getElementById('sliderWrap');
 const slider = document.getElementById('slider');
 const sliderLabel = document.getElementById('sliderLabel');
 const slice = document.getElementById('slice');
-const sheet = document.getElementById('sheet');
+const bar = document.getElementById('bar');
 const refuse = document.getElementById('refuse');
 const sctx = slice.getContext('2d');
-const hctx = sheet.getContext('2d');
+const bctx = bar.getContext('2d');
 
 let current = FIXTURES[1];
 let sliderVal = current.slider ? current.slider.value : 0;
+let vFrac = 0.5;
+let lastRecipe = null;
+let lastWinding = null;
+let knifeAnim = null;
+
+function resetKnife(recipe) {
+  vFrac = firstCutFraction(pieceCountOf(recipe));
+}
+
+function rollH() {
+  return Math.round(bar.height * 0.64);
+}
 
 function paint() {
   const recipe = current.make(sliderVal);
   const v = validateRecipe(recipe);
   const window = placementWindowMm(recipe.sheet);
+  lastRecipe = recipe;
+  lastWinding = null;
 
-  chips.querySelectorAll('button').forEach((b) => {
+  chips.querySelectorAll('[data-id]').forEach((b) => {
     b.setAttribute('aria-pressed', b.dataset.id === current.id ? 'true' : 'false');
   });
 
@@ -56,35 +79,93 @@ function paint() {
   }
 
   const d0 = v.diagnostics[0];
-  const lines = [
-    `<span><b>${current.id}</b> · ${recipe.baseId} · лист ${recipe.sheet.lengthMm} мм</span>`,
-    `<span>окно ${window.nearEdgeMm}–${window.farEdgeMm} мм · патчей ${recipe.patches.length}</span>`,
-  ];
   if (v.status === 'valid') {
     const winding = buildWinding(recipe);
-    sampleSection(recipe, winding, recipe.sheet.widthMm / 2);
+    lastWinding = winding;
+    const n = pieceCountOf(recipe);
+    vFrac = snapCutFraction(vFrac, n);
+    sampleSection(recipe, winding, vSliceMm(recipe, vFrac));
     drawSlice(sctx, recipe, winding, slice.width);
-    drawSheet(hctx, recipe, winding, sheet.width, sheet.height);
+    drawBarNow(recipe, winding, n);
     slice.hidden = false;
-    sheet.hidden = false;
+    bar.hidden = false;
     refuse.hidden = true;
+    cutBtn.disabled = false;
     const dia = ((winding.diameterMinMm + winding.diameterMaxMm) / 2).toFixed(1);
-    lines.push(`<span class="ok">valid · ⌀ ${dia} мм · ядро ${winding.Wc.toFixed(1)}×${winding.Hc.toFixed(1)} · нахлёст ${winding.Lbare.toFixed(1)} мм</span>`);
+    const plen = pieceLengthMm(recipe).toFixed(1).replace('.', ',');
+    const left = pieceLeftOfCut(vFrac, n);
+    meta.innerHTML = `<b>${current.id}</b> · ⌀ ${dia} · ${n}×${plen} мм · рез ${left}/${n} · окно ${window.nearEdgeMm}–${window.farEdgeMm}`;
   } else {
     sctx.fillStyle = '#171713';
     sctx.fillRect(0, 0, slice.width, slice.height);
     slice.hidden = true;
-    sheet.hidden = true;
+    bar.hidden = true;
     refuse.hidden = false;
-    const msg = d0?.code === 'closure_window'
-      ? 'След начинки вне окна раскладки.\nИдеальный ролл не рисуем.'
+    cutBtn.disabled = true;
+    refuse.textContent = d0?.code === 'closure_window'
+      ? 'След начинки вне окна раскладки. Идеальный ролл не рисуем.'
       : d0?.code === 'patch_out_of_sheet'
         ? 'След начинки уходит за край листа.'
         : (d0?.message || v.status);
-    refuse.textContent = msg;
-    lines.push(`<span class="no">${v.status}${d0?.code ? ': ' + d0.code : ''}</span>`);
+    meta.innerHTML = `<b>${current.id}</b> · <span class="no">${v.status}${d0?.code ? ': ' + d0.code : ''}</span>`;
   }
-  meta.innerHTML = lines.join('');
+}
+
+function drawBarNow(recipe, winding, n, knifeY) {
+  drawBar(bctx, recipe, winding, bar.width, bar.height, cutFractions(n), vFrac, knifeY);
+}
+
+function vFromPointer(ev) {
+  const rect = bar.getBoundingClientRect();
+  const x = (ev.clientX - rect.left) * (bar.width / rect.width);
+  const { x0, innerW } = rollSideLayout(bar.width, rollH());
+  return Math.min(1, Math.max(0, (x - x0) / innerW));
+}
+
+let dragging = false;
+bar.addEventListener('pointerdown', (ev) => {
+  if (!lastRecipe || !lastWinding) return;
+  dragging = true;
+  bar.setPointerCapture(ev.pointerId);
+  vFrac = snapCutFraction(vFromPointer(ev), pieceCountOf(lastRecipe));
+  paint();
+});
+bar.addEventListener('pointermove', (ev) => {
+  if (!dragging || !lastRecipe) return;
+  vFrac = snapCutFraction(vFromPointer(ev), pieceCountOf(lastRecipe));
+  paint();
+});
+bar.addEventListener('pointerup', () => { dragging = false; });
+bar.addEventListener('pointercancel', () => { dragging = false; });
+
+function easeInOut(t) {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+
+function pullCut() {
+  if (!lastRecipe || !lastWinding || knifeAnim) return;
+  const n = pieceCountOf(lastRecipe);
+  const recipe = lastRecipe;
+  const winding = lastWinding;
+  const { y0 } = rollSideLayout(bar.width, rollH());
+  const RoutPx = Math.min(18, rollH() * 0.28);
+  const yTop = y0 - RoutPx - 12;
+  const yCut = y0 + RoutPx * 0.9;
+  const t0 = performance.now();
+  knifeAnim = { t0 };
+  cutBtn.disabled = true;
+
+  function frame(now) {
+    const t = Math.min(1, (now - t0) / 640);
+    drawBarNow(recipe, winding, n, yTop + (yCut - yTop) * easeInOut(t));
+    if (t < 1) requestAnimationFrame(frame);
+    else {
+      knifeAnim = null;
+      cutBtn.disabled = false;
+      paint();
+    }
+  }
+  requestAnimationFrame(frame);
 }
 
 for (const f of FIXTURES) {
@@ -97,14 +178,24 @@ for (const f of FIXTURES) {
   b.addEventListener('click', () => {
     current = f;
     sliderVal = f.slider ? f.slider.value : 0;
+    const recipe = f.make(sliderVal);
+    if (validateRecipe(recipe).status === 'valid') resetKnife(recipe);
     paint();
   });
   chips.append(b);
 }
+
+const cutBtn = document.createElement('button');
+cutBtn.className = 'cut';
+cutBtn.type = 'button';
+cutBtn.textContent = 'Нарезать';
+cutBtn.addEventListener('click', pullCut);
+chips.append(cutBtn);
 
 slider.addEventListener('input', () => {
   sliderVal = Number(slider.value);
   paint();
 });
 
+resetKnife(current.make(sliderVal));
 paint();
