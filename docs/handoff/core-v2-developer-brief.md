@@ -14,10 +14,17 @@
 6. `docs/decisions/ADR-001-erratum-005-seam-overlap.md`
 7. `docs/decisions/ADR-001-erratum-006-area-anchor.md`
 8. `docs/decisions/ADR-001-erratum-007-ordinal-vs-coordinate.md`
-9. `docs/decisions/core-v2-fixtures.md`
-10. `docs/decisions/core-v2-legacy-boundary.md`
+9. `docs/decisions/ADR-001-erratum-008-wind-direction.md`
+10. `docs/decisions/ADR-001-erratum-009-acceptance-gate.md`
+11. `docs/decisions/core-v2-fixtures.md`
+12. `docs/decisions/core-v2-legacy-boundary.md`
 
-При конфликте приоритет такой: erratum → ADR → fixtures → этот brief → legacy/docs/archive.
+При конфликте приоритет такой: erratum → ADR → fixtures → этот brief →
+код `play/core-v2/**` → legacy/docs/archive.
+Статус ADR (`proposed`/`accepted`) на эту лестницу не влияет — она про то,
+какой источник истины выигрывает при противоречии формулировок, а не про то,
+разрешено ли начинать реализацию (это отдельный критерий, `ADR-001-core-v2-scope.md`,
+раздел «Критерий принятия», см. `ADR-001-erratum-009-acceptance-gate.md`).
 
 ## Scope первого PR
 
@@ -58,7 +65,16 @@ play/core-v2/hash.js
 play/core-v2/fixtures.js
 play/core-v2/run-fixtures.mjs
 play/core-v2/core-v2.test.mjs
+play/core-v2/package.json
 ```
+
+`play/core-v2/package.json` (`{"type": "module"}`) относится только к файлам
+внутри `play/core-v2/`. Легаси `play/*.js` как грузились через `<script>` в
+браузере, так и продолжают — этот файл их не касается, корень репозитория
+он тоже не трогает (там package.json как не было, так и нет). Без него
+`.js`-файлы этого списка (`units.js`…`hash.js`) Node по умолчанию считает
+CommonJS, и `import`/`export` в них упадёт с `SyntaxError` в момент, когда
+`run-fixtures.mjs` попробует их импортировать.
 
 Можно изменить этот список только с письменным обоснованием в PR. Не изменять production legacy-файлы.
 
