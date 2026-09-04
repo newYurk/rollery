@@ -213,27 +213,20 @@ export function baseOf(recipe) {
 }
 
 /**
- * Радиус, на который садится пучок начинок.
- * k=1 копировал зазоры листа в срез: F05 давал щель 69 мм.
- * Несколько патчей едут по углу намотки на этой окружности, не по оси x.
+ * Половина пучка в ядре. k=1 копировал зазоры листа в срез (щель 69 мм).
+ * Начинка лежит на рисе и остаётся пучком: окно сжимается в отрезок по x,
+ * не разносится по углу витка.
  */
 export const WINDOW_CORE_HALF_MM = 10;
 
 /** Положение патча в ядре. Один патч — начало координат (F01–F04).
- *  Несколько — чистая функция собственного uMm: угол листа после намотки. */
+ *  Несколько — чистая функция собственного uMm, пучок на рисе, без орбиты. */
 export function patchCorePos(recipe, patch) {
   if (!recipe.patches || recipe.patches.length <= 1) return { x: 0, y: 0 };
-  const base = baseOf(recipe);
-  const { sRice0, Lrice } = riceSpanMm(
-    recipe.sheet.lengthMm,
-    base.spreadStart,
-    base.spreadEnd,
-  );
-  const frac = (patch.uMm - sRice0) / Math.max(Lrice, 1e-9);
-  const t = recipe.windDirection === 'fromULength' ? 1 - frac : frac;
-  const phi = ((t % 1) + 1) % 1 * TAU;
-  const r = WINDOW_CORE_HALF_MM;
-  return { x: r * Math.cos(phi), y: r * Math.sin(phi) };
+  const w = placementWindowMm(recipe.sheet);
+  const mid = (w.nearEdgeMm + w.farEdgeMm) / 2;
+  const half = (w.farEdgeMm - w.nearEdgeMm) / 2;
+  return { x: (patch.uMm - mid) * (WINDOW_CORE_HALF_MM / half), y: 0 };
 }
 
 export function patchCoreXmm(recipe, patch) {

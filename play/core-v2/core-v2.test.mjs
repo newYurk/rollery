@@ -230,13 +230,13 @@ test('F05 array order does not change hashes', () => {
   assert.equal(r.abc.report.hashes.section, r.cab.report.hashes.section);
 });
 
-test('F05 fillings sit on the winding angle, not a line', () => {
+test('F05 fillings stay a bundle on x, not a winding orbit', () => {
   const recipe = makeF05Recipe();
-  const pos = recipe.patches.map((p) => ({ id: p.id, ...patchCorePos(recipe, p) }));
-  const ys = pos.map((p) => p.y);
-  assert.ok(Math.max(...ys) - Math.min(...ys) > 2, JSON.stringify(pos));
-  const xs = new Set(pos.map((p) => p.x.toFixed(2)));
-  assert.equal(xs.size, 3);
+  const pos = recipe.patches.map((p) => patchCorePos(recipe, p));
+  for (const p of pos) assert.equal(p.y, 0);
+  const xs = pos.map((p) => p.x);
+  assert.ok(Math.max(...xs) - Math.min(...xs) > 1);
+  assert.ok(Math.max(...xs.map(Math.abs)) <= 10 + 1e-9);
 });
 
 test('F06 round-trip and new instance', () => {
