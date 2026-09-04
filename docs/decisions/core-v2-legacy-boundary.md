@@ -1,8 +1,12 @@
 # Core V2 — граница с legacy и план безопасной миграции
 
 - **Статус:** proposed
-- **Связанные документы:** `ADR-001-core-v2-scope.md`, `ADR-001-erratum-001-neutral-hand-only.md`, `core-v2-fixtures.md`
+- **Связанные документы:** `ADR-001-core-v2-scope.md`, `ADR-001-erratum-001-neutral-hand-only.md`, `ADR-001-erratum-002-no-diagonal-placement.md`, `core-v2-fixtures.md`
 - **Цель:** дать разработчику чёткую границу. Новый kernel не должен импортировать поведение legacy случайно.
+
+## ★ Входящее для ревью — 2026-09-04T00:50Z
+
+Владелец зафиксировала до конца текущего прогона: **диагональная укладка начинки снята с домена.** См. `ADR-001-erratum-002-no-diagonal-placement.md`. Не предлагать `rotationDeg`, fixtures на 45° и 3D-сшивку ломтиков из-за косого бруска.
 
 ## Решение о границе
 
@@ -27,7 +31,7 @@ renderer
 ## Карта компонентов
 
 | Legacy-зона | Статус для V2 | Правило |
-|---|---|---|
+|---|
 | `play/model/geometry.js` | Reference only | Не импортировать. Использовать только для чтения старых форматов и визуального сравнения в документированной области legacy |
 | `play/model/catalog.js` | Adapt | Допустим только data-adapter: V2 получает нормализованные мм, не читает каталог напрямую |
 | `play/model/canon.js` | Reference only | Канонические рецепты можно перенести вручную в V2 fixtures после проверки чисел; правила канона не импортировать |
@@ -79,7 +83,7 @@ measure(winding: ValidWinding, section: SectionResult): Measurements
 runFixture(fixture: Fixture): FixtureReport
 ```
 
-`sampleSection` не строит namотку сам, не меняет рецепт и не делает fallback для invalid result.
+`sampleSection` не строит намотку сам, не меняет рецепт и не делает fallback для invalid result.
 
 ## Нормализация данных
 
@@ -89,6 +93,7 @@ runFixture(fixture: Fixture): FixtureReport
 2. Явно преобразовать единицы в мм.
 3. Явно назначить `baseId`, профиль риса и `neutralHand`.
 4. Выдать `RecipeV2` или список диагностик преобразования.
+5. Отклонить или обнулить `rotationDeg` из legacy: в V2 поворота нет (`invalid: patch_rotated`).
 
 Adapter не должен исправлять геометрию, угадывать пропущенные значения или интерпретировать puzzle `turns` как длину листа.
 
@@ -114,4 +119,5 @@ F01 RecipeV2
 - знает, какой exact input использует F01;
 - может вернуть typed diagnostic вместо fallback;
 - понимает, что legacy числа не задают expected output V2;
-- готов начать с Node-compatible runner, а не с browser UI.
+- готов начать с Node-compatible runner, а не с browser UI;
+- не вводит поворот патча в плоскости листа.
