@@ -8,8 +8,11 @@
 
 1. `docs/decisions/ADR-001-core-v2-scope.md`
 2. `docs/decisions/ADR-001-erratum-001-neutral-hand-only.md`
-3. `docs/decisions/core-v2-fixtures.md`
-4. `docs/decisions/core-v2-legacy-boundary.md`
+3. `docs/decisions/ADR-001-erratum-002-no-diagonal-placement.md`
+4. `docs/decisions/ADR-001-erratum-003-rice-color-field.md`
+5. `docs/decisions/ADR-001-erratum-004-placement-window.md`
+6. `docs/decisions/core-v2-fixtures.md`
+7. `docs/decisions/core-v2-legacy-boundary.md`
 
 При конфликте приоритет такой: erratum → ADR → fixtures → этот brief → legacy/docs/archive.
 
@@ -18,7 +21,7 @@
 Реализовать только:
 
 - F01: пустой хосомаки;
-- F02: один огурец в центре closure window;
+- F02: один огурец в центре `placementWindowMm` (erratum-004);
 - `neutralHand` как единственный hand mode;
 - валидацию рецепта;
 - построение winding state;
@@ -71,7 +74,9 @@ play/core-v2/core-v2.test.mjs
 - Нельзя задавать угол только пропорцией номера бина, если это нарушает длину дуги.
 - Полная длина листа должна быть учтена: нет lost или phantom segment выше `EPS_LENGTH_MM`.
 - Шов является явной частью `WindingResult`.
-- Если recipe вне closure window, вернуть diagnostic, а не строить лучший возможный ролл.
+- Если след патча физически за краем листа — `invalid: patch_out_of_sheet`. Если след патча
+  на листе, но вне `placementWindowMm` — `outsideModelScope: closure_window`. Два разных
+  входа, два разных кода, ни разу не fallback на лучший возможный ролл (erratum-004).
 
 ### Детерминизм
 
@@ -105,7 +110,9 @@ PR готов к review только если:
 - test output показывает measurements, а не только `pass`;
 - нет импортов legacy geometry, UI и global state;
 - нет изменения legacy production-кода;
-- есть короткая PR-заметка: модель, дискретизация, `EPS_LENGTH_MM`, выбранное closure window и известные ограничения;
+- есть короткая PR-заметка: модель, дискретизация, `EPS_LENGTH_MM`, `PLACEMENT_EDGE_MARGIN_MM`
+  (предварительное значение из A5/#57, erratum-004, если владелец ещё не подтвердила) и
+  известные ограничения;
 - в PR приложен machine-readable JSON FixtureReport для F01 и F02.
 
 ## Что reviewer отклонит
