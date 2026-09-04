@@ -3,7 +3,7 @@
 import { SECTOR_ANGLE, patchCoreXmm } from './units.js';
 import { catalogAreaMm2, cutFillSector } from './recipe.js';
 
-function sectorTop(t) {
+export function sectorTop(t) {
   const c = Math.cos(SECTOR_ANGLE);
   const sn = Math.sin(SECTOR_ANGLE);
   return t <= c ? t / c : Math.sqrt(Math.max(0, 1 - t * t)) / sn;

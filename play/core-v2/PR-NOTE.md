@@ -41,3 +41,10 @@ node --test play/core-v2/core-v2.test.mjs
 ```
 
 Not wired to `play/index.html`. F08, UI, recorded hand, production `geometry.js` — out of scope.
+
+## Debug renderer
+
+`play/core-v2/index.html` — separate page after F01–F07. Does not import `geometry.js`.
+Serve that folder (preview is this page). Fixture chips + F03/F07 sliders. Layouts
+outside the window show a refusal, not a recentred roll.
+
