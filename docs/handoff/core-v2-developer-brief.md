@@ -11,8 +11,9 @@
 3. `docs/decisions/ADR-001-erratum-002-no-diagonal-placement.md`
 4. `docs/decisions/ADR-001-erratum-003-rice-color-field.md`
 5. `docs/decisions/ADR-001-erratum-004-placement-window.md`
-6. `docs/decisions/core-v2-fixtures.md`
-7. `docs/decisions/core-v2-legacy-boundary.md`
+6. `docs/decisions/ADR-001-erratum-005-seam-overlap.md`
+7. `docs/decisions/core-v2-fixtures.md`
+8. `docs/decisions/core-v2-legacy-boundary.md`
 
 При конфликте приоритет такой: erratum → ADR → fixtures → этот brief → legacy/docs/archive.
 
