@@ -12,7 +12,7 @@ import {
   cutFractions, firstCutFraction, pieceCountOf, pieceLeftOfCut,
   pieceLengthMm, snapCutFraction,
 } from './knife.js';
-import { catalogAreaMm2, makeF05Recipe, makeHosogiriRecipe } from './recipe.js';
+import { catalogAreaMm2, cutFillSector, makeF05Recipe, makeHosogiriRecipe } from './recipe.js';
 import { sampleSection } from './section.js';
 
 function clone(x) { return structuredClone(x); }
@@ -119,11 +119,10 @@ test('mutation: innerBoundaryByRay scalar', () => {
   assert.ok(checks.some((c) => !c.ok && c.name === 'core'));
 });
 
-test('mutation: catalogArea = width×height without cutFill', () => {
+test('mutation: sector cutFill on a cucumber bar', () => {
   const r = runF02();
-  const rect = CUCUMBER.widthMm * CUCUMBER.heightMm;
   const catalog = cucumberCatalogAreaMm2();
-  const fake = r.report.visiblePatches[0].areaMm2 * (rect / catalog);
+  const fake = r.report.visiblePatches[0].areaMm2 * cutFillSector();
   const ratio = Math.max(fake / catalog, catalog / fake);
   assert.ok(ratio > EPS_AREA_RATIO, ratio);
 });

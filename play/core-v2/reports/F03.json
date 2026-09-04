@@ -1,49 +1,5 @@
 [
   {
-    "uMm": 44.5,
-    "status": "valid",
-    "diagnostics": [],
-    "placementWindowMm": {
-      "nearEdgeMm": 20,
-      "farEdgeMm": 52.5
-    },
-    "visiblePatches": [
-      {
-        "id": "cucumber-0",
-        "areaMm2": 50.20550771846492,
-        "centerXmm": 0,
-        "centerYmm": 0
-      }
-    ],
-    "hashes": {
-      "recipe": "9b10b1dd404ae011057cc6852bbe8658fbe7ef730bbbb131774cce8db29398ab",
-      "winding": "362433ec1cee58579317253c9d5905f89bd9a10357491a3b454667e08c4fbbb6",
-      "section": "42511caa743034f706a0ffc04342df2ac8cd42674857e2b3ebab22a79106d710"
-    }
-  },
-  {
-    "uMm": 45.5,
-    "status": "valid",
-    "diagnostics": [],
-    "placementWindowMm": {
-      "nearEdgeMm": 20,
-      "farEdgeMm": 52.5
-    },
-    "visiblePatches": [
-      {
-        "id": "cucumber-0",
-        "areaMm2": 50.20550771846492,
-        "centerXmm": 0,
-        "centerYmm": 0
-      }
-    ],
-    "hashes": {
-      "recipe": "518298249634784a7ad652657a412a08d7cf1138276c94842f5f36d3e3ac18e8",
-      "winding": "362433ec1cee58579317253c9d5905f89bd9a10357491a3b454667e08c4fbbb6",
-      "section": "42511caa743034f706a0ffc04342df2ac8cd42674857e2b3ebab22a79106d710"
-    }
-  },
-  {
     "uMm": 46.5,
     "status": "valid",
     "diagnostics": [],
@@ -54,19 +10,63 @@
     "visiblePatches": [
       {
         "id": "cucumber-0",
-        "areaMm2": 50.20550771846492,
+        "areaMm2": 64,
         "centerXmm": 0,
         "centerYmm": 0
       }
     ],
     "hashes": {
-      "recipe": "c89c057268968300ee895115429a8bf50c0be903d7705b82a463a9bd09c08aec",
-      "winding": "362433ec1cee58579317253c9d5905f89bd9a10357491a3b454667e08c4fbbb6",
-      "section": "42511caa743034f706a0ffc04342df2ac8cd42674857e2b3ebab22a79106d710"
+      "recipe": "4ad55d444319ec37976bf7b01a5d2d5195b6b978dfb8279bd3c09622bd7f977c",
+      "winding": "8d7910cb152807933a0065b509ffa29b9b938075d820a90b50e19cf8c1f65570",
+      "section": "75ea7baccd3249e06af73b7aa0d5dc45c9b36c83efefdf7f2e5e82f6a968ce14"
     }
   },
   {
     "uMm": 47.5,
+    "status": "valid",
+    "diagnostics": [],
+    "placementWindowMm": {
+      "nearEdgeMm": 20,
+      "farEdgeMm": 52.5
+    },
+    "visiblePatches": [
+      {
+        "id": "cucumber-0",
+        "areaMm2": 64,
+        "centerXmm": 0,
+        "centerYmm": 0
+      }
+    ],
+    "hashes": {
+      "recipe": "6f0250222f93655803c4d92e5e05bd93a380dc0fe9edbbf2ea0284e240b0a70d",
+      "winding": "8d7910cb152807933a0065b509ffa29b9b938075d820a90b50e19cf8c1f65570",
+      "section": "75ea7baccd3249e06af73b7aa0d5dc45c9b36c83efefdf7f2e5e82f6a968ce14"
+    }
+  },
+  {
+    "uMm": 48.5,
+    "status": "valid",
+    "diagnostics": [],
+    "placementWindowMm": {
+      "nearEdgeMm": 20,
+      "farEdgeMm": 52.5
+    },
+    "visiblePatches": [
+      {
+        "id": "cucumber-0",
+        "areaMm2": 64,
+        "centerXmm": 0,
+        "centerYmm": 0
+      }
+    ],
+    "hashes": {
+      "recipe": "ebf19e91bf635d70bd54c39dba9cdda40723cb98523f1cbd53128f52ba37102e",
+      "winding": "8d7910cb152807933a0065b509ffa29b9b938075d820a90b50e19cf8c1f65570",
+      "section": "75ea7baccd3249e06af73b7aa0d5dc45c9b36c83efefdf7f2e5e82f6a968ce14"
+    }
+  },
+  {
+    "uMm": 49.5,
     "status": "outsideModelScope",
     "diagnostics": [
       {
@@ -79,8 +79,8 @@
             "farEdgeMm": 52.5
           },
           "observedFootprintMm": [
-            41.85,
-            53.15
+            45.5,
+            53.5
           ]
         }
       }
@@ -91,13 +91,13 @@
     },
     "visiblePatches": [],
     "hashes": {
-      "recipe": "03ef462ce36c7e79e95356661ec714b8ff500fc88d803b44cae01e18ed2ff05e",
+      "recipe": "5a83c884bce41c3f8aaf1fec4b0745217265dc951893b6a898dbfcfde5ffcd8a",
       "winding": "",
       "section": ""
     }
   },
   {
-    "uMm": 48.5,
+    "uMm": 50.5,
     "status": "outsideModelScope",
     "diagnostics": [
       {
@@ -110,8 +110,8 @@
             "farEdgeMm": 52.5
           },
           "observedFootprintMm": [
-            42.85,
-            54.15
+            46.5,
+            54.5
           ]
         }
       }
@@ -122,7 +122,7 @@
     },
     "visiblePatches": [],
     "hashes": {
-      "recipe": "daa01f3dc065aa11432dedff8d1aa06a29a4ca8df102ecfe5ae919bab4a43dd2",
+      "recipe": "44fb7fd91cc712d9e1c3dfd77a77f40e2312162604dabb61649cbf6ee35e5bbe",
       "winding": "",
       "section": ""
     }

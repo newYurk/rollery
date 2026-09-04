@@ -44,7 +44,10 @@ export function cutFillSector() {
 }
 
 export function cucumberCatalogAreaMm2() {
-  return CUCUMBER.wU * CUCUMBER.hU * cutFillSector() * U_MM * U_MM;
+  if (CUCUMBER.cut === 'сектор') {
+    return CUCUMBER.wU * CUCUMBER.hU * cutFillSector() * U_MM * U_MM;
+  }
+  return CUCUMBER.widthMm * CUCUMBER.heightMm;
 }
 
 export function catalogAreaMm2(patch) {
@@ -53,7 +56,7 @@ export function catalogAreaMm2(patch) {
     const s = patch.stickMm;
     return n * s * s;
   }
-  if (patch.materialId === 'cucumber') {
+  if (patch.cut === 'сектор') {
     return patch.widthMm * patch.heightMm * cutFillSector();
   }
   return patch.widthMm * patch.heightMm;
@@ -86,6 +89,7 @@ export function makeCucumberRecipe(uMm) {
       {
         id: 'cucumber-0',
         materialId: CUCUMBER.materialId,
+        cut: CUCUMBER.cut,
         uMm,
         vMm: sheet.widthMm / 2,
         widthMm: CUCUMBER.widthMm,
@@ -134,12 +138,13 @@ export function makeHosogiriRecipe(uMm) {
   });
 }
 
-/** F04a: след [93, 107] на листе 105 мм. */
+/** F04a: след выходит за лист. u = L − width/2 + 2, чтобы короткий 芯 не остался на листе. */
 export function makeF04aRecipe() {
-  return makeCucumberRecipe(100);
+  const L = HOSOMAKI.lengthMm;
+  return makeCucumberRecipe(L - CUCUMBER.widthMm / 2 + 2);
 }
 
-/** F04b: след [63, 77] на листе, вне окна [20, 52.5]. */
+/** F04b: на листе, за farEdge (L/2). */
 export function makeF04bRecipe() {
   return makeCucumberRecipe(70);
 }
@@ -153,6 +158,7 @@ function futoPatch(id, spec, uMm) {
   return {
     id,
     materialId: spec.materialId,
+    cut: spec.cut,
     uMm,
     vMm: sheet.widthMm / 2,
     widthMm: spec.widthMm,

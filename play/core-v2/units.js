@@ -88,19 +88,17 @@ export const HOSOMAKI_DIAMETER_MM = Object.freeze({ min: 28, max: 32 });
 
 /**
  * Снимок огурца F02 в мм.
- * Было: catalog.js:305, плод ⌀28 мм / 8 долей → 14 × 9,9. Это магазинный
- * огурец, не 芯 хосомаки. 白ごはん.com: 6–8 долей, 「細めに」; 鉄火 7–8 мм 角.
- * Сектор 45° лежит на одном срезе: короткая сторона = 8 мм (= верх 鉄火),
- * длинная = 8√2 ≈ 11,3 мм. Live catalog.js не трогаем.
- * catalogAreaMm2 считается cutFill в recipe.js, не здесь.
+ * После 板ずり + продольный рез + 種取り это палка, не сектор плода.
+ * 築地 / norecipes: ~8 мм, семенное гнездо срезано; 鉄火 7–8 мм 角 — тот же калибр.
+ * Live catalog.js (14 × 9,9, сектор) не трогаем.
  */
 export const CUCUMBER = Object.freeze({
   materialId: 'cucumber',
-  widthMm: 11.3,          // 8√2, округление как у старых 9,9
-  heightMm: 8,            // короткая сторона = 鉄火 7–8 мм
-  lengthFactor: 1,        // dv: на всю ширину ролла
-  cut: 'сектор',
-  wU: 11.3 / U_MM,
+  widthMm: 8,
+  heightMm: 8,
+  lengthFactor: 1,
+  cut: 'брусок',
+  wU: 8 / U_MM,
   hU: 8 / U_MM,
 });
 

@@ -9,8 +9,8 @@
         "patchId": "cucumber-0",
         "sheetLengthMm": 105,
         "observedFootprintMm": [
-          94.35,
-          105.65
+          99,
+          107
         ]
       }
     }
@@ -30,7 +30,7 @@
   },
   "visiblePatches": [],
   "hashes": {
-    "recipe": "1093dc39fc990e5ef20dddfc1a97e0100bc065eb68e5d8ad6591e009e4fc17e4",
+    "recipe": "17d01f430820a3bb2a763016d0c12196ab30f3e36089585b49420fe748f8af2c",
     "winding": "",
     "section": ""
   },

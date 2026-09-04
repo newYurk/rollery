@@ -48,7 +48,7 @@ function sampleBar(patch, originX) {
 export function samplePatch(recipe, patch) {
   const originX = patchCoreXmm(recipe, patch);
   if (patch.cut === 'hosogiri') return sampleBar(patch, originX);
-  if (patch.materialId === 'cucumber') return sampleSector(patch, originX);
+  if (patch.cut === 'сектор') return sampleSector(patch, originX);
   return sampleBar(patch, originX);
 }
 
