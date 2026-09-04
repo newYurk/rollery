@@ -21,14 +21,18 @@ export function r0At(phi, Wc, Hc) {
 
 function coreBoxMm(recipe) {
   const base = baseOf(recipe);
-  let Wc = base.emptyCoreWidthMm;
-  let Hc = base.emptyCoreHeightMm;
+  let halfW = base.emptyCoreWidthMm / 2;
+  let halfH = base.emptyCoreHeightMm / 2;
   for (const p of recipe.patches) {
     const x = patchCoreXmm(recipe, p);
-    Wc = Math.max(Wc, 2 * (Math.abs(x) + p.widthMm / 2));
-    Hc = Math.max(Hc, p.heightMm + 2 * base.noriThicknessMm);
+    halfW = Math.max(halfW, Math.abs(x) + p.widthMm / 2);
+    halfH = Math.max(halfH, p.heightMm / 2 + base.noriThicknessMm);
   }
-  return { Wc, Hc };
+  if (recipe.patches.length > 1) {
+    const half = Math.max(halfW, halfH);
+    return { Wc: 2 * half, Hc: 2 * half };
+  }
+  return { Wc: 2 * halfW, Hc: 2 * halfH };
 }
 
 function midArc(rAtBin) {
