@@ -1,0 +1,141 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  runF01, runF02, acceptF01, acceptF02, allPassed,
+  makeF01Recipe, cucumberCatalogAreaMm2,
+} from './fixtures.js';
+import { validateRecipe } from './validate.js';
+import { independentLayerArcs } from './winding.js';
+import { EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, NB } from './units.js';
+
+function clone(x) { return structuredClone(x); }
+
+test('F01 green', () => {
+  const r = runF01();
+  assert.equal(r.report.status, 'valid');
+  assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
+});
+
+test('F02 green', () => {
+  const r = runF02();
+  assert.equal(r.report.status, 'valid');
+  assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
+});
+
+test('F06 hashes repeat', () => {
+  const a = runF01();
+  const b = runF01();
+  assert.equal(a.report.hashes.recipe, b.report.hashes.recipe);
+  assert.equal(a.report.hashes.winding, b.report.hashes.winding);
+  assert.equal(a.report.hashes.section, b.report.hashes.section);
+  const c = runF02();
+  const d = runF02();
+  assert.equal(c.report.hashes.winding, d.report.hashes.winding);
+});
+
+test('mutation: recorded hand on F01', () => {
+  const recipe = { ...makeF01Recipe(), hand: { mode: 'recorded', seed: 1, press: 1, speed: 1, wobble: 0 } };
+  const v = validateRecipe(recipe);
+  assert.equal(v.status, 'invalid');
+  assert.equal(v.diagnostics[0].code, 'non_neutral_hand');
+  assert.notEqual(v.diagnostics[0].code, 'non_neutral_hand_in_puzzle');
+});
+
+test('mutation: missing hand', () => {
+  const recipe = { ...makeF01Recipe() };
+  delete recipe.hand;
+  const v = validateRecipe(recipe);
+  assert.equal(v.status, 'invalid');
+  assert.equal(v.diagnostics[0].code, 'non_neutral_hand');
+  assert.equal(v.diagnostics[0].context.observedHandMode, 'missing');
+});
+
+test('mutation: missing windDirection', () => {
+  const recipe = { ...makeF01Recipe() };
+  delete recipe.windDirection;
+  const v = validateRecipe(recipe);
+  assert.equal(v.diagnostics[0].code, 'recipe_missing_wind_direction');
+});
+
+test('mutation: copy nori arc into rice', () => {
+  const r = runF01();
+  const report = clone(r.report);
+  const rice = report.sheet.arcByLayerMm.find((x) => x.layerId === 'rice');
+  const nori = report.sheet.arcByLayerMm.find((x) => x.layerId === 'nori');
+  rice.arcMm = nori.arcMm;
+  const checks = acceptF01(report, r.winding);
+  assert.ok(checks.some((c) => !c.ok && c.name.startsWith('arc:rice')));
+});
+
+test('mutation: arcMm in catalog units (forget ×U_MM)', () => {
+  const r = runF01();
+  const report = clone(r.report);
+  for (const row of report.sheet.arcByLayerMm) row.arcMm /= 5;
+  const checks = acceptF01(report, r.winding);
+  assert.ok(checks.some((c) => !c.ok && c.name.startsWith('arc:')));
+});
+
+test('mutation: innerBoundaryByRay scalar', () => {
+  const r = runF01();
+  const report = clone(r.report);
+  const mean = report.roll.innerBoundaryByRay.reduce((a, b) => a + b, 0) / NB;
+  report.roll.innerBoundaryByRay = report.roll.innerBoundaryByRay.map(() => mean);
+  const checks = acceptF01(report, r.winding);
+  assert.ok(checks.some((c) => !c.ok && c.name === 'core'));
+});
+
+test('mutation: catalogArea = width×height without cutFill', () => {
+  const r = runF02();
+  const rect = 14 * 9.9;
+  const catalog = cucumberCatalogAreaMm2();
+  const fake = r.report.visiblePatches[0].areaMm2 * (rect / catalog);
+  const ratio = Math.max(fake / catalog, catalog / fake);
+  assert.ok(ratio > EPS_AREA_RATIO, ratio);
+});
+
+test('mutation: scale all areaMm2 by 0.83', () => {
+  const r = runF02();
+  const report = clone(r.report);
+  report.visiblePatches[0].areaMm2 *= 0.83;
+  const checks = acceptF02(report, r.winding, r.recipe);
+  assert.ok(checks.some((c) => !c.ok && c.name === 'catalog-anchor'));
+});
+
+test('mutation: corrupt inner u on two-layer nori rays', () => {
+  const r = runF01();
+  const report = clone(r.report);
+  for (let i = 0; i < NB; i++) {
+    if (report.roll.wrapIntersectionsByRay[i] === 2) report.sheetMap.uAtRayMm[i] = 40;
+  }
+  const checks = acceptF01(report, r.winding);
+  assert.ok(checks.some((c) => !c.ok && c.name === 'invertibility'));
+});
+
+test('mutation: write outer tail u on two-layer rays', () => {
+  const r = runF01();
+  const report = clone(r.report);
+  for (let i = 0; i < NB; i++) {
+    if (report.roll.wrapIntersectionsByRay[i] === 2) {
+      report.sheetMap.uAtRayMm[i] = 105 - (i / r.winding.overlapBins) * r.winding.Lbare;
+    }
+  }
+  const checks = acceptF01(report, r.winding);
+  assert.ok(checks.some((c) => !c.ok && c.name === 'invertibility'));
+});
+
+test('mutation: use nori radius as rice integral', () => {
+  const r = runF01();
+  const fake = independentLayerArcs({
+    Wc: r.winding.Wc, Hc: r.winding.Hc, T: r.winding.T, W: r.winding.W, Lrice: r.winding.Lrice,
+  });
+  const report = clone(r.report);
+  report.sheet.arcByLayerMm.find((x) => x.layerId === 'rice').arcMm = fake.noriArcMm;
+  const checks = acceptF01(report, r.winding);
+  assert.ok(checks.some((c) => !c.ok && c.name === 'arc:rice'));
+});
+
+test('empty core asymmetry exceeds EPS_CORE_ASYMMETRY_MM', () => {
+  const r = runF01();
+  const r0 = r.report.roll.innerBoundaryByRay;
+  assert.ok(Math.max(...r0) - Math.min(...r0) > EPS_CORE_ASYMMETRY_MM);
+});
