@@ -602,7 +602,16 @@ function sliceLines(m, vSlice) {
 }
 
 function face(vSlice, cssSize, m, Rref) {
-  m = m || getModel(); const size = Math.round(cssSize * DPR);
+  const size = Math.round(cssSize * DPR);
+  if (S.v2) {
+    if (!window.CoreV2) { dirty = true; const blank = document.createElement('canvas'); blank.width = blank.height = size; return blank; }
+    window.CoreV2.scenario = S.v2Scenario || 'F02';
+    const img = window.CoreV2.faceCanvas(size);
+    if (!img) { const blank = document.createElement('canvas'); blank.width = blank.height = size; return blank; }
+    img._v = vSlice;
+    return img;
+  }
+  m = m || getModel();
   const key = m.key + '|' + vSlice.toFixed(3) + '|' + size + '|' + (Rref ? Rref.toFixed(3) : '') + '|' + S.shape + (PIX ? '|p' + PIX : '');
   let img = faceCache.get(key);
   if (!img) {
