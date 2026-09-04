@@ -1,7 +1,7 @@
 // Debug slice. Presentation only — does not feed hashes or acceptance.
 // Colors from catalog.js (hoso wrapper / spread / ING), not from geometry.js.
 
-import { DPHI, NB, TAU, patchCoreXmm, placementWindowMm } from './units.js';
+import { DPHI, HOSOGIRI, NB, TAU, hosogiriSticks, patchCoreXmm, placementWindowMm } from './units.js';
 import { sectorTop } from './section.js';
 
 export const MAT = {
@@ -49,6 +49,21 @@ function cucumberPath(ctx, patch, ox) {
   ctx.lineTo(ox + w / 2, -h / 2);
   ctx.lineTo(ox - w / 2, -h / 2);
   ctx.closePath();
+}
+
+function hosogiriPath(ctx, patch, ox) {
+  const spec = {
+    stickMm: patch.stickMm ?? HOSOGIRI.stickMm,
+    cols: HOSOGIRI.cols,
+    rows: HOSOGIRI.rows,
+    gapMm: HOSOGIRI.gapMm,
+  };
+  const sticks = hosogiriSticks(ox, spec);
+  ctx.beginPath();
+  for (const st of sticks) {
+    const r = Math.min(0.45, st.s / 6);
+    ctx.roundRect(st.x, st.y, st.s, st.s, r);
+  }
 }
 
 function barPath(ctx, patch, ox) {
@@ -159,7 +174,8 @@ export function drawSlice(ctx, recipe, winding, css) {
     const ox = patchCoreXmm(recipe, p);
     const mat = MAT[p.materialId] || { fill: '#888', edge: '#444' };
     ctx.beginPath();
-    if (p.materialId === 'cucumber') cucumberPath(ctx, p, ox);
+    if (p.cut === 'hosogiri') hosogiriPath(ctx, p, ox);
+    else if (p.materialId === 'cucumber') cucumberPath(ctx, p, ox);
     else barPath(ctx, p, ox);
     ctx.fillStyle = mat.fill;
     ctx.fill();

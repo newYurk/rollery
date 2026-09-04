@@ -6,10 +6,12 @@ import {
   CUCUMBER,
   FUTOMAKI,
   HOSOMAKI,
+  HOSOGIRI,
   SALMON,
   SECTOR_ANGLE,
   TAMAGO,
   U_MM,
+  hosogiriBox,
   placementWindowMm,
 } from './units.js';
 
@@ -46,6 +48,11 @@ export function cucumberCatalogAreaMm2() {
 }
 
 export function catalogAreaMm2(patch) {
+  if (patch.cut === 'hosogiri') {
+    const n = patch.stickCount;
+    const s = patch.stickMm;
+    return n * s * s;
+  }
   if (patch.materialId === 'cucumber') {
     return patch.widthMm * patch.heightMm * cutFillSector();
   }
@@ -94,6 +101,37 @@ export function makeCucumberRecipe(uMm) {
 export function makeF02Recipe() {
   const window = placementWindowMm({ lengthMm: HOSOMAKI.lengthMm });
   return makeCucumberRecipe((window.nearEdgeMm + window.farEdgeMm) / 2);
+}
+
+/** Каппамаки 細切り: пучок тонких палок, один патч. */
+export function makeHosogiriRecipe(uMm) {
+  const sheet = { lengthMm: HOSOMAKI.lengthMm, widthMm: HOSOMAKI.widthMm };
+  const box = hosogiriBox();
+  const u = uMm ?? (placementWindowMm(sheet).nearEdgeMm + placementWindowMm(sheet).farEdgeMm) / 2;
+  return deepFreeze({
+    version: 2,
+    baseId: HOSOMAKI.baseId,
+    sheet,
+    wrap: { materialId: HOSOMAKI.wrapMaterialId },
+    rice: { profileId: HOSOMAKI.riceProfileId },
+    windDirection: 'fromUZero',
+    patches: [
+      {
+        id: 'cucumber-hogi-0',
+        materialId: HOSOGIRI.materialId,
+        cut: HOSOGIRI.cut,
+        uMm: u,
+        vMm: sheet.widthMm / 2,
+        widthMm: box.widthMm,
+        heightMm: box.heightMm,
+        lengthMm: sheet.widthMm * HOSOGIRI.lengthFactor,
+        stickMm: box.stickMm,
+        stickCount: box.stickCount,
+        placement: 'embedded',
+      },
+    ],
+    hand: { mode: 'neutral', seed: 0 },
+  });
 }
 
 /** F04a: след [93, 107] на листе 105 мм. */

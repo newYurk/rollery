@@ -105,6 +105,48 @@ export const CUCUMBER = Object.freeze({
 });
 
 /**
+ * 細切り: 2–4 мм (kitchen-practice). Один патч — пучок, не шесть overlapping
+ * cucumber (F07 same-material overlap = invalid). 3×2 × 3 мм + зазор 0,4.
+ */
+export const HOSOGIRI = Object.freeze({
+  materialId: 'cucumber',
+  cut: 'hosogiri',
+  stickMm: 3,
+  cols: 3,
+  rows: 2,
+  gapMm: 0.4,
+  lengthFactor: 1,
+});
+
+export function hosogiriBox(spec = HOSOGIRI) {
+  const { stickMm, cols, rows, gapMm } = spec;
+  return {
+    widthMm: cols * stickMm + (cols - 1) * gapMm,
+    heightMm: rows * stickMm + (rows - 1) * gapMm,
+    stickCount: cols * rows,
+    stickMm,
+  };
+}
+
+export function hosogiriSticks(originX = 0, spec = HOSOGIRI) {
+  const { stickMm, cols, rows, gapMm } = spec;
+  const box = hosogiriBox(spec);
+  const x0 = originX - box.widthMm / 2;
+  const y0 = -box.heightMm / 2;
+  const sticks = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      sticks.push({
+        x: x0 + c * (stickMm + gapMm),
+        y: y0 + r * (stickMm + gapMm),
+        s: stickMm,
+      });
+    }
+  }
+  return sticks;
+}
+
+/**
  * F03: шаг 1 мм через границу следа. erratum-004 фиксировал 43.5–47.5 под огурец
  * 14 мм; серия следует из farEdge − width/2, иначе тонкий 芯 зеленеет за старой
  * границей, хотя окно L/2 не двигалось.

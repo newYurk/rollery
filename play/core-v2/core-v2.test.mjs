@@ -7,12 +7,13 @@ import {
 } from './fixtures.js';
 import { validateRecipe } from './validate.js';
 import { buildWinding, independentLayerArcs } from './winding.js';
-import { CUCUMBER, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, placementWindowMm } from './units.js';
+import { CUCUMBER, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, hosogiriBox, placementWindowMm } from './units.js';
 import {
   cutFractions, firstCutFraction, pieceCountOf, pieceLeftOfCut,
   pieceLengthMm, snapCutFraction,
 } from './knife.js';
-import { makeF05Recipe } from './recipe.js';
+import { catalogAreaMm2, makeF05Recipe, makeHosogiriRecipe } from './recipe.js';
+import { sampleSection } from './section.js';
 
 function clone(x) { return structuredClone(x); }
 
@@ -37,6 +38,23 @@ test('hosomaki diameter in chef corridor 28-32 mm', () => {
   };
   check('F01', buildWinding(makeF01Recipe()));
   check('F02', buildWinding(makeCucumberRecipe(36.25)));
+  check('hosogiri', buildWinding(makeHosogiriRecipe()));
+});
+
+test('hosogiri: six 3 mm sticks, not a sector', () => {
+  const recipe = makeHosogiriRecipe();
+  assert.equal(validateRecipe(recipe).status, 'valid');
+  const box = hosogiriBox();
+  const patch = recipe.patches[0];
+  assert.equal(patch.cut, 'hosogiri');
+  assert.equal(patch.stickCount, 6);
+  assert.equal(patch.widthMm, box.widthMm);
+  assert.equal(catalogAreaMm2(patch), 6 * 3 * 3);
+  const sectorish = patch.widthMm * patch.heightMm * 0.5;
+  assert.ok(catalogAreaMm2(patch) !== sectorish);
+  const winding = buildWinding(recipe);
+  const section = sampleSection(recipe, winding, recipe.sheet.widthMm / 2);
+  assert.equal(section.visiblePatches[0].areaMm2, 54);
 });
 
 test('F06 hashes repeat', () => {
