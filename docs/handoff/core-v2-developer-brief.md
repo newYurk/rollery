@@ -17,7 +17,8 @@
 9. `docs/decisions/ADR-001-erratum-008-wind-direction.md`
 10. `docs/decisions/ADR-001-erratum-009-acceptance-gate.md`
 11. `docs/decisions/ADR-001-erratum-010-report-completeness.md`
-12. `docs/decisions/core-v2-fixtures.md`
+12. `docs/decisions/ADR-001-erratum-011-hash-domain.md`
+13. `docs/decisions/core-v2-fixtures.md`
 13. `docs/decisions/core-v2-legacy-boundary.md`
 
 При конфликте приоритет такой: erratum → ADR → fixtures → этот brief →
@@ -102,7 +103,16 @@ CommonJS, и `import`/`export` в них упадёт с `SyntaxError` в мом
 
 - Не использовать `Math.random`, время, FPS или порядок кеша.
 - Одинаковый RecipeV2 даёт одинаковые hashes после повторного запуска и после создания нового kernel instance.
-- Hash строится над канонической сериализацией, в которой порядок object keys стабилен.
+- Hash строится над `canonicalize(value)` — рекурсивной сортировкой ключей объекта по code unit
+  (без кастомного компаратора, без опоры на порядок вставки); массивы и TypedArray-семплы — в
+  исходном порядке (TypedArray обязан идти через ту же ветку, что и Array, иначе индексы
+  сортируются лексикографически); точное определение и запрещённые упрощения см.
+  `ADR-001-erratum-011-hash-domain.md`. `hashes.recipe` берётся над входным `RecipeV2` до
+  вычислений; `hashes.winding`/`hashes.section` — над полным `WindingResult`/`SectionResult`,
+  который `buildWinding`/`sampleSection` вернули kernel'у, а не над агрегатными полями
+  `FixtureReport` и не над самим `FixtureReport`. Это последнее правило (домен) обязательно к
+  соблюдению по сигнатуре хэш-функций и проверяется на code review — см. ограничение чёрного
+  ящика в `ADR-001-erratum-011-hash-domain.md`.
 
 ### Патчи
 
