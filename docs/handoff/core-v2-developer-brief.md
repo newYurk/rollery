@@ -11,10 +11,22 @@
 3. `docs/decisions/ADR-001-erratum-002-no-diagonal-placement.md`
 4. `docs/decisions/ADR-001-erratum-003-rice-color-field.md`
 5. `docs/decisions/ADR-001-erratum-004-placement-window.md`
-6. `docs/decisions/core-v2-fixtures.md`
-7. `docs/decisions/core-v2-legacy-boundary.md`
+6. `docs/decisions/ADR-001-erratum-005-seam-overlap.md`
+7. `docs/decisions/ADR-001-erratum-006-area-anchor.md`
+8. `docs/decisions/ADR-001-erratum-007-ordinal-vs-coordinate.md`
+9. `docs/decisions/ADR-001-erratum-008-wind-direction.md`
+10. `docs/decisions/ADR-001-erratum-009-acceptance-gate.md`
+11. `docs/decisions/ADR-001-erratum-010-report-completeness.md`
+12. `docs/decisions/ADR-001-erratum-011-hash-domain.md`
+13. `docs/decisions/core-v2-fixtures.md`
+13. `docs/decisions/core-v2-legacy-boundary.md`
 
-При конфликте приоритет такой: erratum → ADR → fixtures → этот brief → legacy/docs/archive.
+При конфликте приоритет такой: erratum → ADR → fixtures → этот brief →
+код `play/core-v2/**` → legacy/docs/archive.
+Статус ADR (`proposed`/`accepted`) на эту лестницу не влияет — она про то,
+какой источник истины выигрывает при противоречии формулировок, а не про то,
+разрешено ли начинать реализацию (это отдельный критерий, `ADR-001-core-v2-scope.md`,
+раздел «Критерий принятия», см. `ADR-001-erratum-009-acceptance-gate.md`).
 
 ## Scope первого PR
 
@@ -55,7 +67,16 @@ play/core-v2/hash.js
 play/core-v2/fixtures.js
 play/core-v2/run-fixtures.mjs
 play/core-v2/core-v2.test.mjs
+play/core-v2/package.json
 ```
+
+`play/core-v2/package.json` (`{"type": "module"}`) относится только к файлам
+внутри `play/core-v2/`. Легаси `play/*.js` как грузились через `<script>` в
+браузере, так и продолжают — этот файл их не касается, корень репозитория
+он тоже не трогает (там package.json как не было, так и нет). Без него
+`.js`-файлы этого списка (`units.js`…`hash.js`) Node по умолчанию считает
+CommonJS, и `import`/`export` в них упадёт с `SyntaxError` в момент, когда
+`run-fixtures.mjs` попробует их импортировать.
 
 Можно изменить этот список только с письменным обоснованием в PR. Не изменять production legacy-файлы.
 
@@ -82,7 +103,16 @@ play/core-v2/core-v2.test.mjs
 
 - Не использовать `Math.random`, время, FPS или порядок кеша.
 - Одинаковый RecipeV2 даёт одинаковые hashes после повторного запуска и после создания нового kernel instance.
-- Hash строится над канонической сериализацией, в которой порядок object keys стабилен.
+- Hash строится над `canonicalize(value)` — рекурсивной сортировкой ключей объекта по code unit
+  (без кастомного компаратора, без опоры на порядок вставки); массивы и TypedArray-семплы — в
+  исходном порядке (TypedArray обязан идти через ту же ветку, что и Array, иначе индексы
+  сортируются лексикографически); точное определение и запрещённые упрощения см.
+  `ADR-001-erratum-011-hash-domain.md`. `hashes.recipe` берётся над входным `RecipeV2` до
+  вычислений; `hashes.winding`/`hashes.section` — над полным `WindingResult`/`SectionResult`,
+  который `buildWinding`/`sampleSection` вернули kernel'у, а не над агрегатными полями
+  `FixtureReport` и не над самим `FixtureReport`. Это последнее правило (домен) обязательно к
+  соблюдению по сигнатуре хэш-функций и проверяется на code review — см. ограничение чёрного
+  ящика в `ADR-001-erratum-011-hash-domain.md`.
 
 ### Патчи
 
