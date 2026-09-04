@@ -26,8 +26,9 @@
 18. `docs/decisions/ADR-001-erratum-017-f07-wind-direction.md`
 19. `docs/decisions/ADR-001-erratum-018-neutral-hand-everywhere.md`
 20. `docs/decisions/ADR-001-erratum-019-invertibility-seam-cut.md`
-21. `docs/decisions/core-v2-fixtures.md`
-22. `docs/decisions/core-v2-legacy-boundary.md`
+21. `docs/decisions/ADR-001-erratum-020-cross-erratum-seams.md`
+22. `docs/decisions/core-v2-fixtures.md`
+23. `docs/decisions/core-v2-legacy-boundary.md`
 
 При конфликте между ТИПАМИ документов приоритет такой: erratum → ADR → fixtures →
 этот brief → код `play/core-v2/**` → legacy/docs/archive.
