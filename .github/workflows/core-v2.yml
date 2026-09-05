@@ -1,0 +1,23 @@
+name: core-v2
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'core-v2/**']
+    paths:
+      - 'play/core-v2/**'
+      - '.github/workflows/core-v2.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: fixtures
+        run: node play/core-v2/run-fixtures.mjs
+      - name: unit
+        run: node --test play/core-v2/core-v2.test.mjs

@@ -240,11 +240,24 @@ function drawLay() {
 // (длины ролла на листе), радиус — от пикселей на единицу оси u. Раньше тут стояли s.w и s.h —
 // верно только пока u вертикальна; после поворота (#23) формула на w/h раздула бы радиус в
 // (lenU/lenV)² раз и утянула за собой нож, размах удара и разлёт половин.
-function rollDims() { const m = getModel(), s = L.sheet; const k = L.roll.len / s.lenV; return { g: m.g, R: m.Rmax * s.lenU / m.g.L * k, len: L.roll.len }; }
+function rollDims() {
+  const s = L.sheet;
+  const k = L.roll.len / s.lenV;
+  if (S.v2 && window.CoreV2) {
+    window.CoreV2.scenario = S.v2Scenario || 'F02';
+    const snap = window.CoreV2.snap;
+    const u = window.CoreV2.U_MM;
+    const R = snap.ok ? snap.winding.Rout / u * s.lenU / B().L * k : 40;
+    return { g: { L: B().L }, R, len: L.roll.len };
+  }
+  const m = getModel();
+  return { g: m.g, R: m.Rmax * s.lenU / m.g.L * k, len: L.roll.len };
+}
 function drawBoard(R, len, alpha = 1) {
   ctx.save(); ctx.globalAlpha = alpha; drawMat(L.roll.x - len / 2 - 26, L.roll.y - R - 36, len + 52, 2 * R + 72); ctx.restore();
 }
 function drawRolled() {
+  if (S.v2 && !window.CoreV2) return;
   const { R, len } = rollDims();
   drawBoard(R, len);
   drawRollBody(L.roll.x, L.roll.y, R, len, [{ a: 0, b: 1, off: 0 }]);
@@ -252,7 +265,8 @@ function drawRolled() {
   ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.setLineDash([3, 5]); ctx.lineWidth = 1;
   for (let i = 1; i < npieces(); i++) { const x = L.roll.x - len / 2 + len * i / npieces(); ctx.beginPath(); ctx.moveTo(x, L.roll.y - R - 14); ctx.lineTo(x, L.roll.y + R + 14); ctx.stroke(); }
   ctx.setLineDash([]);
-  buttons = []; buttonRow([['back', '← Ещё начинки']]);
+  buttons = [];
+  if (!S.v2) buttonRow([['back', '← Ещё начинки']]);
   drawButtons(); drawTopBar(hints.rolled);
 }
 // Ритуал реза: t — прогресс 0..1 (850 мс), потом zoom (0..1, 500 мс).

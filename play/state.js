@@ -61,6 +61,16 @@ const patches = () => S.lists[S.base];
 // раскладки знают полный каталог; ссылки ?puzzle продолжают работать.
 // Полный интерфейс: ?full, вход в пазл (?puzzle) или ссылка-пазл (#p=… — хэш, не query).
 const FULL_UI = /[?&](full|puzzle)/.test(location.search) || /#p=/.test(location.hash);
+const V2_SCENARIO = (() => {
+  const q = new URLSearchParams(location.search);
+  if (!q.has('v2')) return null;
+  const v = q.get('v2');
+  if (!v || v === '1' || v === 'true') return 'F02';
+  const aliases = { kappa: 'F02', empty: 'F01', hosogiri: 'hosogiri', F01: 'F01', F02: 'F02' };
+  return aliases[v] || 'F02';
+})();
+S.v2 = !!V2_SCENARIO;
+S.v2Scenario = V2_SCENARIO;
 // ⚑ «КУСОК В НОРИ» — ОДИН ВЫКЛЮЧАТЕЛЬ НА ВСЮ ИГРУ (#159, 02.09).
 //
 // Приём снят 31.08 решением владельца: «мы ещё не знаем, как именно внутри будем оборачивать…

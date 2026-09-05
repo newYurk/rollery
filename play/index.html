@@ -23,7 +23,7 @@
      снимает вопрос — меняется вместе с правкой. CACHE_BUST -->
 <script src="model/util.js?v=222"></script>
 <script src="model/catalog.js?v=222"></script>
-<script src="state.js?v=222"></script>
+<script src="state.js?v=223"></script>
 <script src="model/geometry.js?v=222"></script>
 <!-- Канон поваров как ДАННЫЕ (не проза): одна таблица правил на двух потребителей —
      сторож ?check и будущие уровни пазла (#112). Нужен ING из каталога, модель не нужна. -->
@@ -35,13 +35,14 @@
 <script src="domain/roll.js?v=222"></script>
 <script src="audio.js?v=222"></script>
 <script src="ui/layout.js?v=222"></script>
-<script src="render/slice.js?v=222"></script>
+<script src="render/slice.js?v=223"></script>
 <script src="render/sheet.js?v=222"></script>
 <script src="ui/controls.js?v=222"></script>
-<script src="render/screens.js?v=222"></script>
+<script src="render/screens.js?v=223"></script>
 <script src="ui/album.js?v=222"></script>
 <script src="modes/puzzle.js?v=222"></script>
 <script src="ui/actions.js?v=222"></script>
+<script type="module" src="core-v2/bridge.js?v=223"></script>
 <script>
 'use strict';
 // =====================================================================
@@ -181,6 +182,7 @@ setTimeout(() => { resize(); requestFrame(); }, 300); setTimeout(() => { resize(
 window.addEventListener('orientationchange', () => setTimeout(() => { resize(); requestFrame(); }, 120));
 
 load(); resize(); touchModel(); sfx.armStart();
+if (S.v2) { S.mode = 'rolled'; S.base = 'hoso'; }
 const linked = decodePuzzle(location.hash);
 if (linked) puzzleFromLink(linked); else if (location.search.includes('puzzle')) action('puzzle');
 window.addEventListener('hashchange', () => { const pz = decodePuzzle(location.hash); if (pz) puzzleFromLink(pz); });

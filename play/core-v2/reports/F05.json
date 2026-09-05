@@ -1,0 +1,58 @@
+{
+  "abc": {
+    "status": "valid",
+    "hashes": {
+      "recipe": "0d979f72209ec8397da86d376404492cdeb58d01808c75d44c24273aa7d76230",
+      "winding": "0c8f38f62eaa76e9fcef42451d361cf7726b94ad7c3ba65d382163bbfc44a78d",
+      "section": "edcdda8b0a1704f3702a435c9053af0ad00a0798b840d65d73e7f9922a8b68f5"
+    },
+    "visiblePatches": [
+      {
+        "id": "cucumber-0",
+        "areaMm2": 64,
+        "centerXmm": -6.5,
+        "centerYmm": -5.5
+      },
+      {
+        "id": "salmon-0",
+        "areaMm2": 100,
+        "centerXmm": 0,
+        "centerYmm": 5.5
+      },
+      {
+        "id": "tamago-0",
+        "areaMm2": 120,
+        "centerXmm": 4.5,
+        "centerYmm": -5.5
+      }
+    ]
+  },
+  "cab": {
+    "status": "valid",
+    "hashes": {
+      "recipe": "296f3f803639e2117b66556df6e08b019c2b9029b1f8f14e313d1b0e25deb33f",
+      "winding": "0c8f38f62eaa76e9fcef42451d361cf7726b94ad7c3ba65d382163bbfc44a78d",
+      "section": "edcdda8b0a1704f3702a435c9053af0ad00a0798b840d65d73e7f9922a8b68f5"
+    },
+    "visiblePatches": [
+      {
+        "id": "cucumber-0",
+        "areaMm2": 64,
+        "centerXmm": -6.5,
+        "centerYmm": -5.5
+      },
+      {
+        "id": "salmon-0",
+        "areaMm2": 100,
+        "centerXmm": 0,
+        "centerYmm": 5.5
+      },
+      {
+        "id": "tamago-0",
+        "areaMm2": 120,
+        "centerXmm": 4.5,
+        "centerYmm": -5.5
+      }
+    ]
+  }
+}

@@ -28,8 +28,9 @@
 20. `docs/decisions/ADR-001-erratum-019-invertibility-seam-cut.md`
 21. `docs/decisions/ADR-001-erratum-020-cross-erratum-seams.md`
 22. `docs/decisions/ADR-001-erratum-021-layer-arc-units.md`
-23. `docs/decisions/core-v2-fixtures.md`
-24. `docs/decisions/core-v2-legacy-boundary.md`
+23. `docs/decisions/ADR-001-erratum-022-source-forks.md`
+24. `docs/decisions/core-v2-fixtures.md`
+25. `docs/decisions/core-v2-legacy-boundary.md`
 
 При конфликте между ТИПАМИ документов приоритет такой: erratum → ADR → fixtures →
 этот brief → код `play/core-v2/**` → legacy/docs/archive.

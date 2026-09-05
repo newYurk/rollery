@@ -1,0 +1,182 @@
+{
+  "steps": [
+    {
+      "uMm": 56,
+      "status": "valid",
+      "visiblePatches": [
+        {
+          "id": "cucumber-0",
+          "areaMm2": 64,
+          "centerXmm": 6.5,
+          "centerYmm": 0
+        },
+        {
+          "id": "tamago-0",
+          "areaMm2": 120,
+          "centerXmm": -4.5,
+          "centerYmm": 0
+        }
+      ]
+    },
+    {
+      "uMm": 57,
+      "status": "valid",
+      "visiblePatches": [
+        {
+          "id": "cucumber-0",
+          "areaMm2": 64,
+          "centerXmm": 6.5,
+          "centerYmm": 0
+        },
+        {
+          "id": "tamago-0",
+          "areaMm2": 120,
+          "centerXmm": -4.5,
+          "centerYmm": 0
+        }
+      ]
+    },
+    {
+      "uMm": 58,
+      "status": "valid",
+      "visiblePatches": [
+        {
+          "id": "cucumber-0",
+          "areaMm2": 64,
+          "centerXmm": 6.5,
+          "centerYmm": 0
+        },
+        {
+          "id": "tamago-0",
+          "areaMm2": 120,
+          "centerXmm": -4.5,
+          "centerYmm": 0
+        }
+      ]
+    },
+    {
+      "uMm": 59,
+      "status": "valid",
+      "visiblePatches": [
+        {
+          "id": "cucumber-0",
+          "areaMm2": 64,
+          "centerXmm": 6.5,
+          "centerYmm": 0
+        },
+        {
+          "id": "tamago-0",
+          "areaMm2": 120,
+          "centerXmm": -4.5,
+          "centerYmm": 0
+        }
+      ]
+    },
+    {
+      "uMm": 60,
+      "status": "valid",
+      "visiblePatches": [
+        {
+          "id": "cucumber-0",
+          "areaMm2": 64,
+          "centerXmm": -6.5,
+          "centerYmm": 0
+        },
+        {
+          "id": "tamago-0",
+          "areaMm2": 120,
+          "centerXmm": 4.5,
+          "centerYmm": 0
+        }
+      ]
+    },
+    {
+      "uMm": 61,
+      "status": "valid",
+      "visiblePatches": [
+        {
+          "id": "cucumber-0",
+          "areaMm2": 64,
+          "centerXmm": -6.5,
+          "centerYmm": 0
+        },
+        {
+          "id": "tamago-0",
+          "areaMm2": 120,
+          "centerXmm": 4.5,
+          "centerYmm": 0
+        }
+      ]
+    },
+    {
+      "uMm": 62,
+      "status": "valid",
+      "visiblePatches": [
+        {
+          "id": "cucumber-0",
+          "areaMm2": 64,
+          "centerXmm": -6.5,
+          "centerYmm": 0
+        },
+        {
+          "id": "tamago-0",
+          "areaMm2": 120,
+          "centerXmm": 4.5,
+          "centerYmm": 0
+        }
+      ]
+    },
+    {
+      "uMm": 63,
+      "status": "valid",
+      "visiblePatches": [
+        {
+          "id": "cucumber-0",
+          "areaMm2": 64,
+          "centerXmm": -6.5,
+          "centerYmm": 0
+        },
+        {
+          "id": "tamago-0",
+          "areaMm2": 120,
+          "centerXmm": 4.5,
+          "centerYmm": 0
+        }
+      ]
+    },
+    {
+      "uMm": 64,
+      "status": "valid",
+      "visiblePatches": [
+        {
+          "id": "cucumber-0",
+          "areaMm2": 64,
+          "centerXmm": -6.5,
+          "centerYmm": 0
+        },
+        {
+          "id": "tamago-0",
+          "areaMm2": 120,
+          "centerXmm": 4.5,
+          "centerYmm": 0
+        }
+      ]
+    }
+  ],
+  "overlap": {
+    "status": "invalid",
+    "diagnostics": [
+      {
+        "code": "patch_material_overlap",
+        "message": "same-material embedded footprints overlap",
+        "context": {
+          "patchIds": [
+            "cucumber-0",
+            "cucumber-1"
+          ],
+          "materialId": "cucumber"
+        }
+      }
+    ]
+  }
+}
