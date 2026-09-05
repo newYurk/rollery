@@ -168,16 +168,16 @@
   "play/core-v2/canonical.js": 31,
   "play/core-v2/fixtures.js": 507,
   "play/core-v2/from-layout.js": 192,
-  "play/core-v2/hash.js": 15,
+  "play/core-v2/hash.js": 61,
   "play/core-v2/knife.js": 45,
   "play/core-v2/legacy-probe.js": 86,
-  "play/core-v2/measure.js": 114,
+  "play/core-v2/measure.js": 117,
   "play/core-v2/recipe.js": 245,
-  "play/core-v2/render.js": 406,
+  "play/core-v2/render.js": 413,
   "play/core-v2/section.js": 110,
   "play/core-v2/units.js": 323,
   "play/core-v2/validate.js": 183,
-  "play/core-v2/winding.js": 245,
+  "play/core-v2/winding.js": 249,
   "play/domain/recipe-v2.js": 65,
   "play/domain/roll.js": 303,
   "play/inverse/materials.js": 161,
@@ -209,7 +209,7 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "8a6f47d",
+ "ref": "d4d5a39",
  "scripts": {
   "count": 16,
   "versions": [
@@ -217,8 +217,8 @@
    "224"
   ]
  },
- "subject": "feat(core-v2): ?v2 считает раскладку игрока, а не фикстуру",
- "total_lines": 14386,
+ "subject": "fix(core-v2): четыре ната debug-стенда (#173) (#185)",
+ "total_lines": 14446,
  "touchModel": {
   "play/checks.js": 55,
   "play/modes/puzzle.js": 3,

@@ -106,13 +106,13 @@ core_v2: "core-v2 · то же самое, но в миллиметрах" {
   pipe: |md
     **validate → winding → section → measure** \
     validate.js · 183 — честный отказ с кодом \
-    winding.js · 245 — кольцо: r0 по лучам, шов \
+    winding.js · 249 — кольцо: r0 по лучам, шов \
     section.js · 110 — срез и площадь кольца \
-    measure.js · 114 — FixtureReport
+    measure.js · 117 — FixtureReport
   | {class: file}
   gate: |md
     **fixtures.js** · 507 · приёмка F01–F07 \
-    core-v2.test.mjs · 46 тестов \
+    core-v2.test.mjs — 56 тестов \
     run-fixtures.mjs — шлюз CI (.github/workflows/core-v2.yml) \
     hash.js + canonical.js — детерминизм
   | {class: guard}
@@ -120,7 +120,7 @@ core_v2: "core-v2 · то же самое, но в миллиметрах" {
     **adapter.js** · 46 — единственный объект наружу \
     **bridge.js** · 79 — ESM → window.CoreV2 \
     from-layout.js · 192 — раскладка игрока → RecipeV2 \
-    render.js · 406 · app.js · 253 — свой debug-стенд
+    render.js · 413 · app.js · 253 — свой debug-стенд
   | {class: target}
 }
 
