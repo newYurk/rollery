@@ -60,7 +60,13 @@ function snap(list) {
     turns: wd.turns,
     sRice0Mm: sRice0,
     sRice1Mm: sRice1,
-    overlapMm: ((g.L - Math.min(g.L, g.spreadEnd * g.L)) + Math.max(g.sStart || 0, s0Bare * g.L)) * U_MM,
+    // ⚑ НАХЛЁСТ МЕРИТСЯ У МОДЕЛИ, А НЕ ПЕРЕСЧИТЫВАЕТСЯ ЗДЕСЬ (#165, правка 05.09).
+    // Стояла копия формулы `(L − spreadEnd·L) + sStart` — то есть зонд отвечал сам себе:
+    // менялась модель, а число оставалось прежним, потому что бралось из другого места.
+    // Ровно тот сорт проверки, где оракул считается той же формулой, что и проверяемое.
+    // Теперь берётся ДУГА слоя нахлёста (k=2 у обычного, k=0 у вывернутого) — то, что модель
+    // на самом деле нарисует.
+    overlapMm: layerArcMm(wd, g.inverted ? 0 : 2),
     riceArcMm: layerArcMm(wd, 0),
     noriArcMm: layerArcMm(wd, 1),
     coreWcMm: (m.core ? m.core.Wc : 0) * U_MM,
