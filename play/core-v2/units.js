@@ -213,20 +213,19 @@ export function baseOf(recipe) {
 }
 
 /**
- * Половина пучка в ядре. k=1 копировал зазоры листа в срез (щель 69 мм).
- * Начинка лежит на рисе и остаётся пучком: окно сжимается в отрезок по x,
- * не разносится по углу витка.
+ * Раньше окно сжималось в ±10 мм, а ширина кусков оставалась в мм — F05
+ * наезжал сам на себя. 1 мм листа = 1 мм в ядре. Пустые поля окна не входят
+ * в коробку: AABB считает только патчи (winding.coreBoxMm).
  */
 export const WINDOW_CORE_HALF_MM = 10;
 
 /** Положение патча в ядре. Один патч — начало координат (F01–F04).
- *  Несколько — чистая функция собственного uMm, пучок на рисе, без орбиты. */
+ *  Несколько — x = u − середина окна, масштаб 1, y = 0 (лежит на рисе). */
 export function patchCorePos(recipe, patch) {
   if (!recipe.patches || recipe.patches.length <= 1) return { x: 0, y: 0 };
   const w = placementWindowMm(recipe.sheet);
   const mid = (w.nearEdgeMm + w.farEdgeMm) / 2;
-  const half = (w.farEdgeMm - w.nearEdgeMm) / 2;
-  return { x: (patch.uMm - mid) * (WINDOW_CORE_HALF_MM / half), y: 0 };
+  return { x: patch.uMm - mid, y: 0 };
 }
 
 export function patchCoreXmm(recipe, patch) {
