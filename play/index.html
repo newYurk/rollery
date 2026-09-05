@@ -6,6 +6,41 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#171713">
+<meta name="rollery-v" content="1">
+<script>
+/* ⚑ МАЯК ВЕРСИИ (#144). Маркер ?v= в ссылке лечит страницу, НА КОТОРУЮ ссылаются: адрес
+   меняется — браузер обязан сходить за файлом. Точку входа он не лечит в принципе: её
+   адрес набирают или держат в закладке, ссылки на неё нет. Свои заголовки на GitHub Pages
+   не задать — CDN отдаёт cache-control: max-age=600. 05.09 так и вышло: карточка «Срез V2»
+   уехала в репозиторий, а на телефоне владельца её не было, и понять это было нечем.
+
+   Маяк идёт за ЭТОЙ ЖЕ страницей мимо кэша и сверяет версию. Он НЕ перезагружает сам:
+   молчаливая перезагрузка увела бы игрока с середины раскладки, а зациклиться она могла бы,
+   пока CDN держит старую копию. Он показывает полосу — жмёт человек.
+
+   Код встроен, а не вынесен в файл: вынесенный чинильщик кэша сам приезжает из кэша.
+   Версия берётся из самой страницы, а не из отдельного version.txt, — иначе появляется
+   второй источник правды, который забудут поднять ровно тогда, когда маяк нужен. */
+(function () {
+  var meta = document.querySelector('meta[name="rollery-v"]');
+  if (!meta || !window.fetch) return;
+  var своя = meta.content;
+  fetch(location.pathname + '?beacon=' + Date.now(), { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.text() : null; })
+    .then(function (t) {
+      var m = t && t.match(/name="rollery-v" content="([^"]+)"/);
+      if (!m || m[1] === своя) return;
+      var bar = document.createElement('div');
+      bar.textContent = 'Свежая версия ' + m[1] + ' · у вас ' + своя + ' — обновить';
+      bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;padding:12px;' +
+        'font:14px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;text-align:center;' +
+        'cursor:pointer;background:#e0b25f;color:#171713;border-top:2px solid #171713';
+      bar.onclick = function () { location.href = location.pathname + '?v=' + m[1]; };
+      (document.body || document.documentElement).appendChild(bar);
+    })
+    .catch(function () {});
+})();
+</script>
 <title>Ролльня — лист → спираль → срез</title>
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #171713; overflow: hidden; overscroll-behavior: none; }
