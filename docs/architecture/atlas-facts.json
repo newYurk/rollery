@@ -177,7 +177,7 @@
   "play/core-v2/section.js": 147,
   "play/core-v2/units.js": 323,
   "play/core-v2/validate.js": 194,
-  "play/core-v2/winding.js": 331,
+  "play/core-v2/winding.js": 335,
   "play/domain/recipe-v2.js": 65,
   "play/domain/roll.js": 303,
   "play/inverse/materials.js": 161,
@@ -209,15 +209,15 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "362ffdc",
+ "ref": "42b15d6",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "Зонд отвечал сам себе про нахлёст, а у игры было три маркера кэша (#200)",
- "total_lines": 14680,
+ "subject": "The reviewer read our document and believed it; the document was wrong",
+ "total_lines": 14684,
  "touchModel": {
   "play/checks.js": 55,
   "play/modes/puzzle.js": 3,
