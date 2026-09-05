@@ -656,3 +656,18 @@ test('F05: ядро в ДВА ряда, и это часть картинки', 
   const yBot = Math.min(...r.patches.map((p) => patchCorePos(r, p).y - p.heightMm / 2));
   assert.ok(Math.abs(yTop + yBot) < 1e-9, `пучок смещён на ${(yTop + yBot) / 2} мм`);
 });
+
+test('turnIndexAtRay несёт информацию, а не константу (#173)', () => {
+  // Раньше min(1, floor(turns)) — одинаково по всем 1440 лучам: поле в отчёте
+  // было, информации в нём не было. Лента риса делает turns оборотов, значит
+  // на части лучей она лежит вторым слоем, а на остальных — одним.
+  const w = buildWinding(makeF01Recipe());
+  const idx = [...w.turnIndexAtRay];
+  const uniq = new Set(idx);
+  assert.ok(uniq.size > 1, `индекс витка одинаков по всем лучам: ${[...uniq]}`);
+  assert.deepEqual([...uniq].sort(), [0, 1]);
+  // Граница обязана стоять там, где лента уходит на второй виток.
+  const second = idx.filter((v) => v >= 1).length;
+  assert.equal(second, Math.max(0, w.riceSteps - NB));
+  assert.ok(w.riceTurns > 1 && second > 0, 'при turns > 1 второй виток обязан быть');
+});
