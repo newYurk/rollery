@@ -11,7 +11,18 @@
        · style.css и app.js (калькулятор) втянуты внутрь файла — иначе страница
          открывалась голым текстом и давала 404 на соседей;
        · снят скрипт защиты Cloudflare: он тянулся с чужого домена и здесь не нужен.
-     Текст, числа и вёрстка НЕ ТРОГАЛИСЬ.
+     Текст и вёрстка НЕ ТРОГАЛИСЬ. Одно исключение, найденное ревью Greptile на PR #213
+     и проверенное арифметикой, — ФОРМУЛА «потолка стоимости установки» в калькуляторе:
+
+       было:  maxCpi = вклад · конверсия
+       стало: maxCpi = вклад · конверсия / доля платных   (при доле 0 — «не ограничен»)
+
+     Потолок — это CPI, при котором вклад с установки обращается в ноль, а вклад в том же
+     скрипте считается как `вклад·конверсия − доляПлатных·CPI`. Без деления на долю потолок
+     занижен ровно во столько раз, какова доля: при 30 % платного трафика показывалось
+     0,113 $ вместо 0,378 $, а при доле 0 % — конечное число там, где привлечение ничего
+     не стоит. Для инструмента принятия решений это ошибка в опасную сторону: платное
+     привлечение выглядит неподъёмным, когда оно подъёмно. Остальные числа не тронуты.
 
      ⚠ ЭТО НЕ ИЗМЕРЕННЫЙ ДОКУМЕНТ. Числа экономики здесь — сценарные допущения, а не
      замеры и не источники. Сторожа проекта их не проверяют. Не ссылаться на них как
@@ -84,9 +95,9 @@ function renderLevels(family='all'){list.innerHTML=levels.filter(l=>family==='al
 renderLevels();document.querySelectorAll('[data-family]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-family]').forEach(x=>{const on=x===b;x.classList.toggle('active',on);x.setAttribute('aria-pressed',String(on));});renderLevels(b.dataset.family);}));
 const defaults={price:6.99,conversion:5,installs:100000,fixed:30000,paid:0,cpi:.5,discount:10,refund:5,fee:15,variable:.15};
 function n(id){const e=document.getElementById(id);let x=Number(e.value);if(!Number.isFinite(x))x=0;const lo=e.getAttribute('min')===null?0:Number(e.getAttribute('min')),hi=e.getAttribute('max')===null?Infinity:Number(e.getAttribute('max')); return Math.max(lo,Math.min(hi,x));}
-function calculate(v){const unit=v.price*(1-v.discount/100)*(1-v.refund/100)*(1-v.fee/100)-v.variable;const buyers=v.installs*v.conversion/100;const gross=buyers*v.price*(1-v.discount/100);const after=gross*(1-v.refund/100)*(1-v.fee/100);const ads=v.installs*v.paid/100*v.cpi;const profit=buyers*unit-ads-v.fixed;const perInstall=unit*v.conversion/100-v.paid/100*v.cpi;return{unit,buyers,gross,fees:gross-after,variable:buyers*v.variable,ads,profit,breakEven:perInstall>0?Math.ceil(v.fixed/perInstall):null,maxCpi:Math.max(0,unit*v.conversion/100)};}
+function calculate(v){const unit=v.price*(1-v.discount/100)*(1-v.refund/100)*(1-v.fee/100)-v.variable;const buyers=v.installs*v.conversion/100;const gross=buyers*v.price*(1-v.discount/100);const after=gross*(1-v.refund/100)*(1-v.fee/100);const ads=v.installs*v.paid/100*v.cpi;const profit=buyers*unit-ads-v.fixed;const perInstall=unit*v.conversion/100-v.paid/100*v.cpi;return{unit,buyers,gross,fees:gross-after,variable:buyers*v.variable,ads,profit,breakEven:perInstall>0?Math.ceil(v.fixed/perInstall):null,maxCpi:v.paid>0?Math.max(0,unit*v.conversion/100)/(v.paid/100):null};}
 const money=x=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(x);const precise=x=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(x);const integer=x=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(x);
-function update(){const v=Object.fromEntries(Object.keys(defaults).map(k=>[k,n(k)])),r=calculate(v);document.getElementById('price-out').textContent=precise(v.price);document.getElementById('conversion-out').textContent=v.conversion+'%';document.getElementById('paid-out').textContent=v.paid+'%';const values={profit:money(r.profit),contribution:precise(r.unit),buyers:integer(r.buyers),'break-even':r.breakEven===null?'Не достигается':integer(r.breakEven),'max-cpi':precise(r.maxCpi),gross:money(r.gross),fees:money(r.fees),'variable-total':money(r.variable),ads:money(r.ads),'fixed-total':money(v.fixed)};Object.entries(values).forEach(([id,value])=>document.getElementById(id).textContent=value);const profitEl=document.getElementById('profit');profitEl.style.color=r.profit>=0?'var(--lime)':'var(--accent)';document.getElementById('verdict').textContent=r.profit>=0?'При этих допущениях модель покрывает указанные затраты.':'При этих допущениях дохода не хватает на указанные затраты.';const maximum=Math.max(1,r.gross,r.fees,r.variable,r.ads,v.fixed);Object.entries({gross:r.gross,fees:r.fees,variable:r.variable,ads:r.ads,fixed:v.fixed}).forEach(([k,x])=>document.getElementById(k+'-bar').style.width=Math.max(0,x)/maximum*100+'%');}
+function update(){const v=Object.fromEntries(Object.keys(defaults).map(k=>[k,n(k)])),r=calculate(v);document.getElementById('price-out').textContent=precise(v.price);document.getElementById('conversion-out').textContent=v.conversion+'%';document.getElementById('paid-out').textContent=v.paid+'%';const values={profit:money(r.profit),contribution:precise(r.unit),buyers:integer(r.buyers),'break-even':r.breakEven===null?'Не достигается':integer(r.breakEven),'max-cpi':r.maxCpi===null?'не ограничен':precise(r.maxCpi),gross:money(r.gross),fees:money(r.fees),'variable-total':money(r.variable),ads:money(r.ads),'fixed-total':money(v.fixed)};Object.entries(values).forEach(([id,value])=>document.getElementById(id).textContent=value);const profitEl=document.getElementById('profit');profitEl.style.color=r.profit>=0?'var(--lime)':'var(--accent)';document.getElementById('verdict').textContent=r.profit>=0?'При этих допущениях модель покрывает указанные затраты.':'При этих допущениях дохода не хватает на указанные затраты.';const maximum=Math.max(1,r.gross,r.fees,r.variable,r.ads,v.fixed);Object.entries({gross:r.gross,fees:r.fees,variable:r.variable,ads:r.ads,fixed:v.fixed}).forEach(([k,x])=>document.getElementById(k+'-bar').style.width=Math.max(0,x)/maximum*100+'%');}
 Object.keys(defaults).forEach(k=>document.getElementById(k).addEventListener('input',update));document.getElementById('reset').addEventListener('click',()=>{Object.entries(defaults).forEach(([k,v])=>document.getElementById(k).value=v);update();});update();
 
 </script></body></html>
