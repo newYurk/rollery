@@ -35,6 +35,30 @@ function coreBoxMm(recipe) {
   return { Wc: 2 * halfW, Hc: 2 * halfH };
 }
 
+function r0MeanOf(r0b) {
+  let acc = 0;
+  for (let b = 0; b < NB; b++) acc += r0b[b];
+  return acc / NB;
+}
+
+/** Лента риса длины Lrice в кольце площади T·Lrice. Шаг ≈ T, витков = Lrice / (2π r̄). */
+export function riceSpiralSpec(r0b, rpCircle, Lrice) {
+  const r0m = r0MeanOf(r0b);
+  const meanR = Math.max(1e-6, (r0m + rpCircle) / 2);
+  const turns = Lrice / (TAU * meanR);
+  const pitch = turns > 1e-9 ? (rpCircle - r0m) / turns : rpCircle - r0m;
+  const steps = Math.max(1, Math.round(turns * NB));
+  const rin = new Float64Array(steps);
+  const rout = new Float64Array(steps);
+  for (let i = 0; i < steps; i++) {
+    const b = i % NB;
+    const grown = r0b[b] + pitch * (i / NB);
+    rin[i] = Math.min(grown, rpCircle);
+    rout[i] = Math.min(grown + pitch, rpCircle);
+  }
+  return { turns, pitch, steps, rin, rout, r0Mean: r0m };
+}
+
 function midArc(rAtBin) {
   let acc = 0;
   for (let b = 0; b < NB; b++) {
@@ -50,23 +74,37 @@ function midArc(rAtBin) {
 export function independentLayerArcs({ Wc, Hc, T, W, Lrice }, steps = NB * 4) {
   const dphi = TAU / steps;
   const rpCircle = riceOuterMm(Wc, Hc, T, Lrice);
+  const r0s = [];
+  for (let i = 0; i <= steps; i++) r0s.push(r0At(i * dphi, Wc, Hc));
+  let r0m = 0;
+  for (let i = 0; i < steps; i++) r0m += r0s[i];
+  r0m /= steps;
+  const spec = riceSpiralSpec(
+    Float64Array.from({ length: NB }, (_, b) => r0At(b * DPHI, Wc, Hc)),
+    rpCircle,
+    Lrice,
+  );
   const rMidRice = [];
-  const rMidNori = [];
-  for (let i = 0; i <= steps; i++) {
-    const r0 = r0At(i * dphi, Wc, Hc);
-    rMidRice.push((r0 + rpCircle) / 2);
-    rMidNori.push(rpCircle + W / 2);
+  for (let i = 0; i <= spec.steps; i++) {
+    const t = Math.min(i, spec.steps - 1);
+    rMidRice.push((spec.rin[t] + spec.rout[t]) / 2);
   }
-  const integrate = (r) => {
+  const rMidNori = [];
+  const noriSteps = steps;
+  for (let i = 0; i <= noriSteps; i++) rMidNori.push(rpCircle + W / 2);
+  const integrate = (r, d) => {
     let acc = 0;
-    for (let i = 0; i < steps; i++) {
+    for (let i = 0; i < r.length - 1; i++) {
       const a = r[i], b = r[i + 1];
-      const dr = (b - a) / dphi;
-      acc += Math.sqrt(a * a + dr * dr) * dphi;
+      const dr = (b - a) / d;
+      acc += Math.sqrt(a * a + dr * dr) * d;
     }
     return acc;
   };
-  return { riceArcMm: integrate(rMidRice), noriArcMm: integrate(rMidNori) };
+  return {
+    riceArcMm: integrate(rMidRice, DPHI),
+    noriArcMm: integrate(rMidNori, TAU / noriSteps),
+  };
 }
 
 export function buildWinding(recipe) {
@@ -97,6 +135,8 @@ export function buildWinding(recipe) {
     uInnerMm[b] = fromUZero ? s : sRice0 + sRice1 - s;
   }
 
+  const spiral = riceSpiralSpec(r0b, rpCircle, Lrice);
+
   const Lbare = (L - sRice1) + sRice0;
   const Ravg = Rout - W / 2;
   const noriPerimeter = midArc((b) => rn[b] - W / 2);
@@ -109,7 +149,7 @@ export function buildWinding(recipe) {
   const innerBoundaryByRay = new Float64Array(NB);
   for (let b = 0; b < NB; b++) {
     wrapIntersectionsByRay[b] = b < overlapBins ? 2 : 1;
-    turnIndexAtRay[b] = 0;
+    turnIndexAtRay[b] = Math.min(1, Math.floor(spiral.steps / NB));
     innerBoundaryByRay[b] = r0b[b];
   }
 
@@ -164,6 +204,11 @@ export function buildWinding(recipe) {
     maxRoundTripErrMm,
     diameterMinMm: 2 * outerMin,
     diameterMaxMm: 2 * outerMax,
+    riceTurns: spiral.turns,
+    ricePitchMm: spiral.pitch,
+    riceSteps: spiral.steps,
+    riceRin: spiral.rin,
+    riceRout: spiral.rout,
     seam: {
       uStartMm: sRice1,
       uEndMm: sRice0,
@@ -191,6 +236,8 @@ export function windingForHash(w) {
     rn: w.rn,
     uInnerMm: w.uInnerMm,
     wrapIntersectionsByRay: w.wrapIntersectionsByRay,
+    riceTurns: w.riceTurns,
+    ricePitchMm: w.ricePitchMm,
     seam: w.seam,
   };
 }

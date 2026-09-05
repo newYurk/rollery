@@ -55,6 +55,14 @@ test('hosomaki diameter in chef corridor 28-32 mm', () => {
   check('hosogiri', buildWinding(makeHosogiriRecipe()));
 });
 
+test('rice spiral meets nori and stays in the chef corridor', () => {
+  const w = buildWinding(makeF01Recipe());
+  assert.ok(w.riceTurns > 1.2 && w.riceTurns < 2, w.riceTurns);
+  const last = w.riceSteps - 1;
+  assert.ok(Math.abs(w.riceRout[last] - w.rp[0]) < 1.5, `${w.riceRout[last]} vs ${w.rp[0]}`);
+  assert.ok(Math.abs(w.ricePitchMm - w.T) < 0.5, w.ricePitchMm);
+});
+
 test('hosogiri: six 3 mm sticks, not a sector', () => {
   const recipe = makeHosogiriRecipe();
   assert.equal(validateRecipe(recipe).status, 'valid');
