@@ -8,6 +8,11 @@ actually placed.
 **Puzzle mode:** https://newyurk.github.io/rollery/play/?puzzle — reproduce the shown cross-section.
 **Everything else:** https://newyurk.github.io/rollery/ — the front page with three doors (game, local lab, docs).
 
+**Picking this up?** Read [`STATE.md`](STATE.md) first — it is the entry point, kept
+current: where the work stands, what to take next and in what order, which decisions
+are the owner's rather than an agent's, and what is deliberately left undone. The open
+issues are the roadmap; `docs/` is the shop window, not the log.
+
 ## Model, in one paragraph
 
 No soft-body physics. The sheet is a `(u, v, z)` canvas of patches; rolling is
