@@ -120,7 +120,13 @@ function drawLay() {
   const mdl = getModel(), wd0 = windFor(mdl, 0.5), Lm = mdl.g.L;
   const uClose = wd0.sClose >= 0 ? wd0.sClose / Lm : B().spreadEnd, uEnd = wd0.sEnd < Lm ? wd0.sEnd / Lm : 1;
   const bare = (1 - uClose) * s.h, rimPx = B().spreadEnd < 1 ? RIM_W * s.h : 0;
-  ctx.save(); rr(s.x, s.y + bare, s.w, s.h - bare, 4); ctx.clip();
+  // ⚑ БЛИЖНЯЯ ГОЛАЯ ПОЛОСА. Рис начинается не от кромки, а отступив: 「手前2cm位」.
+  // Раньше он доходил до самого низа, и лист читался как «полоска нори сверху плюс
+  // отдельный прямоугольник риса» — владелец на это и указала («непонятно, как лежит
+  // нори»). Полоса маленькая, но именно с неё начинается скрутка, и именно она
+  // объясняет окно раскладки: ближе к себе класть нечего, там подворот.
+  const nearBare = (B().spreadStart === undefined ? SPREAD_START : B().spreadStart) * s.h;
+  ctx.save(); rr(s.x, s.y + bare, s.w, s.h - bare - nearBare, 4); ctx.clip();
   if (PIX) ctx.imageSmoothingEnabled = false;   // растягиваем крупную текстуру ступеньками, а не мылом
   ctx.drawImage(getSpreadTex(s.w, s.h), s.x, s.y, s.w, s.h);
   // КРАЙ РИСА ПРОСВЕЧИВАЕТ, А НЕ ОБВОДИТСЯ. Стенкой рис не обрывается: у самой кромки его
@@ -133,6 +139,11 @@ function drawLay() {
     const gr = ctx.createLinearGradient(0, s.y + bare, 0, s.y + bare + fade);
     gr.addColorStop(0, B().wrapper); gr.addColorStop(1, rgbCss(B().wrapperRgb, 0));
     ctx.fillStyle = gr; ctx.fillRect(s.x, s.y + bare, s.w, fade);
+    // У ближнего края рис сходит так же: кромка не обрывается стенкой.
+    const yn = s.y + s.h - nearBare;
+    const gn = ctx.createLinearGradient(0, yn, 0, yn - fade);
+    gn.addColorStop(0, B().wrapper); gn.addColorStop(1, rgbCss(B().wrapperRgb, 0));
+    ctx.fillStyle = gn; ctx.fillRect(s.x, yn - fade, s.w, fade);
   }
   ctx.restore();
   const zOf = pt => { const i = patches().indexOf(pt), q = i >= 0 ? mdl.list[i] : null; return q ? q.z0 : 0; };   // стопка — из модели, порядок клона тот же

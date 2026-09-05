@@ -246,9 +246,16 @@ function layout() {
       const fitP = (bnd, rowsC) => {
         const рядC = размерПри(Math.ceil(n / rowsC)) + 18;
         const rem = ch - (panelH + 26 + belowSheet + bottomPad) - bnd - rowsC * рядC;
-        const sh = Math.max(90, rem);
+        // ⚑ СЧИТАЕМ ПО ВЫСОТЕ, КОТОРУЮ ЛИСТ ЗАЙМЁТ, А НЕ ПО ДОСТУПНОЙ.
+        // Лист хосомаки — 190 × 105 мм, то есть вдвое шире, чем длинный, и на
+        // портретном телефоне его высоту задаёт ШИРИНА экрана: 200 px при доступных
+        // 517. Раньше здесь стояло sh = max(90, rem) — доступная высота, — и вариант
+        // без полосы предпросмотра всегда «выигрывал» 517 против 381, хотя лист в
+        // обоих случаях один и тот же. Раскладчик оптимизировал пустоту: полоса
+        // целиком помещалась в неё, но выбиралась накладка, закрывавшая пол-листа.
+        const занято = sheetFit(sw, Math.max(90, rem), 'y').sh;
         const eaten = (!bnd && showPrev) ? (k > 1 ? sw * (Math.min(56, (sw - 16 - 6 * (k - 1)) / k) + 16) : 102 * 102) : 0;
-        return { band: bnd, rows: rowsC, sh, alongU: sh, vis: Math.min(n, rowsC * влезает), area: sw * sh - eaten };
+        return { band: bnd, rows: rowsC, sh: Math.max(90, rem), alongU: занято, vis: Math.min(n, rowsC * влезает), area: sw * занято - eaten };
       };
       const cands = [];
       for (let r = ROWS_MAX; r >= 1; r--) { if (bandFull) cands.push(fitP(bandFull, r)); cands.push(fitP(0, r)); }
