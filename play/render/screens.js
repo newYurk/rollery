@@ -244,10 +244,9 @@ function rollDims() {
   const s = L.sheet;
   const k = L.roll.len / s.lenV;
   if (S.v2 && window.CoreV2) {
-    window.CoreV2.scenario = S.v2Scenario || 'F02';
-    const snap = window.CoreV2.snap;
+    const snap = v2Snap();
     const u = window.CoreV2.U_MM;
-    const R = snap.ok ? snap.winding.Rout / u * s.lenU / B().L * k : 40;
+    const R = snap && snap.ok ? snap.winding.Rout / u * s.lenU / B().L * k : 40;
     return { g: { L: B().L }, R, len: L.roll.len };
   }
   const m = getModel();
@@ -256,18 +255,37 @@ function rollDims() {
 function drawBoard(R, len, alpha = 1) {
   ctx.save(); ctx.globalAlpha = alpha; drawMat(L.roll.x - len / 2 - 26, L.roll.y - R - 36, len + 52, 2 * R + 72); ctx.restore();
 }
+// Честный отказ ядра — словами и на месте ролла. Игрок должен понять, ЧТО править,
+// а не разглядывать пустой стол: отказ здесь такая же часть модели, как картинка.
+// Причину словами несёт верхняя строка — там светлый текст на тёмном и он читается.
+// На циновке остаётся только код диагностики, и ТЁМНЫМ: светлое по светлому дереву
+// (#c9a96c) не читается вовсе, а невидимая надпись хуже отсутствующей.
+function drawV2Refusal(refusal) {
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#6b5334'; ctx.font = font(11);
+  ctx.fillText(refusal.code, L.roll.x, L.roll.y);
+  ctx.restore();
+}
 function drawRolled() {
   if (S.v2 && !window.CoreV2) return;
+  const refusal = S.v2 ? v2Refusal(v2Snap()) : null;
   const { R, len } = rollDims();
   drawBoard(R, len);
-  drawRollBody(L.roll.x, L.roll.y, R, len, [{ a: 0, b: 1, off: 0 }]);
-  // риски: где будут резы
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.setLineDash([3, 5]); ctx.lineWidth = 1;
-  for (let i = 1; i < npieces(); i++) { const x = L.roll.x - len / 2 + len * i / npieces(); ctx.beginPath(); ctx.moveTo(x, L.roll.y - R - 14); ctx.lineTo(x, L.roll.y + R + 14); ctx.stroke(); }
-  ctx.setLineDash([]);
+  if (refusal) {
+    drawV2Refusal(refusal);
+  } else {
+    drawRollBody(L.roll.x, L.roll.y, R, len, [{ a: 0, b: 1, off: 0 }]);
+    // риски: где будут резы
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.setLineDash([3, 5]); ctx.lineWidth = 1;
+    for (let i = 1; i < npieces(); i++) { const x = L.roll.x - len / 2 + len * i / npieces(); ctx.beginPath(); ctx.moveTo(x, L.roll.y - R - 14); ctx.lineTo(x, L.roll.y + R + 14); ctx.stroke(); }
+    ctx.setLineDash([]);
+  }
   buttons = [];
-  if (!S.v2) buttonRow([['back', '← Ещё начинки']]);
-  drawButtons(); drawTopBar(hints.rolled);
+  // В режиме своей раскладки возврат к начинкам обязателен: именно правкой
+  // раскладки игрок и снимает отказ. У фикстур править нечего — там кнопки нет.
+  if (!S.v2 || S.v2Scenario === 'layout') buttonRow([['back', '← Ещё начинки']]);
+  drawButtons(); drawTopBar(refusal ? refusal.text : hints.rolled);
 }
 // Ритуал реза: t — прогресс 0..1 (850 мс), потом zoom (0..1, 500 мс).
 let cut = null;
