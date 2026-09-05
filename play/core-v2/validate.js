@@ -153,6 +153,17 @@ export function assessWinding(recipe, winding) {
       })],
     };
   }
+  // Лист длиннее двух оборотов — это третий слой нори, а модель различает только
+  // один и два. Кламп молча сломал бы сохранение длины, поэтому отказываем.
+  if (winding.wrapsBeyondTwo) {
+    return {
+      status: 'outsideModelScope',
+      diagnostics: [diagnostic('wraps_beyond_two', 'лист даёт больше двух слоёв нори', {
+        noriPerimeterMm: winding.noriPerimeter,
+        sheetLengthMm: L,
+      })],
+    };
+  }
   if (baseOf(recipe).baseId === 'hosomaki') {
     const d = (winding.diameterMinMm + winding.diameterMaxMm) / 2;
     if (d < HOSOMAKI_DIAMETER_MM.min - 0.5 || d > HOSOMAKI_DIAMETER_MM.max + 0.5) {

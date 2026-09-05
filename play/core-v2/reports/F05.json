@@ -3,7 +3,7 @@
     "status": "valid",
     "hashes": {
       "recipe": "0d979f72209ec8397da86d376404492cdeb58d01808c75d44c24273aa7d76230",
-      "winding": "dcbcf37e016ac9e09e578d3bbf393b8bd291d67bbb39820874b3d96b2c6500fe",
+      "winding": "60909218f8a1dd18940d4945641e91e4c93a4cf94b09949f818351936c01d16f",
       "section": "6c1c58969b0c382ae96359edeeeada6e81ed8f48e0f11df9bd215a26a33d5c9d"
     },
     "visiblePatches": [
@@ -31,7 +31,7 @@
     "status": "valid",
     "hashes": {
       "recipe": "296f3f803639e2117b66556df6e08b019c2b9029b1f8f14e313d1b0e25deb33f",
-      "winding": "dcbcf37e016ac9e09e578d3bbf393b8bd291d67bbb39820874b3d96b2c6500fe",
+      "winding": "60909218f8a1dd18940d4945641e91e4c93a4cf94b09949f818351936c01d16f",
       "section": "6c1c58969b0c382ae96359edeeeada6e81ed8f48e0f11df9bd215a26a33d5c9d"
     },
     "visiblePatches": [
