@@ -278,35 +278,38 @@ export function drawSheet(ctx, recipe, winding, cssW, cssH) {
   ctx.fillStyle = '#171713';
   ctx.fillRect(0, 0, cssW, cssH);
 
-  ctx.fillStyle = MAT.nori;
-  ctx.fillRect(uToX(0), y0, innerW, h);
-
+  const noriH = h * 0.36;
+  const riceH = h * 0.42;
+  const noriY = y0 + h - noriH;
+  const riceY = noriY - riceH + 4;
+  ctx.fillStyle = '#1a241e';
+  ctx.fillRect(uToX(0), noriY, innerW, noriH);
   ctx.fillStyle = MAT.rice;
-  ctx.fillRect(uToX(winding.sRice0), y0 + 3, uToX(winding.sRice1) - uToX(winding.sRice0), h - 6);
+  ctx.fillRect(uToX(winding.sRice0), riceY, uToX(winding.sRice1) - uToX(winding.sRice0), riceH);
 
   const win = placementWindowMm(recipe.sheet);
   ctx.fillStyle = 'rgba(224,178,95,0.16)';
-  ctx.fillRect(uToX(win.nearEdgeMm), y0, uToX(win.farEdgeMm) - uToX(win.nearEdgeMm), h);
+  ctx.fillRect(uToX(win.nearEdgeMm), riceY, uToX(win.farEdgeMm) - uToX(win.nearEdgeMm), riceH);
 
   ctx.strokeStyle = 'rgba(224,178,95,0.55)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(uToX(win.nearEdgeMm), y0);
-  ctx.lineTo(uToX(win.nearEdgeMm), y0 + h);
-  ctx.moveTo(uToX(win.farEdgeMm), y0);
-  ctx.lineTo(uToX(win.farEdgeMm), y0 + h);
+  ctx.moveTo(uToX(win.nearEdgeMm), riceY);
+  ctx.lineTo(uToX(win.nearEdgeMm), riceY + riceH);
+  ctx.moveTo(uToX(win.farEdgeMm), riceY);
+  ctx.lineTo(uToX(win.farEdgeMm), riceY + riceH);
   ctx.stroke();
 
   for (const p of recipe.patches) {
     const mat = MAT[p.materialId] || { fill: '#888', edge: '#444' };
     const half = p.widthMm / 2;
     const x = uToX(p.uMm - half);
-    const w = Math.max(3, uToX(p.uMm + half) - x);
-    const chipH = Math.min(h * 0.42, 16);
-    const chipY = y0 + 5;
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    const w = Math.max(4, uToX(p.uMm + half) - x);
+    const chipH = Math.max(10, riceH * 0.72);
+    const chipY = riceY - chipH * 0.55;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.beginPath();
-    ctx.roundRect(x + 0.8, chipY + 1.2, w, chipH, 2);
+    ctx.roundRect(x + 1, chipY + 1.5, w, chipH, 2);
     ctx.fill();
     ctx.fillStyle = mat.fill;
     ctx.beginPath();

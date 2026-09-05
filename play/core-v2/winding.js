@@ -51,8 +51,7 @@ export function riceSpiralSpec(r0b, rpCircle, Lrice) {
   const rin = new Float64Array(steps);
   const rout = new Float64Array(steps);
   for (let i = 0; i < steps; i++) {
-    const b = i % NB;
-    const grown = r0b[b] + pitch * (i / NB);
+    const grown = r0m + pitch * (i / NB);
     rin[i] = Math.min(grown, rpCircle);
     rout[i] = Math.min(grown + pitch, rpCircle);
   }
