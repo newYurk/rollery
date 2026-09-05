@@ -69,6 +69,17 @@ function δ(id, key) {
   return r ? Math.abs(r.delta).toFixed(3) : '—';
 }
 
+// ⚑ ТРЕТИЙ СЛОЙ ТОЙ ЖЕ БОЛЕЗНИ (внешнее ревью, PR #211). Ворота площади я сделала
+// симметричными, а проза ниже продолжала считать СВОЁ одностороннее отношение и печатала
+// «0.893 > EPS_AREA_RATIO» — число, которое противоречит и порогу, и таблице. Пока проза
+// умеет считать сама, она будет расходиться с воротами. Теперь ей нечем: берёт готовое.
+function площадьF02() {
+  const r = (tables.F02 || []).find((x) => x.key === 'cucumberAreaMm2');
+  if (!r || r.areaRatio == null) return '—';
+  const знак = r.areaRatio > EPS_AREA_RATIO ? '>' : '≤';
+  return `${r.areaRatio.toFixed(3)} ${знак} EPS_AREA_RATIO ${EPS_AREA_RATIO} → ${r.gate}`;
+}
+
 function диапазон(id, k1, k2) {
   const a = +δ(id, k1), b = +δ(id, k2);
   return Number.isFinite(a) && Number.isFinite(b)
@@ -81,6 +92,7 @@ function row(metric, v2, leg, catalogArea) {
   const d = a - b;
   let gate = '—';
   let note = '';
+  let areaRatio = null;
   if (metric.key === 'cucumberAreaMm2') {
     // ⚑ ОТНОШЕНИЕ СИММЕТРИЧНО (внешнее ревью, PR #202). Стояло `catalogArea / legacy`
     // без симметризации: если legacy БОЛЬШЕ каталога, отношение меньше единицы и ворота
@@ -91,11 +103,12 @@ function row(metric, v2, leg, catalogArea) {
     const ratio = big / small;
     gate = ratio <= EPS_AREA_RATIO ? 'MATCH' : 'DIVERGE';
     note = `каталог ${catalogArea.toFixed(3)} ↔ legacy ${b.toFixed(3)}, отношение ${ratio.toFixed(3)} (EPS_AREA_RATIO ${EPS_AREA_RATIO})`;
+    areaRatio = ratio;   // проза ниже берёт ЭТО число, а не считает своё
   } else if (metric.eps != null) {
     gate = Math.abs(d) <= metric.eps ? 'MATCH' : 'DIVERGE';
     note = `|Δ| ${Math.abs(d).toFixed(3)} ≷ ${metric.eps}`;
   }
-  return { ...metric, v2: a, legacy: b, delta: d, gate, note };
+  return { ...metric, v2: a, legacy: b, delta: d, gate, note, areaRatio };
 }
 
 const probe = spawnSync(process.execPath, [path.join(ROOT, 'load-legacy.cjs')], {
@@ -199,9 +212,9 @@ ${mdTable(tables.F02)}
   (\`kappa\`) и обжимает контур: ролл круглее и меньше. Подгонять V2 под этот
   ⌀ — значит втащить \`kappa\` в ядро, чего контракт V2 alpha не делает.
 - **Площадь огурца.** Каталог (и V2) ${fmt(catalogArea)} мм². Сетка legacy
-  ${fmt(legacy.F02.cucumberAreaMm2)} мм², отношение
-  ${(catalogArea / legacy.F02.cucumberAreaMm2).toFixed(3)} >
-  EPS_AREA_RATIO. Это потеря площади в семпле/сжатии, не в формуле сектора.
+  ${fmt(legacy.F02.cucumberAreaMm2)} мм². Отношение берётся из таблицы выше, а не
+  пересчитывается здесь: ${площадьF02()}. Это потеря площади в семпле или
+  сжатии, не в формуле сектора.
 - **Центр.** V2 при одном патче — начало координат (F01–F04). Legacy — центроид
   сектора в полярной коробке, ~1,3 мм от нуля. Erratum-007 это разрешает только
   как \`f(uMm)\`; для одного патча V2 сознательно держит ноль.

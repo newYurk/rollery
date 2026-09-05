@@ -100,7 +100,8 @@
         "legacy": 105,
         "delta": 0,
         "gate": "MATCH",
-        "note": "|Δ| 0.000 ≷ 0.15"
+        "note": "|Δ| 0.000 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "sRice0Mm",
@@ -112,7 +113,8 @@
         "legacy": 5.04,
         "delta": 0,
         "gate": "MATCH",
-        "note": "|Δ| 0.000 ≷ 0.15"
+        "note": "|Δ| 0.000 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "sRice1Mm",
@@ -124,7 +126,8 @@
         "legacy": 92.4,
         "delta": 0,
         "gate": "MATCH",
-        "note": "|Δ| 0.000 ≷ 0.15"
+        "note": "|Δ| 0.000 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "overlapMm",
@@ -136,7 +139,8 @@
         "legacy": 16.837887717010737,
         "delta": -2.3572447170107367,
         "gate": "DIVERGE",
-        "note": "|Δ| 2.357 ≷ 0.15"
+        "note": "|Δ| 2.357 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "coreWcMm",
@@ -148,7 +152,8 @@
         "legacy": 5,
         "delta": 0,
         "gate": "MATCH",
-        "note": "|Δ| 0.000 ≷ 0.5"
+        "note": "|Δ| 0.000 ≷ 0.5",
+        "areaRatio": null
       },
       {
         "key": "coreHcMm",
@@ -160,7 +165,8 @@
         "legacy": 7.199999999999999,
         "delta": 8.881784197001252e-16,
         "gate": "MATCH",
-        "note": "|Δ| 0.000 ≷ 0.5"
+        "note": "|Δ| 0.000 ≷ 0.5",
+        "areaRatio": null
       },
       {
         "key": "diameterMinMm",
@@ -172,7 +178,8 @@
         "legacy": 28.245279788970947,
         "delta": 0.6679262110290516,
         "gate": "DIVERGE",
-        "note": "|Δ| 0.668 ≷ 0.15"
+        "note": "|Δ| 0.668 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "diameterMaxMm",
@@ -184,7 +191,8 @@
         "legacy": 28.934309482574463,
         "delta": 0.1788965174255388,
         "gate": "DIVERGE",
-        "note": "|Δ| 0.179 ≷ 0.15"
+        "note": "|Δ| 0.179 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "riceArcMm",
@@ -196,7 +204,8 @@
         "legacy": 55.87284381065241,
         "delta": 31.487156189347587,
         "gate": "DIVERGE",
-        "note": "|Δ| 31.487 ≷ 0.15"
+        "note": "|Δ| 31.487 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "noriArcMm",
@@ -208,7 +217,8 @@
         "legacy": 90.24099777013853,
         "delta": 0.278359229861465,
         "gate": "DIVERGE",
-        "note": "|Δ| 0.278 ≷ 0.15"
+        "note": "|Δ| 0.278 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "turns",
@@ -220,7 +230,8 @@
         "legacy": 1.187600555397126,
         "delta": -0.027627555397126136,
         "gate": "DIVERGE",
-        "note": "|Δ| 0.028 ≷ 0.01"
+        "note": "|Δ| 0.028 ≷ 0.01",
+        "areaRatio": null
       },
       {
         "key": "twoIntersectionCount",
@@ -232,7 +243,8 @@
         "legacy": 270,
         "delta": -40,
         "gate": "DIVERGE",
-        "note": "|Δ| 40.000 ≷ 8"
+        "note": "|Δ| 40.000 ≷ 8",
+        "areaRatio": null
       }
     ],
     "F02": [
@@ -246,7 +258,8 @@
         "legacy": 105,
         "delta": 0,
         "gate": "MATCH",
-        "note": "|Δ| 0.000 ≷ 0.15"
+        "note": "|Δ| 0.000 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "sRice0Mm",
@@ -258,7 +271,8 @@
         "legacy": 5.04,
         "delta": 0,
         "gate": "MATCH",
-        "note": "|Δ| 0.000 ≷ 0.15"
+        "note": "|Δ| 0.000 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "sRice1Mm",
@@ -270,7 +284,8 @@
         "legacy": 92.4,
         "delta": 0,
         "gate": "MATCH",
-        "note": "|Δ| 0.000 ≷ 0.15"
+        "note": "|Δ| 0.000 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "overlapMm",
@@ -282,7 +297,8 @@
         "legacy": 16.17266616199551,
         "delta": -3.730750161995511,
         "gate": "DIVERGE",
-        "note": "|Δ| 3.731 ≷ 0.15"
+        "note": "|Δ| 3.731 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "coreWcMm",
@@ -294,7 +310,8 @@
         "legacy": 14,
         "delta": -6,
         "gate": "DIVERGE",
-        "note": "|Δ| 6.000 ≷ 0.5"
+        "note": "|Δ| 6.000 ≷ 0.5",
+        "areaRatio": null
       },
       {
         "key": "coreHcMm",
@@ -306,7 +323,8 @@
         "legacy": 10.1,
         "delta": -1.9000000000000004,
         "gate": "DIVERGE",
-        "note": "|Δ| 1.900 ≷ 0.5"
+        "note": "|Δ| 1.900 ≷ 0.5",
+        "areaRatio": null
       },
       {
         "key": "diameterMinMm",
@@ -318,7 +336,8 @@
         "legacy": 29.30877685546875,
         "delta": 0.25337614453124857,
         "gate": "DIVERGE",
-        "note": "|Δ| 0.253 ≷ 0.15"
+        "note": "|Δ| 0.253 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "diameterMaxMm",
@@ -330,7 +349,8 @@
         "legacy": 29.85938787460327,
         "delta": -0.09723487460327007,
         "gate": "MATCH",
-        "note": "|Δ| 0.097 ≷ 0.15"
+        "note": "|Δ| 0.097 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "riceArcMm",
@@ -342,7 +362,8 @@
         "legacy": 68.4455795587939,
         "delta": 18.914420441206104,
         "gate": "DIVERGE",
-        "note": "|Δ| 18.914 ≷ 0.15"
+        "note": "|Δ| 18.914 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "noriArcMm",
@@ -354,7 +375,8 @@
         "legacy": 93.03034191641515,
         "delta": -0.4722579164151597,
         "gate": "DIVERGE",
-        "note": "|Δ| 0.472 ≷ 0.15"
+        "note": "|Δ| 0.472 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "turns",
@@ -366,7 +388,8 @@
         "legacy": 1.1746317348740838,
         "delta": -0.04020873487408383,
         "gate": "DIVERGE",
-        "note": "|Δ| 0.040 ≷ 0.01"
+        "note": "|Δ| 0.040 ≷ 0.01",
+        "areaRatio": null
       },
       {
         "key": "twoIntersectionCount",
@@ -378,7 +401,8 @@
         "legacy": 251,
         "delta": -57,
         "gate": "DIVERGE",
-        "note": "|Δ| 57.000 ≷ 8"
+        "note": "|Δ| 57.000 ≷ 8",
+        "areaRatio": null
       },
       {
         "key": "cucumberAreaMm2",
@@ -390,7 +414,8 @@
         "legacy": 71.66265244664017,
         "delta": -7.662652446640166,
         "gate": "DIVERGE",
-        "note": "каталог 64.000 ↔ legacy 71.663, отношение 1.120 (EPS_AREA_RATIO 1.05)"
+        "note": "каталог 64.000 ↔ legacy 71.663, отношение 1.120 (EPS_AREA_RATIO 1.05)",
+        "areaRatio": 1.1197289444787526
       },
       {
         "key": "cucumberCenterXmm",
@@ -402,7 +427,8 @@
         "legacy": 1.3138977979015833,
         "delta": -1.3138977979015833,
         "gate": "DIVERGE",
-        "note": "|Δ| 1.314 ≷ 0.15"
+        "note": "|Δ| 1.314 ≷ 0.15",
+        "areaRatio": null
       },
       {
         "key": "cucumberCenterYmm",
@@ -414,7 +440,8 @@
         "legacy": -1.2985870928254606,
         "delta": 1.2985870928254606,
         "gate": "DIVERGE",
-        "note": "|Δ| 1.299 ≷ 0.15"
+        "note": "|Δ| 1.299 ≷ 0.15",
+        "areaRatio": null
       }
     ]
   }
