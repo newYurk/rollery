@@ -1,7 +1,7 @@
 // Debug slice. Presentation only — does not feed hashes or acceptance.
 // Colors from catalog.js (hoso wrapper / spread / ING), not from geometry.js.
 
-import { DPHI, FUTOMAKI, HOSOGIRI, NB, TAU, hosogiriSticks, patchCorePos, placementWindowMm } from './units.js';
+import { DPHI, HOSOGIRI, NB, TAU, hosogiriSticks, patchCorePos, placementWindowMm } from './units.js';
 import { sectorTop } from './section.js';
 
 export const MAT = {
@@ -173,30 +173,6 @@ export function drawSlice(ctx, recipe, winding, css) {
   ctx.strokeStyle = '#1a211c';
   ctx.lineWidth = Math.max(winding.W, 3.4 / scale);
   ctx.stroke();
-
-  const turns = winding.seam?.turnsMeasured ?? 1;
-  const futo = recipe.baseId === FUTOMAKI.baseId;
-  if (!futo && turns > 1) {
-    ctx.save();
-    ctx.strokeStyle = MAT.nori;
-    ctx.lineWidth = Math.max(winding.W * 2.2, 2.2 / scale);
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    const rIn = Math.max(winding.Wc, winding.Hc) / 2 + 1.2;
-    const rOut = winding.rp[0] - winding.W * 0.5;
-    const n = 280;
-    for (let i = 0; i <= n; i++) {
-      const t = i / n;
-      const phi = t * turns * TAU;
-      const r = rIn + (rOut - rIn) * t;
-      const x = r * Math.cos(phi);
-      const y = r * Math.sin(phi);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-    ctx.restore();
-  }
 
   if (!packed) {
     r0Path(ctx, winding);
