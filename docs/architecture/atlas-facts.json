@@ -209,14 +209,14 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "ae340a1",
+ "ref": "f2944f9",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "The guard matched one phrasing, and sheet 2 used another (#212 review)",
+ "subject": "The closing summary was hand-written too (#212 review)",
  "total_lines": 14718,
  "touchModel": {
   "play/checks.js": 55,
