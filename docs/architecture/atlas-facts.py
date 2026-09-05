@@ -317,13 +317,29 @@ def main():
     # Правильный порядок: правка листов → --snapshot → ./build.sh.
     page = ROOT / "docs" / "reports" / "architecture-atlas.html"
     stamp_drift = []
-    if page.exists():
+    want = f'{was["ref"]} · {was["date"]} · {was["total_lines"]} строк' if was else None
+    if not page.exists():
+        # Отсутствие страницы — тоже расхождение, а не «проверять нечего»: файл
+        # отслеживается git и публикуется на Pages. Пропустив его, скрипт возвращал 0
+        # при всех прочих зелёных (ревью CodeRabbit на PR #211).
+        stamp_drift.append(("страницы нет вовсе", want or "слепок не снят"))
+    else:
         txt = page.read_text(encoding="utf-8", errors="replace")
-        want = f'{was["ref"]} · {was["date"]} · {was["total_lines"]} строк' if was else None
         if want and want not in txt:
             import re as _re
             got = _re.search(r"[0-9a-f]{7} · \d{4}-\d{2}-\d{2} · [\d ]+ строк", txt)
             stamp_drift.append((got.group(0) if got else "штампа нет", want))
+
+    # ⚑ И ШАПКА ЛИСТА 1 (ревью CodeRabbit на PR #211). Комментарий в 01-system-map.d2
+    # называет коммит, на котором сняты числа. Он тоже отставал — говорил 362ffdc, когда
+    # слепок стоял на eeca304. Числа листа сторожились, а подпись под ними — нет.
+    sheet = ROOT / "docs" / "architecture" / "01-system-map.d2"
+    if sheet.exists() and was:
+        import re as _re2
+        m = _re2.search(r"снято на коммите ([0-9a-f]{7})", sheet.read_text(encoding="utf-8"))
+        if m and m.group(1) != was["ref"]:
+            stamp_drift.append((f'лист 1: «снято на коммите {m.group(1)}»',
+                                f'слепок: {was["ref"]}'))
 
     if stamp_drift:
         print("ШТАМП СТРАНИЦЫ ОТСТАЛ ОТ СЛЕПКА:")
