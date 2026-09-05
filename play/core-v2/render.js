@@ -174,6 +174,29 @@ export function drawSlice(ctx, recipe, winding, css) {
   ctx.lineWidth = Math.max(winding.W, 3.4 / scale);
   ctx.stroke();
 
+  const turns = winding.seam?.turnsMeasured ?? 1;
+  if (turns > 1.04) {
+    ctx.save();
+    ctx.strokeStyle = MAT.nori;
+    ctx.lineWidth = Math.max(winding.W * 2.2, 2.2 / scale);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    const rIn = Math.max(winding.Wc, winding.Hc) / 2 + 1.2;
+    const rOut = winding.rp[0] - winding.W * 0.5;
+    const n = 280;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const phi = t * turns * TAU;
+      const r = rIn + (rOut - rIn) * t;
+      const x = r * Math.cos(phi);
+      const y = r * Math.sin(phi);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   if (!packed) {
     r0Path(ctx, winding);
     ctx.fillStyle = MAT.hollow;
@@ -257,10 +280,23 @@ export function drawSheet(ctx, recipe, winding, cssW, cssH) {
   ctx.stroke();
 
   for (const p of recipe.patches) {
-    const mat = MAT[p.materialId] || { fill: '#888' };
+    const mat = MAT[p.materialId] || { fill: '#888', edge: '#444' };
     const half = p.widthMm / 2;
+    const x = uToX(p.uMm - half);
+    const w = Math.max(3, uToX(p.uMm + half) - x);
+    const chipH = Math.min(h * 0.42, 16);
+    const chipY = y0 + 5;
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.roundRect(x + 0.8, chipY + 1.2, w, chipH, 2);
+    ctx.fill();
     ctx.fillStyle = mat.fill;
-    ctx.fillRect(uToX(p.uMm - half), y0 + 8, uToX(p.uMm + half) - uToX(p.uMm - half), h - 16);
+    ctx.beginPath();
+    ctx.roundRect(x, chipY, w, chipH, 2);
+    ctx.fill();
+    ctx.strokeStyle = mat.skin || mat.edge || '#444';
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
 
   ctx.fillStyle = '#9a9280';

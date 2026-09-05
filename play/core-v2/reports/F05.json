@@ -3,26 +3,26 @@
     "status": "valid",
     "hashes": {
       "recipe": "3f9d69034422a05858274b65dc14f636ded6ef1f461ec0ab23effc3c9a1b9ad9",
-      "winding": "0d71dcc7c1294ef9f82c77446e3c16064de1110af30e765ac7645014d4700e80",
-      "section": "ca2ce5247560c1c4c02353f92d9cff7a7074fae83d72f4c44840d987bd7d418b"
+      "winding": "cf3ac06cfb802ee7b5b6c92bd486683bf64904a76aaced8801a71410174836b0",
+      "section": "bb732ddb8f1cede198fc0e5a102628d0515065694f236c9bf6ebbff67f35b02d"
     },
     "visiblePatches": [
       {
         "id": "cucumber-0",
         "areaMm2": 64,
-        "centerXmm": -27.5,
+        "centerXmm": -15.95,
         "centerYmm": 0
       },
       {
         "id": "salmon-0",
         "areaMm2": 100,
-        "centerXmm": 17.5,
+        "centerXmm": 10.149999999999999,
         "centerYmm": 0
       },
       {
         "id": "tamago-0",
         "areaMm2": 120,
-        "centerXmm": -7.5,
+        "centerXmm": -4.35,
         "centerYmm": 0
       }
     ]
@@ -31,26 +31,26 @@
     "status": "valid",
     "hashes": {
       "recipe": "02554d679ddcd65be1611eb60d7c746ca8c7fbcc230db9cbf9568f94497f1dee",
-      "winding": "0d71dcc7c1294ef9f82c77446e3c16064de1110af30e765ac7645014d4700e80",
-      "section": "ca2ce5247560c1c4c02353f92d9cff7a7074fae83d72f4c44840d987bd7d418b"
+      "winding": "cf3ac06cfb802ee7b5b6c92bd486683bf64904a76aaced8801a71410174836b0",
+      "section": "bb732ddb8f1cede198fc0e5a102628d0515065694f236c9bf6ebbff67f35b02d"
     },
     "visiblePatches": [
       {
         "id": "cucumber-0",
         "areaMm2": 64,
-        "centerXmm": -27.5,
+        "centerXmm": -15.95,
         "centerYmm": 0
       },
       {
         "id": "salmon-0",
         "areaMm2": 100,
-        "centerXmm": 17.5,
+        "centerXmm": 10.149999999999999,
         "centerYmm": 0
       },
       {
         "id": "tamago-0",
         "areaMm2": 120,
-        "centerXmm": -7.5,
+        "centerXmm": -4.35,
         "centerYmm": 0
       }
     ]
