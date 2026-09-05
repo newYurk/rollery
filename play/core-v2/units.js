@@ -174,6 +174,13 @@ export function placementWindowMm(sheet) {
   };
 }
 
+/** u куска, чтобы след остался в окне раскладки. */
+export function clampPatchU(sheet, patch, uMm) {
+  const win = placementWindowMm(sheet);
+  const half = patch.widthMm / 2;
+  return Math.min(win.farEdgeMm - half, Math.max(win.nearEdgeMm + half, uMm));
+}
+
 /**
  * Снимок тамаго. catalog.js:306. Брусок.
  */

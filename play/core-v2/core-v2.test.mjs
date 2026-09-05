@@ -7,7 +7,7 @@ import {
 } from './fixtures.js';
 import { validateRecipe } from './validate.js';
 import { buildWinding, independentLayerArcs } from './winding.js';
-import { CUCUMBER, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, WINDING, hosogiriBox, patchCorePos, placementWindowMm } from './units.js';
+import { CUCUMBER, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, WINDING, clampPatchU, hosogiriBox, patchCorePos, placementWindowMm } from './units.js';
 import {
   cutFractions, firstCutFraction, pieceCountOf, pieceLeftOfCut,
   pieceLengthMm, snapCutFraction,
@@ -300,6 +300,15 @@ test('F07 probe sits beside cucumber, swaps side at u=60, never overlaps', () =>
   assert.ok(L.t.x < L.c.x);
   assert.ok(R.t.x > R.c.x);
   assert.ok(Math.abs(patchCorePos(left, left.patches[0]).x - patchCorePos(makeF07Recipe(59), makeF07Recipe(59).patches.find((p) => p.materialId === 'cucumber')).x) < 1e-9);
+});
+
+test('clampPatchU keeps footprint inside the window', () => {
+  const sheet = { lengthMm: 105, widthMm: 185 };
+  const p = { widthMm: 14 };
+  const win = placementWindowMm(sheet);
+  assert.equal(clampPatchU(sheet, p, 0), win.nearEdgeMm + 7);
+  assert.equal(clampPatchU(sheet, p, 80), win.farEdgeMm - 7);
+  assert.equal(clampPatchU(sheet, p, 36), 36);
 });
 
 test('knife: 6/8 pieces, first cut at half, snap interior only', () => {

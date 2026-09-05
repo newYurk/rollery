@@ -209,22 +209,37 @@ export function drawSlice(ctx, recipe, winding, css) {
   ctx.restore();
 }
 
-export function drawSheet(ctx, recipe, winding, cssW, cssH) {
+export function sheetGeom(recipe, winding, cssW, cssH) {
   const L = recipe.sheet.lengthMm;
   const T = winding.T || 7;
   const pad = 16;
   const x0 = pad;
   const innerW = cssW - pad * 2;
   const uToX = (u) => x0 + (u / L) * innerW;
-
-  ctx.fillStyle = '#171713';
-  ctx.fillRect(0, 0, cssW, cssH);
-
+  const xToU = (x) => ((x - x0) / innerW) * L;
   const labelH = 13;
   const noriH = Math.max(7, Math.min(11, (cssH - labelH) * 0.2));
   const riceH = Math.max(14, (cssH - labelH) * 0.42);
   const noriY = cssH - labelH - noriH;
   const riceY = noriY - riceH + 3;
+  const surface = riceY + 2;
+  const chips = recipe.patches.map((p) => {
+    const half = p.widthMm / 2;
+    const x = uToX(p.uMm - half);
+    const w = Math.max(5, uToX(p.uMm + half) - x);
+    const chipH = Math.max(9, Math.min(riceH * 1.05, (p.heightMm / T) * riceH * 0.95));
+    const chipY = surface - chipH + 4;
+    return { id: p.id, x, y: chipY, w, h: chipH };
+  });
+  return { L, uToX, xToU, chips, innerW, noriH, noriY, riceH, riceY };
+}
+
+export function drawSheet(ctx, recipe, winding, cssW, cssH) {
+  const geom = sheetGeom(recipe, winding, cssW, cssH);
+  const { L, uToX, innerW, noriH, noriY, riceH, riceY, chips } = geom;
+
+  ctx.fillStyle = '#171713';
+  ctx.fillRect(0, 0, cssW, cssH);
 
   ctx.fillStyle = '#151c18';
   ctx.beginPath();
@@ -270,14 +285,11 @@ export function drawSheet(ctx, recipe, winding, cssW, cssH) {
   ctx.lineTo(wx1, riceY + riceH * 0.45);
   ctx.stroke();
 
-  const surface = riceY + 2;
   for (const p of recipe.patches) {
     const mat = MAT[p.materialId] || { fill: '#888', edge: '#444' };
-    const half = p.widthMm / 2;
-    const x = uToX(p.uMm - half);
-    const w = Math.max(5, uToX(p.uMm + half) - x);
-    const chipH = Math.max(9, Math.min(riceH * 1.05, (p.heightMm / T) * riceH * 0.95));
-    const chipY = surface - chipH + 4;
+    const chip = chips.find((c) => c.id === p.id);
+    if (!chip) continue;
+    const { x, y: chipY, w, h: chipH } = chip;
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.beginPath();
     ctx.roundRect(x + 1.2, chipY + 2, w, chipH, 2.5);

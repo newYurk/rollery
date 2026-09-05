@@ -1,15 +1,9 @@
-import {
-  makeCucumberRecipe,
-  makeF01Recipe,
-  makeF02Recipe,
-  makeF05Recipe,
-  makeHosogiriRecipe,
-} from './recipe.js';
+import { deepClone, makeCucumberRecipe, makeF01Recipe, makeF02Recipe, makeF05Recipe, makeHosogiriRecipe } from './recipe.js';
 import { validateRecipe } from './validate.js';
 import { buildWinding } from './winding.js';
 import { sampleSection } from './section.js';
-import { drawBar, drawSlice, rollSideLayout, sheetShare } from './render.js';
-import { placementWindowMm } from './units.js';
+import { drawBar, drawSlice, rollSideLayout, sheetGeom, sheetShare } from './render.js';
+import { clampPatchU, placementWindowMm } from './units.js';
 import {
   cutFractions,
   firstCutFraction,
@@ -24,7 +18,7 @@ const FIXTURES = [
   { id: 'F01', label: 'Пустой', make: () => makeF01Recipe() },
   { id: 'F02', label: 'Каппамаки', make: () => makeF02Recipe() },
   { id: 'hogi', label: '細切り', make: () => makeHosogiriRecipe() },
-  { id: 'F03', label: 'Раскладка', make: (u) => makeCucumberRecipe(u ?? 36.25), slider: { min: 20, max: 55, step: 0.5, value: 36.25, unit: 'u мм' } },
+  { id: 'F03', label: 'Раскладка', make: (u) => makeCucumberRecipe(u ?? 36.25) },
   { id: 'F05', label: 'Футомаки', make: () => makeF05Recipe() },
 ];
 
@@ -54,6 +48,7 @@ let vFrac = 0.5;
 let lastRecipe = null;
 let lastWinding = null;
 let knifeAnim = null;
+let patchU = {};
 
 function resetKnife(recipe) {
   vFrac = firstCutFraction(pieceCountOf(recipe));
@@ -63,8 +58,18 @@ function rollH() {
   return bar.height - sheetShare(bar.height);
 }
 
+function recipeNow() {
+  const base = current.make(sliderVal);
+  if (!base.patches?.length) return base;
+  const r = deepClone(base);
+  for (const p of r.patches) {
+    if (patchU[p.id] != null) p.uMm = patchU[p.id];
+  }
+  return r;
+}
+
 function paint() {
-  const recipe = current.make(sliderVal);
+  const recipe = recipeNow();
   const v = validateRecipe(recipe);
   const window = placementWindowMm(recipe.sheet);
   lastRecipe = recipe;
@@ -122,16 +127,42 @@ function drawBarNow(recipe, winding, n, knifeY) {
   drawBar(bctx, recipe, winding, bar.width, bar.height, cutFractions(n), vFrac, knifeY);
 }
 
-function vFromPointer(ev) {
+function barPointer(ev) {
   const rect = bar.getBoundingClientRect();
-  const x = (ev.clientX - rect.left) * (bar.width / rect.width);
+  return {
+    x: (ev.clientX - rect.left) * (bar.width / rect.width),
+    y: (ev.clientY - rect.top) * (bar.height / rect.height),
+  };
+}
+
+function vFromPointer(ev) {
+  const { x } = barPointer(ev);
   const { x0, innerW } = rollSideLayout(bar.width, rollH());
   return Math.min(1, Math.max(0, (x - x0) / innerW));
 }
 
 let dragging = false;
+let dragPatch = null;
+let dragGrab = 0;
+
 bar.addEventListener('pointerdown', (ev) => {
   if (!lastRecipe || !lastWinding) return;
+  const { x, y } = barPointer(ev);
+  const sheetTop = rollH();
+  if (y >= sheetTop && lastRecipe.patches.length) {
+    const geom = sheetGeom(lastRecipe, lastWinding, bar.width, sheetShare(bar.height));
+    const ly = y - sheetTop;
+    const hit = [...geom.chips].reverse().find((c) => x >= c.x && x <= c.x + c.w && ly >= c.y && ly <= c.y + c.h);
+    if (hit) {
+      const p = lastRecipe.patches.find((q) => q.id === hit.id);
+      dragPatch = p;
+      dragGrab = geom.xToU(x) - p.uMm;
+      dragging = true;
+      bar.setPointerCapture(ev.pointerId);
+      return;
+    }
+  }
+  dragPatch = null;
   dragging = true;
   bar.setPointerCapture(ev.pointerId);
   vFrac = snapCutFraction(vFromPointer(ev), pieceCountOf(lastRecipe));
@@ -139,11 +170,18 @@ bar.addEventListener('pointerdown', (ev) => {
 });
 bar.addEventListener('pointermove', (ev) => {
   if (!dragging || !lastRecipe) return;
+  if (dragPatch) {
+    const geom = sheetGeom(lastRecipe, lastWinding, bar.width, sheetShare(bar.height));
+    const u = clampPatchU(lastRecipe.sheet, dragPatch, geom.xToU(barPointer(ev).x) - dragGrab);
+    patchU = { ...patchU, [dragPatch.id]: u };
+    paint();
+    return;
+  }
   vFrac = snapCutFraction(vFromPointer(ev), pieceCountOf(lastRecipe));
   paint();
 });
-bar.addEventListener('pointerup', () => { dragging = false; });
-bar.addEventListener('pointercancel', () => { dragging = false; });
+bar.addEventListener('pointerup', () => { dragging = false; dragPatch = null; });
+bar.addEventListener('pointercancel', () => { dragging = false; dragPatch = null; });
 
 function easeInOut(t) {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
@@ -185,7 +223,8 @@ for (const f of FIXTURES) {
   b.addEventListener('click', () => {
     current = f;
     sliderVal = f.slider ? f.slider.value : 0;
-    const recipe = f.make(sliderVal);
+    patchU = {};
+    const recipe = recipeNow();
     if (validateRecipe(recipe).status === 'valid') resetKnife(recipe);
     paint();
   });
