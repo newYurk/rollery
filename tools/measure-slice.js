@@ -52,6 +52,8 @@ ctx.localStorage = { getItem: () => null, setItem(){}, removeItem(){} };
 ctx.requestAnimationFrame = () => 0; ctx.addEventListener = () => {};
 ctx.matchMedia = () => ({ matches: false, addEventListener(){} });
 ctx.location = { search: '', href: '', hash: '' };
+// Тот же URLSearchParams из state.js:65 — без него мерка не снимает числа (PR #172).
+ctx.URLSearchParams = URLSearchParams;
 ctx.navigator = { userAgent: 'node' }; ctx.performance = { now: () => 0 };
 ctx.setTimeout = () => 0; ctx.clearTimeout = () => {};
 vm.createContext(ctx);
