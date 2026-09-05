@@ -18,13 +18,13 @@
         "layerId": "rice",
         "u0Mm": 5.04,
         "u1Mm": 92.4,
-        "arcMm": 56.22613634590961
+        "arcMm": 55.990779062574404
       },
       {
         "layerId": "nori",
         "u0Mm": 5.04,
         "u1Mm": 92.4,
-        "arcMm": 90.58788550284525
+        "arcMm": 90.5193492502365
       }
     ]
   },
@@ -32,10 +32,10 @@
     "uStartMm": 92.4,
     "uEndMm": 5.04,
     "angleStartRad": 0,
-    "angleEndRad": 1.2021583192388043,
+    "angleEndRad": 1.224438639215523,
     "overlapMm": 17.639999999999993,
-    "overlapArcRad": 1.2021583192388043,
-    "turnsMeasured": 1.1913294388859004
+    "overlapArcRad": 1.224438639215523,
+    "turnsMeasured": 1.1948754619438644
   },
   "rays": {
     "angleRad": [
@@ -1482,8 +1482,8 @@
     ]
   },
   "roll": {
-    "diameterMinMm": 28.548041314991178,
-    "diameterMaxMm": 29.647216115710084,
+    "diameterMinMm": 28.913203757277113,
+    "diameterMaxMm": 29.113203757277113,
     "wrapIntersectionsByRay": [
       2,
       2,
@@ -1761,11 +1761,11 @@
       2,
       2,
       2,
-      1,
-      1,
-      1,
-      1,
-      1,
+      2,
+      2,
+      2,
+      2,
+      2,
       1,
       1,
       1,
@@ -7259,8 +7259,8 @@
   "visiblePatches": [],
   "hashes": {
     "recipe": "2b2c48cf4d135760c9d67781ff18c4bfb0f94fb6e49b8efbd21bcffe01939867",
-    "winding": "20de53362b7aeae733b07f86bf22889deeee1034b114437aeee4e4e9cc6a71df",
-    "section": "6e8b856cab4f1485e2bdd6ac1cf11b614185d2435358eb7fd99cf3e25909138e"
+    "winding": "7ad4f81fa39f95b66a663040692365e777e3917c915e97e7d2bc97a903b441e1",
+    "section": "732d54157e0af4b41ad8bbc74bb6345e2bf01529de68a0180ea5b5907ddebd05"
   },
   "eps": {
     "EPS_LENGTH_MM": 0.15,
@@ -7272,9 +7272,9 @@
     "NB": 1440
   },
   "_meta": {
-    "twoIntersectionCount": 276,
-    "twoIntersectionFraction": 0.19166666666666668,
-    "overlapArcFraction": 0.19132943888590045,
-    "RavgMm": 14.673608057855041
+    "twoIntersectionCount": 281,
+    "twoIntersectionFraction": 0.1951388888888889,
+    "overlapArcFraction": 0.19487546194386435,
+    "RavgMm": 14.406601878638556
   }
 }

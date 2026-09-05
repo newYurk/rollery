@@ -115,6 +115,7 @@ export function drawSlice(ctx, recipe, winding, css) {
   ctx.fillStyle = '#171713';
   ctx.fillRect(0, 0, W, H);
 
+  const packed = recipe.patches.length > 0;
   const Rout = winding.Rout + winding.W;
   const scale = (css * 0.78) / (2 * Rout);
   ctx.translate(W / 2, H / 2);
@@ -127,13 +128,14 @@ export function drawSlice(ctx, recipe, winding, css) {
   ctx.fill();
   ctx.restore();
 
-  ringPath(ctx, winding.r0b, winding.rp);
+  ctx.beginPath();
+  ctx.arc(0, 0, winding.rp[0], 0, TAU);
   ctx.fillStyle = MAT.rice;
   ctx.fill();
 
   ctx.save();
   ctx.clip();
-  riceGrains(ctx, winding, winding.r0b, winding.rp, 90);
+  riceGrains(ctx, winding, new Float64Array(winding.rp.length), winding.rp, packed ? 110 : 90);
   ctx.restore();
 
   ringPath(ctx, winding.rp, winding.rn);
@@ -172,17 +174,16 @@ export function drawSlice(ctx, recipe, winding, css) {
   ctx.lineWidth = Math.max(winding.W, 3.4 / scale);
   ctx.stroke();
 
-  const packed = recipe.patches.length > 0;
-  r0Path(ctx, winding);
-  ctx.fillStyle = packed ? MAT.rice : MAT.hollow;
-  ctx.fill();
+  if (!packed) {
+    r0Path(ctx, winding);
+    ctx.fillStyle = MAT.hollow;
+    ctx.fill();
+  }
 
   ctx.save();
+  ctx.beginPath();
+  ctx.arc(0, 0, winding.rp[0], 0, TAU);
   ctx.clip();
-  if (packed) {
-    const zero = new Float64Array(winding.r0b.length);
-    riceGrains(ctx, winding, zero, winding.r0b, 40);
-  }
   for (const p of recipe.patches) {
     const pos = patchCorePos(recipe, p);
     ctx.save();

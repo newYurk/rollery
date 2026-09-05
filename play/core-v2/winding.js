@@ -11,6 +11,10 @@ import {
   riceSpanMm,
 } from './units.js';
 
+export function riceOuterMm(Wc, Hc, T, Lrice) {
+  return Math.sqrt((Math.max(0, Wc * Hc) + T * Lrice) / Math.PI);
+}
+
 export function r0At(phi, Wc, Hc) {
   const c = Math.abs(Math.cos(phi));
   const s = Math.abs(Math.sin(phi));
@@ -45,13 +49,13 @@ function midArc(rAtBin) {
 /** Closed-form independent integral — finer grid than kernel NB (erratum-010). */
 export function independentLayerArcs({ Wc, Hc, T, W, Lrice }, steps = NB * 4) {
   const dphi = TAU / steps;
+  const rpCircle = riceOuterMm(Wc, Hc, T, Lrice);
   const rMidRice = [];
   const rMidNori = [];
   for (let i = 0; i <= steps; i++) {
     const r0 = r0At(i * dphi, Wc, Hc);
-    const rp = Math.sqrt(r0 * r0 + 2 * T * Lrice / TAU);
-    rMidRice.push((r0 + rp) / 2);
-    rMidNori.push(rp + W / 2);
+    rMidRice.push((r0 + rpCircle) / 2);
+    rMidNori.push(rpCircle + W / 2);
   }
   const integrate = (r) => {
     let acc = 0;
@@ -80,12 +84,13 @@ export function buildWinding(recipe) {
   const uInnerMm = new Float64Array(NB);
   const angleRad = new Float64Array(NB);
 
+  const rpCircle = riceOuterMm(Wc, Hc, T, Lrice);
   let Rout = 0;
   for (let b = 0; b < NB; b++) {
     const phi = b * DPHI;
     angleRad[b] = phi;
     r0b[b] = r0At(phi, Wc, Hc);
-    rp[b] = Math.sqrt(r0b[b] * r0b[b] + 2 * T * Lrice / TAU);
+    rp[b] = rpCircle;
     rn[b] = rp[b] + W;
     if (rn[b] > Rout) Rout = rn[b];
     const s = sRice0 + Lrice * (b / NB);
