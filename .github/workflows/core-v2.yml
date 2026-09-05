@@ -4,9 +4,6 @@ on:
   pull_request:
   push:
     branches: [main, 'core-v2/**']
-    paths:
-      - 'play/core-v2/**'
-      - '.github/workflows/core-v2.yml'
 
 jobs:
   test:
@@ -28,3 +25,24 @@ jobs:
         run: git diff --exit-code play/core-v2/reports
       - name: unit
         run: node --test play/core-v2/core-v2.test.mjs
+
+  # ⚑ МЕХАНИЧЕСКИЕ СТОРОЖА (заведено 05.09). До этого CI знал только play/core-v2, и всё
+  # остальное держалось на том, вспомню ли я запустить вечернюю сверку. Не вспомнила:
+  # архитектурный атлас разошёлся с кодом на 17 чисел за семь коммитов, а у игры стояло
+  # три маркера кэша разом. Здесь только то, что чинится ОДНОЙ командой, — атлас в CI не
+  # берём намеренно: его числа правятся руками в листах d2, и требовать этого от каждого
+  # PR значило бы обложить налогом любую правку play/**.js. Он остался в вечерней сверке.
+  guards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # page-markers.mjs решает свежесть маркера по git log, мелкой копии мало
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: сторож модели без браузера
+        run: node tools/check.js
+      - name: маркеры кэша страниц и маяки версии
+        run: node tools/page-markers.mjs

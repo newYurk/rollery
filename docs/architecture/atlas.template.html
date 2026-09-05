@@ -266,7 +266,7 @@
     <p>Зона — это право вызова, а не папка на диске: <code>catalog</code> живёт в
     <code>play/model/</code>, а <code>state</code> — один файл в корне <code>play/</code>.
     Внутри зоны перечислены файлы с числом строк, чтобы было видно, где масса:
-    <code>model/geometry.js</code> — 2848 строк, вдвое больше любого соседа, и это ядро
+    <code>model/geometry.js</code> — 2902 строк, вдвое больше любого соседа, и это ядро
     продукта, а не разросшийся утиль.</p>
     <p><strong>С 05.09 зон одиннадцать.</strong> Появилась <code>core-v2</code> — второй
     движок, считающий то же самое в миллиметрах и заново (PR #172). Он не заменяет
@@ -321,14 +321,14 @@
       </tr></thead>
       <tbody>
         <tr><td class="num">1-м</td><td><b class="red">① порядок скриптов</b></td>
-          <td><code>play/index.html</code> — 16 тегов, <code>?v=222</code>/<code>224</code></td>
+          <td><code>play/index.html</code> — 16 тегов, <code>?v=226</code></td>
           <td class="num">16</td><td>шаг 1 · ES-модули</td></tr>
         <tr><td class="num">2-м</td><td><b class="red">② S</b></td>
           <td><code>state.js:11</code> — 229 записей, 206 чтений</td>
-          <td class="num">435</td><td>шаги 2 и 4</td></tr>
+          <td class="num">437</td><td>шаги 2 и 4</td></tr>
         <tr><td class="num">2-м</td><td><b class="red">③ B()</b></td>
           <td><code>state.js:214</code> — ключ на два поля</td>
-          <td class="num">70</td><td>шаг 2 · ModelInput</td></tr>
+          <td class="num">72</td><td>шаг 2 · ModelInput</td></tr>
         <tr><td class="num">3-м</td><td><b class="red">⑥ подмена S</b></td>
           <td>album · roll · checks · puzzle · core-v2/legacy-probe</td>
           <td class="num">6&nbsp;редакций</td><td>шаг 3 · чистый домен</td></tr>
