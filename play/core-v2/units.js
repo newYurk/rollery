@@ -225,12 +225,10 @@ export function baseOf(recipe) {
 }
 
 /**
- * F07 — зонд. Позиция = f(свой uMm), без соседей (erratum-007).
- * 1 мм листа = 1 мм ядра: иначе 8 мм ползунка сжимались в 1 мм и движение пропадало.
- * Разные вещества в одном месте — valid; V2 не раздвигает их.
- * Три и больше (F05) — кухонная мозаика встык, не этот путь.
+ * Ядро: твёрдые палки не проходят друг сквозь друга.
+ * Порядок по u (меньший u — левее, 芯). Зазор 1 мм.
+ * Лист может перекрываться (F07 разные вещества); срез пакует встык.
  */
-export const PROBE_U_TO_CORE = 1;
 export const CORE_PACK_GAP_MM = 1;
 export const CORE_PACK_ROW_MM = 24;
 export const CORE_BUNDLE_MM = Object.freeze({ x: 6, y: 9 });
@@ -273,17 +271,11 @@ function packCoreRows(patches) {
   return out;
 }
 
-/** Положение патча в ядре. Один патч — начало координат. */
+/** Положение патча в ядре. Один патч — начало координат. Несколько — упаковка без пересечения. */
 export function patchCorePos(recipe, patch) {
   const list = recipe.patches;
   if (!list || list.length <= 1) return { x: 0, y: 0 };
-  if (list.length === 2) {
-    const w = placementWindowMm(recipe.sheet);
-    const mid = (w.nearEdgeMm + w.farEdgeMm) / 2;
-    return { x: (patch.uMm - mid) * PROBE_U_TO_CORE, y: 0 };
-  }
-  const packed = packCoreRows(list);
-  return packed.get(patch.id) || { x: 0, y: 0 };
+  return packCoreRows(list).get(patch.id) || { x: 0, y: 0 };
 }
 
 export function patchCoreXmm(recipe, patch) {

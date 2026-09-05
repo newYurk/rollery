@@ -408,33 +408,35 @@ export function acceptF07(steps, swapped, overlap) {
       : fail(`F07-${uMm}:areas`));
   }
   const valid = steps.filter((s) => s.a.report.status === 'valid');
+  const side = (u) => (u < 60 ? -1 : 1);
   for (let i = 1; i < valid.length; i++) {
     const p0 = findVis(valid[i - 1].a.report, 'tamago-0');
     const p1 = findVis(valid[i].a.report, 'tamago-0');
-    const du = Math.abs(valid[i].uMm - valid[i - 1].uMm);
     const d = Math.hypot(p1.centerXmm - p0.centerXmm, p1.centerYmm - p0.centerYmm);
-    checks.push(d <= du + EPS_LENGTH_MM
-      ? ok(`F07-cont-${valid[i].uMm}`)
-      : fail(`F07-cont-${valid[i].uMm}`, d));
+    const same = side(valid[i].uMm) === side(valid[i - 1].uMm);
+    if (same) {
+      checks.push(d <= EPS_LENGTH_MM ? ok(`F07-cont-${valid[i].uMm}`) : fail(`F07-cont-${valid[i].uMm}`, d));
+    } else {
+      checks.push(d > EPS_LENGTH_MM ? ok(`F07-swap-side-${valid[i].uMm}`) : fail(`F07-swap-side-${valid[i].uMm}`, d));
+    }
   }
-  const c0 = findVis(valid[0].a.report, 'cucumber-0');
+  const bySide = new Map();
   for (const s of valid) {
+    const k = side(s.uMm);
+    if (!bySide.has(k)) bySide.set(k, s);
+    const c0 = findVis(bySide.get(k).a.report, 'cucumber-0');
     const c = findVis(s.a.report, 'cucumber-0');
     const d = Math.hypot(c.centerXmm - c0.centerXmm, c.centerYmm - c0.centerYmm);
-    checks.push(d <= EPS_LENGTH_MM
-      ? ok(`F07-neigh-${s.uMm}`)
-      : fail(`F07-neigh-${s.uMm}`, d));
+    checks.push(d <= EPS_LENGTH_MM ? ok(`F07-neigh-${s.uMm}`) : fail(`F07-neigh-${s.uMm}`, d));
   }
   const step56 = steps.find((s) => s.uMm === 56);
   if (swapped.report.status === 'valid' && step56?.a.report.status === 'valid') {
     const probeS = findVis(swapped.report, 'tamago-0');
-    const cuc56 = findVis(step56.a.report, 'cucumber-0');
     const cucS = findVis(swapped.report, 'cucumber-0');
     const probe56 = findVis(step56.a.report, 'tamago-0');
-    const d1 = Math.hypot(probeS.centerXmm - cuc56.centerXmm, probeS.centerYmm - cuc56.centerYmm);
-    const d2 = Math.hypot(cucS.centerXmm - probe56.centerXmm, cucS.centerYmm - probe56.centerYmm);
-    checks.push(d1 <= EPS_LENGTH_MM ? ok('F07-swap-probe') : fail('F07-swap-probe', d1));
-    checks.push(d2 <= EPS_LENGTH_MM ? ok('F07-swap-cuc') : fail('F07-swap-cuc', d2));
+    const cuc56 = findVis(step56.a.report, 'cucumber-0');
+    checks.push(probe56.centerXmm < cuc56.centerXmm ? ok('F07-swap-order-56') : fail('F07-swap-order-56', `${probe56.centerXmm} ${cuc56.centerXmm}`));
+    checks.push(cucS.centerXmm < probeS.centerXmm ? ok('F07-swap-order-rev') : fail('F07-swap-order-rev', `${cucS.centerXmm} ${probeS.centerXmm}`));
     const ar1 = Math.max(cucS.areaMm2 / cuc56.areaMm2, cuc56.areaMm2 / cucS.areaMm2);
     const ar2 = Math.max(probeS.areaMm2 / probe56.areaMm2, probe56.areaMm2 / probeS.areaMm2);
     checks.push(ar1 <= EPS_AREA_RATIO && ar2 <= EPS_AREA_RATIO

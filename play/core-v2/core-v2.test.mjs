@@ -284,15 +284,22 @@ test('F07 coordinate not ordinal; same-material overlap is invalid', () => {
   assert.equal(r.overlap.report.diagnostics[0].code, 'patch_material_overlap');
 });
 
-test('F07 probe moves 1 mm in the slice per 1 mm of u; cucumber stays', () => {
-  const a = makeF07Recipe(56);
-  const b = makeF07Recipe(64);
-  const cuc = (r) => patchCorePos(r, r.patches.find((p) => p.materialId === 'cucumber'));
-  const probe = (r) => patchCorePos(r, r.patches.find((p) => p.materialId === 'tamago'));
-  assert.equal(cuc(a).y, 0);
-  assert.ok(Math.abs(cuc(a).x - cuc(b).x) < 1e-9);
-  assert.equal(+(probe(b).x - probe(a).x).toFixed(6), 8);
-  assert.equal(probe(a).y, 0);
+test('F07 probe sits beside cucumber, swaps side at u=60, never overlaps', () => {
+  const left = makeF07Recipe(56);
+  const right = makeF07Recipe(64);
+  const box = (r, id) => {
+    const p = r.patches.find((x) => x.materialId === id);
+    const c = patchCorePos(r, p);
+    return { ...c, w: p.widthMm, h: p.heightMm };
+  };
+  const overlap = (a, b) => Math.abs(a.x - b.x) + 0.05 < (a.w + b.w) / 2 && Math.abs(a.y - b.y) + 0.05 < (a.h + b.h) / 2;
+  const L = { c: box(left, 'cucumber'), t: box(left, 'tamago') };
+  const R = { c: box(right, 'cucumber'), t: box(right, 'tamago') };
+  assert.ok(!overlap(L.c, L.t));
+  assert.ok(!overlap(R.c, R.t));
+  assert.ok(L.t.x < L.c.x);
+  assert.ok(R.t.x > R.c.x);
+  assert.ok(Math.abs(patchCorePos(left, left.patches[0]).x - patchCorePos(makeF07Recipe(59), makeF07Recipe(59).patches.find((p) => p.materialId === 'cucumber')).x) < 1e-9);
 });
 
 test('knife: 6/8 pieces, first cut at half, snap interior only', () => {
