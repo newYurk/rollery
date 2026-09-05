@@ -252,15 +252,21 @@ test('F05 array order does not change hashes', () => {
 
 test('F05 fillings stay a bundle on x, not a winding orbit', () => {
   const recipe = makeF05Recipe();
-  const pos = recipe.patches.map((p) => ({ id: p.materialId, u: p.uMm, w: p.widthMm, ...patchCorePos(recipe, p) }));
-  for (const p of pos) assert.equal(p.y, 0);
+  const pos = recipe.patches.map((p) => ({ id: p.materialId, u: p.uMm, w: p.widthMm, h: p.heightMm, ...patchCorePos(recipe, p) }));
   const byU = [...pos].sort((a, b) => a.u - b.u);
-  for (let i = 1; i < byU.length; i++) assert.ok(byU[i].x > byU[i - 1].x);
+  for (let i = 1; i < byU.length; i++) {
+    assert.ok(byU[i].x > byU[i - 1].x);
+    assert.ok(byU[i].y > byU[i - 1].y);
+  }
   const w = buildWinding(recipe);
   const rRice = w.rp[0];
+  let maxR = 0;
   for (const p of pos) {
-    assert.ok(Math.abs(p.x) + p.w / 2 < rRice - 0.2, JSON.stringify({ p, rRice }));
+    const ext = Math.hypot(Math.abs(p.x) + p.w / 2, Math.abs(p.y) + p.h / 2);
+    assert.ok(ext < rRice - 0.2, JSON.stringify({ p, rRice, ext }));
+    maxR = Math.max(maxR, Math.hypot(p.x, p.y));
   }
+  assert.ok(maxR < 12, maxR);
 });
 
 test('F06 round-trip and new instance', () => {

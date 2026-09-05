@@ -225,19 +225,23 @@ export function baseOf(recipe) {
 }
 
 /**
- * Масштаб окна в ядро. 1 копировал щели 69 мм; 10/42,5 сжимал куски внахлёст.
- * 0,58: F05 бруски с зазором внутри круга риса, позиция — функция своего u.
+ * Окно листа → пучок в ядре. Свой u, не соседи (F07).
+ * Было: все на y=0 × 0,58 — полоска 40 мм поперёк круга.
+ * Сейчас: диагональный пучок; ближний u ниже (芯), дальний выше.
  */
-export const WINDOW_TO_CORE_SCALE = 0.58;
-export const WINDOW_CORE_HALF_MM = 10;
+export const CORE_BUNDLE_MM = Object.freeze({ x: 7, y: 12 });
+export const WINDOW_TO_CORE_SCALE = CORE_BUNDLE_MM.x / ((105 - 20) / 2);
+export const WINDOW_CORE_HALF_MM = CORE_BUNDLE_MM.x;
 
 /** Положение патча в ядре. Один патч — начало координат.
- *  Несколько — свой u относительно середины окна × масштаб листа, не соседей. */
+ *  Несколько — свой u относительно середины окна, не индекс массива. */
 export function patchCorePos(recipe, patch) {
   if (!recipe.patches || recipe.patches.length <= 1) return { x: 0, y: 0 };
   const w = placementWindowMm(recipe.sheet);
   const mid = (w.nearEdgeMm + w.farEdgeMm) / 2;
-  return { x: (patch.uMm - mid) * WINDOW_TO_CORE_SCALE, y: 0 };
+  const half = Math.max(1e-6, (w.farEdgeMm - w.nearEdgeMm) / 2);
+  const t = (patch.uMm - mid) / half;
+  return { x: t * CORE_BUNDLE_MM.x, y: t * CORE_BUNDLE_MM.y };
 }
 
 export function patchCoreXmm(recipe, patch) {

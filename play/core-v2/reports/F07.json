@@ -7,14 +7,14 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -1.45,
-          "centerYmm": 0
+          "centerXmm": -0.4117647058823529,
+          "centerYmm": -0.7058823529411764
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -3.7699999999999996,
-          "centerYmm": 0
+          "centerXmm": -1.0705882352941178,
+          "centerYmm": -1.835294117647059
         }
       ]
     },
@@ -25,14 +25,14 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -1.45,
-          "centerYmm": 0
+          "centerXmm": -0.4117647058823529,
+          "centerYmm": -0.7058823529411764
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -3.19,
-          "centerYmm": 0
+          "centerXmm": -0.9058823529411766,
+          "centerYmm": -1.5529411764705885
         }
       ]
     },
@@ -43,14 +43,14 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -1.45,
-          "centerYmm": 0
+          "centerXmm": -0.4117647058823529,
+          "centerYmm": -0.7058823529411764
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -2.61,
-          "centerYmm": 0
+          "centerXmm": -0.7411764705882353,
+          "centerYmm": -1.2705882352941176
         }
       ]
     },
@@ -61,14 +61,14 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -1.45,
-          "centerYmm": 0
+          "centerXmm": -0.4117647058823529,
+          "centerYmm": -0.7058823529411764
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -2.03,
-          "centerYmm": 0
+          "centerXmm": -0.5764705882352941,
+          "centerYmm": -0.9882352941176471
         }
       ]
     },
@@ -79,14 +79,14 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -1.45,
-          "centerYmm": 0
+          "centerXmm": -0.4117647058823529,
+          "centerYmm": -0.7058823529411764
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -1.45,
-          "centerYmm": 0
+          "centerXmm": -0.4117647058823529,
+          "centerYmm": -0.7058823529411764
         }
       ]
     },
@@ -97,14 +97,14 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -1.45,
-          "centerYmm": 0
+          "centerXmm": -0.4117647058823529,
+          "centerYmm": -0.7058823529411764
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -0.8699999999999999,
-          "centerYmm": 0
+          "centerXmm": -0.24705882352941178,
+          "centerYmm": -0.4235294117647059
         }
       ]
     },
@@ -115,14 +115,14 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -1.45,
-          "centerYmm": 0
+          "centerXmm": -0.4117647058823529,
+          "centerYmm": -0.7058823529411764
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -0.29,
-          "centerYmm": 0
+          "centerXmm": -0.08235294117647059,
+          "centerYmm": -0.1411764705882353
         }
       ]
     },
@@ -133,14 +133,14 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -1.45,
-          "centerYmm": 0
+          "centerXmm": -0.4117647058823529,
+          "centerYmm": -0.7058823529411764
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": 0.29,
-          "centerYmm": 0
+          "centerXmm": 0.08235294117647059,
+          "centerYmm": 0.1411764705882353
         }
       ]
     },
@@ -151,14 +151,14 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -1.45,
-          "centerYmm": 0
+          "centerXmm": -0.4117647058823529,
+          "centerYmm": -0.7058823529411764
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": 0.8699999999999999,
-          "centerYmm": 0
+          "centerXmm": 0.24705882352941178,
+          "centerYmm": 0.4235294117647059
         }
       ]
     }
