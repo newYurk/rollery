@@ -41,7 +41,7 @@ n1: "РЕЖЕМ 1-м  ·  ① classic scripts: порядок вместо за�
   | {class: glob}
 
   bust: |md
-    **`?v=222` / `?v=224`** — ручной cache-bust у каждой строки. \
+    **`?v=226`** — ручной cache-bust у каждой из 16 строк. \
     Забыть номер = браузер отдаёт старый файл, \
     и правка «не работает».
   | {class: glob}
@@ -78,17 +78,17 @@ n23: "РЕЖЕМ 2-м  ·  ② S и ③ B() — вход модели не на�
   || {class: glob}
 
   writers: |md
-    **ПИШУТ в `S`** — 229 присваиваний \
+    **ПИШУТ в `S`** — 230 присваиваний \
     игра: actions 29 · album 15 · state 14 \
     puzzle 11 · roll 10 · screens 5 \
     ядро V2: legacy-probe 5 \
-    сторож: checks 91 · practice 39 · baseline 8 · facade 2
+    сторож: checks 92 · practice 39 · baseline 8 · facade 2
   | {class: file}
 
   readers: |md
-    **ЧИТАЮТ `S`** — 206 чтений \
+    **ЧИТАЮТ `S`** — 207 чтений \
     игра: actions 26 · album 20 · screens 19 · state 16 \
-    controls 15 · **geometry 14** · puzzle 11 · sheet 7 · roll 7 \
+    controls 15 · **geometry 15** · puzzle 11 · sheet 7 · roll 7 \
     slice 5 · canon 2 · audio 2 · layout 2 · util 1 \
     ядро V2: **recipe-v2 10** · from-layout 5 · legacy-probe 2 \
     сторож: checks 17 · practice 16 · facade 6 · baseline 3
@@ -103,15 +103,15 @@ n23: "РЕЖЕМ 2-м  ·  ② S и ③ B() — вход модели не на�
   | {class: note}
 
   busers: |md
-    **зовут `B()`** — 70 раз из 12 файлов \
-    screens 20 · **geometry 14** · sheet 6 · state 5 \
+    **зовут `B()`** — 72 раза из 12 файлов \
+    screens 22 · **geometry 14** · sheet 6 · state 5 \
     album 4 · slice 4 · puzzle 4 · checks 4 \
     layout 3 · controls 3 · actions 2 · roll 1
   | {class: file}
 
-  writers -> S: 229 присваиваний {class: bad}
-  S -> readers: 206 чтений {class: bad}
-  B -> busers: 70 {class: bad}
+  writers -> S: 230 присваиваний {class: bad}
+  S -> readers: 207 чтений {class: bad}
+  B -> busers: 72 {class: bad}
 
   why: |md
     **Почему это блокер, а не неопрятность.** `geometry.js` — ядро \

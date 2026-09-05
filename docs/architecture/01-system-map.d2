@@ -10,9 +10,9 @@
 #  зонами. Внутренности зоны — опись, а не граф. Кто кого зовёт на самом
 #  деле и почему это больно — лист 2. Как проходит одно действие — лист 3.
 #
-#  Числа строк — ВЕСЬ файл, снято на коммите e6ae124 (01.09.2026).
+#  Числа строк — ВЕСЬ файл, снято на коммите 362ffdc (05.09.2026).
 #  Руками не переписывать: меряет и сверяет docs/architecture/atlas-facts.py.
-#  У geometry.js подписано отдельно и код, и всего: 1136 из 2077 строк там —
+#  У geometry.js подписано отдельно и код, и всего: 1812 из 2902 строк там —
 #  комментарии, и стороннее ревью на этом ошиблось, назвав «2000 строк кода».
 #
 #  ⚠ ПРО ПЕРЕНОСЫ. Каждая строка внутри |md …| кончается обратной косой:
@@ -64,7 +64,7 @@ session: "state · что выбрал игрок" {
     которое трогает localStorage.
   | {class: note}
   st: |md
-    **state.js** · 263 \
+    **state.js** · 269 \
     S · patches() · B() \
     история · load() · save() · uiBases()
   | {class: file}
@@ -77,7 +77,7 @@ model: "geometry · что из этого получится" {
     **Ядро продукта.**
   | {class: note}
   geo: |md
-    **model/geometry.js** · 2848 всего, 1003 кода \
+    **model/geometry.js** · 2902 всего, 1090 кода \
     buildModel → g (паспорт) → restack \
     computeCore · wind · windFor · matAt \
     две ветки намотки: кольцо и `winding: 'spiral'` \
@@ -106,8 +106,8 @@ core_v2: "core-v2 · то же самое, но в миллиметрах" {
   pipe: |md
     **validate → winding → section → measure** \
     validate.js · 194 — честный отказ с кодом \
-    winding.js · 261 — кольцо: r0 по лучам, шов \
-    section.js · 110 — срез и площадь кольца \
+    winding.js · 331 — кольцо: r0 по лучам, шов \
+    section.js · 147 — срез и площадь кольца \
     measure.js · 117 — FixtureReport
   | {class: file}
   gate: |md
@@ -153,7 +153,7 @@ render: "render · как это выглядит" {
     лист · ролл · нож · силуэты
   | {class: file}
   screens: |md
-    **render/screens.js** · 446 \
+    **render/screens.js** · 457 \
     drawLay · drawCut · drawSlicing · drawPlate
   | {class: file}
 }
@@ -161,7 +161,7 @@ render: "render · как это выглядит" {
 ui: "ui · ввод и раскладка экрана" {
   class: zone
   layout: |md
-    **ui/layout.js** · 436 \
+    **ui/layout.js** · 443 \
     L — вся раскладка экрана \
     W · H · DPR · resize
   | {class: file}
@@ -210,7 +210,7 @@ storage: "storage · что переживает перезагрузку" {
 checks: "сторож · чем доказывается, что не сломали" {
   class: zone
   ch: |md
-    **play/checks.js** · 1709 \
+    **play/checks.js** · 1720 \
     **`node tools/check.js`** — 5,6 с, без браузера (#147) \
     ВСЁ ЦЕЛО · известно 31 · сдвиг ⌀ 1 \
     он же `?check` в браузере: холст и DPR только там
