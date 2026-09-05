@@ -10,7 +10,6 @@ export const MAT = {
   salmon: { fill: '#ef8a66', edge: '#c45a3a' },
   rice: '#e4ded6',
   nori: '#22342b',
-  hollow: '#1a1814',
 };
 
 function binAt(phi) {
@@ -76,17 +75,6 @@ function barPath(ctx, patch, ox) {
   ctx.roundRect(x0, y0, w, h, r);
 }
 
-function r0Path(ctx, winding) {
-  ctx.beginPath();
-  for (let i = 0; i <= 360; i++) {
-    const phi = (i / 360) * TAU;
-    const r = winding.r0b[binAt(phi)];
-    if (i === 0) ctx.moveTo(r * Math.cos(phi), r * Math.sin(phi));
-    else ctx.lineTo(r * Math.cos(phi), r * Math.sin(phi));
-  }
-  ctx.closePath();
-}
-
 function riceGrains(ctx, winding, inner, outer, n) {
   for (let i = 0; i < n; i++) {
     const u = seed(i + 1);
@@ -133,50 +121,11 @@ export function drawSlice(ctx, recipe, winding, css) {
   ctx.fillStyle = MAT.rice;
   ctx.fill();
 
-  if (winding.riceSteps > NB) {
-    ctx.fillStyle = '#d8d0c6';
-    ctx.beginPath();
-    for (let i = NB; i < winding.riceSteps; i++) {
-      const phi0 = i * DPHI;
-      const phi1 = (i + 1) * DPHI;
-      const j = Math.min(i + 1, winding.riceSteps - 1);
-      const a0 = winding.riceRin[i];
-      const a1 = winding.riceRout[i];
-      const b0 = winding.riceRin[j];
-      const b1 = winding.riceRout[j];
-      ctx.moveTo(a0 * Math.cos(phi0), a0 * Math.sin(phi0));
-      ctx.lineTo(a1 * Math.cos(phi0), a1 * Math.sin(phi0));
-      ctx.lineTo(b1 * Math.cos(phi1), b1 * Math.sin(phi1));
-      ctx.lineTo(b0 * Math.cos(phi1), b0 * Math.sin(phi1));
-      ctx.closePath();
-    }
-    ctx.fill();
-  }
-
   ctx.save();
   ctx.beginPath();
   ctx.arc(0, 0, winding.rp[0], 0, TAU);
   ctx.clip();
   riceGrains(ctx, winding, winding.r0b, winding.rp, packed ? 110 : 90);
-  ctx.restore();
-
-  ctx.save();
-  ctx.strokeStyle = 'rgba(90, 82, 70, 0.45)';
-  ctx.lineWidth = Math.max(0.35, 1.1 / scale);
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  for (let i = 0; i < winding.riceSteps; i++) {
-    const phi = i * DPHI;
-    const r = winding.riceRin[i];
-    const x = r * Math.cos(phi);
-    const y = r * Math.sin(phi);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  const last = winding.riceSteps - 1;
-  const phiEnd = last * DPHI;
-  ctx.lineTo(winding.riceRout[last] * Math.cos(phiEnd), winding.riceRout[last] * Math.sin(phiEnd));
-  ctx.stroke();
   ctx.restore();
 
   ringPath(ctx, winding.rp, winding.rn);
@@ -214,12 +163,6 @@ export function drawSlice(ctx, recipe, winding, css) {
   ctx.strokeStyle = '#1a211c';
   ctx.lineWidth = Math.max(winding.W, 3.4 / scale);
   ctx.stroke();
-
-  if (!packed) {
-    r0Path(ctx, winding);
-    ctx.fillStyle = MAT.hollow;
-    ctx.fill();
-  }
 
   ctx.save();
   ctx.beginPath();
