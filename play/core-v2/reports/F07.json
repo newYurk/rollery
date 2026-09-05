@@ -8,13 +8,13 @@
           "id": "cucumber-0",
           "areaMm2": 64,
           "centerXmm": -0.3529411764705882,
-          "centerYmm": -1.7688581314878893
+          "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
           "centerXmm": -0.9176470588235295,
-          "centerYmm": -1.5894809688581315
+          "centerYmm": 0
         }
       ]
     },
@@ -26,13 +26,13 @@
           "id": "cucumber-0",
           "areaMm2": 64,
           "centerXmm": -0.3529411764705882,
-          "centerYmm": -1.7688581314878893
+          "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
           "centerXmm": -0.7764705882352942,
-          "centerYmm": -1.6492733564013842
+          "centerYmm": 0
         }
       ]
     },
@@ -44,13 +44,13 @@
           "id": "cucumber-0",
           "areaMm2": 64,
           "centerXmm": -0.3529411764705882,
-          "centerYmm": -1.7688581314878893
+          "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
           "centerXmm": -0.6352941176470588,
-          "centerYmm": -1.6991003460207614
+          "centerYmm": 0
         }
       ]
     },
@@ -62,13 +62,13 @@
           "id": "cucumber-0",
           "areaMm2": 64,
           "centerXmm": -0.3529411764705882,
-          "centerYmm": -1.7688581314878893
+          "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
           "centerXmm": -0.49411764705882355,
-          "centerYmm": -1.738961937716263
+          "centerYmm": 0
         }
       ]
     },
@@ -80,13 +80,13 @@
           "id": "cucumber-0",
           "areaMm2": 64,
           "centerXmm": -0.3529411764705882,
-          "centerYmm": -1.7688581314878893
+          "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
           "centerXmm": -0.3529411764705882,
-          "centerYmm": -1.7688581314878893
+          "centerYmm": 0
         }
       ]
     },
@@ -98,13 +98,13 @@
           "id": "cucumber-0",
           "areaMm2": 64,
           "centerXmm": -0.3529411764705882,
-          "centerYmm": -1.7688581314878893
+          "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
           "centerXmm": -0.21176470588235294,
-          "centerYmm": -1.7887889273356403
+          "centerYmm": 0
         }
       ]
     },
@@ -116,13 +116,13 @@
           "id": "cucumber-0",
           "areaMm2": 64,
           "centerXmm": -0.3529411764705882,
-          "centerYmm": -1.7688581314878893
+          "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
           "centerXmm": -0.07058823529411765,
-          "centerYmm": -1.7987543252595157
+          "centerYmm": 0
         }
       ]
     },
@@ -134,13 +134,13 @@
           "id": "cucumber-0",
           "areaMm2": 64,
           "centerXmm": -0.3529411764705882,
-          "centerYmm": -1.7688581314878893
+          "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
           "centerXmm": 0.07058823529411765,
-          "centerYmm": -1.7987543252595157
+          "centerYmm": 0
         }
       ]
     },
@@ -152,13 +152,13 @@
           "id": "cucumber-0",
           "areaMm2": 64,
           "centerXmm": -0.3529411764705882,
-          "centerYmm": -1.7688581314878893
+          "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
           "centerXmm": 0.21176470588235294,
-          "centerYmm": -1.7887889273356403
+          "centerYmm": 0
         }
       ]
     }

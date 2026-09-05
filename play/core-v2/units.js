@@ -225,22 +225,64 @@ export function baseOf(recipe) {
 }
 
 /**
- * Окно листа → пучок в ядре. Свой u, не соседи (F07).
- * x монотонен по u; y — дуга, чтобы не строить лесенку (x и y не пропорциональны).
+ * Пучок в ядре. Один/два патча — свой u на оси x (F07).
+ * Три и больше — ряды встык, без пересечения коробок (футо-мозаика, не лесенка).
  */
+export const CORE_PACK_GAP_MM = 1;
+export const CORE_PACK_ROW_MM = 24;
 export const CORE_BUNDLE_MM = Object.freeze({ x: 6, y: 9 });
 export const WINDOW_TO_CORE_SCALE = CORE_BUNDLE_MM.x / ((105 - 20) / 2);
 export const WINDOW_CORE_HALF_MM = CORE_BUNDLE_MM.x;
 
-/** Положение патча в ядре. Один патч — начало координат.
- *  Несколько — свой u относительно середины окна, не индекс массива. */
+function packCoreRows(patches) {
+  const sorted = [...patches].sort((a, b) => a.uMm - b.uMm || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const gap = CORE_PACK_GAP_MM;
+  const rows = [];
+  let row = [];
+  let rowW = 0;
+  for (const p of sorted) {
+    const add = p.widthMm + (row.length ? gap : 0);
+    if (row.length && rowW + add > CORE_PACK_ROW_MM) {
+      rows.push(row);
+      row = [];
+      rowW = 0;
+    }
+    row.push(p);
+    rowW += p.widthMm + (row.length > 1 ? gap : 0);
+  }
+  if (row.length) rows.push(row);
+
+  const placed = [];
+  let y = 0;
+  for (const items of rows) {
+    const rowH = Math.max(...items.map((p) => p.heightMm));
+    const width = items.reduce((s, p, i) => s + p.widthMm + (i ? gap : 0), 0);
+    let x = -width / 2;
+    for (const p of items) {
+      placed.push({ id: p.id, x: x + p.widthMm / 2, y: y + p.heightMm / 2 });
+      x += p.widthMm + gap;
+    }
+    y += rowH + gap;
+  }
+  const midY = y / 2;
+  const out = new Map();
+  for (const p of placed) out.set(p.id, { x: p.x, y: p.y - midY });
+  return out;
+}
+
+/** Положение патча в ядре. Один патч — начало координат. */
 export function patchCorePos(recipe, patch) {
-  if (!recipe.patches || recipe.patches.length <= 1) return { x: 0, y: 0 };
-  const w = placementWindowMm(recipe.sheet);
-  const mid = (w.nearEdgeMm + w.farEdgeMm) / 2;
-  const half = Math.max(1e-6, (w.farEdgeMm - w.nearEdgeMm) / 2);
-  const t = (patch.uMm - mid) / half;
-  return { x: t * CORE_BUNDLE_MM.x, y: (t * t - 0.2) * CORE_BUNDLE_MM.y };
+  const list = recipe.patches;
+  if (!list || list.length <= 1) return { x: 0, y: 0 };
+  if (list.length === 2) {
+    const w = placementWindowMm(recipe.sheet);
+    const mid = (w.nearEdgeMm + w.farEdgeMm) / 2;
+    const half = Math.max(1e-6, (w.farEdgeMm - w.nearEdgeMm) / 2);
+    const t = (patch.uMm - mid) / half;
+    return { x: t * CORE_BUNDLE_MM.x, y: 0 };
+  }
+  const packed = packCoreRows(list);
+  return packed.get(patch.id) || { x: 0, y: 0 };
 }
 
 export function patchCoreXmm(recipe, patch) {
