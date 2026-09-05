@@ -24,17 +24,17 @@
         "layerId": "nori",
         "u0Mm": 0,
         "u1Mm": 105,
-        "arcMm": 90.519349
+        "arcMm": 90.519357
       }
     ]
   },
   "seam": {
-    "uStartMm": 90.519349,
+    "uStartMm": 90.519357,
     "uEndMm": 105,
     "angleStartRad": 0,
-    "angleEndRad": 1.00514,
-    "overlapMm": 14.480651,
-    "overlapArcRad": 1.00514,
+    "angleEndRad": 1.005139,
+    "overlapMm": 14.480643,
+    "overlapArcRad": 1.005139,
     "turnsMeasured": 1.159973
   },
   "rays": {
@@ -1482,8 +1482,8 @@
     ]
   },
   "roll": {
-    "diameterMinMm": 28.913204,
-    "diameterMaxMm": 29.113204,
+    "diameterMinMm": 28.913206,
+    "diameterMaxMm": 29.113206,
     "wrapIntersectionsByRay": [
       2,
       2,
@@ -7259,8 +7259,8 @@
   "visiblePatches": [],
   "hashes": {
     "recipe": "b913d1a5a7b0b1000cff110a55379197cf055df900496a04bc46b100cb01f539",
-    "winding": "34fc04277b0c00d32b552de7221ac00de4450a826a9185167abb2b0456b38eab",
-    "section": "76dd98979acf44cbead289b290a03085d4f64200ec93841a2653120a0027ac7c"
+    "winding": "bda44e890cb690551f2f303ee1cde485e61b2f0dcfd97d9fd21ab61118ab78d5",
+    "section": "bd8f9d418840dbaff92500691fd4337535a55f968fb7cf32858985159ab7163b"
   },
   "eps": {
     "EPS_LENGTH_MM": 0.15,
@@ -7275,6 +7275,6 @@
     "twoIntersectionCount": 230,
     "twoIntersectionFraction": 0.159722,
     "overlapArcFraction": 0.159973,
-    "RavgMm": 14.406602
+    "RavgMm": 14.406603
   }
 }

@@ -12,7 +12,12 @@ import {
 } from './units.js';
 
 export function riceOuterMm(Wc, Hc, T, Lrice) {
-  return Math.sqrt((Math.max(0, Wc * Hc) + T * Lrice) / Math.PI);
+  return riceOuterFromAreaMm(Math.max(0, Wc * Hc), T, Lrice);
+}
+
+/** Внешний радиус риса из сохранения площади: π·rp² = площадь ядра + T·Lrice. */
+export function riceOuterFromAreaMm(coreAreaMm2, T, Lrice) {
+  return Math.sqrt((Math.max(0, coreAreaMm2) + T * Lrice) / Math.PI);
 }
 
 export function r0At(phi, Wc, Hc) {
@@ -23,14 +28,74 @@ export function r0At(phi, Wc, Hc) {
   return Math.min(rx, ry);
 }
 
-function coreBoxMm(recipe) {
+/**
+ * Где луч φ выходит из прямоугольника, СМЕЩЁННОГО от центра. 0 — не задевает.
+ * Обычный slab-тест: по каждой оси считаем вход и выход, берём пересечение.
+ */
+export function boxExitAt(phi, box) {
+  const dx = Math.cos(phi);
+  const dy = Math.sin(phi);
+  let t0 = -Infinity;
+  let t1 = Infinity;
+  for (const [d, c, h] of [[dx, box.cx, box.hw], [dy, box.cy, box.hh]]) {
+    if (Math.abs(d) < 1e-12) {
+      if (Math.abs(c) > h) return 0; // луч параллелен полосе и вне её
+      continue;
+    }
+    const a = (c - h) / d;
+    const b = (c + h) / d;
+    t0 = Math.max(t0, Math.min(a, b));
+    t1 = Math.min(t1, Math.max(a, b));
+  }
+  if (t1 < Math.max(t0, 0)) return 0;
+  return Math.max(0, t1);
+}
+
+/**
+ * Граница ядра на луче φ — там, где кончается ОБЪЕДИНЕНИЕ кусков, а не
+ * описанный вокруг них прямоугольник (#186). У прямоугольника пустые углы:
+ * у футомаки они занимали 36 % ядра, входили в бюджет площади и раздували
+ * ролл на 2,2 мм. Рис обязан обтекать начинки, а не отступать от рамки.
+ */
+export function r0AtBoxes(phi, boxes) {
+  let r = 0;
+  for (const b of boxes) {
+    const t = boxExitAt(phi, b);
+    if (t > r) r = t;
+  }
+  return r;
+}
+
+/** Площадь, охваченная границей r0(φ): ∫ r²/2 dφ. Ровно то, что не рис. */
+export function coreAreaOf(r0b) {
+  let acc = 0;
+  for (let b = 0; b < NB; b++) acc += r0b[b] * r0b[b];
+  return acc * DPHI / 2;
+}
+
+/**
+ * Куски ядра как прямоугольники. Пустой ролл — один прямоугольник базы;
+ * с начинками — по прямоугольнику на кусок, и рис обтекает их объединение.
+ */
+export function coreBoxesMm(recipe) {
   const base = baseOf(recipe);
-  let halfW = base.emptyCoreWidthMm / 2;
-  let halfH = base.emptyCoreHeightMm / 2;
-  for (const p of recipe.patches) {
+  if (!recipe.patches.length) {
+    return [{ cx: 0, cy: 0, hw: base.emptyCoreWidthMm / 2, hh: base.emptyCoreHeightMm / 2 }];
+  }
+  return recipe.patches.map((p) => {
     const { x, y } = patchCorePos(recipe, p);
-    halfW = Math.max(halfW, Math.abs(x) + p.widthMm / 2);
-    halfH = Math.max(halfH, Math.abs(y) + p.heightMm / 2 + base.noriThicknessMm);
+    return { cx: x, cy: y, hw: p.widthMm / 2, hh: p.heightMm / 2 + base.noriThicknessMm };
+  });
+}
+
+/** Описанный прямоугольник — для отказа core_overflow и для отчёта. */
+function coreBoxMm(recipe) {
+  const boxes = coreBoxesMm(recipe);
+  let halfW = 0;
+  let halfH = 0;
+  for (const b of boxes) {
+    halfW = Math.max(halfW, Math.abs(b.cx) + b.hw);
+    halfH = Math.max(halfH, Math.abs(b.cy) + b.hh);
   }
   return { Wc: 2 * halfW, Hc: 2 * halfH };
 }
@@ -116,6 +181,7 @@ export function buildWinding(recipe) {
   const T = base.riceThicknessMm;
   const W = base.noriThicknessMm;
   const { sRice0, sRice1, Lrice } = riceSpanMm(L, base.spreadStart, base.spreadEnd);
+  const boxes = coreBoxesMm(recipe);
   const { Wc, Hc } = coreBoxMm(recipe);
   const fromUZero = recipe.windDirection !== 'fromULength';
 
@@ -125,12 +191,14 @@ export function buildWinding(recipe) {
   const uInnerMm = new Float64Array(NB);
   const angleRad = new Float64Array(NB);
 
-  const rpCircle = riceOuterMm(Wc, Hc, T, Lrice);
+  // Граница ядра — сначала, потому что из неё берётся площадь, а из площади rp.
+  for (let b = 0; b < NB; b++) r0b[b] = r0AtBoxes(b * DPHI, boxes);
+  const coreAreaMm2 = coreAreaOf(r0b);
+  const rpCircle = riceOuterFromAreaMm(coreAreaMm2, T, Lrice);
   let Rout = 0;
   for (let b = 0; b < NB; b++) {
     const phi = b * DPHI;
     angleRad[b] = phi;
-    r0b[b] = r0At(phi, Wc, Hc);
     rp[b] = rpCircle;
     rn[b] = rp[b] + W;
     if (rn[b] > Rout) Rout = rn[b];
@@ -202,6 +270,8 @@ export function buildWinding(recipe) {
     W,
     Wc,
     Hc,
+    coreBoxes: boxes,
+    coreAreaMm2,
     Rout,
     Ravg,
     phiOverlap,
