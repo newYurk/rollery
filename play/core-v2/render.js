@@ -116,14 +116,16 @@ export function drawSlice(ctx, recipe, winding, css) {
   ctx.fill();
   ctx.restore();
 
-  ctx.beginPath();
-  ctx.arc(0, 0, winding.rp[0], 0, TAU);
+  // Рис — КОЛЬЦО от r0b до rp, а не диск. Раньше здесь заливался весь круг,
+  // и пустое ядро (5 × 7,2 мм у хосомаки) показывалось рисом, хотя в модели
+  // это пустота: границу уважала только россыпь зёрен. Картинка врала про
+  // модель ровно там, где модель интереснее всего.
+  ringPath(ctx, winding.r0b, winding.rp);
   ctx.fillStyle = MAT.rice;
   ctx.fill();
 
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(0, 0, winding.rp[0], 0, TAU);
+  ringPath(ctx, winding.r0b, winding.rp);
   ctx.clip();
   riceGrains(ctx, winding, winding.r0b, winding.rp, packed ? 110 : 90);
   ctx.restore();
@@ -315,6 +317,11 @@ export function drawSheet(ctx, recipe, winding, cssW, cssH) {
   ctx.fillText('окно', (wx0 + wx1) / 2 - 12, riceY - 4);
 }
 
+/** Радиус ролла в боковом виде. Один источник: рисование и нож обязаны совпадать. */
+export function rollRadiusPx(cssH) {
+  return Math.min(22, cssH * 0.28);
+}
+
 export function rollSideLayout(cssW, cssH) {
   const pad = 28;
   return { x0: pad, y0: cssH / 2, innerW: cssW - pad * 2, pad };
@@ -337,7 +344,7 @@ export function drawBar(ctx, recipe, winding, cssW, cssH, cuts, vFrac, knifeY) {
 export function drawRollSide(ctx, winding, cssW, cssH, cuts, vFrac, knifeY) {
   const Rout = winding.Rout + winding.W;
   const { x0, y0, innerW } = rollSideLayout(cssW, cssH);
-  const Rpx = Math.min(22, cssH * 0.28);
+  const Rpx = rollRadiusPx(cssH);
 
   ctx.fillStyle = '#171713';
   ctx.fillRect(0, 0, cssW, cssH);

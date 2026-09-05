@@ -152,7 +152,11 @@ export function buildWinding(recipe) {
   const innerBoundaryByRay = new Float64Array(NB);
   for (let b = 0; b < NB; b++) {
     wrapIntersectionsByRay[b] = b < overlapBins ? 2 : 1;
-    turnIndexAtRay[b] = Math.min(1, Math.floor(spiral.steps / NB));
+    // Индекс ВНЕШНЕГО витка риса на этом луче. Лента делает turns оборотов,
+    // поэтому на части лучей она лежит вторым слоем, а на остальных — одним.
+    // Раньше стояло min(1, floor(turns)) — одинаково по всем лучам, то есть
+    // поле в отчёте было, а информации в нём не было.
+    turnIndexAtRay[b] = Math.max(0, Math.floor((spiral.steps - 1 - b) / NB));
     innerBoundaryByRay[b] = r0b[b];
   }
 

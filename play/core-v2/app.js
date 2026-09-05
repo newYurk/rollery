@@ -1,8 +1,7 @@
 import { deepClone, makeCucumberRecipe, makeF01Recipe, makeF02Recipe, makeF05Recipe, makeHosogiriRecipe } from './recipe.js';
 import { validateRecipe, assessWinding } from './validate.js';
 import { buildWinding } from './winding.js';
-import { sampleSection } from './section.js';
-import { drawBar, drawSlice, rollSideLayout, sheetGeom, sheetShare } from './render.js';
+import { drawBar, drawSlice, rollRadiusPx, rollSideLayout, sheetGeom, sheetShare } from './render.js';
 import { clampPatchU, placementWindowMm } from './units.js';
 import {
   cutFractions,
@@ -98,7 +97,6 @@ function paint() {
     lastWinding = winding;
     const n = pieceCountOf(recipe);
     vFrac = snapCutFraction(vFrac, n);
-    sampleSection(recipe, winding, vSliceMm(recipe, vFrac));
     drawSlice(sctx, recipe, winding, slice.width);
     drawBarNow(recipe, winding, n);
     slice.hidden = false;
@@ -205,7 +203,9 @@ function pullCut() {
   const recipe = lastRecipe;
   const winding = lastWinding;
   const { y0 } = rollSideLayout(bar.width, rollH());
-  const RoutPx = Math.min(18, rollH() * 0.28);
+  // Был свой min(18, …) против min(22, …) в render.js: при высоте полосы
+  // выше 169 px нож приезжал не туда, куда нарисован ролл.
+  const RoutPx = rollRadiusPx(rollH());
   const yTop = y0 - RoutPx - 12;
   const yCut = y0 + RoutPx * 0.9;
   const t0 = performance.now();
