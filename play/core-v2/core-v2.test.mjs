@@ -496,3 +496,59 @@ test('переводчик: класс нарезки поддержан ров�
   const cuts = new Set(Object.values(ING).map((d) => d.cut));
   for (const c of SUPPORTED_CUTS) assert.ok(cuts.has(c), `каталог потерял класс ${c}`);
 });
+
+// ── переносимость хешей (#175) ─────────────────────────────────────────────
+import { hashValue, quantize, HASH_QUANTUM_MM } from './hash.js';
+import { windingForHash } from './winding.js';
+import { sectionForHash } from './section.js';
+
+/** Следующее представимое double вверх. Ровно один ULP, без приближений. */
+function nextUp(x) {
+  const b = new DataView(new ArrayBuffer(8));
+  b.setFloat64(0, x);
+  const hi = b.getUint32(0);
+  const lo = b.getUint32(4);
+  if (lo === 0xffffffff) { b.setUint32(0, hi + 1); b.setUint32(4, 0); } else { b.setUint32(4, lo + 1); }
+  return b.getFloat64(0);
+}
+
+test('хеш переживает сдвиг на один ULP — это шум платформы, а не изменение', () => {
+  // Math.cos/Math.sin не бит-в-бит одинаковы у разных сборок V8, и раньше один
+  // такой бит менял SHA-256 целиком: reports/*.json становились машинно-зависимыми.
+  const w = buildWinding(makeF02Recipe());
+  const before = hashValue(windingForHash(w));
+
+  const nudged = { ...w, r0b: Float64Array.from(w.r0b, nextUp), rp: Float64Array.from(w.rp, nextUp) };
+  assert.notEqual(nudged.r0b[7], w.r0b[7], 'сдвиг обязан быть настоящим');
+  assert.ok(Math.abs(nudged.r0b[7] - w.r0b[7]) < 1e-14, 'и при этом ровно ULP');
+
+  assert.equal(hashValue(windingForHash(nudged)), before, 'ULP не должен менять хеш');
+});
+
+test('хеш ловит настоящее изменение, много мельче допуска', () => {
+  const w = buildWinding(makeF02Recipe());
+  const before = hashValue(windingForHash(w));
+  // 1e-3 мм — в 150 раз меньше EPS_LENGTH_MM и в тысячу раз крупнее сетки хеша.
+  const real = { ...w, r0b: Float64Array.from(w.r0b, (v) => v + 1e-3) };
+  assert.notEqual(hashValue(windingForHash(real)), before);
+});
+
+test('quantize: −0 и 0 неразличимы, типизированные массивы переживают', () => {
+  assert.equal(Object.is(quantize(-0), 0), true);
+  assert.equal(quantize(1 / 3), 0.333333);
+  assert.deepEqual(quantize(Float64Array.from([1.0000004, -0])), [1, 0]);
+  assert.equal(HASH_QUANTUM_MM, 1e-6);
+  // Сетка обязана лежать глубоко под допуском длины (иначе хеш начнёт врать)
+  // и глубоко над ULP миллиметровых величин (иначе вернётся шум платформы).
+  assert.ok(0.15 / HASH_QUANTUM_MM > 1e4, "квант слишком крупный: ближе четырёх порядков к допуску");
+  assert.ok(HASH_QUANTUM_MM / (2 ** -52 * 4.15) > 1e6, "квант слишком мелкий: ближе шести порядков к ULP");
+});
+
+test('срез хешируется так же устойчиво, как намотка', () => {
+  const r = makeF02Recipe();
+  const w = buildWinding(r);
+  const sec = sampleSection(r, w, r.sheet.widthMm / 2);
+  const before = hashValue(sectionForHash(sec));
+  const nudged = { ...sec, layers: { rice: { innerMm: Float64Array.from(w.r0b, nextUp), outerMm: Float64Array.from(w.rp, nextUp) }, nori: { innerMm: Float64Array.from(w.rp, nextUp), outerMm: Float64Array.from(w.rn, nextUp) } } };
+  assert.equal(hashValue(sectionForHash(nudged)), before);
+});
