@@ -1,7 +1,7 @@
 // Debug slice. Presentation only — does not feed hashes or acceptance.
 // Colors from catalog.js (hoso wrapper / spread / ING), not from geometry.js.
 
-import { DPHI, HOSOGIRI, NB, TAU, hosogiriSticks, patchCorePos, placementWindowMm } from './units.js';
+import { DPHI, FUTOMAKI, HOSOGIRI, NB, TAU, hosogiriSticks, patchCorePos, placementWindowMm } from './units.js';
 import { sectorTop } from './section.js';
 
 export const MAT = {
@@ -175,7 +175,8 @@ export function drawSlice(ctx, recipe, winding, css) {
   ctx.stroke();
 
   const turns = winding.seam?.turnsMeasured ?? 1;
-  if (turns > 1.04) {
+  const futo = recipe.baseId === FUTOMAKI.baseId;
+  if (!futo && turns > 1) {
     ctx.save();
     ctx.strokeStyle = MAT.nori;
     ctx.lineWidth = Math.max(winding.W * 2.2, 2.2 / scale);
