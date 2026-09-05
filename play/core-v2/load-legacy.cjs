@@ -26,6 +26,9 @@ ctx.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 ctx.requestAnimationFrame = () => 0; ctx.addEventListener = () => {};
 ctx.matchMedia = () => ({ matches: false, addEventListener() {} });
 ctx.location = { search: '', href: '', hash: '' };
+// Третья песочница с тем же пробелом, что чинился в #176: state.js:65
+// разбирает ?v2 через URLSearchParams, и без него сюда не грузится ничего.
+ctx.URLSearchParams = URLSearchParams;
 ctx.navigator = { userAgent: 'node' }; ctx.performance = { now: () => 0 };
 ctx.setTimeout = () => 0; ctx.clearTimeout = () => {};
 vm.createContext(ctx);
