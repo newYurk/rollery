@@ -41,7 +41,7 @@ catalog: "catalog · что бывает на свете" {
     HAND_NEUTRAL · handOf · turnsOf
   | {class: file}
   cat: |md
-    **model/catalog.js** · 359 \
+    **model/catalog.js** · 427 \
     BASES · ING · R0 · U_MM · turnsFor \
     базы: хосо · футо · **узумаки** · фрукты \
     свойства: stiff · crumbly · axial · mixed · bedDelta
@@ -64,7 +64,7 @@ session: "state · что выбрал игрок" {
     которое трогает localStorage.
   | {class: note}
   st: |md
-    **state.js** · 188 \
+    **state.js** · 263 \
     S · patches() · B() \
     история · load() · save() · uiBases()
   | {class: file}
@@ -77,12 +77,51 @@ model: "geometry · что из этого получится" {
     **Ядро продукта.**
   | {class: note}
   geo: |md
-    **model/geometry.js** · 2460 всего, 1003 кода \
+    **model/geometry.js** · 2848 всего, 1003 кода \
     buildModel → g (паспорт) → restack \
     computeCore · wind · windFor · matAt \
     две ветки намотки: кольцо и `winding: 'spiral'` \
     форму считает МОДЕЛЬ: FACE_SETS, pressFaces
   | {class: file}
+}
+
+# ⚑ ВТОРОЙ ДВИЖОК, А НЕ ЗАМЕНА ПЕРВОГО (PR #172, влит 05.09.2026).
+# Считает то же самое — раскладка → скрутка → срез, — но в МИЛЛИМЕТРАХ и заново.
+# geometry.js жив и считает игру; V2 включается флагом ?v2 и отдаёт наружу
+# ровно две вещи: картинку среза и радиус ролла.
+core_v2: "core-v2 · то же самое, но в миллиметрах" {
+  class: zone
+  about: |md
+    Параллельное ядро. **Не импортирует `play/model/**`** — \
+    ни каталога, ни геометрии, ни состояния. \
+    Каталог приходит аргументом, не импортом. \
+    Наружу — только через `adapter.js`.
+  | {class: note}
+  units: |md
+    **core-v2/units.js** · 323 \
+    константы и снимки каталога в мм \
+    U_MM · окно раскладки · пороги EPS \
+    packCoreRows — жёсткая упаковка ядра
+  | {class: file}
+  pipe: |md
+    **validate → winding → section → measure** \
+    validate.js · 183 — честный отказ с кодом \
+    winding.js · 245 — кольцо: r0 по лучам, шов \
+    section.js · 110 — срез и площадь кольца \
+    measure.js · 114 — FixtureReport
+  | {class: file}
+  gate: |md
+    **fixtures.js** · 507 · приёмка F01–F07 \
+    core-v2.test.mjs · 46 тестов \
+    run-fixtures.mjs — шлюз CI (.github/workflows/core-v2.yml) \
+    hash.js + canonical.js — детерминизм
+  | {class: guard}
+  seam: |md
+    **adapter.js** · 46 — единственный объект наружу \
+    **bridge.js** · 79 — ESM → window.CoreV2 \
+    from-layout.js · 192 — раскладка игрока → RecipeV2 \
+    render.js · 406 · app.js · 253 — свой debug-стенд
+  | {class: target}
 }
 
 facade: "domain · шов наружу" {
@@ -105,7 +144,7 @@ render: "render · как это выглядит" {
     Canvas 2D. Здесь же кеши картинок.
   | {class: note}
   slice: |md
-    **render/slice.js** · 604 \
+    **render/slice.js** · 655 \
     renderSection · face · faceCache \
     marchMask · sliceLines
   | {class: file}
@@ -114,7 +153,7 @@ render: "render · как это выглядит" {
     лист · ролл · нож · силуэты
   | {class: file}
   screens: |md
-    **render/screens.js** · 372 \
+    **render/screens.js** · 446 \
     drawLay · drawCut · drawSlicing · drawPlate
   | {class: file}
 }
@@ -122,17 +161,17 @@ render: "render · как это выглядит" {
 ui: "ui · ввод и раскладка экрана" {
   class: zone
   layout: |md
-    **ui/layout.js** · 352 \
+    **ui/layout.js** · 436 \
     L — вся раскладка экрана \
     W · H · DPR · resize
   | {class: file}
   actions: |md
-    **ui/actions.js** · 215 \
+    **ui/actions.js** · 235 \
     onDown · onMove · onUp · action() \
     measureHand — почерк из жеста
   | {class: file}
   controls: |md
-    **ui/controls.js** · 161 \
+    **ui/controls.js** · 257 \
     кнопки · чипы · верхняя панель
   | {class: file}
   album: |md
@@ -148,7 +187,7 @@ modes: "modes · игровая оболочка" {
     Геометрию менять не вправе.
   | {class: note}
   puzzle: |md
-    **modes/puzzle.js** · 162 \
+    **modes/puzzle.js** · 164 \
     LEVELS · genTarget · puzzleEvaluate \
     encodePuzzle / decodePuzzle
   | {class: file}
@@ -171,13 +210,13 @@ storage: "storage · что переживает перезагрузку" {
 checks: "сторож · чем доказывается, что не сломали" {
   class: zone
   ch: |md
-    **play/checks.js** · 1001 \
+    **play/checks.js** · 1709 \
     **`node tools/check.js`** — 5,6 с, без браузера (#147) \
     ВСЁ ЦЕЛО · известно 31 · сдвиг ⌀ 1 \
     он же `?check` в браузере: холст и DPR только там
   | {class: guard}
   practice: |md
-    **test/practice.js** · 1065 \
+    **test/practice.js** · 1121 \
     практика поваров: сошлось 25 \
     не проверяется 10 — и каждое со ссылкой на issue
   | {class: guard}
@@ -211,6 +250,9 @@ modes -> model: сравнение с эталоном {class: ok}
 session -> storage: load / save {class: ok}
 modes -> storage: ссылка-пазл {class: ok}
 facade -> model {class: ok}
+# ⚑ ЕДИНСТВЕННЫЕ ДВА РЕБРА V2. Больше игра о ядре ничего не знает.
+facade -> core_v2: "раскладка игрока → RecipeV2 (`domain/recipe-v2.js` · 65)" {class: ok}
+core_v2 -> render: "снимок: срез и радиус, только при ?v2" {class: ok}
 checks -> model: прогон инвариантов {class: faint}
 checks -> facade: единственный потребитель {class: faint}
 sim -> catalog: калибровка — руками, через доки {class: faint}

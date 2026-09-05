@@ -33,14 +33,15 @@ n1: "РЕЖЕМ 1-м  ·  ① classic scripts: порядок вместо за�
   class: zone
 
   chain: |md
-    **15 тегов `<script>` без `type="module"`** \
+    **16 тегов: 15 классических + ОДИН `type="module"`** \
     util → catalog → **state** → geometry → canon → roll → audio → \
     layout → slice → sheet → controls → screens → album → \
-    puzzle → actions → инлайн-бутстрап
+    puzzle → actions → **recipe-v2** → инлайн-бутстрап \
+    и отдельно `core-v2/bridge.js` — **первый ES-модуль в боевой странице**
   | {class: glob}
 
   bust: |md
-    **`?v=170`** — ручной cache-bust у каждой строки. \
+    **`?v=222` / `?v=224`** — ручной cache-bust у каждой строки. \
     Забыть номер = браузер отдаёт старый файл, \
     и правка «не работает».
   | {class: glob}
@@ -71,24 +72,26 @@ n23: "РЕЖЕМ 2-м  ·  ② S и ③ B() — вход модели не на�
   | {class: glob}
 
   B: ||md
-    **③ `B()`** — производная база с кешем, `state.js:139` \
+    **③ `B()`** — производная база с кешем, `state.js:214` \
     Склеивает `BASES[S.base]` с обёрткой и списком начинок. \
     Ключ кеша — только `S.base + '|' + wrapKey`.
   || {class: glob}
 
   writers: |md
-    **ПИШУТ в `S`** — 151 присваивание \
-    игра: actions 28 · album 15 · state 12 \
+    **ПИШУТ в `S`** — 229 присваиваний \
+    игра: actions 29 · album 15 · state 14 \
     puzzle 11 · roll 10 · screens 5 \
-    сторож: checks 39 · practice 21 · baseline 8 · facade 2
+    ядро V2: legacy-probe 5 \
+    сторож: checks 91 · practice 39 · baseline 8 · facade 2
   | {class: file}
 
   readers: |md
-    **ЧИТАЮТ `S`** — 161 чтение \
-    игра: actions 22 · album 20 · screens 15 · state 15 \
-    **geometry 12** · puzzle 11 · controls 9 · roll 7 \
-    sheet 7 · slice 4 · canon 2 · audio 2 · layout 1 · util 1 \
-    сторож: checks 15 · practice 9 · facade 6 · baseline 3
+    **ЧИТАЮТ `S`** — 206 чтений \
+    игра: actions 26 · album 20 · screens 19 · state 16 \
+    controls 15 · **geometry 14** · puzzle 11 · sheet 7 · roll 7 \
+    slice 5 · canon 2 · audio 2 · layout 2 · util 1 \
+    ядро V2: **recipe-v2 10** · from-layout 5 · legacy-probe 2 \
+    сторож: checks 17 · practice 16 · facade 6 · baseline 3
   | {class: file}
 
   mixed: |md
@@ -100,15 +103,15 @@ n23: "РЕЖЕМ 2-м  ·  ② S и ③ B() — вход модели не на�
   | {class: note}
 
   busers: |md
-    **зовут `B()`** — 66 раз из 12 файлов \
-    **geometry 14** · screens 18 · sheet 6 · slice 4 \
-    album 4 · puzzle 4 · checks 4 · state 3 \
+    **зовут `B()`** — 70 раз из 12 файлов \
+    screens 20 · **geometry 14** · sheet 6 · state 5 \
+    album 4 · slice 4 · puzzle 4 · checks 4 \
     layout 3 · controls 3 · actions 2 · roll 1
   | {class: file}
 
-  writers -> S: 151 присваивание {class: bad}
-  S -> readers: 161 чтение {class: bad}
-  B -> busers: 66 {class: bad}
+  writers -> S: 229 присваиваний {class: bad}
+  S -> readers: 206 чтений {class: bad}
+  B -> busers: 70 {class: bad}
 
   why: |md
     **Почему это блокер, а не неопрятность.** `geometry.js` — ядро \
@@ -134,7 +137,7 @@ n23: "РЕЖЕМ 2-м  ·  ② S и ③ B() — вход модели не на�
 }
 
 # ══════════════════════════════════════════════ РЕЖЕМ ТРЕТЬИМ
-n6: "РЕЖЕМ 3-м  ·  ⑥ временная подмена S — шесть редакций одного приёма" {
+n6: "РЕЖЕМ 3-м  ·  ⑥ временная подмена S — семь редакций одного приёма" {
   class: zone
 
   sw1: |md
@@ -158,8 +161,18 @@ n6: "РЕЖЕМ 3-м  ·  ⑥ временная подмена S — шесть
     `finally { S.base = keep.base; … }`
   | {class: glob}
 
+  sw5: |md
+    **core-v2/legacy-probe.js:18** \
+    ⚑ ПЯТАЯ РЕДАКЦИЯ, 05.09 \
+    Лист 2 предсказывал появление новых — \
+    и первая же пришла из НОВОГО ядра: \
+    сохраняет base · wrap · turns · shape \
+    hand · lists.hoso, считает, \
+    возвращает обратно на :80
+  | {class: glob}
+
   sw4: |md
-    **modes/puzzle.js:97** \
+    **modes/puzzle.js:99** \
     `targetModel()` — подмены НЕТ, \
     и потому эталон пазла молча \
     зависит от того, что игрок \
@@ -179,8 +192,13 @@ n6: "РЕЖЕМ 3-м  ·  ⑥ временная подмена S — шесть
 
     **Почему третьим, а не первым.** Сама по себе подмена не чинится: \
     она существует ровно потому, что вход безымянный. Как только \
-    появился `ModelInput` (шаг 2), все шесть редакций становятся \
+    появился `ModelInput` (шаг 2), все семь редакций становятся \
     вызовом с другим аргументом — и удаляются, а не переписываются.
+
+    **Проверка предсказания.** Лист писался как прогноз: «пока вход \
+    безымянный, редакции будут появляться». 05.09 пришла пятая — \
+    `core-v2/legacy-probe.js`, причём из ядра, которое от монолита \
+    как раз уходит. Приём воспроизводится даже там, где его не хотели.
   | {class: note}
 }
 
@@ -223,7 +241,7 @@ n5: "РЕЖЕМ 5-м  ·  ⑤ touchModel() — рендер владеет кл�
   class: zone
 
   touch: |md
-    **`touchModel()`** объявлена в **`render/slice.js:387`** \
+    **`touchModel()`** объявлена в **`render/slice.js:423`** \
     и одной строкой делает три чужих дела: \
     `modelKey = S.base + S.shape + JSON(patches())` · \
     `save()` · `dirty = true`
