@@ -9,31 +9,31 @@ export function sectorTop(t) {
   return t <= c ? t / c : Math.sqrt(Math.max(0, 1 - t * t)) / sn;
 }
 
-function sampleSector(patch, originX) {
+// Сектор берёт ПОЛНОЕ начало координат, а не один originX: в пучке из
+// нескольких рядов у куска есть и смещение по y. Раньше сюда приходил только x,
+// а centerYmm возвращался нулём — и отчёт расходился с картинкой, потому что
+// render.js рисует по patchCorePos. Фикстуры этого не ловили: сектор в них
+// только один и ровно в начале координат.
+function sampleSector(patch, origin) {
   const N = 320;
   const widthMm = patch.widthMm;
   const heightMm = patch.heightMm;
   const cell = (widthMm / N) * (heightMm / N);
   let area = 0;
-  let sx = 0;
-  let sy = 0;
   for (let i = 0; i < N; i++) {
     const lu = -0.5 + (i + 0.5) / N;
     const t = lu + 0.5;
     const top = sectorTop(t);
-    const x = originX + lu * widthMm;
     for (let j = 0; j < N; j++) {
       const hn = (j + 0.5) / N;
       if (hn > top) continue;
-      const y = hn * heightMm - heightMm / 2;
       area += cell;
-      sx += x * cell;
-      sy += y * cell;
     }
   }
   const catalog = catalogAreaMm2(patch);
-  if (area <= 0) return { id: patch.id, areaMm2: catalog, centerXmm: originX, centerYmm: 0 };
-  return { id: patch.id, areaMm2: catalog, centerXmm: originX, centerYmm: 0, _gridAreaMm2: area };
+  const out = { id: patch.id, areaMm2: catalog, centerXmm: origin.x, centerYmm: origin.y };
+  if (area > 0) out._gridAreaMm2 = area;
+  return out;
 }
 
 function sampleBar(patch, origin) {
@@ -48,7 +48,7 @@ function sampleBar(patch, origin) {
 export function samplePatch(recipe, patch) {
   const origin = patchCorePos(recipe, patch);
   if (patch.cut === 'hosogiri') return sampleBar(patch, origin);
-  if (patch.cut === 'сектор') return sampleSector(patch, origin.x);
+  if (patch.cut === 'сектор') return sampleSector(patch, origin);
   return sampleBar(patch, origin);
 }
 

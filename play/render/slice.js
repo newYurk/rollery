@@ -604,10 +604,16 @@ function sliceLines(m, vSlice) {
 function face(vSlice, cssSize, m, Rref) {
   const size = Math.round(cssSize * DPR);
   if (S.v2) {
-    if (!window.CoreV2) { dirty = true; const blank = document.createElement('canvas'); blank.width = blank.height = size; return blank; }
-    window.CoreV2.scenario = S.v2Scenario || 'F02';
+    const blank = () => { const c = document.createElement('canvas'); c.width = c.height = size; return c; };
+    // Мост — модуль, он выполняется позже классических скриптов: первый кадр
+    // может успеть раньше. Пустой холст плюс dirty, а не заглушка навсегда.
+    if (!window.CoreV2) { dirty = true; return blank(); }
+    const snap = v2Snap();
+    // Отказ рисует экран целиком (drawRolled), а не срез: причину надо назвать
+    // словами, а не показать чёрный квадрат.
+    if (!snap || !snap.ok) return blank();
     const img = window.CoreV2.faceCanvas(size);
-    if (!img) { const blank = document.createElement('canvas'); blank.width = blank.height = size; return blank; }
+    if (!img) return blank();
     img._v = vSlice;
     return img;
   }

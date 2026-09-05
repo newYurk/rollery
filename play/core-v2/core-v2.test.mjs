@@ -386,3 +386,113 @@ test('knife: 6/8 pieces, first cut at half, snap interior only', () => {
   assert.equal(pieceLengthMm(futo), 190 / 8);
 });
 
+
+// ── раскладка игрока → RecipeV2 ────────────────────────────────────────────
+// Каталог берём ЖИВОЙ, а не пересказанный: переводчик обязан ломаться, когда
+// catalog.js уедет, иначе он бесполезен именно тогда, когда нужен.
+import { createRequire } from 'node:module';
+import { recipeFromLayout, SUPPORTED_CUTS } from './from-layout.js';
+
+const { ING, BASES, U_MM: CATALOG_U_MM } = createRequire(import.meta.url)('./load-catalog.cjs').load();
+const lay = (baseKey, patches, over = {}) => recipeFromLayout({
+  baseKey, base: BASES[baseKey], patches, ing: ING,
+  wrap: null, hand: null, shape: 'round', turns: null, ...over,
+});
+
+test('переводчик: единица каталога в ядре и в игре — одна и та же', () => {
+  assert.equal(CATALOG_U_MM, 5);
+  assert.equal(BASES.hoso.sheetCm * 10, 105);
+  assert.equal(BASES.hoso.Wv * CATALOG_U_MM, 190);
+  assert.equal(BASES.futo.sheetCm * 10, 210);
+});
+
+test('переводчик: пустой лист даёт валидный рецепт', () => {
+  const r = lay('hoso', []);
+  assert.equal(r.status, 'valid');
+  assert.deepEqual(r.recipe.sheet, { lengthMm: 105, widthMm: 190 });
+  assert.equal(r.recipe.baseId, 'hosomaki');
+  assert.equal(r.recipe.patches.length, 0);
+  assert.equal(validateRecipe(r.recipe).status, 'valid');
+});
+
+test('переводчик: размеры берутся из каталога, а не из снимка units.js', () => {
+  const r = lay('hoso', [{ kind: 'cucumber', u: 0.35, v: 0.5 }]);
+  assert.equal(r.status, 'valid');
+  const p = r.recipe.patches[0];
+  // Живой огурец — сектор 2,8 × 1,98 ед = 14 × 9,9 мм. Снимок V2 (8 × 8 брусок)
+  // описывает фикстуру F02 и на раскладку игрока не распространяется.
+  assert.equal(p.cut, 'сектор');
+  assert.equal(p.widthMm, 14);
+  assert.equal(p.heightMm, 9.9);
+  assert.notEqual(p.widthMm, CUCUMBER.widthMm);
+  assert.equal(p.uMm, 0.35 * 105);
+  assert.equal(p.vMm, 0.5 * 190);
+  assert.equal(validateRecipe(r.recipe).status, 'valid');
+});
+
+test('переводчик: рецепт из раскладки проходит весь конвейер', () => {
+  const r = lay('futo', [
+    { kind: 'cucumber', u: 0.25, v: 0.5 },
+    { kind: 'tamago', u: 0.35, v: 0.5 },
+    { kind: 'salmon', u: 0.45, v: 0.5 },
+  ]);
+  assert.equal(r.status, 'valid');
+  const snap = adapt(r.recipe);
+  assert.equal(snap.ok, true);
+  assert.equal(snap.section.visiblePatches.length, 3);
+  assert.ok(snap.winding.diameterMinMm > 0);
+});
+
+test('сектор в многорядном пучке: отчёт совпадает с положением в ядре', () => {
+  // Регрессия: sampleSector терял origin.y и всегда рапортовал centerYmm = 0,
+  // поэтому отчёт расходился с картинкой (render.js рисует по patchCorePos).
+  // Фикстуры не ловили — сектор в них один и ровно в начале координат.
+  const r = lay('futo', [
+    { kind: 'cucumber', u: 0.25, v: 0.5 },
+    { kind: 'tamago', u: 0.35, v: 0.5 },
+    { kind: 'salmon', u: 0.45, v: 0.5 },
+  ]);
+  const snap = adapt(r.recipe);
+  const cuc = snap.section.visiblePatches.find((p) => p.id.startsWith('cucumber'));
+  const truth = patchCorePos(r.recipe, r.recipe.patches.find((p) => p.id === cuc.id));
+  assert.ok(Math.abs(truth.y) > 1, `пучок должен быть многорядным, y=${truth.y}`);
+  assert.equal(cuc.centerXmm, truth.x);
+  assert.equal(cuc.centerYmm, truth.y);
+});
+
+test('переводчик отказывает поимённо, а не приближает молча', () => {
+  const cases = [
+    ['mayo', 'паста', 'unsupported', 'patch_cut_unsupported'],
+    ['nori', 'лист', 'unsupported', 'patch_cut_unsupported'],
+    ['ricePink', 'краска', 'unsupported', 'patch_is_paint'],
+    ['avocado', 'профиль вдоль оси', 'unsupported', 'patch_axial_profile'],
+  ];
+  for (const [kind, why, status, code] of cases) {
+    const r = lay('hoso', [{ kind, u: 0.3, v: 0.5 }]);
+    assert.equal(r.status, status, `${kind} (${why})`);
+    assert.equal(r.diagnostics[0].code, code, `${kind} (${why})`);
+  }
+  assert.equal(lay('ura', []).diagnostics[0].code, 'base_unsupported');
+  assert.equal(lay('uzumaki', []).diagnostics[0].code, 'base_unsupported');
+  assert.equal(lay('hoso', [], { wrap: 'egg' }).diagnostics[0].code, 'wrap_unsupported');
+  assert.equal(lay('hoso', [], { shape: 'square' }).diagnostics[0].code, 'shape_unsupported');
+  assert.equal(lay('hoso', [], { turns: 3 }).diagnostics[0].code, 'turns_override');
+  assert.equal(lay('hoso', [{ kind: 'salmon', u: 0.3, v: 0.5, rot: 0.7 }]).diagnostics[0].code, 'patch_rotated');
+  assert.equal(lay('hoso', [{ kind: 'wasabi', u: 0.3, v: 0.5 }]).diagnostics[0].code, 'patch_unknown_kind');
+  assert.equal(lay('hoso', [{ kind: 'salmon', u: NaN, v: 0.5 }]).diagnostics[0].code, 'patch_shape');
+});
+
+test('переводчик: нейтральная рука сравнивается с эталоном каталога, а не с {mode,seed}', () => {
+  const neutral = { air: 0, wobble: 0, phase: 0, press: 1, v: 1, cv: 0, hold: 0 };
+  assert.equal(lay('hoso', [], { hand: { ...neutral }, handNeutral: neutral }).status, 'valid');
+  const off = lay('hoso', [], { hand: { ...neutral, press: 1.4 }, handNeutral: neutral });
+  assert.equal(off.status, 'invalid');
+  assert.equal(off.diagnostics[0].code, 'non_neutral_hand');
+  assert.deepEqual(off.diagnostics[0].context.deviatingFields, [{ field: 'press', observed: 1.4, neutral: 1 }]);
+});
+
+test('переводчик: класс нарезки поддержан ровно тот, что моделирует срез', () => {
+  assert.deepEqual([...SUPPORTED_CUTS].sort(), ['брусок', 'сектор']);
+  const cuts = new Set(Object.values(ING).map((d) => d.cut));
+  for (const c of SUPPORTED_CUTS) assert.ok(cuts.has(c), `каталог потерял класс ${c}`);
+});

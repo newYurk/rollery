@@ -65,9 +65,11 @@ const V2_SCENARIO = (() => {
   const q = new URLSearchParams(location.search);
   if (!q.has('v2')) return null;
   const v = q.get('v2');
-  if (!v || v === '1' || v === 'true') return 'F02';
-  const aliases = { kappa: 'F02', empty: 'F01', hosogiri: 'hosogiri', F01: 'F01', F02: 'F02' };
-  return aliases[v] || 'F02';
+  // Голый ?v2 — это ТВОЯ раскладка, а не заготовка: ядро считает то, что игрок
+  // разложил сам. Фикстуры остались адресными, для отладки без игры.
+  if (!v || v === '1' || v === 'true') return 'layout';
+  const aliases = { kappa: 'F02', empty: 'F01', hosogiri: 'hosogiri', F01: 'F01', F02: 'F02', layout: 'layout' };
+  return aliases[v] || 'layout';
 })();
 S.v2 = !!V2_SCENARIO;
 S.v2Scenario = V2_SCENARIO;

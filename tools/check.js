@@ -99,6 +99,9 @@ ctx.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventList
 // ⚠ ?check В АДРЕСЕ ОБЯЗАТЕЛЕН: часть кода игры смотрит на location.search и в обычном режиме
 // прячет полный набор баз и начинок (минимальный стенд, #96). Без него проверки меряют не то.
 ctx.location = { search: '?check&full', href: 'http://localhost/play/index.html?check&full', hash: '', pathname: '/play/index.html' };
+// state.js:65 разбирает ?v2 через URLSearchParams (PR #172). В песочнице vm его нет,
+// и сторож падал на загрузке — молча, для всех headless-инструментов сразу.
+ctx.URLSearchParams = URLSearchParams;
 ctx.navigator = { userAgent: 'node', maxTouchPoints: 0 };
 ctx.performance = { now: () => Number(process.hrtime.bigint() / 1000n) / 1000 };
 ctx.setTimeout = (f) => { if (typeof f === 'function') f(); return 0; };

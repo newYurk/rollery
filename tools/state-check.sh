@@ -38,8 +38,17 @@ for b in $(git branch --format='%(refname:short)' | grep -v '^main$'); do
   pr=$(gh pr list --head "$b" --limit 1 --json number -q '.[0].number' 2>/dev/null)
   if [ -n "$pr" ]; then say "  ✓ $b → PR #$pr"; continue; fi
   iss=$(gh issue list --state open --limit 100 --search "$b" --json number -q '.[0].number' 2>/dev/null)
-  [ -z "$iss" ] && warn "ветка $b без открытого PR — влита и забыта?" \
-                || say "  ✓ $b без PR, но описана в #$iss"
+  # «Влита и забыта» и «не влита и забыта» — разные беды, и лечатся по-разному:
+  # первую удаляют, вторую доводят или осознанно бросают. Раньше сторож называл
+  # влитой любую ветку без PR, и невлитая работа пряталась за успокаивающим словом.
+  ahead=$(git rev-list --count origin/main.."$b" 2>/dev/null || echo 0)
+  if [ -n "$iss" ]; then
+    say "  ✓ $b без PR, но описана в #$iss"
+  elif [ "$ahead" = "0" ]; then
+    warn "ветка $b влита в main и забыта — удалить"
+  else
+    warn "ветка $b НЕ влита: $ahead коммит(ов) мимо main, PR нет, задачи нет — работа потеряется"
+  fi
 done
 
 say "── доска Projects"
