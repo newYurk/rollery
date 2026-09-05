@@ -113,9 +113,13 @@ say "── архитектурный атлас: числа против ко�
 if atlout=$(python3 docs/architecture/atlas-facts.py 2>&1); then
   ok "числа и якоря атласа держатся"
 else
-  printf '%s\n' "$atlout" | grep -E '^ +\[|^ {4}\S' | head -12 | while IFS= read -r line; do
+  # ⚠ БЕЗ КОНВЕЙЕРА. Последнее звено конвейера в bash выполняется в ПОДОБОЛОЧКЕ, и
+  # `bad=$((bad+1))` внутри warn там теряется: строки ✗ печатались, а итог всё равно
+  # выходил «МЕХАНИЧЕСКАЯ ЧАСТЬ ЧИСТА». Сторож, который жалуется и не краснеет, — ровно
+  # то, против чего этот файл написан. Найдено внешним ревью на PR #201.
+  while IFS= read -r line; do
     warn "атлас: $(printf '%s' "$line" | sed 's/^ *//')"
-  done
+  done < <(printf '%s\n' "$atlout" | grep -E '^ +\[|^ {4}\S' | head -12)
   say "     починить: правка листов → ./docs/architecture/build.sh → atlas-facts.py --snapshot"
 fi
 

@@ -309,7 +309,30 @@ def main():
             print(f"    {k}: {a} → {b}")
         print()
 
-    if not drift and not issue_drift:
+    # ⚑ ШТАМП ОПУБЛИКОВАННОЙ СТРАНИЦЫ ПРОТИВ СЛЕПКА (внешнее ревью, PR #201).
+    # Страница берёт штамп из atlas-facts.json на момент СБОРКИ. Собрал до снятия слепка —
+    # и она называет состояние, которое уже не измерено. Так и вышло 05.09: страница
+    # говорила «362ffdc · 14680», когда слепок стоял на «42b15d6 · 14684». Сторож молчал,
+    # потому что сверял числа листов с кодом, а страницу с ними — нет.
+    # Правильный порядок: правка листов → --snapshot → ./build.sh.
+    page = ROOT / "docs" / "reports" / "architecture-atlas.html"
+    stamp_drift = []
+    if page.exists():
+        txt = page.read_text(encoding="utf-8", errors="replace")
+        want = f'{was["ref"]} · {was["date"]} · {was["total_lines"]} строк' if was else None
+        if want and want not in txt:
+            import re as _re
+            got = _re.search(r"[0-9a-f]{7} · \d{4}-\d{2}-\d{2} · [\d ]+ строк", txt)
+            stamp_drift.append((got.group(0) if got else "штампа нет", want))
+
+    if stamp_drift:
+        print("ШТАМП СТРАНИЦЫ ОТСТАЛ ОТ СЛЕПКА:")
+        for got, want in stamp_drift:
+            print(f"  страница: {got}")
+            print(f"  слепок:   {want}")
+        print("  править: пересобрать ПОСЛЕ снятия слепка — ./docs/architecture/build.sh\n")
+
+    if not drift and not issue_drift and not stamp_drift:
         print("ВСЁ СОШЛОСЬ: числа и якоря атласа держатся.")
         return 0
 

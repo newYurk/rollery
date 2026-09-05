@@ -60,21 +60,55 @@ const METRICS = [
   { key: 'cucumberCenterYmm', label: 'центр огурца Y', unit: 'мм', eps: 0.15, kind: 'filling' },
 ];
 
+// ⚑ ЧИСЛА В ПРОЗЕ БЕРУТСЯ ИЗ ТАБЛИЦЫ, А НЕ ВПИСЫВАЮТСЯ (внешнее ревью, PR #202).
+// Стоял текст «разошлось на ~0,35 мм по каждой дуге» — при том, что таблица прямо над ним
+// показывала по рису 31,487. Отчёт пересобирает CI, и читатель принимал решения по выводу,
+// который опровергается его же таблицей строкой выше.
+function δ(id, key) {
+  const r = (tables[id] || []).find((x) => x.key === key);
+  return r ? Math.abs(r.delta).toFixed(3) : '—';
+}
+
+// ⚑ ТРЕТИЙ СЛОЙ ТОЙ ЖЕ БОЛЕЗНИ (внешнее ревью, PR #211). Ворота площади я сделала
+// симметричными, а проза ниже продолжала считать СВОЁ одностороннее отношение и печатала
+// «0.893 > EPS_AREA_RATIO» — число, которое противоречит и порогу, и таблице. Пока проза
+// умеет считать сама, она будет расходиться с воротами. Теперь ей нечем: берёт готовое.
+function площадьF02() {
+  const r = (tables.F02 || []).find((x) => x.key === 'cucumberAreaMm2');
+  if (!r || r.areaRatio == null) return '—';
+  const знак = r.areaRatio > EPS_AREA_RATIO ? '>' : '≤';
+  return `${r.areaRatio.toFixed(3)} ${знак} EPS_AREA_RATIO ${EPS_AREA_RATIO} → ${r.gate}`;
+}
+
+function диапазон(id, k1, k2) {
+  const a = +δ(id, k1), b = +δ(id, k2);
+  return Number.isFinite(a) && Number.isFinite(b)
+    ? `${Math.min(a, b).toFixed(3)}…${Math.max(a, b).toFixed(3)}` : '—';
+}
+
 function row(metric, v2, leg, catalogArea) {
   const a = num(v2[metric.key]);
   const b = num(leg[metric.key]);
   const d = a - b;
   let gate = '—';
   let note = '';
+  let areaRatio = null;
   if (metric.key === 'cucumberAreaMm2') {
-    const ratio = catalogArea / Math.max(b, 1e-9);
+    // ⚑ ОТНОШЕНИЕ СИММЕТРИЧНО (внешнее ревью, PR #202). Стояло `catalogArea / legacy`
+    // без симметризации: если legacy БОЛЬШЕ каталога, отношение меньше единицы и ворота
+    // пропускали любое расхождение. F02: каталог 64 против legacy 71,663 давало 0,893 и
+    // «MATCH» при разнице в 12 %, тогда как приёмка фикстур на том же EPS_AREA_RATIO
+    // симметрична и такое отвергает.
+    const big = Math.max(catalogArea, b), small = Math.max(Math.min(catalogArea, b), 1e-9);
+    const ratio = big / small;
     gate = ratio <= EPS_AREA_RATIO ? 'MATCH' : 'DIVERGE';
-    note = `каталог/legacy = ${ratio.toFixed(3)} (EPS_AREA_RATIO ${EPS_AREA_RATIO})`;
+    note = `каталог ${catalogArea.toFixed(3)} ↔ legacy ${b.toFixed(3)}, отношение ${ratio.toFixed(3)} (EPS_AREA_RATIO ${EPS_AREA_RATIO})`;
+    areaRatio = ratio;   // проза ниже берёт ЭТО число, а не считает своё
   } else if (metric.eps != null) {
     gate = Math.abs(d) <= metric.eps ? 'MATCH' : 'DIVERGE';
     note = `|Δ| ${Math.abs(d).toFixed(3)} ≷ ${metric.eps}`;
   }
-  return { ...metric, v2: a, legacy: b, delta: d, gate, note };
+  return { ...metric, v2: a, legacy: b, delta: d, gate, note, areaRatio };
 }
 
 const probe = spawnSync(process.execPath, [path.join(ROOT, 'load-legacy.cjs')], {
@@ -156,11 +190,16 @@ Legacy внутри считает в единицах каталога. Все 
 
 ${mdTable(tables.F01)}
 
-Лист и ядро совпали побайтово в мм. Кольцо разошлось на **0,3–0,7 мм** по
-диаметру и на **~0,35 мм** по каждой дуге: V2 интегрирует среднюю линию слоя
-на сетке \`4×NB\` (erratum-010/021), legacy — по \`NB\` бинам уже обжатого
-\`rin/rout\`. Это одна и та же формула кольца, разная сетка и отсутствие обжима
-в V2.
+Лист и ядро совпали побайтово в мм. Расхождения ниже посчитаны из таблицы выше,
+а не вписаны текстом: ⌀ **${диапазон('F01', 'diameterMinMm', 'diameterMaxMm')} мм**,
+дуга нори **${δ('F01', 'noriArcMm')} мм**, дуга риса **${δ('F01', 'riceArcMm')} мм**.
+
+Разница по нори сеточная: V2 интегрирует среднюю линию слоя на сетке \`4×NB\`
+(erratum-010/021), legacy — по \`NB\` бинам уже обжатого \`rin/rout\`. Это одна и та
+же формула кольца, разная сетка и отсутствие обжима в V2.
+
+Разница по РИСУ структурная и на два порядка больше: V2 кладёт рис лентой длиной
+\`Lrice\` (#183), legacy растягивает ту же постель на один оборот. Это и есть #165.
 
 ## F02 — каппамаки
 
@@ -173,9 +212,9 @@ ${mdTable(tables.F02)}
   (\`kappa\`) и обжимает контур: ролл круглее и меньше. Подгонять V2 под этот
   ⌀ — значит втащить \`kappa\` в ядро, чего контракт V2 alpha не делает.
 - **Площадь огурца.** Каталог (и V2) ${fmt(catalogArea)} мм². Сетка legacy
-  ${fmt(legacy.F02.cucumberAreaMm2)} мм², отношение
-  ${(catalogArea / legacy.F02.cucumberAreaMm2).toFixed(3)} >
-  EPS_AREA_RATIO. Это потеря площади в семпле/сжатии, не в формуле сектора.
+  ${fmt(legacy.F02.cucumberAreaMm2)} мм². Отношение берётся из таблицы выше, а не
+  пересчитывается здесь: ${площадьF02()}. Это потеря площади в семпле или
+  сжатии, не в формуле сектора.
 - **Центр.** V2 при одном патче — начало координат (F01–F04). Legacy — центроид
   сектора в полярной коробке, ~1,3 мм от нуля. Erratum-007 это разрешает только
   как \`f(uMm)\`; для одного патча V2 сознательно держит ноль.
