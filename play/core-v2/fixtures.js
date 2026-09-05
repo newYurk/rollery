@@ -137,6 +137,15 @@ export function acceptF01(report, winding) {
     && Math.abs(seam.overlapMm - seam.overlapArcRad * winding.Ravg) <= EPS_LENGTH_MM;
   push(seamOk ? ok('seam') : fail('seam', JSON.stringify(seam)));
 
+  // ⚑ ЛИСТ СОХРАНЯЕТСЯ. Инварианта не было вовсе, и потому не было видно, что
+  // нахлёст считался от голых полей: хосомаки выдумывал 3,16 мм листа, футомаки
+  // терял 24,73 мм (11,8 %). Проверка не тавтология — периметр меряется дугой,
+  // нахлёст берётся из остатка, и сойтись они обязаны с длиной листа (#165).
+  const spent = winding.noriPerimeter + seam.overlapMm;
+  push(Math.abs(spent - L) <= EPS_LENGTH_MM
+    ? ok('sheet-conserved')
+    : fail('sheet-conserved', `периметр ${winding.noriPerimeter} + нахлёст ${seam.overlapMm} = ${spent} против листа ${L}`));
+
   const twoFrac = report._meta.twoIntersectionFraction;
   const wantTwo = seam.overlapArcRad / TAU;
   push(Math.abs(twoFrac - wantTwo) <= EPS_RAY_FRACTION

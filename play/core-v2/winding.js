@@ -144,7 +144,17 @@ export function buildWinding(recipe) {
   const Ravg = Rout - W / 2;
   const noriPerimeter = midArc((b) => rn[b] - W / 2);
   const enough = noriPerimeter <= L + EPS_LENGTH_MM;
-  const phiOverlap = enough && Ravg > 1e-9 ? Math.min(TAU, Lbare / Ravg) : 0;
+  // ⚑ НАХЛЁСТ — ЭТО ОСТАТОК ЛИСТА, А НЕ ГОЛЫЕ ПОЛЯ (#165).
+  // Стояло Lbare / Ravg: длина полей без риса. Но лист расходуется не на поля,
+  // а на оборот; сколько осталось после оборота — столько и лежит внахлёст.
+  // Прежняя формула не сходилась ни в одну сторону: хосомаки ВЫДУМЫВАЛ лист
+  // (108,16 израсходовано из 105), футомаки ТЕРЯЛ (185,27 из 210 — 11,8 % не
+  // лежали нигде). Теперь по построению: периметр + нахлёст = длина листа.
+  const overlapMm = L - noriPerimeter;
+  const phiOverlap = enough && Ravg > 1e-9 ? Math.min(TAU, overlapMm / Ravg) : 0;
+  // Клампом длина перестала бы сохраняться: лист длиннее двух оборотов — это
+  // третий слой, а модель различает только один и два. Честно назвать, не молча.
+  const wrapsBeyondTwo = enough && Ravg > 1e-9 && overlapMm / Ravg > TAU;
   const overlapBins = Math.round(phiOverlap / DPHI);
 
   const wrapIntersectionsByRay = new Int32Array(NB);
@@ -215,12 +225,14 @@ export function buildWinding(recipe) {
     riceSteps: spiral.steps,
     riceRin: spiral.rin,
     riceRout: spiral.rout,
+    wrapsBeyondTwo,
     seam: {
-      uStartMm: sRice1,
-      uEndMm: sRice0,
+      // Шов идёт от места, где кончился первый оборот, до конца листа.
+      uStartMm: Math.min(L, noriPerimeter),
+      uEndMm: L,
       angleStartRad: 0,
       angleEndRad: phiOverlap,
-      overlapMm: Lbare,
+      overlapMm: phiOverlap * Ravg,
       overlapArcRad: phiOverlap,
       turnsMeasured: 1 + phiOverlap / TAU,
     },

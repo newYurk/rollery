@@ -77,6 +77,8 @@ m_spread_e(){ s 's|  spreadEnd: 0.88,|  spreadEnd: 0.85,|' units.js; }
 m_spread_s(){ s 's|export const SPREAD_START = 0.048;|export const SPREAD_START = 0.02;|' units.js; }
 m_emptyh()  { s 's|  emptyCoreHeightMm: 7.2,|  emptyCoreHeightMm: 5,|' units.js; }
 m_rowmm()   { s 's|export const CORE_PACK_ROW_MM = 24;|export const CORE_PACK_ROW_MM = 60;|' units.js; }
+# ← регрессия #165: нахлёст от голых полей вместо остатка листа
+m_bare()    { s 's|  const overlapMm = L - noriPerimeter;|  const overlapMm = Lbare;|' winding.js; }
 m_norih()   { s 's|Math.abs(y) + p.heightMm / 2 + base.noriThicknessMm|Math.abs(y) + p.heightMm / 2|' winding.js; }
 m_pieces()  { s 's|  pieces: 6,|  pieces: 7,|' units.js; }
 m_uramp()   { s 's|    const s = sRice0 + Lrice \* (b / NB);|    const s = sRice0 + Lrice * (b / NB) * 0.5;|' winding.js; }
@@ -103,3 +105,4 @@ run_mut 'units.js    emptyCoreHeightMm 7,2 -> 5' m_emptyh
 run_mut 'units.js    CORE_PACK_ROW_MM 24 -> 60'  m_rowmm
 run_mut 'units.js    pieces 6 -> 7'              m_pieces
 run_mut 'winding.js  halfH без noriThickness'    m_norih
+run_mut 'winding.js  нахлёст от голых полей'     m_bare
