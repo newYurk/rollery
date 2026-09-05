@@ -39,3 +39,5 @@ and the canonical reference numbers in the executable check
 - Work is tracked in GitHub issues; ideas live in `docs/ideas.md`.
 
 This is a measurement rig, not a game and not a stack decision.
+
+Initial Greptile architecture and mathematics review.
