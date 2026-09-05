@@ -209,14 +209,14 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "eeca304",
+ "ref": "f2944f9",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "Four findings from the reviews on our own pull requests",
+ "subject": "The closing summary was hand-written too (#212 review)",
  "total_lines": 14718,
  "touchModel": {
   "play/checks.js": 55,
