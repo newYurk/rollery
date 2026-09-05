@@ -236,7 +236,13 @@ function load() {
     const m = JSON.parse(localStorage.getItem('rollery.model.v2') || 'null');
     if (m && m.lists) { S.base = m.base in BASES ? m.base : 'hoso'; S.lists = m.lists; S.wrap = (m.wrap && WRAPPERS[m.wrap]) ? m.wrap : null; }
     for (const k in BASES) if (!S.lists[k]) S.lists[k] = [];
-    S.preview = localStorage.getItem('rollery.preview') === '1';
+    // ⚑ ЖИВОЙ СРЕЗ ВКЛЮЧЁН ПО УМОЛЧАНИЮ. Он и есть обратная связь игры: узор
+    // следует из раскладки, и без него первый игрок не видит связи между тем,
+    // что кладёт, и тем, что получит. Раньше стоило места — предпросмотр
+    // ложился накладкой поверх листа; после правки раскладчика он занимает
+    // пустоту над листом и лист не уменьшает. Глаз в панели выключает за тап,
+    // и выбор запоминается: null (первый запуск) — да, '0' — нет.
+    { const pv = localStorage.getItem('rollery.preview'); S.preview = pv === null ? true : pv === '1'; }
     // Ключа нет — новый игрок, звук молчит. Сравнение с '1' давало обратное:
     // отсутствие ключа читалось как «не выключено» и игра начинала со звуком.
     S.mute = localStorage.getItem('rollery.mute') !== '0';
