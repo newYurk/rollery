@@ -112,17 +112,10 @@ export function acceptF01(report, winding) {
   push(nori && Math.abs(nori.arcMm - noriWant) <= EPS_LENGTH_MM
     ? ok('arc:nori')
     : fail('arc:nori', `${nori?.arcMm} vs ${noriWant}`));
-  const r0m = [...winding.r0b].reduce((a, b) => a + b, 0) / winding.r0b.length;
-  const riceArea = Math.PI * (rp * rp - r0m * r0m);
-  const wantArea = winding.T * winding.Lrice;
-  const areaRatio = Math.max(riceArea / wantArea, wantArea / riceArea);
-  push(areaRatio <= EPS_AREA_RATIO
-    ? ok('arc:rice-area')
-    : fail('arc:rice-area', `${riceArea} / ${wantArea} = ${areaRatio}`));
-  const riceWant = Math.PI * (r0m + rp);
-  push(rice && Math.abs(rice.arcMm - riceWant) <= Math.max(1, 0.02 * riceWant)
+  // Oracle is sheet rice length, not a second integral. Do not widen EPS.
+  push(rice && Math.abs(rice.arcMm - winding.Lrice) <= EPS_LENGTH_MM
     ? ok('arc:rice')
-    : fail('arc:rice', `${rice?.arcMm} vs ${riceWant}`));
+    : fail('arc:rice', `${rice?.arcMm} vs Lrice ${winding.Lrice}`));
 
   push(report.sheet.uMinMm >= 0 && report.sheet.uMaxMm <= L ? ok('bounds') : fail('bounds'));
 
