@@ -268,9 +268,8 @@ export function drawSlice(ctx, recipe, winding, css) {
 
 export function drawSheet(ctx, recipe, winding, cssW, cssH) {
   const L = recipe.sheet.lengthMm;
-  const pad = 18;
-  const y0 = 28;
-  const h = cssH - 44;
+  const T = winding.T || 7;
+  const pad = 16;
   const x0 = pad;
   const innerW = cssW - pad * 2;
   const uToX = (u) => x0 + (u / L) * innerW;
@@ -278,53 +277,87 @@ export function drawSheet(ctx, recipe, winding, cssW, cssH) {
   ctx.fillStyle = '#171713';
   ctx.fillRect(0, 0, cssW, cssH);
 
-  const noriH = h * 0.36;
-  const riceH = h * 0.42;
-  const noriY = y0 + h - noriH;
-  const riceY = noriY - riceH + 4;
-  ctx.fillStyle = '#1a241e';
-  ctx.fillRect(uToX(0), noriY, innerW, noriH);
+  const labelH = 13;
+  const noriH = Math.max(7, Math.min(11, (cssH - labelH) * 0.2));
+  const riceH = Math.max(14, (cssH - labelH) * 0.42);
+  const noriY = cssH - labelH - noriH;
+  const riceY = noriY - riceH + 3;
+
+  ctx.fillStyle = '#151c18';
+  ctx.beginPath();
+  ctx.roundRect(uToX(0), noriY + 2, innerW, noriH, 3);
+  ctx.fill();
+  ctx.fillStyle = MAT.nori;
+  ctx.beginPath();
+  ctx.roundRect(uToX(0), noriY, innerW, noriH - 1, 3);
+  ctx.fill();
+
+  const rx = uToX(winding.sRice0);
+  const rw = Math.max(4, uToX(winding.sRice1) - rx);
+  ctx.fillStyle = '#cfc6b8';
+  ctx.beginPath();
+  ctx.moveTo(rx, noriY + 2);
+  ctx.lineTo(rx, riceY + 7);
+  ctx.quadraticCurveTo(rx, riceY, rx + 10, riceY);
+  ctx.lineTo(rx + rw - 10, riceY);
+  ctx.quadraticCurveTo(rx + rw, riceY, rx + rw, riceY + 7);
+  ctx.lineTo(rx + rw, noriY + 2);
+  ctx.closePath();
+  ctx.fill();
   ctx.fillStyle = MAT.rice;
-  ctx.fillRect(uToX(winding.sRice0), riceY, uToX(winding.sRice1) - uToX(winding.sRice0), riceH);
+  ctx.beginPath();
+  ctx.moveTo(rx + 2, noriY + 2);
+  ctx.lineTo(rx + 2, riceY + 9);
+  ctx.quadraticCurveTo(rx + 2, riceY + 3, rx + 12, riceY + 3);
+  ctx.lineTo(rx + rw - 12, riceY + 3);
+  ctx.quadraticCurveTo(rx + rw - 2, riceY + 3, rx + rw - 2, riceY + 9);
+  ctx.lineTo(rx + rw - 2, noriY + 2);
+  ctx.closePath();
+  ctx.fill();
 
   const win = placementWindowMm(recipe.sheet);
-  ctx.fillStyle = 'rgba(224,178,95,0.16)';
-  ctx.fillRect(uToX(win.nearEdgeMm), riceY, uToX(win.farEdgeMm) - uToX(win.nearEdgeMm), riceH);
-
-  ctx.strokeStyle = 'rgba(224,178,95,0.55)';
-  ctx.lineWidth = 1;
+  const wx0 = uToX(win.nearEdgeMm);
+  const wx1 = uToX(win.farEdgeMm);
+  ctx.strokeStyle = 'rgba(224,178,95,0.7)';
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.moveTo(uToX(win.nearEdgeMm), riceY);
-  ctx.lineTo(uToX(win.nearEdgeMm), riceY + riceH);
-  ctx.moveTo(uToX(win.farEdgeMm), riceY);
-  ctx.lineTo(uToX(win.farEdgeMm), riceY + riceH);
+  ctx.moveTo(wx0, riceY - 3);
+  ctx.lineTo(wx0, riceY + riceH * 0.45);
+  ctx.moveTo(wx1, riceY - 3);
+  ctx.lineTo(wx1, riceY + riceH * 0.45);
   ctx.stroke();
 
+  const surface = riceY + 2;
   for (const p of recipe.patches) {
     const mat = MAT[p.materialId] || { fill: '#888', edge: '#444' };
     const half = p.widthMm / 2;
     const x = uToX(p.uMm - half);
-    const w = Math.max(4, uToX(p.uMm + half) - x);
-    const chipH = Math.max(10, riceH * 0.72);
-    const chipY = riceY - chipH * 0.55;
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    const w = Math.max(5, uToX(p.uMm + half) - x);
+    const chipH = Math.max(9, Math.min(riceH * 1.05, (p.heightMm / T) * riceH * 0.95));
+    const chipY = surface - chipH + 4;
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.beginPath();
-    ctx.roundRect(x + 1, chipY + 1.5, w, chipH, 2);
+    ctx.roundRect(x + 1.2, chipY + 2, w, chipH, 2.5);
     ctx.fill();
     ctx.fillStyle = mat.fill;
     ctx.beginPath();
-    ctx.roundRect(x, chipY, w, chipH, 2);
+    ctx.roundRect(x, chipY, w, chipH, 2.5);
     ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.fillRect(x + 1, chipY + 1, w - 2, 2);
     ctx.strokeStyle = mat.skin || mat.edge || '#444';
     ctx.lineWidth = 1;
     ctx.stroke();
   }
 
   ctx.fillStyle = '#9a9280';
-  ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillText('0', uToX(0), cssH - 6);
-  ctx.fillText(`${L}`, uToX(L) - 18, cssH - 6);
-  ctx.fillText('окно', uToX((win.nearEdgeMm + win.farEdgeMm) / 2) - 12, 16);
+  ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('0', uToX(0), cssH - 1);
+  ctx.textAlign = 'right';
+  ctx.fillText(String(L), uToX(L), cssH - 1);
+  ctx.textAlign = 'left';
+  ctx.fillText('окно', (wx0 + wx1) / 2 - 12, riceY - 4);
 }
 
 export function rollSideLayout(cssW, cssH) {
@@ -332,12 +365,17 @@ export function rollSideLayout(cssW, cssH) {
   return { x0: pad, y0: cssH / 2, innerW: cssW - pad * 2, pad };
 }
 
+export function sheetShare(cssH) {
+  return Math.round(cssH * 0.62);
+}
+
 export function drawBar(ctx, recipe, winding, cssW, cssH, cuts, vFrac, knifeY) {
-  const rollH = Math.round(cssH * 0.64);
+  const sheetH = sheetShare(cssH);
+  const rollH = cssH - sheetH;
   drawRollSide(ctx, winding, cssW, rollH, cuts, vFrac, knifeY);
   ctx.save();
   ctx.translate(0, rollH);
-  drawSheet(ctx, recipe, winding, cssW, cssH - rollH);
+  drawSheet(ctx, recipe, winding, cssW, sheetH);
   ctx.restore();
 }
 

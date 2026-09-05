@@ -10,7 +10,7 @@ import {
 import { validateRecipe } from './validate.js';
 import { buildWinding } from './winding.js';
 import { sampleSection } from './section.js';
-import { drawBar, drawSlice, rollSideLayout } from './render.js';
+import { drawBar, drawSlice, rollSideLayout, sheetShare } from './render.js';
 import { placementWindowMm } from './units.js';
 import {
   cutFractions,
@@ -64,7 +64,7 @@ function resetKnife(recipe) {
 }
 
 function rollH() {
-  return Math.round(bar.height * 0.64);
+  return bar.height - sheetShare(bar.height);
 }
 
 function paint() {
