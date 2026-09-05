@@ -166,7 +166,7 @@
   "play/core-v2/app.js": 253,
   "play/core-v2/bridge.js": 79,
   "play/core-v2/canonical.js": 31,
-  "play/core-v2/fixtures.js": 507,
+  "play/core-v2/fixtures.js": 516,
   "play/core-v2/from-layout.js": 192,
   "play/core-v2/hash.js": 61,
   "play/core-v2/knife.js": 45,
@@ -176,8 +176,8 @@
   "play/core-v2/render.js": 413,
   "play/core-v2/section.js": 110,
   "play/core-v2/units.js": 323,
-  "play/core-v2/validate.js": 183,
-  "play/core-v2/winding.js": 249,
+  "play/core-v2/validate.js": 194,
+  "play/core-v2/winding.js": 261,
   "play/domain/recipe-v2.js": 65,
   "play/domain/roll.js": 303,
   "play/inverse/materials.js": 161,
@@ -209,7 +209,7 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "d4d5a39",
+ "ref": "8dd1b8d",
  "scripts": {
   "count": 16,
   "versions": [
@@ -217,8 +217,8 @@
    "224"
   ]
  },
- "subject": "fix(core-v2): четыре ната debug-стенда (#173) (#185)",
- "total_lines": 14446,
+ "subject": "fix(core-v2): третья песочница с тем же URLSearchParams (#189)",
+ "total_lines": 14478,
  "touchModel": {
   "play/checks.js": 55,
   "play/modes/puzzle.js": 3,
