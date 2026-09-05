@@ -552,3 +552,107 @@ test('срез хешируется так же устойчиво, как на�
   const nudged = { ...sec, layers: { rice: { innerMm: Float64Array.from(w.r0b, nextUp), outerMm: Float64Array.from(w.rp, nextUp) }, nori: { innerMm: Float64Array.from(w.rp, nextUp), outerMm: Float64Array.from(w.rn, nextUp) } } };
   assert.equal(hashValue(sectionForHash(nudged)), before);
 });
+
+// ── снимок каталога обязан сверяться с каталогом (#174) ────────────────────
+// units.js называет себя «снимком каталога в мм». Снимок, который не с чем
+// сверить, — просто число: шесть мутаций входных констант проходили шлюз
+// насквозь, потому что приёмка проверяет соотношения ВЫЧИСЛЕННЫХ величин,
+// а скопированные руками не проверяет никто.
+import { readFileSync } from 'node:fs';
+import { FUTOMAKI, SPREAD_START, TAMAGO, SALMON, U_MM as UNITS_U_MM, CORE_PACK_ROW_MM, HOSOMAKI as HOSO } from './units.js';
+
+const HERE = new URL('.', import.meta.url).pathname;
+const src = (rel) => readFileSync(HERE + rel, 'utf8');
+
+test('снимок базы сходится с ЖИВЫМ каталогом, поле за полем', () => {
+  for (const [key, snap] of [['hoso', HOSO], ['futo', FUTOMAKI]]) {
+    const b = BASES[key];
+    assert.equal(snap.catalogKey, key);
+    assert.equal(snap.lengthMm, b.sheetCm * 10, `${key}.lengthMm`);
+    assert.equal(snap.widthMm, b.Wv * CATALOG_U_MM, `${key}.widthMm`);
+    // 1.57 × 5 в double даёт 7.8500000000000005 — снимок хранит корректно
+    // округлённое число, поэтому сравниваем по сетке, а не побитово.
+    const q9 = (x) => +x.toFixed(9);
+    assert.equal(snap.riceThicknessMm, q9(b.T * CATALOG_U_MM), `${key}.riceThicknessMm`);
+    assert.equal(snap.noriThicknessMm, q9(b.w * CATALOG_U_MM), `${key}.noriThicknessMm`);
+    assert.equal(snap.spreadEnd, b.spreadEnd, `${key}.spreadEnd`);
+    assert.equal(snap.pieces, b.pieces, `${key}.pieces`);
+    // Тождество, которое комментарий units.js утверждает словами: Hc = T + 2w.
+    assert.equal(snap.emptyCoreHeightMm, q9((b.T + 2 * b.w) * CATALOG_U_MM), `${key}.emptyCoreHeightMm`);
+  }
+  assert.equal(UNITS_U_MM, CATALOG_U_MM, 'единица каталога у ядра и у игры одна');
+});
+
+test('SPREAD_START взят из geometry.js, а не выдуман', () => {
+  // Снимок ссылается на geometry.js:774. Проверяем саму ссылку: уедет число
+  // в модели — тест назовёт расхождение, а не промолчит.
+  const m = src('../model/geometry.js').match(/^const SPREAD_START = ([\d.]+);/m);
+  assert.ok(m, 'в geometry.js больше нет const SPREAD_START — ссылка снимка протухла');
+  assert.equal(SPREAD_START, Number(m[1]));
+  assert.equal(HOSO.spreadStart, SPREAD_START);
+  assert.equal(FUTOMAKI.spreadStart, SPREAD_START);
+});
+
+test('снимок начинок сходится с каталогом — кроме огурца, и это НАМЕРЕННО', () => {
+  for (const [kind, snap] of [['tamago', TAMAGO], ['salmon', SALMON]]) {
+    const d = ING[kind];
+    assert.equal(snap.widthMm, d.wU * CATALOG_U_MM, `${kind}.widthMm`);
+    assert.equal(snap.heightMm, d.hU * CATALOG_U_MM, `${kind}.heightMm`);
+    assert.equal(snap.cut, d.cut, `${kind}.cut`);
+  }
+  // Огурец расходится СОЗНАТЕЛЬНО: после 板ずり и 種取り это палка, не сектор
+  // плода. Прибиваем и расхождение тоже — чтобы «починка» вслепую покраснела
+  // и заставила сначала переписать обоснование в units.js.
+  assert.notEqual(CUCUMBER.widthMm, ING.cucumber.wU * CATALOG_U_MM);
+  assert.equal(CUCUMBER.cut, 'брусок');
+  assert.equal(ING.cucumber.cut, 'сектор');
+  assert.match(src('units.js'), /Live catalog\.js \(14 × 9,9, сектор\) не трогаем/,
+    'расхождение по огурцу обязано оставаться объяснённым в units.js');
+});
+
+test('снимок производных: числа фикстур прибиты и выводятся из каталога', () => {
+  // Отчёт квантуется на 1e-6 мм (#175), поэтому сравниваем точно, а не «примерно».
+  // Числа СНЯТЫ, а не придуманы; чтобы снимок не оказался тавтологией, каждое
+  // рядом выводится из каталога независимой формулой.
+  const want = {
+    F01: { Wc: 5, Hc: 7.2, Lrice: 87.36, rp: 14.356602, dMin: 28.913204, dMax: 29.113204 },
+    F02: { Wc: 8, Hc: 8.2, Lrice: 87.36, rp: 14.681076, dMin: 29.562152, dMax: 29.762152 },
+  };
+  const q = (x) => Math.round(x * 1e6) / 1e6;
+  for (const [id, w] of [['F01', buildWinding(makeF01Recipe())], ['F02', buildWinding(makeF02Recipe())]]) {
+    const e = want[id];
+    assert.equal(w.Wc, e.Wc, `${id}.Wc`);
+    assert.equal(q(w.Hc), e.Hc, `${id}.Hc`);
+    assert.equal(q(w.Lrice), e.Lrice, `${id}.Lrice`);
+    assert.equal(q(w.rp[0]), e.rp, `${id}.rp`);
+    assert.equal(q(w.diameterMinMm), e.dMin, `${id}.diameterMin`);
+    assert.equal(q(w.diameterMaxMm), e.dMax, `${id}.diameterMax`);
+
+    // Вывод из каталога, мимо ядра: длина намазки — доля листа.
+    const b = BASES.hoso;
+    assert.equal(q((b.spreadEnd - SPREAD_START) * b.sheetCm * 10), e.Lrice, `${id}: Lrice из каталога`);
+    // Внешний радиус риса — из сохранения площади: π·rp² = Wc·Hc + T·Lrice.
+    const rp = Math.sqrt((e.Wc * e.Hc + b.T * CATALOG_U_MM * e.Lrice) / Math.PI);
+    assert.ok(Math.abs(rp - e.rp) < 1e-6, `${id}: rp из площади ${rp} vs ${e.rp}`);
+    // И диаметр обязан лежать в коридоре повара, иначе снимок прибил бы неедобное.
+    assert.ok(e.dMin >= HOSOMAKI_DIAMETER_MM.min && e.dMax <= HOSOMAKI_DIAMETER_MM.max, `${id}: ⌀ вне коридора`);
+  }
+});
+
+test('F05: ядро в ДВА ряда, и это часть картинки', () => {
+  // CORE_PACK_ROW_MM перекладывает весь срез, а приёмка этого не видит:
+  // она проверяет неперекрытие и порядок, но не число рядов.
+  const r = makeF05Recipe();
+  const pos = r.patches.map((p) => ({ id: p.id, ...patchCorePos(r, p) }));
+  const rows = new Set(pos.map((p) => p.y.toFixed(6)));
+  assert.equal(rows.size, 2, `рядов должно быть 2, стало ${rows.size} — проверь CORE_PACK_ROW_MM`);
+  assert.equal(CORE_PACK_ROW_MM, 24);
+  const by = Object.fromEntries(pos.map((p) => [p.id, p]));
+  assert.deepEqual(by['cucumber-0'], { id: 'cucumber-0', x: -6.5, y: -5.5 });
+  assert.deepEqual(by['tamago-0'], { id: 'tamago-0', x: 4.5, y: -5.5 });
+  assert.deepEqual(by['salmon-0'], { id: 'salmon-0', x: 0, y: 5.5 });
+  // Пучок обязан быть центрирован: это чинилось в #176 и молча уехало бы обратно.
+  const yTop = Math.max(...r.patches.map((p) => patchCorePos(r, p).y + p.heightMm / 2));
+  const yBot = Math.min(...r.patches.map((p) => patchCorePos(r, p).y - p.heightMm / 2));
+  assert.ok(Math.abs(yTop + yBot) < 1e-9, `пучок смещён на ${(yTop + yBot) / 2} мм`);
+});
