@@ -42,24 +42,27 @@ function r0MeanOf(r0b) {
 }
 
 /** Лента риса длины Lrice в кольце площади T·Lrice. Шаг ≈ T, витков = Lrice / (2π r̄).
- *  Средняя линия — от r̄0 до rp, не на полшага наружу (grown+pitch/2).
- *  Длина средней линии = turns·2π·(r̄0+rp)/2 = Lrice. */
+ *  Средняя линия: r̄0+pitch/2 → rp−pitch/2, свип turns·TAU.
+ *  Не grown+pitch/2 (это +pitch/2 наружу и 111 мм вместо Lrice).
+ *  Длина = turns·2π·(r̄0+rp)/2 = Lrice. */
 export function riceSpiralSpec(r0b, rpCircle, Lrice) {
   const r0m = r0MeanOf(r0b);
   const meanR = Math.max(1e-6, (r0m + rpCircle) / 2);
   const turns = Lrice / (TAU * meanR);
   const pitch = turns > 1e-9 ? (rpCircle - r0m) / turns : rpCircle - r0m;
   const steps = Math.max(1, Math.round(turns * NB));
+  const dtheta = turns * TAU / steps;
   const rin = new Float64Array(steps);
   const rout = new Float64Array(steps);
+  const mid0 = r0m + pitch / 2;
+  const mid1 = rpCircle - pitch / 2;
   let pathMm = 0;
   for (let i = 0; i < steps; i++) {
     const t = steps === 1 ? 0.5 : i / (steps - 1);
-    const mid = r0m + (rpCircle - r0m) * t;
-    pathMm += mid * DPHI;
-    const half = pitch / 2;
-    rin[i] = Math.max(r0m, Math.min(rpCircle, mid - half));
-    rout[i] = Math.max(r0m, Math.min(rpCircle, mid + half));
+    const mid = mid0 + (mid1 - mid0) * t;
+    pathMm += mid * dtheta;
+    rin[i] = mid - pitch / 2;
+    rout[i] = mid + pitch / 2;
   }
   return { turns, pitch, steps, rin, rout, r0Mean: r0m, pathMm };
 }
