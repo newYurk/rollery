@@ -46,7 +46,7 @@ const METRICS = [
   { key: 'lengthMm', label: 'длина листа', unit: 'мм', eps: EPS_LENGTH_MM, kind: 'identity' },
   { key: 'sRice0Mm', label: 'рис u0', unit: 'мм', eps: EPS_LENGTH_MM, kind: 'identity' },
   { key: 'sRice1Mm', label: 'рис u1', unit: 'мм', eps: EPS_LENGTH_MM, kind: 'identity' },
-  { key: 'overlapMm', label: 'нахлёст Lbare', unit: 'мм', eps: EPS_LENGTH_MM, kind: 'identity' },
+  { key: 'overlapMm', label: 'нахлёст (остаток листа)', unit: 'мм', eps: EPS_LENGTH_MM, kind: 'identity' },
   { key: 'coreWcMm', label: 'ядро Wc', unit: 'мм', eps: EPS_CORE_ASYMMETRY_MM, kind: 'identity' },
   { key: 'coreHcMm', label: 'ядро Hc', unit: 'мм', eps: EPS_CORE_ASYMMETRY_MM, kind: 'identity' },
   { key: 'diameterMinMm', label: '⌀ min', unit: 'мм', eps: EPS_LENGTH_MM, kind: 'geometry' },

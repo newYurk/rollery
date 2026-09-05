@@ -5,24 +5,38 @@ on:
   push:
     branches: [main, 'core-v2/**']
 
+# ⚑ ПРАВА ЗАДАНЫ ЯВНО (внешнее ревью 05.09). У репозитория дефолт read-only, но это
+# НАСТРОЙКА GITHUB, а не файл: её переключают в вебе, и в истории такого следа не остаётся.
+# Строка ниже переносит гарантию в git, где её видно на ревью. Ни один job здесь не пишет.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: '22'
       - name: fixtures
         run: node play/core-v2/run-fixtures.mjs
+
+      # ⚠ run-fixtures переписывает только F01…F07.json. Отчёт о расхождении с легаси
+      # собирает ДРУГОЙ скрипт, и без него шаг «отчёты свежие» ниже сторожил не тот файл:
+      # divergence.json лежал в той же папке, никем не пересобирался, диффа не давал и был
+      # вечно зелёным. За четыре правки модели он протух и утверждал MATCH там, где стало
+      # DIVERGE — на эти самые числа и опёрся внешний ревьюер 05.09.
+      - name: расхождение с легаси
+        run: node play/core-v2/compare-legacy.mjs
 
       # Отчёты собраны на машине автора, а этот шаг идёт на ubuntu x64. Если они
       # сходятся — переносимость доказана железом, а не обещанием. Раньше шаг был
       # невозможен: Math.cos/Math.sin расходятся в последнем бите, и дифф краснел
       # на любой другой платформе. Хеши и тело отчёта лежат на сетке 1e-6 мм (#175).
       - name: reports are portable and current
-        run: git diff --exit-code play/core-v2/reports
+        run: git diff --exit-code play/core-v2/reports docs/handoff/core-v2-geometry-divergence.md
       - name: unit
         run: node --test play/core-v2/core-v2.test.mjs
 
@@ -36,10 +50,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           fetch-depth: 0   # page-markers.mjs решает свежесть маркера по git log, мелкой копии мало
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: '22'
       - name: сторож модели без браузера

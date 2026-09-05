@@ -208,6 +208,10 @@ export function buildWinding(recipe) {
 
   const spiral = riceSpiralSpec(r0b, rpCircle, Lrice);
 
+  // ⚠ Lbare — ДЛИНА ГОЛЫХ ПОЛЕЙ, А НЕ НАХЛЁСТ. Величина осталась в выдаче (её читает
+  // sheetMap и мутационный тест), но швом она перестала быть в #188 — см. ниже. Имя
+  // сохранено ради совместимости отчётов; на нём уже споткнулся внешний ревьюер 05.09,
+  // приняв её за формулу шва.
   const Lbare = (L - sRice1) + sRice0;
   const Ravg = Rout - W / 2;
   const noriPerimeter = midArc((b) => rn[b] - W / 2);
