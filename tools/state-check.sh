@@ -34,20 +34,30 @@ say "── ветки без PR"
 # ЗАВЕДЁННАЯ ЗАДАЧА: тогда о ней помнят, и повторять предупреждение каждый прогон незачем —
 # сторож, который каждый раз кричит одно и то же про известное, приучает пролистывать вывод.
 # Ищем в открытых issues упоминание имени ветки; нашлось — печатаем спокойно, со ссылкой.
-for b in $(git branch --format='%(refname:short)' | grep -v '^main$'); do
-  pr=$(gh pr list --head "$b" --limit 1 --json number -q '.[0].number' 2>/dev/null)
+# grep убирает и main, и строку detached HEAD: без неё «(HEAD detached at X)»
+# разваливается подстановкой на три слова и сторож ругается на несуществующие ветки.
+for b in $(git branch --format='%(refname:short)' | grep -v '^main$' | grep -v '^(' ); do
+  pr=$(gh pr list --head "$b" --state open --limit 1 --json number -q '.[0].number' 2>/dev/null)
   if [ -n "$pr" ]; then say "  ✓ $b → PR #$pr"; continue; fi
+  # Влитый PR — единственный НАДЁЖНЫЙ ответ на вопрос «влита ли». Ни счётчик коммитов,
+  # ни дифф его не заменяют: squash не оставляет коммитов ветки в main, а локальная
+  # копия влитой ветки может просто отстать и выглядеть расходящейся.
+  prm=$(gh pr list --head "$b" --state merged --limit 1 --json number -q '.[0].number' 2>/dev/null)
+  if [ -n "$prm" ]; then warn "ветка $b влита (PR #$prm) и забыта — удалить"; continue; fi
   iss=$(gh issue list --state open --limit 100 --search "$b" --json number -q '.[0].number' 2>/dev/null)
   # «Влита и забыта» и «не влита и забыта» — разные беды, и лечатся по-разному:
   # первую удаляют, вторую доводят или осознанно бросают. Раньше сторож называл
   # влитой любую ветку без PR, и невлитая работа пряталась за успокаивающим словом.
+  # PR не нашёлся вовсе — ветка жила только локально. Тогда содержимое: если она
+  # ничего не добавляет к main, её можно удалить, каким бы способом это ни вышло.
   ahead=$(git rev-list --count origin/main.."$b" 2>/dev/null || echo 0)
+  if git diff --quiet origin/main.."$b" 2>/dev/null; then same=1; else same=0; fi
   if [ -n "$iss" ]; then
     say "  ✓ $b без PR, но описана в #$iss"
-  elif [ "$ahead" = "0" ]; then
+  elif [ "$same" = "1" ]; then
     warn "ветка $b влита в main и забыта — удалить"
   else
-    warn "ветка $b НЕ влита: $ahead коммит(ов) мимо main, PR нет, задачи нет — работа потеряется"
+    warn "ветка $b НЕ влита: $ahead коммит(ов) и своё содержимое мимо main, PR нет, задачи нет — работа потеряется"
   fi
 done
 
