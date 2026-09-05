@@ -65,16 +65,22 @@ export function sampleSection(recipe, winding, vSliceMm) {
     visiblePatches,
     angleRad: winding.angleRad,
     riceAreaMm2: riceAnnulusAreaMm2(winding),
+    coreGapAreaMm2: coreGapAreaMm2(winding),
   };
 }
 
-/** Cartesian 320² of the rice ring r0(φ) < r < rp. Independent of riceOuterMm's algebra. */
+/**
+ * Площадь рисового кольца сеткой 320²: клетка считается рисом, если лежит
+ * ЗА границей ядра r0(φ) и внутри rp. Сетка независима от алгебры
+ * riceOuterFromAreaMm — она проверяет тождество π·rp² = ядро + T·Lrice,
+ * измеряя, а не пересчитывая по той же формуле.
+ */
 export function riceAnnulusAreaMm2(winding, n = 320) {
   const rp = winding.rp[0];
-  const Wc = winding.Wc;
-  const Hc = winding.Hc;
+  const r0b = winding.r0b;
   const half = rp;
   const cell = (2 * half / n) ** 2;
+  const NBW = r0b.length;
   let area = 0;
   for (let i = 0; i < n; i++) {
     const x = -half + (i + 0.5) * (2 * half / n);
@@ -83,14 +89,45 @@ export function riceAnnulusAreaMm2(winding, n = 320) {
       const r = Math.hypot(x, y);
       if (r >= rp || r <= 0) continue;
       const phi = Math.atan2(y, x);
-      const c = Math.abs(Math.cos(phi));
-      const s = Math.abs(Math.sin(phi));
-      const rx = c > 1e-12 ? (Wc / 2) / c : Infinity;
-      const ry = s > 1e-12 ? (Hc / 2) / s : Infinity;
-      if (r > Math.min(rx, ry)) area += cell;
+      const b = ((Math.round(phi / (Math.PI * 2) * NBW) % NBW) + NBW) % NBW;
+      if (r > r0b[b]) area += cell;
     }
   }
   return area;
+}
+
+/**
+ * Зазоры между начинками, которые кольцевая модель НЕ умеет назвать рисом.
+ * Луч, прошедший между двумя кусками, выходит из дальнего, поэтому всё, что
+ * между ними, попадает внутрь r0(φ) и считается ядром. У повара там рис.
+ * Это предел представления «одна граница на луч», а не ошибка счёта, —
+ * поэтому величина измеряется и печатается, а не прячется (#186, см. #10).
+ */
+export function coreGapAreaMm2(winding, n = 320) {
+  const rp = winding.rp[0];
+  const boxes = winding.coreBoxes;
+  const r0b = winding.r0b;
+  const half = rp;
+  const cell = (2 * half / n) ** 2;
+  const NBW = r0b.length;
+  let gap = 0;
+  for (let i = 0; i < n; i++) {
+    const x = -half + (i + 0.5) * (2 * half / n);
+    for (let j = 0; j < n; j++) {
+      const y = -half + (j + 0.5) * (2 * half / n);
+      const r = Math.hypot(x, y);
+      if (r >= rp || r <= 0) continue;
+      const phi = Math.atan2(y, x);
+      const b = ((Math.round(phi / (Math.PI * 2) * NBW) % NBW) + NBW) % NBW;
+      if (r > r0b[b]) continue; // это рис, не зазор
+      let inBox = false;
+      for (const bx of boxes) {
+        if (Math.abs(x - bx.cx) <= bx.hw && Math.abs(y - bx.cy) <= bx.hh) { inBox = true; break; }
+      }
+      if (!inBox) gap += cell;
+    }
+  }
+  return gap;
 }
 
 export function sectionForHash(section) {

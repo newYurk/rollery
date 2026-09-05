@@ -500,6 +500,7 @@ test('переводчик: класс нарезки поддержан ров�
 // ── переносимость хешей (#175) ─────────────────────────────────────────────
 import { hashValue, quantize, HASH_QUANTUM_MM } from './hash.js';
 import { windingForHash } from './winding.js';
+import { coreGapAreaMm2 } from './section.js';
 import { sectionForHash } from './section.js';
 
 /** Следующее представимое double вверх. Ровно один ULP, без приближений. */
@@ -615,8 +616,8 @@ test('снимок производных: числа фикстур приби�
   // Числа СНЯТЫ, а не придуманы; чтобы снимок не оказался тавтологией, каждое
   // рядом выводится из каталога независимой формулой.
   const want = {
-    F01: { Wc: 5, Hc: 7.2, Lrice: 87.36, rp: 14.356602, dMin: 28.913204, dMax: 29.113204 },
-    F02: { Wc: 8, Hc: 8.2, Lrice: 87.36, rp: 14.681076, dMin: 29.562152, dMax: 29.762152 },
+    F01: { Wc: 5, Hc: 7.2, Lrice: 87.36, rp: 14.356603, dMin: 28.913206, dMax: 29.113206, core: 36 },
+    F02: { Wc: 8, Hc: 8.2, Lrice: 87.36, rp: 14.681077, dMin: 29.562153, dMax: 29.762153, core: 65.6 },
   };
   const q = (x) => Math.round(x * 1e6) / 1e6;
   for (const [id, w] of [['F01', buildWinding(makeF01Recipe())], ['F02', buildWinding(makeF02Recipe())]]) {
@@ -631,9 +632,16 @@ test('снимок производных: числа фикстур приби�
     // Вывод из каталога, мимо ядра: длина намазки — доля листа.
     const b = BASES.hoso;
     assert.equal(q((b.spreadEnd - SPREAD_START) * b.sheetCm * 10), e.Lrice, `${id}: Lrice из каталога`);
-    // Внешний радиус риса — из сохранения площади: π·rp² = Wc·Hc + T·Lrice.
-    const rp = Math.sqrt((e.Wc * e.Hc + b.T * CATALOG_U_MM * e.Lrice) / Math.PI);
-    assert.ok(Math.abs(rp - e.rp) < 1e-6, `${id}: rp из площади ${rp} vs ${e.rp}`);
+    // Внешний радиус риса — из сохранения площади: π·rp² = ядро + T·Lrice.
+    // Площадь ядра берётся по ГРАНИЦЕ r0(φ), а не как Wc·Hc: у прямоугольника
+    // пустые углы, и они раздували ролл (#186). У этих двух фикстур ядро —
+    // один прямоугольник, поэтому величины совпадают, и это стоит проверить.
+    assert.ok(Math.abs(w.coreAreaMm2 - e.core) < 0.05, `${id}: площадь ядра ${w.coreAreaMm2}`);
+    const rp = Math.sqrt((e.core + b.T * CATALOG_U_MM * e.Lrice) / Math.PI);
+    // Допуск 1e-4 мм, а не 1e-6: ядро берёт площадь дискретным интегралом
+    // Σ r0²·dφ по 1440 лучам, вывод — точным прямоугольником. Разница сеток
+    // честная и лежит на четыре порядка ниже EPS_LENGTH_MM.
+    assert.ok(Math.abs(rp - e.rp) < 1e-4, `${id}: rp из площади ${rp} vs ${e.rp}`);
     // И диаметр обязан лежать в коридоре повара, иначе снимок прибил бы неедобное.
     assert.ok(e.dMin >= HOSOMAKI_DIAMETER_MM.min && e.dMax <= HOSOMAKI_DIAMETER_MM.max, `${id}: ⌀ вне коридора`);
   }
@@ -670,4 +678,29 @@ test('turnIndexAtRay несёт информацию, а не константу
   const second = idx.filter((v) => v >= 1).length;
   assert.equal(second, Math.max(0, w.riceSteps - NB));
   assert.ok(w.riceTurns > 1 && second > 0, 'при turns > 1 второй виток обязан быть');
+});
+
+test('ядро обтягивает пучок, а не описанный прямоугольник (#186)', () => {
+  // У прямоугольника, описанного вокруг трёх начинок, пустые углы: они входили
+  // в бюджет площади и раздували ролл. Граница теперь идёт по объединению.
+  const r = makeF05Recipe();
+  const w = buildWinding(r);
+  const fill = r.patches.reduce((s, p) => s + catalogAreaMm2(p), 0);
+  const frame = w.Wc * w.Hc;
+  assert.ok(w.coreAreaMm2 < frame * 0.75, `ядро ${w.coreAreaMm2} против рамки ${frame}`);
+  // Пустоты внутри границы должно остаться немного — только зазоры упаковки.
+  const voidFrac = (w.coreAreaMm2 - fill) / w.coreAreaMm2;
+  assert.ok(voidFrac < 0.10, `пустота ${(voidFrac * 100).toFixed(1)} % ядра`);
+  // Диаметр обязан УПАСТЬ: пустота больше не платит за себя площадью.
+  assert.ok(w.diameterMinMm < 47, `⌀ ${w.diameterMinMm}`);
+});
+
+test('зазор кольцевой модели измеряется, а не прячется (#186)', () => {
+  // Луч между двумя кусками выходит из дальнего, поэтому промежуток попадает
+  // внутрь r0(φ). У повара там рис. Это предел «одной границы на луч».
+  const one = buildWinding(makeF02Recipe());
+  assert.equal(coreGapAreaMm2(one), 0, 'у одного куска зазоров нет');
+  const many = buildWinding(makeF05Recipe());
+  assert.ok(coreGapAreaMm2(many) > 5, 'у пучка зазор обязан быть назван числом');
+  assert.ok(coreGapAreaMm2(many) < many.coreAreaMm2 * 0.1, 'и оставаться малым');
 });

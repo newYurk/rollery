@@ -64,8 +64,8 @@ run_mut() {
 
 m_arc()     { s 's|    pathMm += mid \* dtheta;|    pathMm += mid * dtheta * 1.5;|' winding.js; }
 m_nori()    { s 's|    acc += Math.sqrt(r \* r + dr \* dr) \* DPHI;|    acc += Math.sqrt(r * r + dr * dr) * DPHI * 1.5;|' winding.js; }
-m_rp()      { s 's|  return Math.sqrt((Math.max(0, Wc \* Hc) + T \* Lrice) / Math.PI);|  return Math.sqrt((T * Lrice) / Math.PI);|' winding.js; }
-m_corebox() { s 's|    halfW = Math.max(halfW, Math.abs(x) + p.widthMm / 2);|    halfW = Math.max(halfW, Math.abs(x) + p.widthMm / 4);|' winding.js; }
+m_rp()      { s 's|  return Math.sqrt((Math.max(0, coreAreaMm2) + T \* Lrice) / Math.PI);|  return Math.sqrt((T * Lrice) / Math.PI);|' winding.js; }
+m_corebox() { s 's|hw: p.widthMm / 2, hh:|hw: p.widthMm / 4, hh:|' winding.js; }
 m_meanr()   { s 's|  const meanR = Math.max(1e-6, (r0m + rpCircle) / 2);|  const meanR = Math.max(1e-6, (r0m + rpCircle) / 2) * 1.3;|' winding.js; }
 m_umm()     { s 's|export const U_MM = 5;|export const U_MM = 1;|' units.js; }
 m_rowh()    { s 's|    const rowH = Math.max(...items.map((p) => p.heightMm));|    const rowH = Math.max(...items.map((p) => p.heightMm)) * 1.4;|' units.js; }
@@ -79,10 +79,10 @@ m_emptyh()  { s 's|  emptyCoreHeightMm: 7.2,|  emptyCoreHeightMm: 5,|' units.js;
 m_rowmm()   { s 's|export const CORE_PACK_ROW_MM = 24;|export const CORE_PACK_ROW_MM = 60;|' units.js; }
 # ← регрессия #165: нахлёст от голых полей вместо остатка листа
 m_bare()    { s 's|  const overlapMm = L - noriPerimeter;|  const overlapMm = Lbare;|' winding.js; }
-m_norih()   { s 's|Math.abs(y) + p.heightMm / 2 + base.noriThicknessMm|Math.abs(y) + p.heightMm / 2|' winding.js; }
+m_norih()   { s 's|hh: p.heightMm / 2 + base.noriThicknessMm|hh: p.heightMm / 2|' winding.js; }
 m_pieces()  { s 's|  pieces: 6,|  pieces: 7,|' units.js; }
 m_uramp()   { s 's|    const s = sRice0 + Lrice \* (b / NB);|    const s = sRice0 + Lrice * (b / NB) * 0.5;|' winding.js; }
-m_overlap() { s 's|  const phiOverlap = enough \&\& Ravg > 1e-9 ? Math.min(TAU, Lbare / Ravg) : 0;|  const phiOverlap = enough \&\& Ravg > 1e-9 ? Math.min(TAU, Lbare / Ravg) * 0.7 : 0;|' winding.js; }
+m_overlap() { s 's|  const phiOverlap = enough \&\& Ravg > 1e-9 ? Math.min(TAU, overlapMm / Ravg) : 0;|  const phiOverlap = enough \&\& Ravg > 1e-9 ? Math.min(TAU, overlapMm / Ravg) * 0.7 : 0;|' winding.js; }
 
 printf '%s  %5s/%-5s  %s\n' 'кто поймал      ' 'pass' 'fail' 'мутация ядра'
 printf '%s\n' '----------------  -----------  -----------------------------------------'
