@@ -33,7 +33,7 @@ export function measure(recipe, winding, section, fixtureId, status, diagnostics
       uMaxMm: L,
       arcByLayerMm: [
         { layerId: 'rice', u0Mm: winding.sRice0, u1Mm: winding.sRice1, arcMm: winding.riceArcMm },
-        { layerId: 'nori', u0Mm: winding.sRice0, u1Mm: winding.sRice1, arcMm: winding.noriArcMm },
+        { layerId: 'nori', u0Mm: 0, u1Mm: L, arcMm: winding.noriArcMm },
       ],
     },
     seam: { ...winding.seam },

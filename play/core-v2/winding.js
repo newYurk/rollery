@@ -161,9 +161,8 @@ export function buildWinding(recipe) {
     if (outer > outerMax) outerMax = outer;
   }
 
-  const fine = independentLayerArcs({ Wc, Hc, T, W, Lrice });
-  const riceArcMm = fine.riceArcMm;
-  const noriArcMm = fine.noriArcMm;
+  const riceArcMm = midArc((b) => (r0b[b] + rp[b]) / 2);
+  const noriArcMm = noriPerimeter;
 
   let maxRoundTripErrMm = 0;
   for (let b = 0; b < NB; b++) {

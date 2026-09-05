@@ -5,14 +5,14 @@ import {
   acceptF01, acceptF02, allPassed,
   makeF01Recipe, makeCucumberRecipe, cucumberCatalogAreaMm2,
 } from './fixtures.js';
-import { validateRecipe } from './validate.js';
+import { validateRecipe, assessWinding } from './validate.js';
 import { buildWinding, independentLayerArcs } from './winding.js';
 import { CUCUMBER, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, WINDING, clampPatchU, hosogiriBox, patchCorePos, placementWindowMm } from './units.js';
 import {
   cutFractions, firstCutFraction, pieceCountOf, pieceLeftOfCut,
   pieceLengthMm, snapCutFraction,
 } from './knife.js';
-import { catalogAreaMm2, cutFillSector, makeF05Recipe, makeF07Recipe, makeHosogiriRecipe } from './recipe.js';
+import { catalogAreaMm2, cutFillSector, makeF02Recipe, makeF05Recipe, makeF07Recipe, makeHosogiriRecipe, makeCrowdedHosoRecipe } from './recipe.js';
 import { sampleSection } from './section.js';
 import { adapt, adaptScenario } from './adapter.js';
 
@@ -309,6 +309,50 @@ test('clampPatchU keeps footprint inside the window', () => {
   assert.equal(clampPatchU(sheet, p, 0), win.nearEdgeMm + 7);
   assert.equal(clampPatchU(sheet, p, 80), win.farEdgeMm - 7);
   assert.equal(clampPatchU(sheet, p, 36), 36);
+});
+
+test('play chips open valid recipes', () => {
+  for (const make of [
+    makeF01Recipe,
+    makeF02Recipe,
+    makeHosogiriRecipe,
+    () => makeCucumberRecipe(36.25),
+    makeF05Recipe,
+  ]) {
+    assert.equal(validateRecipe(make()).status, 'valid', make.name);
+  }
+  assert.equal(validateRecipe(makeCucumberRecipe(0)).status, 'invalid');
+});
+
+test('three fillings on hosomaki: sheet too short or corridor, not silent', () => {
+  const recipe = makeCrowdedHosoRecipe();
+  assert.equal(validateRecipe(recipe).status, 'valid');
+  const winding = buildWinding(recipe);
+  const phys = assessWinding(recipe, winding);
+  assert.notEqual(phys.status, 'valid');
+  assert.ok(['sheet_too_short', 'chef_corridor'].includes(phys.diagnostics[0].code), phys.diagnostics[0].code);
+});
+
+test('validateRecipe refuses NaN, missing sheet, null patch, negative width', () => {
+  const nan = { ...makeF01Recipe(), patches: makeF02Recipe().patches.map((p) => ({ ...p, uMm: NaN })) };
+  assert.equal(validateRecipe(nan).status, 'invalid');
+  const noSheet = { ...makeF01Recipe(), sheet: undefined };
+  assert.equal(validateRecipe(noSheet).status, 'invalid');
+  const nullPatch = { ...makeF01Recipe(), patches: [null] };
+  assert.equal(validateRecipe(nullPatch).status, 'invalid');
+  const neg = { ...makeF02Recipe(), patches: makeF02Recipe().patches.map((p) => ({ ...p, widthMm: -8 })) };
+  assert.equal(validateRecipe(neg).status, 'invalid');
+});
+
+test('F05 bundle AABB is centred on the origin', () => {
+  const recipe = makeF05Recipe();
+  const pos = recipe.patches.map((p) => ({ ...patchCorePos(recipe, p), w: p.widthMm, h: p.heightMm }));
+  const x0 = Math.min(...pos.map((p) => p.x - p.w / 2));
+  const x1 = Math.max(...pos.map((p) => p.x + p.w / 2));
+  const y0 = Math.min(...pos.map((p) => p.y - p.h / 2));
+  const y1 = Math.max(...pos.map((p) => p.y + p.h / 2));
+  assert.ok(Math.abs((x0 + x1) / 2) < 1e-9);
+  assert.ok(Math.abs((y0 + y1) / 2) < 1e-9);
 });
 
 test('knife: 6/8 pieces, first cut at half, snap interior only', () => {

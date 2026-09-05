@@ -1,7 +1,14 @@
 // validateRecipe. Честный отказ, без silent fallback.
-// Коды: erratum-004, 008, 012, 016, 018.
+// Коды: erratum-004, 008, 012, 016, 018. sheet_too_short / chef_corridor — этот PR.
 
-import { WINDING, placementWindowMm } from './units.js';
+import {
+  EPS_LENGTH_MM,
+  HOSOMAKI_DIAMETER_MM,
+  WINDING,
+  baseOf,
+  patchCorePos,
+  placementWindowMm,
+} from './units.js';
 
 function diagnostic(code, message, context) {
   return { code, message, context };
@@ -10,6 +17,10 @@ function diagnostic(code, message, context) {
 function patchFootprint(patch) {
   const half = patch.widthMm / 2;
   return [patch.uMm - half, patch.uMm + half];
+}
+
+function finite(n) {
+  return typeof n === 'number' && Number.isFinite(n);
 }
 
 export function validateRecipe(recipe) {
@@ -59,10 +70,29 @@ export function validateRecipe(recipe) {
   }
 
   const sheet = recipe.sheet;
-  const L = sheet && sheet.lengthMm;
+  if (!sheet || !finite(sheet.lengthMm) || sheet.lengthMm <= 0) {
+    diagnostics.push(diagnostic('section_shape', 'sheet.lengthMm must be a finite positive length', {
+      requestedFeature: 'sheet',
+    }));
+    return { status: 'invalid', diagnostics };
+  }
+  const L = sheet.lengthMm;
   const window = placementWindowMm(sheet);
 
   for (const patch of recipe.patches) {
+    if (patch == null || typeof patch !== 'object') {
+      diagnostics.push(diagnostic('section_shape', 'patch must be an object', {
+        requestedFeature: 'patches',
+      }));
+      return { status: 'invalid', diagnostics };
+    }
+    if (!finite(patch.uMm) || !finite(patch.widthMm) || patch.widthMm <= 0) {
+      diagnostics.push(diagnostic('patch_out_of_sheet', 'patch uMm/widthMm must be finite, widthMm > 0', {
+        patchId: patch.id == null ? null : String(patch.id),
+        sheetLengthMm: L,
+      }));
+      return { status: 'invalid', diagnostics };
+    }
     if (patch.rotationDeg != null && patch.rotationDeg !== 0) {
       diagnostics.push(diagnostic('patch_rotated', 'rotationDeg is not in Patch', {
         patchId: String(patch.id),
@@ -109,4 +139,45 @@ export function validateRecipe(recipe) {
   }
 
   return { status: 'valid', diagnostics: [], placementWindowMm: window };
+}
+
+/** Физика намотки после buildWinding. Не silent fallback. */
+export function assessWinding(recipe, winding) {
+  const L = recipe.sheet.lengthMm;
+  if (winding.noriPerimeter > L + EPS_LENGTH_MM) {
+    return {
+      status: 'invalid',
+      diagnostics: [diagnostic('sheet_too_short', 'nori ring longer than the sheet', {
+        noriPerimeterMm: winding.noriPerimeter,
+        sheetLengthMm: L,
+      })],
+    };
+  }
+  if (baseOf(recipe).baseId === 'hosomaki') {
+    const d = (winding.diameterMinMm + winding.diameterMaxMm) / 2;
+    if (d < HOSOMAKI_DIAMETER_MM.min - 0.5 || d > HOSOMAKI_DIAMETER_MM.max + 0.5) {
+      return {
+        status: 'outsideModelScope',
+        diagnostics: [diagnostic('chef_corridor', 'hosomaki diameter outside 28–32 mm', {
+          diameterMm: d,
+          corridorMm: HOSOMAKI_DIAMETER_MM,
+        })],
+      };
+    }
+  }
+  for (const p of recipe.patches) {
+    const pos = patchCorePos(recipe, p);
+    const ox = Math.abs(pos.x) + p.widthMm / 2 - winding.Wc / 2;
+    const oy = Math.abs(pos.y) + p.heightMm / 2 - winding.Hc / 2;
+    if (ox > EPS_LENGTH_MM || oy > EPS_LENGTH_MM) {
+      return {
+        status: 'invalid',
+        diagnostics: [diagnostic('core_overflow', 'filling AABB leaves the core box', {
+          patchId: String(p.id),
+          overflowMm: { x: ox, y: oy },
+        })],
+      };
+    }
+  }
+  return { status: 'valid', diagnostics: [] };
 }

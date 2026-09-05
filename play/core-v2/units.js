@@ -238,9 +238,6 @@ export function baseOf(recipe) {
  */
 export const CORE_PACK_GAP_MM = 1;
 export const CORE_PACK_ROW_MM = 24;
-export const CORE_BUNDLE_MM = Object.freeze({ x: 6, y: 9 });
-export const WINDOW_TO_CORE_SCALE = CORE_BUNDLE_MM.x / ((105 - 20) / 2);
-export const WINDOW_CORE_HALF_MM = CORE_BUNDLE_MM.x;
 
 function packCoreRows(patches) {
   const sorted = [...patches].sort((a, b) => a.uMm - b.uMm || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -267,12 +264,12 @@ function packCoreRows(patches) {
     const width = items.reduce((s, p, i) => s + p.widthMm + (i ? gap : 0), 0);
     let x = -width / 2;
     for (const p of items) {
-      placed.push({ id: p.id, x: x + p.widthMm / 2, y: y + p.heightMm / 2 });
+      placed.push({ id: p.id, x: x + p.widthMm / 2, y: y + rowH / 2 });
       x += p.widthMm + gap;
     }
     y += rowH + gap;
   }
-  const midY = y / 2;
+  const midY = placed.length ? (y - gap) / 2 : 0;
   const out = new Map();
   for (const p of placed) out.set(p.id, { x: p.x, y: p.y - midY });
   return out;

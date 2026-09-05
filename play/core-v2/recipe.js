@@ -142,6 +142,37 @@ export function makeHosogiriRecipe(uMm) {
   });
 }
 
+/** Три палки в окне хосомаки — лист короче кольца нори. */
+export function makeCrowdedHosoRecipe() {
+  const sheet = { lengthMm: HOSOMAKI.lengthMm, widthMm: HOSOMAKI.widthMm };
+  const patch = (id, spec, uMm) => ({
+    id,
+    materialId: spec.materialId,
+    cut: spec.cut,
+    uMm,
+    vMm: sheet.widthMm / 2,
+    widthMm: spec.widthMm,
+    lengthMm: sheet.widthMm * spec.lengthFactor,
+    heightMm: spec.heightMm,
+    placement: 'embedded',
+  });
+  return deepFreeze({
+    version: 2,
+    baseId: HOSOMAKI.baseId,
+    sheet,
+    wrap: { materialId: HOSOMAKI.wrapMaterialId },
+    rice: { profileId: HOSOMAKI.riceProfileId },
+    windDirection: 'fromUZero',
+    winding: WINDING.ring,
+    patches: [
+      patch('cucumber-0', CUCUMBER, 25),
+      patch('tamago-0', TAMAGO, 35),
+      patch('salmon-0', SALMON, 46),
+    ],
+    hand: { mode: 'neutral', seed: 0 },
+  });
+}
+
 /** F04a: след выходит за лист. u = L − width/2 + 2, чтобы короткий 芯 не остался на листе. */
 export function makeF04aRecipe() {
   const L = HOSOMAKI.lengthMm;

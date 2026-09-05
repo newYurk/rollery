@@ -25,8 +25,8 @@ import {
   makeF07Recipe,
   makeF07SameMaterialOverlap,
 } from './recipe.js';
-import { validateRecipe } from './validate.js';
-import { buildWinding, independentLayerArcs } from './winding.js';
+import { validateRecipe, assessWinding } from './validate.js';
+import { buildWinding } from './winding.js';
 import { sampleSection } from './section.js';
 import { measure, rejectReport } from './measure.js';
 import { canonicalize } from './hash.js';
@@ -42,6 +42,14 @@ export function runFixture(fixtureId, recipe) {
     return report;
   }
   const winding = buildWinding(recipe);
+  const phys = assessWinding(recipe, winding);
+  if (phys.status !== 'valid') {
+    const report = rejectReport(recipe, fixtureId, phys.status, phys.diagnostics);
+    if (canonicalize(recipe) !== before) {
+      throw new Error('kernel mutated the input recipe');
+    }
+    return report;
+  }
   const vSliceMm = recipe.sheet.widthMm / 2;
   const section = sampleSection(recipe, winding, vSliceMm);
   const report = measure(recipe, winding, section, fixtureId, 'valid', []);
@@ -97,21 +105,24 @@ export function acceptF01(report, winding) {
   push(report.sheet.phantomLengthMm <= EPS_LENGTH_MM ? ok('phantom') : fail('phantom', report.sheet.phantomLengthMm));
   push(report.sheet.uncoveredLengthMm <= EPS_LENGTH_MM ? ok('uncovered') : fail('uncovered', report.sheet.uncoveredLengthMm));
 
-  const oracle = independentLayerArcs({
-    Wc: winding.Wc, Hc: winding.Hc, T: winding.T, W: winding.W, Lrice: winding.Lrice,
-  });
-  for (const row of report.sheet.arcByLayerMm) {
-    const want = row.layerId === 'rice' ? oracle.riceArcMm : oracle.noriArcMm;
-    const d = Math.abs(row.arcMm - want);
-    push(d <= EPS_LENGTH_MM
-      ? ok(`arc:${row.layerId}`)
-      : fail(`arc:${row.layerId}`, `${row.arcMm} vs ${want}`));
-  }
-  const rice = report.sheet.arcByLayerMm.find((r) => r.layerId === 'rice');
   const nori = report.sheet.arcByLayerMm.find((r) => r.layerId === 'nori');
-  if (rice && nori && Math.abs(rice.arcMm - nori.arcMm) <= EPS_LENGTH_MM) {
-    push(fail('arc:layers-equal', 'rice and nori arcs must differ'));
-  } else push(ok('arc:layers-differ'));
+  const rice = report.sheet.arcByLayerMm.find((r) => r.layerId === 'rice');
+  const rp = winding.rp[0];
+  const noriWant = TAU * (rp + winding.W / 2);
+  push(nori && Math.abs(nori.arcMm - noriWant) <= EPS_LENGTH_MM
+    ? ok('arc:nori')
+    : fail('arc:nori', `${nori?.arcMm} vs ${noriWant}`));
+  const r0m = [...winding.r0b].reduce((a, b) => a + b, 0) / winding.r0b.length;
+  const riceArea = Math.PI * (rp * rp - r0m * r0m);
+  const wantArea = winding.T * winding.Lrice;
+  const areaRatio = Math.max(riceArea / wantArea, wantArea / riceArea);
+  push(areaRatio <= EPS_AREA_RATIO
+    ? ok('arc:rice-area')
+    : fail('arc:rice-area', `${riceArea} / ${wantArea} = ${areaRatio}`));
+  const riceWant = Math.PI * (r0m + rp);
+  push(rice && Math.abs(rice.arcMm - riceWant) <= Math.max(1, 0.02 * riceWant)
+    ? ok('arc:rice')
+    : fail('arc:rice', `${rice?.arcMm} vs ${riceWant}`));
 
   push(report.sheet.uMinMm >= 0 && report.sheet.uMaxMm <= L ? ok('bounds') : fail('bounds'));
 

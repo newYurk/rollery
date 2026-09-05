@@ -1,5 +1,5 @@
 import { deepClone, makeCucumberRecipe, makeF01Recipe, makeF02Recipe, makeF05Recipe, makeHosogiriRecipe } from './recipe.js';
-import { validateRecipe } from './validate.js';
+import { validateRecipe, assessWinding } from './validate.js';
 import { buildWinding } from './winding.js';
 import { sampleSection } from './section.js';
 import { drawBar, drawSlice, rollSideLayout, sheetGeom, sheetShare } from './render.js';
@@ -18,7 +18,7 @@ const FIXTURES = [
   { id: 'F01', label: 'Пустой', make: () => makeF01Recipe() },
   { id: 'F02', label: 'Каппамаки', make: () => makeF02Recipe() },
   { id: 'hogi', label: '細切り', make: () => makeHosogiriRecipe() },
-  { id: 'F03', label: 'Раскладка', make: (u) => makeCucumberRecipe(u ?? 36.25) },
+  { id: 'F03', label: 'Раскладка', make: () => makeCucumberRecipe(36.25) },
   { id: 'F05', label: 'Футомаки', make: () => makeF05Recipe() },
 ];
 
@@ -59,7 +59,7 @@ function rollH() {
 }
 
 function recipeNow() {
-  const base = current.make(sliderVal);
+  const base = current.make();
   if (!base.patches?.length) return base;
   const r = deepClone(base);
   for (const p of r.patches) {
@@ -93,6 +93,23 @@ function paint() {
   const d0 = v.diagnostics[0];
   if (v.status === 'valid') {
     const winding = buildWinding(recipe);
+    const phys = assessWinding(recipe, winding);
+    if (phys.status !== 'valid') {
+      const d = phys.diagnostics[0];
+      sctx.fillStyle = '#171713';
+      sctx.fillRect(0, 0, slice.width, slice.height);
+      slice.hidden = true;
+      bar.hidden = true;
+      refuse.hidden = false;
+      cutBtn.disabled = true;
+      refuse.textContent = d?.code === 'sheet_too_short'
+        ? 'Листа не хватает на кольцо нори. Идеальный ролл не рисуем.'
+        : d?.code === 'chef_corridor'
+          ? 'Диаметр вне коридора хосомаки 28–32 мм.'
+          : (d?.message || phys.status);
+      meta.innerHTML = `<b>${current.id}</b> · <span class="no">${phys.status}${d?.code ? ': ' + d.code : ''}</span>`;
+      return;
+    }
     lastWinding = winding;
     const n = pieceCountOf(recipe);
     vFrac = snapCutFraction(vFrac, n);
@@ -149,18 +166,20 @@ bar.addEventListener('pointerdown', (ev) => {
   if (!lastRecipe || !lastWinding) return;
   const { x, y } = barPointer(ev);
   const sheetTop = rollH();
-  if (y >= sheetTop && lastRecipe.patches.length) {
-    const geom = sheetGeom(lastRecipe, lastWinding, bar.width, sheetShare(bar.height));
-    const ly = y - sheetTop;
-    const hit = [...geom.chips].reverse().find((c) => x >= c.x && x <= c.x + c.w && ly >= c.y && ly <= c.y + c.h);
-    if (hit) {
-      const p = lastRecipe.patches.find((q) => q.id === hit.id);
-      dragPatch = p;
-      dragGrab = geom.xToU(x) - p.uMm;
-      dragging = true;
-      bar.setPointerCapture(ev.pointerId);
-      return;
+  if (y >= sheetTop) {
+    if (lastRecipe.patches.length) {
+      const geom = sheetGeom(lastRecipe, lastWinding, bar.width, sheetShare(bar.height));
+      const ly = y - sheetTop;
+      const hit = [...geom.chips].reverse().find((c) => x >= c.x && x <= c.x + c.w && ly >= c.y && ly <= c.y + c.h);
+      if (hit) {
+        const p = lastRecipe.patches.find((q) => q.id === hit.id);
+        dragPatch = p;
+        dragGrab = geom.xToU(x) - p.uMm;
+        dragging = true;
+        bar.setPointerCapture(ev.pointerId);
+      }
     }
+    return;
   }
   dragPatch = null;
   dragging = true;
@@ -180,8 +199,16 @@ bar.addEventListener('pointermove', (ev) => {
   vFrac = snapCutFraction(vFromPointer(ev), pieceCountOf(lastRecipe));
   paint();
 });
-bar.addEventListener('pointerup', () => { dragging = false; dragPatch = null; });
-bar.addEventListener('pointercancel', () => { dragging = false; dragPatch = null; });
+bar.addEventListener('pointerup', (ev) => {
+  dragging = false;
+  dragPatch = null;
+  try { bar.releasePointerCapture(ev.pointerId); } catch { /* already released */ }
+});
+bar.addEventListener('pointercancel', (ev) => {
+  dragging = false;
+  dragPatch = null;
+  try { bar.releasePointerCapture(ev.pointerId); } catch { /* already released */ }
+});
 
 function easeInOut(t) {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
@@ -243,5 +270,5 @@ slider.addEventListener('input', () => {
   paint();
 });
 
-resetKnife(current.make(sliderVal));
+resetKnife(current.make());
 paint();
