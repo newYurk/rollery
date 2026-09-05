@@ -12,7 +12,7 @@ import {
   cutFractions, firstCutFraction, pieceCountOf, pieceLeftOfCut,
   pieceLengthMm, snapCutFraction,
 } from './knife.js';
-import { catalogAreaMm2, cutFillSector, makeF05Recipe, makeHosogiriRecipe } from './recipe.js';
+import { catalogAreaMm2, cutFillSector, makeF05Recipe, makeF07Recipe, makeHosogiriRecipe } from './recipe.js';
 import { sampleSection } from './section.js';
 import { adapt, adaptScenario } from './adapter.js';
 
@@ -282,6 +282,17 @@ test('F07 coordinate not ordinal; same-material overlap is invalid', () => {
   const r = runF07();
   assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
   assert.equal(r.overlap.report.diagnostics[0].code, 'patch_material_overlap');
+});
+
+test('F07 probe moves 1 mm in the slice per 1 mm of u; cucumber stays', () => {
+  const a = makeF07Recipe(56);
+  const b = makeF07Recipe(64);
+  const cuc = (r) => patchCorePos(r, r.patches.find((p) => p.materialId === 'cucumber'));
+  const probe = (r) => patchCorePos(r, r.patches.find((p) => p.materialId === 'tamago'));
+  assert.equal(cuc(a).y, 0);
+  assert.ok(Math.abs(cuc(a).x - cuc(b).x) < 1e-9);
+  assert.equal(+(probe(b).x - probe(a).x).toFixed(6), 8);
+  assert.equal(probe(a).y, 0);
 });
 
 test('knife: 6/8 pieces, first cut at half, snap interior only', () => {

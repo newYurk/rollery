@@ -225,9 +225,12 @@ export function baseOf(recipe) {
 }
 
 /**
- * Пучок в ядре. Один/два патча — свой u на оси x (F07).
- * Три и больше — ряды встык, без пересечения коробок (футо-мозаика, не лесенка).
+ * F07 — зонд. Позиция = f(свой uMm), без соседей (erratum-007).
+ * 1 мм листа = 1 мм ядра: иначе 8 мм ползунка сжимались в 1 мм и движение пропадало.
+ * Разные вещества в одном месте — valid; V2 не раздвигает их.
+ * Три и больше (F05) — кухонная мозаика встык, не этот путь.
  */
+export const PROBE_U_TO_CORE = 1;
 export const CORE_PACK_GAP_MM = 1;
 export const CORE_PACK_ROW_MM = 24;
 export const CORE_BUNDLE_MM = Object.freeze({ x: 6, y: 9 });
@@ -277,9 +280,7 @@ export function patchCorePos(recipe, patch) {
   if (list.length === 2) {
     const w = placementWindowMm(recipe.sheet);
     const mid = (w.nearEdgeMm + w.farEdgeMm) / 2;
-    const half = Math.max(1e-6, (w.farEdgeMm - w.nearEdgeMm) / 2);
-    const t = (patch.uMm - mid) / half;
-    return { x: t * CORE_BUNDLE_MM.x, y: 0 };
+    return { x: (patch.uMm - mid) * PROBE_U_TO_CORE, y: 0 };
   }
   const packed = packCoreRows(list);
   return packed.get(patch.id) || { x: 0, y: 0 };

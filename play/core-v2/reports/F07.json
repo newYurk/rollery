@@ -7,13 +7,13 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -0.3529411764705882,
+          "centerXmm": -2.5,
           "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -0.9176470588235295,
+          "centerXmm": -6.5,
           "centerYmm": 0
         }
       ]
@@ -25,13 +25,13 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -0.3529411764705882,
+          "centerXmm": -2.5,
           "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -0.7764705882352942,
+          "centerXmm": -5.5,
           "centerYmm": 0
         }
       ]
@@ -43,13 +43,13 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -0.3529411764705882,
+          "centerXmm": -2.5,
           "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -0.6352941176470588,
+          "centerXmm": -4.5,
           "centerYmm": 0
         }
       ]
@@ -61,13 +61,13 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -0.3529411764705882,
+          "centerXmm": -2.5,
           "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -0.49411764705882355,
+          "centerXmm": -3.5,
           "centerYmm": 0
         }
       ]
@@ -79,13 +79,13 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -0.3529411764705882,
+          "centerXmm": -2.5,
           "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -0.3529411764705882,
+          "centerXmm": -2.5,
           "centerYmm": 0
         }
       ]
@@ -97,13 +97,13 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -0.3529411764705882,
+          "centerXmm": -2.5,
           "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -0.21176470588235294,
+          "centerXmm": -1.5,
           "centerYmm": 0
         }
       ]
@@ -115,13 +115,13 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -0.3529411764705882,
+          "centerXmm": -2.5,
           "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": -0.07058823529411765,
+          "centerXmm": -0.5,
           "centerYmm": 0
         }
       ]
@@ -133,13 +133,13 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -0.3529411764705882,
+          "centerXmm": -2.5,
           "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": 0.07058823529411765,
+          "centerXmm": 0.5,
           "centerYmm": 0
         }
       ]
@@ -151,13 +151,13 @@
         {
           "id": "cucumber-0",
           "areaMm2": 64,
-          "centerXmm": -0.3529411764705882,
+          "centerXmm": -2.5,
           "centerYmm": 0
         },
         {
           "id": "tamago-0",
           "areaMm2": 120,
-          "centerXmm": 0.21176470588235294,
+          "centerXmm": 1.5,
           "centerYmm": 0
         }
       ]
