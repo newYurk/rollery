@@ -6,11 +6,14 @@ import {
   EPS_INVERT_MM,
   EPS_LENGTH_MM,
   EPS_RAY_FRACTION,
+  EPS_RICE_AREA_RATIO,
   F03_U_MM,
   MAX_AREA_RATIO_DELTA,
   MAX_CENTER_DELTA_MM,
   NB,
   TAU,
+  CORE_PACK_GAP_MM,
+  packRowGapMm,
 } from './units.js';
 import {
   cucumberCatalogAreaMm2,
@@ -27,7 +30,7 @@ import {
 } from './recipe.js';
 import { validateRecipe, assessWinding } from './validate.js';
 import { buildWinding } from './winding.js';
-import { sampleSection } from './section.js';
+import { riceAnnulusAreaMm2, sampleSection } from './section.js';
 import { measure, rejectReport } from './measure.js';
 import { canonicalize } from './hash.js';
 
@@ -116,6 +119,12 @@ export function acceptF01(report, winding) {
   push(rice && Math.abs(rice.arcMm - winding.Lrice) <= EPS_LENGTH_MM
     ? ok('arc:rice')
     : fail('arc:rice', `${rice?.arcMm} vs Lrice ${winding.Lrice}`));
+  const riceArea = riceAnnulusAreaMm2(winding);
+  const wantArea = winding.T * winding.Lrice;
+  const riceRatio = Math.max(riceArea / wantArea, wantArea / riceArea);
+  push(riceRatio <= EPS_RICE_AREA_RATIO
+    ? ok('rice-area')
+    : fail('rice-area', `${riceArea} / ${wantArea} = ${riceRatio}`));
 
   push(report.sheet.uMinMm >= 0 && report.sheet.uMaxMm <= L ? ok('bounds') : fail('bounds'));
 
@@ -321,6 +330,12 @@ export function acceptF05(abc, cab) {
       checks.push(vis && ratio <= EPS_AREA_RATIO
         ? ok(`${name}:area:${p.id}`)
         : fail(`${name}:area:${p.id}`, ratio));
+    }
+    const gaps = packRowGapMm(run.recipe);
+    for (const g of gaps) {
+      checks.push(Math.abs(g - CORE_PACK_GAP_MM) <= EPS_LENGTH_MM
+        ? ok(`${name}:pack-gap`)
+        : fail(`${name}:pack-gap`, g));
     }
   }
   checks.push(abc.report.hashes.winding === cab.report.hashes.winding

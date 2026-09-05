@@ -61,6 +61,12 @@ export const EPS_RAY_FRACTION = 4 / NB;
 export const EPS_AREA_RATIO = 1.05;
 
 /**
+ * Площадь рисового кольца (сетка r0(φ)…rp) vs T·Lrice.
+ * Не EPS_AREA_RATIO: та — якорь начинки к каталогу (#134).
+ */
+export const EPS_RICE_AREA_RATIO = 1.03;
+
+/**
  * F03: соседние валидные uMm. В окне огурец — ядро, u не двигает срез (#139).
  * Порог = EPS_LENGTH_MM, чтобы шаг 1 мм, отображённый в срез, покраснел.
  */
@@ -273,6 +279,30 @@ function packCoreRows(patches) {
   const out = new Map();
   for (const p of placed) out.set(p.id, { x: p.x, y: p.y - midY });
   return out;
+}
+
+/** Зазор AABB соседних рядов. Ловит rowH×k: короб растёт, начинки расходятся. */
+export function packRowGapMm(recipe) {
+  const items = recipe.patches.map((p) => {
+    const { x, y } = patchCorePos(recipe, p);
+    return { y0: y - p.heightMm / 2, y1: y + p.heightMm / 2, y };
+  });
+  if (items.length < 2) return [];
+  const rows = [];
+  for (const p of [...items].sort((a, b) => a.y - b.y)) {
+    const row = rows.find((r) => Math.abs(r.y - p.y) < 0.5);
+    if (row) {
+      row.items.push(p);
+      row.y = row.items.reduce((s, q) => s + q.y, 0) / row.items.length;
+    } else rows.push({ y: p.y, items: [p] });
+  }
+  const gaps = [];
+  for (let i = 0; i < rows.length - 1; i++) {
+    const hi = Math.max(...rows[i].items.map((p) => p.y1));
+    const lo = Math.min(...rows[i + 1].items.map((p) => p.y0));
+    gaps.push(lo - hi);
+  }
+  return gaps;
 }
 
 /** Положение патча в ядре. Один патч — начало координат. Несколько — упаковка без пересечения. */

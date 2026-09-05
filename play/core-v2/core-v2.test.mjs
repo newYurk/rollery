@@ -7,7 +7,7 @@ import {
 } from './fixtures.js';
 import { validateRecipe, assessWinding } from './validate.js';
 import { buildWinding, independentLayerArcs } from './winding.js';
-import { CUCUMBER, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, WINDING, clampPatchU, hosogiriBox, patchCorePos, placementWindowMm } from './units.js';
+import { CUCUMBER, CORE_PACK_GAP_MM, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, WINDING, clampPatchU, hosogiriBox, packRowGapMm, patchCorePos, placementWindowMm } from './units.js';
 import {
   cutFractions, firstCutFraction, pieceCountOf, pieceLeftOfCut,
   pieceLengthMm, snapCutFraction,
@@ -251,6 +251,14 @@ test('F05 array order does not change hashes', () => {
   assert.equal(r.abc.report.hashes.section, r.cab.report.hashes.section);
 });
 
+test('rice annulus grid area matches T·Lrice, not the path identity', () => {
+  const r = runF01();
+  assert.ok(r.checks.every((c) => c.ok || c.name !== 'rice-area'));
+  const w = { ...r.winding, rp: r.winding.rp.map(() => 9) };
+  const checks = acceptF01(r.report, w);
+  assert.ok(checks.some((c) => !c.ok && c.name === 'rice-area'));
+});
+
 test('F05 fillings stay a bundle on x, not a winding orbit', () => {
   const recipe = makeF05Recipe();
   const pos = recipe.patches.map((p) => ({ id: p.materialId, u: p.uMm, w: p.widthMm, h: p.heightMm, ...patchCorePos(recipe, p) }));
@@ -272,6 +280,12 @@ test('F05 fillings stay a bundle on x, not a winding orbit', () => {
     maxR = Math.max(maxR, Math.hypot(p.x, p.y));
   }
   assert.ok(maxR < 16, maxR);
+});
+
+test('F05 row gap is CORE_PACK_GAP_MM, not inflated rowH', () => {
+  const gaps = packRowGapMm(makeF05Recipe());
+  assert.ok(gaps.length >= 1, gaps);
+  for (const g of gaps) assert.ok(Math.abs(g - CORE_PACK_GAP_MM) < 0.15, g);
 });
 
 test('F06 round-trip and new instance', () => {
