@@ -256,8 +256,9 @@ test('F05 fillings stay a bundle on x, not a winding orbit', () => {
   const byU = [...pos].sort((a, b) => a.u - b.u);
   for (let i = 1; i < byU.length; i++) {
     assert.ok(byU[i].x > byU[i - 1].x);
-    assert.ok(byU[i].y > byU[i - 1].y);
   }
+  const ys = byU.map((p) => p.y);
+  assert.ok(!(ys[0] < ys[1] && ys[1] < ys[2]), 'staircase y');
   const w = buildWinding(recipe);
   const rRice = w.rp[0];
   let maxR = 0;

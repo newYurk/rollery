@@ -226,10 +226,9 @@ export function baseOf(recipe) {
 
 /**
  * Окно листа → пучок в ядре. Свой u, не соседи (F07).
- * Было: все на y=0 × 0,58 — полоска 40 мм поперёк круга.
- * Сейчас: диагональный пучок; ближний u ниже (芯), дальний выше.
+ * x монотонен по u; y — дуга, чтобы не строить лесенку (x и y не пропорциональны).
  */
-export const CORE_BUNDLE_MM = Object.freeze({ x: 7, y: 12 });
+export const CORE_BUNDLE_MM = Object.freeze({ x: 6, y: 9 });
 export const WINDOW_TO_CORE_SCALE = CORE_BUNDLE_MM.x / ((105 - 20) / 2);
 export const WINDOW_CORE_HALF_MM = CORE_BUNDLE_MM.x;
 
@@ -241,7 +240,7 @@ export function patchCorePos(recipe, patch) {
   const mid = (w.nearEdgeMm + w.farEdgeMm) / 2;
   const half = Math.max(1e-6, (w.farEdgeMm - w.nearEdgeMm) / 2);
   const t = (patch.uMm - mid) / half;
-  return { x: t * CORE_BUNDLE_MM.x, y: t * CORE_BUNDLE_MM.y };
+  return { x: t * CORE_BUNDLE_MM.x, y: (t * t - 0.2) * CORE_BUNDLE_MM.y };
 }
 
 export function patchCoreXmm(recipe, patch) {
