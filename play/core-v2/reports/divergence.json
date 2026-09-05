@@ -389,8 +389,8 @@
         "v2": 64,
         "legacy": 71.66265244664017,
         "delta": -7.662652446640166,
-        "gate": "MATCH",
-        "note": "каталог/legacy = 0.893 (EPS_AREA_RATIO 1.05)"
+        "gate": "DIVERGE",
+        "note": "каталог 64.000 ↔ legacy 71.663, отношение 1.120 (EPS_AREA_RATIO 1.05)"
       },
       {
         "key": "cucumberCenterXmm",

@@ -79,7 +79,7 @@
  "geometry_code": 1090,
  "geometry_total": 2902,
  "guard": {
-  "известно": 32,
+  "известно": 31,
   "практика_не_проверяется": 4,
   "практика_сошлось": 32,
   "сдвиг_диаметра": 1,
@@ -161,7 +161,7 @@
  },
  "lines": {
   "play/audio.js": 101,
-  "play/checks.js": 1720,
+  "play/checks.js": 1754,
   "play/core-v2/adapter.js": 46,
   "play/core-v2/app.js": 253,
   "play/core-v2/bridge.js": 79,
@@ -209,15 +209,15 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "42b15d6",
+ "ref": "eeca304",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "The reviewer read our document and believed it; the document was wrong",
- "total_lines": 14684,
+ "subject": "Four findings from the reviews on our own pull requests",
+ "total_lines": 14718,
  "touchModel": {
   "play/checks.js": 55,
   "play/modes/puzzle.js": 3,
