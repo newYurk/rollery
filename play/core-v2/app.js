@@ -2,9 +2,7 @@ import {
   makeCucumberRecipe,
   makeF01Recipe,
   makeF02Recipe,
-  makeF04bRecipe,
   makeF05Recipe,
-  makeF07Recipe,
   makeHosogiriRecipe,
 } from './recipe.js';
 import { validateRecipe } from './validate.js';
@@ -28,8 +26,6 @@ const FIXTURES = [
   { id: 'hogi', label: '細切り', make: () => makeHosogiriRecipe() },
   { id: 'F03', label: 'Раскладка', make: (u) => makeCucumberRecipe(u ?? 36.25), slider: { min: 20, max: 55, step: 0.5, value: 36.25, unit: 'u мм' } },
   { id: 'F05', label: 'Футомаки', make: () => makeF05Recipe() },
-  { id: 'F07', label: 'Зонд', make: (u) => makeF07Recipe(u ?? 56), slider: { min: 56, max: 64, step: 1, value: 56, unit: 'зонд u мм' } },
-  { id: 'F04b', label: 'Отказ', make: () => makeF04bRecipe() },
 ];
 
 function fixtureFromUrl() {
