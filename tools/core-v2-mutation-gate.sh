@@ -13,7 +13,11 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-cp -R "$ROOT/play/core-v2" "$WORK/base"
+# Копируем ВЕСЬ play/, а не одно ядро: core-v2.test.mjs читает живой каталог через
+# load-catalog.cjs → ../../model/catalog.js. При копии одной папки тесты не грузились
+# вовсе, и колонка pass/fail молча показывала 0/1 на каждой строке.
+mkdir -p "$WORK/base"
+cp -R "$ROOT/play" "$WORK/base/play"
 
 # Колонки: всё до свободного текста — ASCII фиксированной ширины, поэтому
 # выравнивание не зависит от локали (printf и ${#} тут считают байты, а не символы).
@@ -22,15 +26,16 @@ cp -R "$ROOT/play/core-v2" "$WORK/base"
 APPLIED=1
 s() {
   local before after
-  before=$(cat "$WORK/try/$2")
-  sed -i '' "$1" "$WORK/try/$2" 2>/dev/null || sed -i "$1" "$WORK/try/$2"
-  after=$(cat "$WORK/try/$2")
+  before=$(cat "$WORK/try/play/core-v2/$2")
+  sed -i '' "$1" "$WORK/try/play/core-v2/$2" 2>/dev/null || sed -i "$1" "$WORK/try/play/core-v2/$2"
+  after=$(cat "$WORK/try/play/core-v2/$2")
   [ "$before" = "$after" ] && APPLIED=0
 }
 
 run_mut() {
   local name="$1"; shift
   rm -rf "$WORK/try" && cp -R "$WORK/base" "$WORK/try"
+  K="$WORK/try/play/core-v2"
   APPLIED=1
   "$@"
   if [ "$APPLIED" -eq 0 ]; then
@@ -38,10 +43,10 @@ run_mut() {
     return
   fi
   local out pass fail fixtures
-  out=$(cd "$WORK/try" && node --test core-v2.test.mjs 2>&1)
+  out=$(cd "$WORK/try/play/core-v2" && node --test core-v2.test.mjs 2>&1)
   pass=$(printf '%s\n' "$out" | sed -n 's/^# pass \([0-9]*\)$/\1/p')
   fail=$(printf '%s\n' "$out" | sed -n 's/^# fail \([0-9]*\)$/\1/p')
-  if (cd "$WORK/try" && node run-fixtures.mjs >/dev/null 2>&1); then
+  if (cd "$WORK/try/play/core-v2" && node run-fixtures.mjs >/dev/null 2>&1); then
     fixtures='PASS <-- ВЫЖИЛА'
   else
     fixtures='FAIL'
