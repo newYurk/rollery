@@ -10,7 +10,7 @@ import {
   PLACEMENT_EDGE_MARGIN_MM,
   placementWindowMm,
 } from './units.js';
-import { hashValue } from './hash.js';
+import { hashValue, quantize } from './hash.js';
 import { windingForHash } from './winding.js';
 import { sectionForHash } from './section.js';
 
@@ -76,7 +76,10 @@ export function measure(recipe, winding, section, fixtureId, status, diagnostics
       RavgMm: winding.Ravg,
     },
   };
-  return report;
+  // Отчёт — публикуемый артефакт: его кладут в git и сравнивают между прогонами,
+  // в том числе на разных машинах. Сырые числа тригонометрии расходятся в
+  // последнем бите, поэтому на сетку кладём не только хеши, но и всё тело (#175).
+  return quantize(report);
 }
 
 export function rejectReport(recipe, fixtureId, status, diagnostics) {

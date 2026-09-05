@@ -19,5 +19,12 @@ jobs:
           node-version: '22'
       - name: fixtures
         run: node play/core-v2/run-fixtures.mjs
+
+      # Отчёты собраны на машине автора, а этот шаг идёт на ubuntu x64. Если они
+      # сходятся — переносимость доказана железом, а не обещанием. Раньше шаг был
+      # невозможен: Math.cos/Math.sin расходятся в последнем бите, и дифф краснел
+      # на любой другой платформе. Хеши и тело отчёта лежат на сетке 1e-6 мм (#175).
+      - name: reports are portable and current
+        run: git diff --exit-code play/core-v2/reports
       - name: unit
         run: node --test play/core-v2/core-v2.test.mjs

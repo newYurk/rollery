@@ -3,8 +3,8 @@
     "status": "valid",
     "hashes": {
       "recipe": "0d979f72209ec8397da86d376404492cdeb58d01808c75d44c24273aa7d76230",
-      "winding": "0c8f38f62eaa76e9fcef42451d361cf7726b94ad7c3ba65d382163bbfc44a78d",
-      "section": "edcdda8b0a1704f3702a435c9053af0ad00a0798b840d65d73e7f9922a8b68f5"
+      "winding": "dcbcf37e016ac9e09e578d3bbf393b8bd291d67bbb39820874b3d96b2c6500fe",
+      "section": "6c1c58969b0c382ae96359edeeeada6e81ed8f48e0f11df9bd215a26a33d5c9d"
     },
     "visiblePatches": [
       {
@@ -31,8 +31,8 @@
     "status": "valid",
     "hashes": {
       "recipe": "296f3f803639e2117b66556df6e08b019c2b9029b1f8f14e313d1b0e25deb33f",
-      "winding": "0c8f38f62eaa76e9fcef42451d361cf7726b94ad7c3ba65d382163bbfc44a78d",
-      "section": "edcdda8b0a1704f3702a435c9053af0ad00a0798b840d65d73e7f9922a8b68f5"
+      "winding": "dcbcf37e016ac9e09e578d3bbf393b8bd291d67bbb39820874b3d96b2c6500fe",
+      "section": "6c1c58969b0c382ae96359edeeeada6e81ed8f48e0f11df9bd215a26a33d5c9d"
     },
     "visiblePatches": [
       {
