@@ -3,6 +3,7 @@
 // Зафиксировано здесь, не в fixtures.md (minor Слоя 6).
 
 import {
+  WINDING,
   CUCUMBER,
   FUTOMAKI,
   HOSOMAKI,
@@ -71,6 +72,7 @@ export function makeF01Recipe() {
     wrap: { materialId: HOSOMAKI.wrapMaterialId },
     rice: { profileId: HOSOMAKI.riceProfileId },
     windDirection: 'fromUZero',
+    winding: WINDING.ring,
     patches: [],
     hand: { mode: 'neutral', seed: 0 },
   });
@@ -85,6 +87,7 @@ export function makeCucumberRecipe(uMm) {
     wrap: { materialId: HOSOMAKI.wrapMaterialId },
     rice: { profileId: HOSOMAKI.riceProfileId },
     windDirection: 'fromUZero',
+    winding: WINDING.ring,
     patches: [
       {
         id: 'cucumber-0',
@@ -119,6 +122,7 @@ export function makeHosogiriRecipe(uMm) {
     wrap: { materialId: HOSOMAKI.wrapMaterialId },
     rice: { profileId: HOSOMAKI.riceProfileId },
     windDirection: 'fromUZero',
+    winding: WINDING.ring,
     patches: [
       {
         id: 'cucumber-hogi-0',
@@ -176,6 +180,7 @@ function freezeFuto(patches) {
     wrap: { materialId: FUTOMAKI.wrapMaterialId },
     rice: { profileId: FUTOMAKI.riceProfileId },
     windDirection: 'fromUZero',
+    winding: WINDING.ring,
     patches,
     hand: { mode: 'neutral', seed: 0 },
   });

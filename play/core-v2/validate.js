@@ -1,7 +1,7 @@
 // validateRecipe. Честный отказ, без silent fallback.
 // Коды: erratum-004, 008, 012, 016, 018.
 
-import { placementWindowMm } from './units.js';
+import { WINDING, placementWindowMm } from './units.js';
 
 function diagnostic(code, message, context) {
   return { code, message, context };
@@ -18,6 +18,20 @@ export function validateRecipe(recipe) {
   if (!recipe || recipe.version !== 2) {
     diagnostics.push(diagnostic('section_shape', 'RecipeV2.version must be 2', {
       requestedFeature: recipe && recipe.version != null ? String(recipe.version) : 'missing',
+    }));
+    return { status: 'unsupported', diagnostics };
+  }
+
+  const winding = recipe.winding;
+  if (winding !== WINDING.ring && winding !== WINDING.spiral && winding !== WINDING.inverted) {
+    diagnostics.push(diagnostic('section_shape', 'winding must be ring, spiral, or inverted', {
+      requestedFeature: winding == null ? 'missing' : String(winding),
+    }));
+    return { status: 'unsupported', diagnostics };
+  }
+  if (winding !== WINDING.ring) {
+    diagnostics.push(diagnostic('section_shape', 'V2 alpha winds only ring (maki)', {
+      requestedFeature: winding,
     }));
     return { status: 'unsupported', diagnostics };
   }

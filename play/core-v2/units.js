@@ -16,6 +16,18 @@ export const DPHI = TAU / NB;
 /** Голая полоса у ближнего края (доли листа). geometry.js:774. */
 export const SPREAD_START = 0.048;
 
+/**
+ * Режим намотки. Не выводится из длины начинки (легаси #141 так делал).
+ * ring — маки: рис кольцом вокруг 芯, нори снаружи один оборот.
+ * spiral — узумаки/датемаки: лента носителя, ядра нет. V2 alpha не считает.
+ * inverted — урамаки: начинка → нори → рис. V2 alpha не считает.
+ */
+export const WINDING = Object.freeze({
+  ring: 'ring',
+  spiral: 'spiral',
+  inverted: 'inverted',
+});
+
 /** Абсолютные 2 см от ближней кромки (marron 「手前2cm位」). Не доля листа.
  *  Дальний клапан склейки масштабируется; этот зазор — нет. erratum-022. */
 export const PLACEMENT_EDGE_MARGIN_MM = 20;

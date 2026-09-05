@@ -7,7 +7,7 @@ import {
 } from './fixtures.js';
 import { validateRecipe } from './validate.js';
 import { buildWinding, independentLayerArcs } from './winding.js';
-import { CUCUMBER, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, hosogiriBox, patchCorePos, placementWindowMm } from './units.js';
+import { CUCUMBER, EPS_AREA_RATIO, EPS_CORE_ASYMMETRY_MM, HOSOMAKI_DIAMETER_MM, NB, WINDING, hosogiriBox, patchCorePos, placementWindowMm } from './units.js';
 import {
   cutFractions, firstCutFraction, pieceCountOf, pieceLeftOfCut,
   pieceLengthMm, snapCutFraction,
@@ -28,6 +28,18 @@ test('F02 green', () => {
   const r = runF02();
   assert.equal(r.report.status, 'valid');
   assert.ok(allPassed(r.checks), r.checks.filter((c) => !c.ok).map((c) => c.name + ':' + c.detail).join('; '));
+});
+
+test('winding mode is a recipe field, not inferred', () => {
+  assert.equal(makeF01Recipe().winding, WINDING.ring);
+  const spiral = clone(makeF01Recipe());
+  spiral.winding = WINDING.spiral;
+  const v = validateRecipe(spiral);
+  assert.equal(v.status, 'unsupported');
+  assert.equal(v.diagnostics[0].context.requestedFeature, 'spiral');
+  const inverted = clone(makeF01Recipe());
+  inverted.winding = WINDING.inverted;
+  assert.equal(validateRecipe(inverted).status, 'unsupported');
 });
 
 test('adapter snapshot: F01/F02, refuse stays refuse', () => {
