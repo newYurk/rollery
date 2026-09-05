@@ -33,9 +33,6 @@ function fixtureFromUrl() {
 
 const chips = document.getElementById('chips');
 const meta = document.getElementById('meta');
-const sliderWrap = document.getElementById('sliderWrap');
-const slider = document.getElementById('slider');
-const sliderLabel = document.getElementById('sliderLabel');
 const slice = document.getElementById('slice');
 const bar = document.getElementById('bar');
 const refuse = document.getElementById('refuse');
@@ -43,7 +40,6 @@ const sctx = slice.getContext('2d');
 const bctx = bar.getContext('2d');
 
 let current = fixtureFromUrl();
-let sliderVal = current.slider ? current.slider.value : 0;
 let vFrac = 0.5;
 let lastRecipe = null;
 let lastWinding = null;
@@ -78,17 +74,6 @@ function paint() {
   chips.querySelectorAll('[data-id]').forEach((b) => {
     b.setAttribute('aria-pressed', b.dataset.id === current.id ? 'true' : 'false');
   });
-
-  if (current.slider) {
-    sliderWrap.hidden = false;
-    slider.min = current.slider.min;
-    slider.max = current.slider.max;
-    slider.step = current.slider.step;
-    slider.value = String(sliderVal);
-    sliderLabel.textContent = `${current.slider.unit}: ${Number(sliderVal).toFixed(1)}`;
-  } else {
-    sliderWrap.hidden = true;
-  }
 
   const d0 = v.diagnostics[0];
   if (v.status === 'valid') {
@@ -249,7 +234,6 @@ for (const f of FIXTURES) {
   b.setAttribute('aria-pressed', f.id === current.id ? 'true' : 'false');
   b.addEventListener('click', () => {
     current = f;
-    sliderVal = f.slider ? f.slider.value : 0;
     patchU = {};
     const recipe = recipeNow();
     if (validateRecipe(recipe).status === 'valid') resetKnife(recipe);
@@ -264,11 +248,6 @@ cutBtn.type = 'button';
 cutBtn.textContent = 'Нарезать';
 cutBtn.addEventListener('click', pullCut);
 chips.append(cutBtn);
-
-slider.addEventListener('input', () => {
-  sliderVal = Number(slider.value);
-  paint();
-});
 
 resetKnife(current.make());
 paint();

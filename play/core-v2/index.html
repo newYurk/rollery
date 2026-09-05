@@ -69,10 +69,6 @@
   .meta b { color: var(--ink); font-weight: 600; }
   .ok { color: #b7c59a; }
   .no { color: #c4a27a; }
-  label.slider {
-    display: grid; gap: 2px; color: var(--dim); font-size: 11px;
-  }
-  input[type=range] { width: 100%; accent-color: var(--hot); height: 22px; margin: 0; }
   #bar { width: 100%; height: 124px; display: block; touch-action: none; cursor: grab; border-radius: 6px; }
 </style>
 </head>
@@ -84,10 +80,6 @@
   <div class="dock">
     <div class="chips" id="chips"></div>
     <div class="meta" id="meta"></div>
-    <label class="slider" id="sliderWrap" hidden>
-      <span id="sliderLabel"></span>
-      <input id="slider" type="range" min="20" max="80" step="0.5">
-    </label>
     <canvas id="bar" width="720" height="124"></canvas>
   </div>
   <script type="module" src="./app.js"></script>
