@@ -22,7 +22,13 @@ else say "  ✓ чисто"; fi
 # origin/$br..$br на несуществующей ветке даёт пустой вывод, ahead становится нулём —
 # и сторож печатает «запушено» ровно в том случае, который обязан ловить. Найдено вечерней сверкой 31.08.
 br=$(git branch --show-current)
-if ! git rev-parse --verify --quiet "origin/$br" >/dev/null; then
+# В detached HEAD имя пустое, и проверка «есть ли ветка на origin» печатала
+# «ветки  нет на origin» — жалобу на ветку, которой нет по определению.
+# Отсоединённая голова — законное состояние (сверка на чужом коммите), и это
+# не расхождение: сказать и не считать провалом.
+if [ -z "$br" ]; then
+  say "  ✓ отсоединённая голова на $(git rev-parse --short HEAD) — ветки нет, и не должно быть"
+elif ! git rev-parse --verify --quiet "origin/$br" >/dev/null; then
   warn "ветки $br нет на origin — не отправлена ни разу"
 else
   ahead=$(git log "origin/$br..$br" --oneline | wc -l | tr -d ' ')
