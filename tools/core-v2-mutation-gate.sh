@@ -83,6 +83,18 @@ m_norih()   { s 's|hh: p.heightMm / 2 + base.noriThicknessMm|hh: p.heightMm / 2|
 m_pieces()  { s 's|  pieces: 6,|  pieces: 7,|' units.js; }
 m_uramp()   { s 's|    const s = sRice0 + Lrice \* (b / NB);|    const s = sRice0 + Lrice * (b / NB) * 0.5;|' winding.js; }
 m_overlap() { s 's|  const phiOverlap = enough \&\& Ravg > 1e-9 ? Math.min(TAU, overlapMm / Ravg) : 0;|  const phiOverlap = enough \&\& Ravg > 1e-9 ? Math.min(TAU, overlapMm / Ravg) * 0.7 : 0;|' winding.js; }
+# ── #204: мутации, которые приёмка НЕ ловила. Заведены вместе с починкой, чтобы дыра
+# не вернулась молча. m_ravg выживала до #204: она уводит угол шва и число двуслойных
+# лучей вдвое, а перекрёстная проверка шва — тождество a − (a/R)·R и равна нулю при любом R.
+m_ravg()    { s 's|  const Ravg = Rout - W / 2;|  const Ravg = (Rout - W / 2) * 2;|' winding.js; }
+# Каталожная площадь СЕКТОРА: якорь сравнивает отчёт с той же функцией, что его породила.
+# ⚠ Эта мутация ВЫЖИВАЕТ, и это не тавтология, а НЕПОКРЫТАЯ ВЕТКА: ни одна фикстура не
+# строит патч с cut='сектор'. Огурец F02 — брусок 8×8, хотя контракт требует сектор (#205).
+# Держим здесь как расписку: закроется вместе с #205, не раньше.
+m_sector()  { s 's|    return patch.widthMm \* patch.heightMm \* cutFillSector();|    return patch.widthMm \* patch.heightMm \* cutFillSector() * 1.4;|' recipe.js; }
+# Один патч всегда в начале координат — значит непрерывность F03 сравнивает КОНСТАНТЫ.
+# Мутация показывает, где на самом деле живёт защита: её ловят рукописные тесты, а не приёмка.
+m_pos()     { s 'sQ  if (!list || list.length <= 1) return { x: 0, y: 0 };Q  if (!list || list.length <= 1) return { x: 3, y: 3 };Q' units.js; }
 
 printf '%s  %5s/%-5s  %s\n' 'кто поймал      ' 'pass' 'fail' 'мутация ядра'
 printf '%s\n' '----------------  -----------  -----------------------------------------'
@@ -106,3 +118,8 @@ run_mut 'units.js    CORE_PACK_ROW_MM 24 -> 60'  m_rowmm
 run_mut 'units.js    pieces 6 -> 7'              m_pieces
 run_mut 'winding.js  halfH без noriThickness'    m_norih
 run_mut 'winding.js  нахлёст от голых полей'     m_bare
+
+# ── #204. Первые две заведены доказанными дырами; третья показывает, ЧТО именно защищает.
+run_mut 'winding.js  Ravg x2 (шов и лучи)'       m_ravg
+run_mut 'recipe.js   каталог сектора x1,4 (#205)' m_sector
+run_mut 'units.js    один патч {0,0} -> {3,3}'    m_pos
