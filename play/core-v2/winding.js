@@ -8,6 +8,7 @@ import {
   TAU,
   baseOf,
   patchCorePos,
+  byIdThenValue,
   riceSpanMm,
 } from './units.js';
 
@@ -82,10 +83,20 @@ export function coreBoxesMm(recipe) {
   if (!recipe.patches.length) {
     return [{ cx: 0, cy: 0, hw: base.emptyCoreWidthMm / 2, hh: base.emptyCoreHeightMm / 2 }];
   }
-  return recipe.patches.map((p) => {
+  // ⚠ ПОРЯДОК КАНОНИЧЕСКИЙ, А НЕ ВХОДНОЙ (#205). Здесь стоял `recipe.patches.map(...)`, то есть
+  // коробки выходили в порядке МАССИВА рецепта. Геометрия при перестановке та же — набор
+  // коробок совпадает до последнего знака, — но ПОРЯДОК другой, и это протекало наружу:
+  // F05 требует, чтобы перестановка патчей не меняла ничего, и до 06.09 не ловила этого
+  // только потому, что `coreBoxes` не входили в домен хеша. Стоило расширить домен до
+  // полного `WindingResult` (erratum-011 требовал этого с самого начала), как F05 покраснел.
+  //
+  // Сортировка по id — та же, что у `visiblePatches` в section.js: одно правило на оба места.
+  const withId = recipe.patches.map((p) => {
     const { x, y } = patchCorePos(recipe, p);
-    return { cx: x, cy: y, hw: p.widthMm / 2, hh: p.heightMm / 2 + base.noriThicknessMm };
+    return { id: p.id, cx: x, cy: y, hw: p.widthMm / 2, hh: p.heightMm / 2 + base.noriThicknessMm };
   });
+  withId.sort(byIdThenValue(['cx', 'cy', 'hw', 'hh']));
+  return withId.map(({ id, ...box }) => box);
 }
 
 /** Описанный прямоугольник — для отказа core_overflow и для отчёта. */
@@ -315,21 +326,28 @@ export function buildWinding(recipe) {
 }
 
 /** Hash domain: full sample arrays, not FixtureReport aggregates. */
+/**
+ * ДОМЕН ХЕША НАМОТКИ — ВЕСЬ `WindingResult` (#205, «отдельно: домен хеша»).
+ *
+ * Здесь стоял список из четырнадцати полей при тридцати шести в объекте. Двадцать два поля
+ * хеш не видел, и среди них — те, ради которых заводились задачи:
+ *   `turnIndexAtRay`   — поле #173,
+ *   `riceRin`/`riceRout` — семплы спирали риса,
+ *   `Ravg`, `Rout`, `diameterMinMm`, `diameterMaxMm`, `wrapsBeyondTwo`, `noriPerimeter`.
+ * То есть мутация `Ravg × 2` из #204 не сдвинула бы winding hash: её ловила приёмка, но не
+ * отпечаток. `erratum-011` требует «canonicalize() ПОЛНОГО WindingResult» — требование было
+ * записано и не исполнено.
+ *
+ * ⚠ ВОЗВРАЩАЕТСЯ САМ ОБЪЕКТ, А НЕ КОПИЯ СПИСКОМ, И ЭТО СУТЬ ПРАВКИ. Список полей —
+ * ровно тот механизм, которым поле выпадает из домена молча: добавил в `buildWinding`,
+ * забыл добавить сюда, и отпечаток перестал видеть новое, ничего об этом не сказав.
+ * Функция остаётся как названный шов домена, но выбирать в ней больше нечего.
+ *
+ * Квантование (`HASH_QUANTUM_MM = 1e-6`) при этом сохраняется и легализовано erratum-025:
+ * тригонометрия не обязана быть бит-в-бит переносимой между libm, и один ULP менял SHA-256
+ * целиком (#175). `maxRoundTripErrMm` порядка 1e-14 — на восемь порядков ниже кванта,
+ * округляется в ноль и платформенной чувствительности не вносит.
+ */
 export function windingForHash(w) {
-  return {
-    sheetLengthMm: w.sheetLengthMm,
-    sRice0: w.sRice0,
-    sRice1: w.sRice1,
-    Wc: w.Wc,
-    Hc: w.Hc,
-    angleRad: w.angleRad,
-    r0b: w.r0b,
-    rp: w.rp,
-    rn: w.rn,
-    uInnerMm: w.uInnerMm,
-    wrapIntersectionsByRay: w.wrapIntersectionsByRay,
-    riceTurns: w.riceTurns,
-    ricePitchMm: w.ricePitchMm,
-    seam: w.seam,
-  };
+  return w;
 }
