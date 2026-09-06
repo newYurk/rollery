@@ -51,7 +51,7 @@
   "play/ui/layout.js": 2
  },
  "S_writes": {
-  "play/checks.js": 94,
+  "play/checks.js": 98,
   "play/core-v2/legacy-probe.js": 6,
   "play/domain/roll.js": 10,
   "play/modes/puzzle.js": 11,
@@ -67,19 +67,19 @@
   "B": "play/state.js:214",
   "L": "play/ui/layout.js:34",
   "S": "play/state.js:11",
-  "buildModel": "play/model/geometry.js:2347",
+  "buildModel": "play/model/geometry.js:2370",
   "deriveSheetLayout": "play/domain/roll.js:259",
-  "g_passport": "play/model/geometry.js:2380",
+  "g_passport": "play/model/geometry.js:2403",
   "targetModel": "play/modes/puzzle.js:99",
   "touchModel": "play/render/slice.js:423",
   "withRecipe": "play/ui/album.js:34",
   "withRollRecipeState": "play/domain/roll.js:76"
  },
  "date": "2026-09-06",
- "geometry_code": 1090,
- "geometry_total": 2920,
+ "geometry_code": 1096,
+ "geometry_total": 2943,
  "guard": {
-  "известно": 33,
+  "известно": 37,
   "практика_не_проверяется": 4,
   "практика_сошлось": 32,
   "сдвиг_диаметра": 1,
@@ -161,7 +161,7 @@
  },
  "lines": {
   "play/audio.js": 101,
-  "play/checks.js": 1909,
+  "play/checks.js": 2039,
   "play/core-v2/adapter.js": 67,
   "play/core-v2/app.js": 253,
   "play/core-v2/bridge.js": 79,
@@ -184,7 +184,7 @@
   "play/inverse/primitives.js": 119,
   "play/model/canon.js": 268,
   "play/model/catalog.js": 436,
-  "play/model/geometry.js": 2920,
+  "play/model/geometry.js": 2943,
   "play/model/util.js": 45,
   "play/modes/puzzle.js": 164,
   "play/render/screens.js": 596,
@@ -209,17 +209,17 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "e6595d3",
+ "ref": "016f20c",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "Three guards that covered less than they looked like, and the second base was worse (#209) (#231)",
- "total_lines": 15317,
+ "subject": "Лист 1: строк в checks.js после правки сторожа",
+ "total_lines": 15470,
  "touchModel": {
-  "play/checks.js": 55,
+  "play/checks.js": 57,
   "play/modes/puzzle.js": 3,
   "play/render/slice.js": 1,
   "play/state.js": 1,
