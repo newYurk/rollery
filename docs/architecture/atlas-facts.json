@@ -161,7 +161,7 @@
  },
  "lines": {
   "play/audio.js": 101,
-  "play/checks.js": 2019,
+  "play/checks.js": 2039,
   "play/core-v2/adapter.js": 67,
   "play/core-v2/app.js": 253,
   "play/core-v2/bridge.js": 79,
@@ -209,15 +209,15 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "52fe746",
+ "ref": "016f20c",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "Атлас: числа сведены с кодом, две разбивки были устаревшими и до этой правки",
- "total_lines": 15450,
+ "subject": "Лист 1: строк в checks.js после правки сторожа",
+ "total_lines": 15470,
  "touchModel": {
   "play/checks.js": 57,
   "play/modes/puzzle.js": 3,
