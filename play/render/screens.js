@@ -341,10 +341,19 @@ function drawRollPreview(R) {
   if (S.puzzle) { if (L.previewMode === 'band') drawPreviewArea(0); return; }
   drawSlab([{ x: g.cx - 30, y: g.cy, size: g.fs }], 1, B(), 8);
   drawFaceImg(face(0.5, g.fs), g.cx - 30, g.cy, g.fs);
-  const wd = windFor(getModel(), 0.5);
+  // ⚠ ВИТКИ — ТОЛЬКО У ЛЕГАСИ, И ЭТО ТО ЖЕ ПРАВИЛО, ЧТО В ПАСПОРТЕ (ревью PR #229, второй
+  // заход). Первая правка убрала легаси-числа из паспорта и оставила их ЗДЕСЬ, строкой выше:
+  // тело ролла в режиме V2 рисуется по `v2Snap().winding`, а подпись полосы считала витки
+  // через `windFor(getModel())`. Одна и та же подмена, на один экран левее.
+  const v2ok = S.v2 && window.CoreV2 && v2Snap() && v2Snap().ok;
   ctx.fillStyle = '#b8ad95'; ctx.font = font(12); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy - 8);
-  ctx.fillText(`${wd.turns.toFixed(1).replace('.', ',')} витка`, g.cx + g.fs / 2 - 16, g.cy + 8);
+  if (v2ok) {
+    ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy);
+  } else {
+    const wd = windFor(getModel(), 0.5);
+    ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy - 8);
+    ctx.fillText(`${wd.turns.toFixed(1).replace('.', ',')} витка`, g.cx + g.fs / 2 - 16, g.cy + 8);
+  }
 }
 // ── ПАСПОРТ РОЛЛА ПОД ДОСКОЙ (#193) ─────────────────────────────────────────
 // Экран скрученного ролла был пуст на 85 % высоты: палочка 313 × 48 px посреди 393 × 852.
