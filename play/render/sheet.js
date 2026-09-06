@@ -322,6 +322,12 @@ function _lum(hex) {
   if (h.length < 6) return 0;
   return 0.2126 * _lin(parseInt(h.slice(0, 2), 16)) + 0.7152 * _lin(parseInt(h.slice(2, 4), 16)) + 0.0722 * _lin(parseInt(h.slice(4, 6), 16));
 }
+// Контур в один арт-пиксель по всем четырём сторонам. Кладётся ДО картинки и до тени: тень ляжет
+// поверх и не будет с ним спорить.
+function рисоватьКромку(img, x0, y0, sz) {
+  const sil = pixSilhouette(img);
+  for (const [dx, dy] of [[-PIX, 0], [PIX, 0], [0, -PIX], [0, PIX]]) ctx.drawImage(sil, x0 + dx, y0 + dy, sz, sz);
+}
 const _kCache = new Map();
 function нужнаКромка(b) {
   if (!b || !b.wrapper || !b.mat) return false;
@@ -382,8 +388,18 @@ function strokeSliceLines(img, size) {
 function drawFaceImg(img, x, y, size, scaleX = 1, alpha = 1, безТени = false, b = B()) {
   ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.scale(Math.max(0.01, scaleX), 1);
   if (безТени) {
+    // ⚠ БЕЗ ТЕНИ — НЕ ЗНАЧИТ БЕЗ КРОМКИ (находка ревью PR #219). Здесь снята тень, потому что срез
+    // растянут почти на весь лист и тень съедала бы поле; но кромка — не тень, а единственное, что
+    // отделяет светлую обёртку от подложки. Подложка здесь ДРУГАЯ — не циновка, а лист `#e4ded6`, и
+    // порог формально считается не по ней. Проверено, что это ничего не меняет: набор непроходящих
+    // обёрток совпадает — нори 5,88:1 на циновке и 9,86:1 на листе, остальные четыре не держат ни
+    // там, ни там (рисовая бумага 1,81 / 1,08 · гюхи 1,98 / 1,18 · соевая 1,28 / 1,31 · омлет
+    // 1,19 / 1,41). Порядок между ними меняется, решение «да/нет» — нет.
     if (PIX) { const q = v => Math.round(v / PIX) * PIX, sz = Math.max(PIX, q(size));
-      ctx.imageSmoothingEnabled = false; ctx.drawImage(img, q(-sz / 2), q(-sz / 2), sz, sz); }
+      const x0 = q(-sz / 2), y0 = q(-sz / 2);
+      ctx.imageSmoothingEnabled = false;
+      if (нужнаКромка(b)) рисоватьКромку(img, x0, y0, sz);
+      ctx.drawImage(img, x0, y0, sz, sz); }
     else ctx.drawImage(img, -size / 2, -size / 2, size, size);
     if (S.lines) strokeSliceLines(img, size);
     ctx.restore(); return;
@@ -400,8 +416,7 @@ function drawFaceImg(img, x, y, size, scaleX = 1, alpha = 1, безТени = fa
     // (владелец 31.08 увидела внизу непонятный артефакт — будто ролл обёрнут ещё раз). Силуэт
     // получается заливкой по маске картинки: source-in красит только непрозрачные точки.
     const sil = pixSilhouette(img);
-    // контур по всем четырём сторонам — до тени, чтобы тень легла поверх и не спорила с ним
-    if (нужнаКромка(b)) for (const [dx, dy] of [[-PIX, 0], [PIX, 0], [0, -PIX], [0, PIX]]) ctx.drawImage(sil, x0 + dx, y0 + dy, sz, sz);
+    if (нужнаКромка(b)) рисоватьКромку(img, x0, y0, sz);
     ctx.globalAlpha = alpha * 0.55; ctx.drawImage(sil, x0 + PIX, y0 + 2 * PIX, sz, sz);
     ctx.globalAlpha = alpha;        ctx.drawImage(img, x0, y0, sz, sz);
     // ⚠ Линия кладётся по размеру ВЫВОДА (sz), а не по запрошенному size: в пиксельном режиме

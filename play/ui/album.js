@@ -44,6 +44,18 @@ function withRecipe(e, fn) {
   finally { S.base = keep.base; S.wrap = keep.wrap; S.turns = keep.turns; S.shape = keep.shape; S.hand = keep.hand; S.lists[e.base] = keep.list; }
   return out;
 }
+// ПАЛИТРА ЗАПИСИ — С СОХРАНЁННОЙ ОБЁРТКОЙ, А НЕ С УМОЛЧАНИЕМ БАЗЫ (находка ревью PR #219).
+// `BASES[e.base]` — сырая база из каталога; её поле `wrapper` описывает обёртку ПО УМОЛЧАНИЮ.
+// Игрок обёртку выбирает, и `albumSave` пишет выбор в `e.wrap` — именно его рисует `albumFace`.
+// Если брать умолчание, хосомаки, завёрнутый в гюхи, покажут срез в гюхи, а решение о кромке
+// примут по нори: светлая обёртка останется без границы ровно там, где она нужнее всего.
+// Логика повторяет `B()` намеренно: обёртка — единственное поле, которое там подменяется, и
+// цвет берётся из WRAPPERS, а не из дубля в каталоге.
+function albumPal(e) {
+  const b = BASES[e.base] || B();
+  const wk = b.wrapFixed ? null : ((e.wrap && WRAPPERS[e.wrap]) ? e.wrap : (b.wrapKey || 'nori'));
+  return wk ? Object.assign({}, b, { wrapper: WRAPPERS[wk].color }) : b;
+}
 function albumFace(e, size, v) { return withRecipe(e, m => face(v == null ? 0.5 : v, size, m)); }
 function albumLoad(i) {
   const e = S.album[i]; if (!e) return;
@@ -98,8 +110,8 @@ function drawAlbum() {
     if (y > top + viewH || y + rowH < top - rowH) return;
     albumCells.push({ i, x, y, w: cell, h: cell });
     const bp = Math.max(5, Math.round(cell * 0.07)), cfs = cell - 2 * bp;
-    drawMat(x, y, cell, cell, 12, BASES[e.base] || B());
-    try { drawFaceImg(albumFace(e, cfs), x + cell / 2, y + cell / 2, cfs, 1, 1, false, BASES[e.base] || B()); } catch (err) {}
+    drawMat(x, y, cell, cell, 12, albumPal(e));
+    try { drawFaceImg(albumFace(e, cfs), x + cell / 2, y + cell / 2, cfs, 1, 1, false, albumPal(e)); } catch (err) {}
     ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     const tag = (BASES[e.base] ? BASES[e.base].emoji : '') + ' ' + albumDate(e.at) + (e.sim != null ? ' · ' + e.sim + ' %' : '');
     ctx.fillText(tag, x + cell / 2, y + cell + 5);
@@ -116,7 +128,7 @@ function drawAlbum() {
     ctx.fillStyle = 'rgba(23,23,19,0.93)'; ctx.fillRect(0, 0, W, H);
     // Число кусков — у базы САМОЙ ЗАПИСИ, а не текущей: футомаки режется на восемь, хосомаки
     // на шесть, и запись помнит, чем была (#134-side, правка 01.09).
-    const eb0 = BASES[e.base] || B(), k = eb0.pieces || 6;
+    const eb0 = albumPal(e), k = eb0.pieces || 6;
     const fs = Math.min((cw - 40 - (k - 1) * 8) / k, 0.22 * L.ch, 120);
     const cx = ox + cw / 2, y0 = L.top + 40;
     ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
