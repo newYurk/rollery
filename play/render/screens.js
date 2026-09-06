@@ -367,19 +367,38 @@ function drawRollPreview(R) {
 function rollFactLines(R) {
   const b = B(), n = npieces(), дл = b.Wv * U_MM;
   const зпт = v => String(v).replace('.', ',');
-  const wd = windFor(getModel(), 0.5), N = 180, rs = [];
-  for (let i = 0; i < N; i++) rs.push(topAt(wd, i / N * TAU));
-  rs.sort((a, c) => a - c);
-  const d = 2 * rs[N >> 1] * U_MM;
+  // ⚠ ЧИСЛА БЕРУТСЯ ИЗ ТОГО ЖЕ ОБЪЕКТА, ЧТО И РИСОВАНИЕ (находка ревью PR #229).
+  // На экране `?v2` тело ролла рисуется по `v2Snap().winding.Rout` (см. `rollDims`), а первая
+  // редакция паспорта считала ⌀ и витки по ЛЕГАСИ-модели через `getModel()`. Два разных
+  // расчёта на одном экране: подпись описывала бы не тот ролл, который нарисован.
+  //
+  // В режиме V2 берём ⌀ из той же намотки. Витки НЕ показываем: у V2 есть и `riceTurns`, и
+  // `seam.turnsMeasured`, и назначать одно из них равным легасишному `turns` без сверки —
+  // ровно та подмена, из-за которой находка и появилась. Начинки тоже молчим: в сценариях
+  // фикстур раскладка не игрока, и список ввёл бы в заблуждение.
+  const v2 = S.v2 && window.CoreV2 ? v2Snap() : null;
+  const v2ok = !!(v2 && v2.ok);
+  let d, wd = null;
+  if (v2ok) {
+    d = 2 * v2.winding.Rout;
+  } else {
+    wd = windFor(getModel(), 0.5);
+    const N = 180, rs = [];
+    for (let i = 0; i < N; i++) rs.push(topAt(wd, i / N * TAU));
+    rs.sort((a, c) => a - c);
+    d = 2 * rs[N >> 1] * U_MM;
+  }
   // Витки говорит ЛИБО полоса среза, либо паспорт — но не оба: одна величина на экране
   // называется один раз. Условие то же, по которому полоса вообще рисуется.
   const полосаЕсть = !!rollPreviewGeom(R) && !S.puzzle;
-  const виды = [...new Set(patches().map(p => ING[p.kind] && ING[p.kind].name).filter(Boolean))];
+  const виды = v2ok && S.v2Scenario !== 'layout'
+    ? []
+    : [...new Set(patches().map(p => ING[p.kind] && ING[p.kind].name).filter(Boolean))];
   // ⚠ ЦВЕТ НЕ `#6f6754`, И ЭТО ЗАМЕР, А НЕ ВКУС: он даёт 3,20:1 на фоне `#171713` при
   // минимуме AA 4,5:1 для мелкого текста (замер по #76). `#8b8168` даёт 4,65:1.
   const все = [
     { t: `${n} ${кусковСлово(n)} по ${зпт((дл / n).toFixed(1))} мм`, size: 15, color: '#d8cfba' },
-    { t: `⌀ ${зпт(d.toFixed(1))} · длина ${дл.toFixed(0)} мм${полосаЕсть ? '' : ` · ${зпт(wd.turns.toFixed(1))} витка`}`, size: 12, color: '#8b8168' },
+    { t: `⌀ ${зпт(d.toFixed(1))} · длина ${дл.toFixed(0)} мм${полосаЕсть || !wd ? '' : ` · ${зпт(wd.turns.toFixed(1))} витка`}`, size: 12, color: '#8b8168' },
   ];
   if (виды.length) все.push({ t: виды.slice(0, 4).join(' · ') + (виды.length > 4 ? ' …' : ''), size: 12, color: '#8b8168' });
   // ⚠ СТРОКИ ОБРЕЗАЮТСЯ ПО МЕСТУ, А НЕ РИСУЮТСЯ ВСЛЕПУЮ. Замер на ландшафте 852 × 393:
