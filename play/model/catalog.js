@@ -188,7 +188,12 @@ const BASES = {
                   'ricePink', 'riceYellow', 'riceGreen', 'riceBlack', 'riceRidge', 'riceDip'] },
   fruit: { name: 'Фруктовые', emoji: '🍓', kind: 'sweet', wrapKey: 'egg', wrapper: '#e8b551', spread: '#e4ded6', mat: '#c9a96c', matLine: '#b28f56',
     T: 2.0, w: 0.30, sheetCm: 21, pieces: 8, spreadEnd: 0.89, kappa: 0.85, beta: 0.55, tuck: true, tuckMin: 5, Wv: 38,
-    ingredients: ['strawberry', 'kiwi', 'mango', 'banana', 'pinkcream', 'choco', 'jam', 'nut'] },
+    // ⚠ 'pinkcream' и 'choco' убраны 06.09: в каталоге их нет и не было — `ING['pinkcream']`
+    // undefined, и построение среза на таком ключе падает с «Cannot read properties of
+    // undefined (reading 'paint')». Игрок до них не добирался: `B()` перетирает это поле
+    // отфильтрованным ALL_INGREDIENTS.filter(i => ING[i]), то есть список базы в стенд не
+    // попадает вовсе. Мёртвая ссылка, а не отказ, — но врущий список хуже пустого (#136).
+    ingredients: ['strawberry', 'kiwi', 'mango', 'banana', 'jam', 'nut'] },
   // ⚑ ПОЧЕМУ РУЛЕТ ВООБЩЕ СГИБАЕТСЯ. Модель гнёт бисквит до r0 = 1,25 мм, и при толщине
   // 8,5 мм это 77 % деформации крайнего волокна — несрезанный бисквит на таком радиусе
   // трескается. В жизни это возможно потому, что перед скруткой у ближней кромки делают
