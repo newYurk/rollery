@@ -67,17 +67,17 @@
   "B": "play/state.js:214",
   "L": "play/ui/layout.js:34",
   "S": "play/state.js:11",
-  "buildModel": "play/model/geometry.js:2329",
+  "buildModel": "play/model/geometry.js:2336",
   "deriveSheetLayout": "play/domain/roll.js:259",
-  "g_passport": "play/model/geometry.js:2362",
+  "g_passport": "play/model/geometry.js:2369",
   "targetModel": "play/modes/puzzle.js:99",
   "touchModel": "play/render/slice.js:423",
   "withRecipe": "play/ui/album.js:34",
   "withRollRecipeState": "play/domain/roll.js:76"
  },
- "date": "2026-09-05",
+ "date": "2026-09-06",
  "geometry_code": 1090,
- "geometry_total": 2902,
+ "geometry_total": 2909,
  "guard": {
   "известно": 31,
   "практика_не_проверяется": 4,
@@ -161,12 +161,12 @@
  },
  "lines": {
   "play/audio.js": 101,
-  "play/checks.js": 1754,
+  "play/checks.js": 1760,
   "play/core-v2/adapter.js": 46,
   "play/core-v2/app.js": 253,
   "play/core-v2/bridge.js": 79,
   "play/core-v2/canonical.js": 31,
-  "play/core-v2/fixtures.js": 516,
+  "play/core-v2/fixtures.js": 539,
   "play/core-v2/from-layout.js": 192,
   "play/core-v2/hash.js": 61,
   "play/core-v2/knife.js": 45,
@@ -183,8 +183,8 @@
   "play/inverse/materials.js": 161,
   "play/inverse/primitives.js": 119,
   "play/model/canon.js": 268,
-  "play/model/catalog.js": 427,
-  "play/model/geometry.js": 2902,
+  "play/model/catalog.js": 436,
+  "play/model/geometry.js": 2909,
   "play/model/util.js": 45,
   "play/modes/puzzle.js": 164,
   "play/render/screens.js": 457,
@@ -209,15 +209,15 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "f2944f9",
+ "ref": "01d8f22",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "The closing summary was hand-written too (#212 review)",
- "total_lines": 14718,
+ "subject": "The comment was inflating the very counter that watches it",
+ "total_lines": 14763,
  "touchModel": {
   "play/checks.js": 55,
   "play/modes/puzzle.js": 3,
