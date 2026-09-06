@@ -8,6 +8,7 @@ import {
   TAU,
   baseOf,
   patchCorePos,
+  byIdThenValue,
   riceSpanMm,
 } from './units.js';
 
@@ -94,7 +95,7 @@ export function coreBoxesMm(recipe) {
     const { x, y } = patchCorePos(recipe, p);
     return { id: p.id, cx: x, cy: y, hw: p.widthMm / 2, hh: p.heightMm / 2 + base.noriThicknessMm };
   });
-  withId.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  withId.sort(byIdThenValue(['cx', 'cy', 'hw', 'hh']));
   return withId.map(({ id, ...box }) => box);
 }
 

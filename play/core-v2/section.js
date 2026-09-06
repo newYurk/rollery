@@ -1,6 +1,6 @@
 // Central slice. Fillings sit in the core (rest-state area). Hard fillings do not stretch.
 
-import { SECTOR_ANGLE, patchCorePos } from './units.js';
+import { SECTOR_ANGLE, byIdThenValue, patchCorePos } from './units.js';
 import { catalogAreaMm2, cutFillSector } from './recipe.js';
 
 export function sectorTop(t) {
@@ -58,7 +58,7 @@ export function sampleSection(recipe, winding, vSliceMm) {
     nori: { innerMm: winding.rp, outerMm: winding.rn },
   };
   const visiblePatches = recipe.patches.map((p) => samplePatch(recipe, p))
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    .sort(byIdThenValue(['areaMm2', 'centerXmm', 'centerYmm']));
   return {
     vSliceMm,
     layers,
