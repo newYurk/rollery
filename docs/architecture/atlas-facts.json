@@ -5,7 +5,7 @@
   "play/model/geometry.js": 14,
   "play/modes/puzzle.js": 4,
   "play/render/screens.js": 22,
-  "play/render/sheet.js": 6,
+  "play/render/sheet.js": 7,
   "play/render/slice.js": 4,
   "play/state.js": 5,
   "play/ui/actions.js": 2,
@@ -67,9 +67,9 @@
   "B": "play/state.js:214",
   "L": "play/ui/layout.js:34",
   "S": "play/state.js:11",
-  "buildModel": "play/model/geometry.js:2336",
+  "buildModel": "play/model/geometry.js:2347",
   "deriveSheetLayout": "play/domain/roll.js:259",
-  "g_passport": "play/model/geometry.js:2369",
+  "g_passport": "play/model/geometry.js:2380",
   "targetModel": "play/modes/puzzle.js:99",
   "touchModel": "play/render/slice.js:423",
   "withRecipe": "play/ui/album.js:34",
@@ -77,7 +77,7 @@
  },
  "date": "2026-09-06",
  "geometry_code": 1090,
- "geometry_total": 2909,
+ "geometry_total": 2920,
  "guard": {
   "известно": 31,
   "практика_не_проверяется": 4,
@@ -161,7 +161,7 @@
  },
  "lines": {
   "play/audio.js": 101,
-  "play/checks.js": 1760,
+  "play/checks.js": 1807,
   "play/core-v2/adapter.js": 46,
   "play/core-v2/app.js": 253,
   "play/core-v2/bridge.js": 79,
@@ -184,11 +184,11 @@
   "play/inverse/primitives.js": 119,
   "play/model/canon.js": 268,
   "play/model/catalog.js": 436,
-  "play/model/geometry.js": 2909,
+  "play/model/geometry.js": 2920,
   "play/model/util.js": 45,
   "play/modes/puzzle.js": 164,
   "play/render/screens.js": 457,
-  "play/render/sheet.js": 383,
+  "play/render/sheet.js": 436,
   "play/render/slice.js": 655,
   "play/state.js": 269,
   "play/test/domain/roll-facade-checks.js": 195,
@@ -198,7 +198,7 @@
   "play/test/practice.js": 1121,
   "play/test/probe.js": 155,
   "play/ui/actions.js": 235,
-  "play/ui/album.js": 139,
+  "play/ui/album.js": 151,
   "play/ui/controls.js": 257,
   "play/ui/layout.js": 443
  },
@@ -209,15 +209,15 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "01d8f22",
+ "ref": "2203854",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "The comment was inflating the very counter that watches it",
- "total_lines": 14763,
+ "subject": "The chamfer fork collapsed to one path, and point H was parked in a question (#125, #137) (#221)",
+ "total_lines": 14886,
  "touchModel": {
   "play/checks.js": 55,
   "play/modes/puzzle.js": 3,
