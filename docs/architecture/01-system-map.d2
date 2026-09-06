@@ -108,7 +108,7 @@ core_v2: "core-v2 · то же самое, но в миллиметрах" {
   | {class: file}
   pipe: |md
     **validate → winding → section → measure** \
-    validate.js · 233 — честный отказ с кодом, включая базу \
+    validate.js · 242 — честный отказ с кодом, включая базу \
     winding.js · 353 — кольцо: r0 по лучам, шов \
     section.js · 140 — срез и площадь кольца \
     measure.js · 149 — FixtureReport
@@ -120,7 +120,7 @@ core_v2: "core-v2 · то же самое, но в миллиметрах" {
     hash.js + canonical.js — детерминизм
   | {class: guard}
   seam: |md
-    **adapter.js** · 46 — единственный объект наружу \
+    **adapter.js** · 67 — единственный объект наружу, зовёт физику \
     **bridge.js** · 79 — ESM → window.CoreV2 \
     from-layout.js · 192 — раскладка игрока → RecipeV2 \
     render.js · 413 · app.js · 253 — свой debug-стенд
@@ -213,9 +213,9 @@ storage: "storage · что переживает перезагрузку" {
 checks: "сторож · чем доказывается, что не сломали" {
   class: zone
   ch: |md
-    **play/checks.js** · 1875 \
+    **play/checks.js** · 1909 \
     **`node tools/check.js`** — 5,6 с, без браузера (#147) \
-    ВСЁ ЦЕЛО · известно 31 · сдвиг ⌀ 1 \
+    ВСЁ ЦЕЛО · известно 33 · сдвиг ⌀ 1 \
     он же `?check` в браузере: холст и DPR только там
   | {class: guard}
   practice: |md

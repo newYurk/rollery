@@ -52,7 +52,7 @@
  },
  "S_writes": {
   "play/checks.js": 94,
-  "play/core-v2/legacy-probe.js": 5,
+  "play/core-v2/legacy-probe.js": 6,
   "play/domain/roll.js": 10,
   "play/modes/puzzle.js": 11,
   "play/render/screens.js": 6,
@@ -79,7 +79,7 @@
  "geometry_code": 1090,
  "geometry_total": 2920,
  "guard": {
-  "известно": 31,
+  "известно": 33,
   "практика_не_проверяется": 4,
   "практика_сошлось": 32,
   "сдвиг_диаметра": 1,
@@ -161,8 +161,8 @@
  },
  "lines": {
   "play/audio.js": 101,
-  "play/checks.js": 1875,
-  "play/core-v2/adapter.js": 46,
+  "play/checks.js": 1909,
+  "play/core-v2/adapter.js": 67,
   "play/core-v2/app.js": 253,
   "play/core-v2/bridge.js": 79,
   "play/core-v2/canonical.js": 31,
@@ -170,13 +170,13 @@
   "play/core-v2/from-layout.js": 192,
   "play/core-v2/hash.js": 61,
   "play/core-v2/knife.js": 45,
-  "play/core-v2/legacy-probe.js": 92,
+  "play/core-v2/legacy-probe.js": 101,
   "play/core-v2/measure.js": 149,
   "play/core-v2/recipe.js": 245,
   "play/core-v2/render.js": 413,
   "play/core-v2/section.js": 140,
   "play/core-v2/units.js": 349,
-  "play/core-v2/validate.js": 233,
+  "play/core-v2/validate.js": 242,
   "play/core-v2/winding.js": 353,
   "play/domain/recipe-v2.js": 65,
   "play/domain/roll.js": 303,
@@ -209,15 +209,15 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "709d313",
+ "ref": "e6595d3",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "The rolled-roll screen was 85% empty, and the roll was not the thing to enlarge (#193) (#229)",
- "total_lines": 15244,
+ "subject": "Three guards that covered less than they looked like, and the second base was worse (#209) (#231)",
+ "total_lines": 15317,
  "touchModel": {
   "play/checks.js": 55,
   "play/modes/puzzle.js": 3,
