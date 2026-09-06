@@ -4,7 +4,7 @@
   "play/domain/roll.js": 1,
   "play/model/geometry.js": 14,
   "play/modes/puzzle.js": 4,
-  "play/render/screens.js": 22,
+  "play/render/screens.js": 24,
   "play/render/sheet.js": 7,
   "play/render/slice.js": 4,
   "play/state.js": 5,
@@ -14,10 +14,10 @@
   "play/ui/layout.js": 3
  },
  "L_calls": {
-  "play/checks.js": 13,
+  "play/checks.js": 17,
   "play/domain/roll.js": 3,
   "play/model/geometry.js": 2,
-  "play/render/screens.js": 58,
+  "play/render/screens.js": 69,
   "play/render/sheet.js": 7,
   "play/state.js": 1,
   "play/test/domain/roll-facade-checks.js": 5,
@@ -29,7 +29,7 @@
  },
  "S_reads": {
   "play/audio.js": 2,
-  "play/checks.js": 17,
+  "play/checks.js": 19,
   "play/core-v2/from-layout.js": 5,
   "play/core-v2/legacy-probe.js": 2,
   "play/domain/recipe-v2.js": 10,
@@ -38,7 +38,7 @@
   "play/model/geometry.js": 15,
   "play/model/util.js": 1,
   "play/modes/puzzle.js": 11,
-  "play/render/screens.js": 19,
+  "play/render/screens.js": 25,
   "play/render/sheet.js": 7,
   "play/render/slice.js": 5,
   "play/state.js": 16,
@@ -51,11 +51,11 @@
   "play/ui/layout.js": 2
  },
  "S_writes": {
-  "play/checks.js": 92,
+  "play/checks.js": 94,
   "play/core-v2/legacy-probe.js": 5,
   "play/domain/roll.js": 10,
   "play/modes/puzzle.js": 11,
-  "play/render/screens.js": 5,
+  "play/render/screens.js": 6,
   "play/state.js": 14,
   "play/test/domain/roll-facade-checks.js": 2,
   "play/test/legacy/baseline.js": 8,
@@ -161,7 +161,7 @@
  },
  "lines": {
   "play/audio.js": 101,
-  "play/checks.js": 1828,
+  "play/checks.js": 1875,
   "play/core-v2/adapter.js": 46,
   "play/core-v2/app.js": 253,
   "play/core-v2/bridge.js": 79,
@@ -187,7 +187,7 @@
   "play/model/geometry.js": 2920,
   "play/model/util.js": 45,
   "play/modes/puzzle.js": 164,
-  "play/render/screens.js": 457,
+  "play/render/screens.js": 596,
   "play/render/sheet.js": 436,
   "play/render/slice.js": 655,
   "play/state.js": 269,
@@ -209,15 +209,15 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "394ab0c",
+ "ref": "709d313",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "Traded a false write for a false read in the same comment",
- "total_lines": 15058,
+ "subject": "The rolled-roll screen was 85% empty, and the roll was not the thing to enlarge (#193) (#229)",
+ "total_lines": 15244,
  "touchModel": {
   "play/checks.js": 55,
   "play/modes/puzzle.js": 3,
