@@ -14,12 +14,16 @@ function layerArcMm(wd, k) {
   return acc * U_MM;
 }
 
-function snap(list) {
-  const keep = { base: S.base, wrap: S.wrap, turns: S.turns, shape: S.shape, hand: S.hand, list: S.lists.hoso };
-  S.base = 'hoso'; S.wrap = null; S.turns = null; S.shape = 'round';
+// ⚑ БАЗА — ПАРАМЕТР, А НЕ ЛИТЕРАЛ (#209, пункт 2). Здесь стояло `S.base = 'hoso'` жёстко,
+// и сверка двух движков стояла на одной базе из шести. Расширить её на все шесть нельзя —
+// V2 alpha считает только хосомаки и футомаки и остальным отвечает `base_unsupported`, —
+// но на две она обязана стоять, и футомаки был непокрыт полностью.
+function snap(list, base = 'hoso') {
+  const keep = { base: S.base, wrap: S.wrap, turns: S.turns, shape: S.shape, hand: S.hand, list: S.lists[base] };
+  S.base = base; S.wrap = null; S.turns = null; S.shape = 'round';
   S.hand = handOf();
-  S.lists.hoso = JSON.parse(JSON.stringify(list));
-  const m = buildModel(S.lists.hoso);
+  S.lists[base] = JSON.parse(JSON.stringify(list));
+  const m = buildModel(S.lists[base]);
   const wd = windFor(m, 0.5);
   const g = m.g;
   const Lmm = g.L * U_MM;
@@ -81,12 +85,17 @@ function snap(list) {
     shortageUnits: wd.нехватка,
   };
   S.base = keep.base; S.wrap = keep.wrap; S.turns = keep.turns; S.shape = keep.shape;
-  S.hand = keep.hand; S.lists.hoso = keep.list;
+  S.hand = keep.hand; S.lists[base] = keep.list;
   return out;
 }
 
 const uF02 = 36.25 / 105;
+// F05 — те же три патча, что у `makeF05Recipe`: огурец 35, тамаго 55, лосось 80 мм на листе
+// 210. Доли листа считаются здесь, чтобы `× U_MM` и деление на длину случались ровно по разу.
+const F05_L = 210;
+const f05 = (kind, uMm) => ({ kind, u: uMm / F05_L, v: 0.5, z0: 0, z1: 1, phase: 0.5 });
 globalThis.ВЫХОД = {
   F01: snap([]),
   F02: snap([{ kind: 'cucumber', u: uF02, v: 0.5, z0: 0, z1: 1, phase: 0.5 }]),
+  F05: snap([f05('cucumber', 35), f05('tamago', 55), f05('salmon', 80)], 'futo'),
 };
