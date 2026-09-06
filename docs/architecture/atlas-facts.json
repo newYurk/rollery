@@ -161,7 +161,7 @@
  },
  "lines": {
   "play/audio.js": 101,
-  "play/checks.js": 1807,
+  "play/checks.js": 1828,
   "play/core-v2/adapter.js": 46,
   "play/core-v2/app.js": 253,
   "play/core-v2/bridge.js": 79,
@@ -195,7 +195,7 @@
   "play/test/fixtures/fixtures.js": 106,
   "play/test/legacy/baseline-data.js": 820,
   "play/test/legacy/baseline.js": 85,
-  "play/test/practice.js": 1121,
+  "play/test/practice.js": 1140,
   "play/test/probe.js": 155,
   "play/ui/actions.js": 235,
   "play/ui/album.js": 151,
@@ -209,15 +209,15 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "d19105a",
+ "ref": "394ab0c",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "F07's acceptance was a characterisation test wearing a contract's name (#205) (#224)",
- "total_lines": 15018,
+ "subject": "Traded a false write for a false read in the same comment",
+ "total_lines": 15058,
  "touchModel": {
   "play/checks.js": 55,
   "play/modes/puzzle.js": 3,
