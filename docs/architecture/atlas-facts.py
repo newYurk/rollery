@@ -359,7 +359,33 @@ def main():
             print(f"  слепок:   {want}")
         print("  править: пересобрать ПОСЛЕ снятия слепка — ./docs/architecture/build.sh\n")
 
-    if not drift and not issue_drift and not stamp_drift:
+    # ⚑ ИТОГИ В ПРОЗЕ СТРАНИЦЫ ПРОТИВ ЗАМЕРА (внешнее ревью, PR #222).
+    # Сторож сверял ЛИСТЫ с кодом и ШТАМП страницы со слепком — а числа, набранные словами
+    # в самой странице, не сверял ничем. Так и вышло: лист 2 говорил «230 присваиваний,
+    # 207 чтений» (верно), а таблица s2 той же страницы — «229 записей, 206 чтений»
+    # (отстало на единицу по обоим). Оба числа стоят в двух шагах друг от друга, обоим
+    # верит читатель, и разошлись они молча. Поймало ревью Greptile.
+    #
+    # Проверяется ФОРМА, а не место: где бы в шаблоне ни стояло «N записей, M чтений»,
+    # N и M обязаны быть суммами замера. Так правило переживёт перевёрстку таблицы.
+    prose_drift = []
+    шаблон = ROOT / "docs" / "architecture" / "atlas.template.html"
+    if шаблон.exists():
+        ИТОГИ = _re2.compile(r"(\d+)\s+записей,\s*(\d+)\s+чтений")
+        w, r = sum(now["S_writes"].values()), sum(now["S_reads"].values())
+        for m in ИТОГИ.finditer(шаблон.read_text(encoding="utf-8")):
+            if (int(m.group(1)), int(m.group(2))) != (w, r):
+                prose_drift.append((f"{m.group(1)} записей, {m.group(2)} чтений",
+                                    f"{w} записей, {r} чтений"))
+
+    if prose_drift:
+        print("ИТОГИ В ПРОЗЕ СТРАНИЦЫ РАЗОШЛИСЬ С ЗАМЕРОМ:")
+        for got, want in prose_drift:
+            print(f"  страница: {got}")
+            print(f"  замер:    {want}")
+        print("  править: docs/architecture/atlas.template.html, таблица s2\n")
+
+    if not drift and not issue_drift and not stamp_drift and not prose_drift:
         print("ВСЁ СОШЛОСЬ: числа и якоря атласа держатся.")
         return 0
 
