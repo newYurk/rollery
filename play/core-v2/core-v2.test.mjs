@@ -14,6 +14,7 @@ import {
 } from './knife.js';
 import { catalogAreaMm2, cutFillSector, makeF02Recipe, makeF05Recipe, makeF07Recipe, makeHosogiriRecipe, makeCrowdedHosoRecipe } from './recipe.js';
 import { sampleSection, samplePatch } from './section.js';
+import { measure } from './measure.js';
 import { adapt, adaptScenario } from './adapter.js';
 
 function clone(x) { return structuredClone(x); }
@@ -185,6 +186,39 @@ test('#205: каждая строка arcByLayerMm объявляет ровно
     const rows = report.sheet.arcByLayerMm.filter((r) => r.layerId.startsWith('nori'));
     assert.equal(rows.length, 2, `${имя}: нахлёст обязан быть отдельной строкой`);
   }
+});
+
+// ── РЕВЬЮ PR #223: КОД ДИАГНОСТИКИ — ВСЕГДА СТРОКА ──────────────────────────
+// Таблица отказов по базе читалась обычным литералом, то есть через цепочку прототипа:
+// `baseId: 'toString'` клал в `code` ФУНКЦИЮ, `'constructor'` — тоже, `'__proto__'` — объект.
+// Попытка честного отказа сама рожала отчёт, нарушающий контракт Diagnostic.
+test('#223: имя из Object.prototype не пролезает в код диагностики', () => {
+  for (const id of ['toString', 'constructor', 'valueOf', 'hasOwnProperty', '__proto__']) {
+    const v = validateRecipe({ ...makeF01Recipe(), baseId: id });
+    assert.equal(v.status, 'unsupported');
+    assert.equal(typeof v.diagnostics[0].code, 'string', `baseId ${id} дал не строку`);
+    assert.equal(v.diagnostics[0].code, 'section_shape');
+  }
+});
+
+// ── РЕВЬЮ PR #223: НАХЛЁСТ НЕ БЫВАЕТ ОТРИЦАТЕЛЬНЫМ ──────────────────────────
+// ⚠ ВЕТКА ЗАЩИТНАЯ, И ЭТО СКАЗАНО ЧЕСТНО. Настоящим рецептом полосу
+// `L < noriPerimeter ≤ L + EPS` подобрать не удалось: укорачивая лист, укорачиваешь и ролл,
+// и периметр убегает следом. Но `assessWinding` эту полосу ПРОПУСКАЕТ, значит правило отчёта
+// обязано её пережить — поэтому проверяется сама функция отчёта на синтезированной намотке,
+// а не подбирается рецепт. Без клампа строка ушла бы в `u0Mm > u1Mm` с дугой ниже нуля.
+test('#223: отрицательный нахлёст не попадает в отчёт', () => {
+  const r = makeF01Recipe();
+  const w = buildWinding(r);
+  const L = r.sheet.lengthMm;
+  const порченая = { ...w, seam: { ...w.seam, overlapMm: -0.1, uStartMm: L + 0.1, uEndMm: L } };
+  const rep = measure(r, порченая, sampleSection(r, w, r.sheet.widthMm / 2), 'band', 'valid', []);
+  for (const row of rep.sheet.arcByLayerMm) {
+    assert.ok(row.arcMm >= 0, `${row.layerId}: дуга ${row.arcMm} ниже нуля`);
+    assert.ok(row.u1Mm >= row.u0Mm, `${row.layerId}: u1 ${row.u1Mm} меньше u0 ${row.u0Mm}`);
+  }
+  const nori = rep.sheet.arcByLayerMm.find((x) => x.layerId === 'nori');
+  assert.equal(nori.u1Mm, L, 'при нулевом нахлёсте нори обходит лист целиком');
 });
 
 // ── РЕВЬЮ PR #223: ПОРЯДОК ДОЛЖЕН БЫТЬ ПОЛНЫМ, А НЕ «ПО id» ─────────────────

@@ -28,7 +28,7 @@
 
 | `code` | `status` | Обязательные ключи `context` | Требование |
 |---|---|---|---|
-| `patch_out_of_sheet` | `invalid` | `patchId`, `sheetLengthMm`, `observedFootprintMm` | erratum-004, F04a |
+| `patch_out_of_sheet` | `invalid` | `patchId`, `sheetLengthMm`; `observedFootprintMm` — **только когда след вычислим** | erratum-004, F04a; уточнение см. ниже |
 | `closure_window` | `outsideModelScope` | `patchId`, `placementWindowMm` | erratum-004, F04b |
 | `patch_rotated` | `unsupported` | `patchId`, `observedRotationDeg` | erratum-002 |
 | `patch_material_overlap` | `invalid` | `patchIds`, `materialId` | erratum-007, F07 |
@@ -41,6 +41,14 @@
 | **`wraps_beyond_two`** | `outsideModelScope` | `noriPerimeterMm`, `sheetLengthMm` | больше двух витков обёртки |
 | **`chef_corridor`** | `outsideModelScope` | `diameterMm`, `corridorMm` | диаметр вне коридора практики |
 | **`core_overflow`** | `invalid` | `patchId`, `overflowMm` | начинка не помещается в ядро |
+
+### `observedFootprintMm` — условный ключ, и это не послабление
+
+`erratum-012` требует `observedFootprintMm` у `patch_out_of_sheet` безусловно. Код требование не выполняет, и не может: у ветки «`uMm` или `widthMm` не конечны либо ширина ≤ 0» (`validate.js`) следа **не существует** — вычислять `[uMm − w/2, uMm + w/2]` из `NaN` значит положить в отчёт `[NaN, NaN]` и назвать это наблюдением.
+
+Поэтому ключ объявляется **условным**: обязателен, когда след вычислим (координата и ширина конечны, ширина положительна) — то есть во всех случаях, ради которых erratum-004 его и требовал: патч цел, но вышел за лист. Для порченого входа обязательны `patchId` и `sheetLengthMm`, и этого достаточно, чтобы указать на кусок.
+
+⚠ Расхождение это **не новое** — оно жило с erratum-012 и было унаследовано первой редакцией этого файла дословно. Поймало ревью CodeRabbit на PR #223.
 
 ### Правка таблицы — коды `from-layout.js` (адаптер legacy → V2)
 

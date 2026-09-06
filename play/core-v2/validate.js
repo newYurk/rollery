@@ -65,9 +65,17 @@ export function validateRecipe(recipe) {
   // и полного справочника видов у него нет; две строки ниже — не справочник, а исполнение двух
   // именованных строк ADR. Всё, чего в них нет, отказывается честно, но менее подробно.
   const KNOWN_BASE_IDS = ['hosomaki', 'futomaki'];
-  const BASE_REFUSALS = { temaki: 'conical_roll', тэмаки: 'conical_roll',
-                          uramaki: 'inside_wrap_topology', ura: 'inside_wrap_topology',
-                          урамаки: 'inside_wrap_topology' };
+  //
+  // ⚠ ТАБЛИЦА БЕЗ ПРОТОТИПА, И ЭТО НЕ ПЕДАНТИЗМ. Первая редакция этой правки брала
+  // `{ temaki: … }` обычным литералом, и `BASE_REFUSALS[shown]` читал цепочку прототипа:
+  // `baseId: 'toString'` отдавал ФУНКЦИЮ в поле `code` диагностики, `'constructor'` — тоже,
+  // `'__proto__'` — объект. То есть попытка честного отказа сама рожала отчёт, нарушающий
+  // контракт `Diagnostic` (код обязан быть строкой) и способный поменять форму при
+  // сериализации. Поймало ревью CodeRabbit на PR #223 — в тот же день, что и правка.
+  const BASE_REFUSALS = Object.assign(Object.create(null), {
+    temaki: 'conical_roll', тэмаки: 'conical_roll',
+    uramaki: 'inside_wrap_topology', ura: 'inside_wrap_topology', урамаки: 'inside_wrap_topology',
+  });
   const baseId = recipe.baseId;
   if (typeof baseId !== 'string' || !KNOWN_BASE_IDS.includes(baseId)) {
     const shown = baseId == null ? 'missing' : String(baseId);

@@ -19,6 +19,18 @@ export function measure(recipe, winding, section, fixtureId, status, diagnostics
   const window = placementWindowMm(recipe.sheet);
   const two = [...winding.wrapIntersectionsByRay].filter((n) => n === 2).length;
 
+  // ⚠ НАХЛЁСТ НЕ БЫВАЕТ ОТРИЦАТЕЛЬНЫМ (ревью CodeRabbit, PR #223). `assessWinding` отказывает
+  // при `noriPerimeter > L + EPS_LENGTH_MM`, то есть полоса `L < noriPerimeter ≤ L + 0,15`
+  // ПРОХОДИТ — и в ней `overlapMm = L − noriPerimeter` уходит в минус. Первая редакция этой
+  // правки положила бы такой минус прямо в отчёт: строка с `u0Mm > u1Mm` и дугой ниже нуля.
+  //
+  // Смысл полосы — «периметр равен листу в пределах мерки», а не «лист чуть короче кольца».
+  // Значит и читать её надо так: нахлёста нет, нори обходит ровно раз. Остаток ≤ 0,15 мм лежит
+  // НИЖЕ EPS_LENGTH_MM по определению — для того EPS и заведён. У всех живых фикстур нахлёст
+  // далеко от нуля (14,5 · 12,4 · 63,8 мм), поэтому ветка ниже их чисел не касается.
+  const overlapMm = Math.max(0, winding.seam.overlapMm);
+  const seamUMm = overlapMm > 0 ? winding.seam.uStartMm : L;
+
   const report = {
     fixtureId,
     status,
@@ -52,8 +64,8 @@ export function measure(recipe, winding, section, fixtureId, status, diagnostics
       // `τ·(rp + W/2)` — два разных пути к одному числу.
       arcByLayerMm: [
         { layerId: 'rice', u0Mm: winding.sRice0, u1Mm: winding.sRice1, arcMm: winding.riceArcMm },
-        { layerId: 'nori', u0Mm: 0, u1Mm: winding.seam.uStartMm, arcMm: winding.noriArcMm },
-        { layerId: 'nori-overlap', u0Mm: winding.seam.uStartMm, u1Mm: winding.seam.uEndMm, arcMm: winding.seam.overlapMm },
+        { layerId: 'nori', u0Mm: 0, u1Mm: seamUMm, arcMm: seamUMm },
+        { layerId: 'nori-overlap', u0Mm: seamUMm, u1Mm: L, arcMm: overlapMm },
       ],
     },
     seam: { ...winding.seam },
