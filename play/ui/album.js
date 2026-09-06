@@ -99,7 +99,7 @@ function drawAlbum() {
     albumCells.push({ i, x, y, w: cell, h: cell });
     const bp = Math.max(5, Math.round(cell * 0.07)), cfs = cell - 2 * bp;
     drawMat(x, y, cell, cell, 12, BASES[e.base] || B());
-    try { drawFaceImg(albumFace(e, cfs), x + cell / 2, y + cell / 2, cfs); } catch (err) {}
+    try { drawFaceImg(albumFace(e, cfs), x + cell / 2, y + cell / 2, cfs, 1, 1, false, BASES[e.base] || B()); } catch (err) {}
     ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     const tag = (BASES[e.base] ? BASES[e.base].emoji : '') + ' ' + albumDate(e.at) + (e.sim != null ? ' · ' + e.sim + ' %' : '');
     ctx.fillText(tag, x + cell / 2, y + cell + 5);
@@ -123,10 +123,10 @@ function drawAlbum() {
     ctx.fillText(`${BASES[e.base] ? BASES[e.base].name : e.base} · ${albumDate(e.at)}${e.sim != null ? ' · совпало на ' + e.sim + ' %' : ''}`, cx, y0 - 12);
     const x0 = cx - ((k - 1) * (fs + 8)) / 2, eb = eb0;
     drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y: y0 + fs / 2, size: fs })), 1, eb, k);
-    for (let i = 0; i < k; i++) { try { drawFaceImg(albumFace(e, fs, pieceV(i, k)), x0 + i * (fs + 8), y0 + fs / 2, fs); } catch (err) {} }
+    for (let i = 0; i < k; i++) { try { drawFaceImg(albumFace(e, fs, pieceV(i, k)), x0 + i * (fs + 8), y0 + fs / 2, fs, 1, 1, false, eb); } catch (err) {} }
     const big = Math.min(0.5 * cw, 0.42 * L.ch, 300);
     drawSlab([{ x: cx, y: y0 + fs + 24 + big / 2, size: big }], 1, eb, 8);
-    try { drawFaceImg(albumFace(e, big), cx, y0 + fs + 24 + big / 2, big); } catch (err) {}
+    try { drawFaceImg(albumFace(e, big), cx, y0 + fs + 24 + big / 2, big, 1, 1, false, eb); } catch (err) {}
     const hl = e.hand && (e.hand.air || e.hand.wobble || e.hand.press !== 1) ? handLabelOf(e.hand) : '';
     if (hl) { ctx.fillStyle = '#6f6754'; ctx.font = font(12); ctx.textBaseline = 'top'; ctx.fillText(hl, cx, y0 + fs + 24 + big + 12); }
     buttons = []; buttonRow([['albumopen_load', 'На лист', true], ['albumopen_share', '🔗 Ссылка'], ['albumopen_del', 'Убрать']]);
