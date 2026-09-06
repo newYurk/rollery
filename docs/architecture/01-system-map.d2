@@ -101,21 +101,21 @@ core_v2: "core-v2 · то же самое, но в миллиметрах" {
     Наружу — только через `adapter.js`.
   | {class: note}
   units: |md
-    **core-v2/units.js** · 323 \
+    **core-v2/units.js** · 349 \
     константы и снимки каталога в мм \
     U_MM · окно раскладки · пороги EPS \
-    packCoreRows — жёсткая упаковка ядра
+    packCoreRows — упаковка встык, ⚠ спорит с erratum-007 (#205)
   | {class: file}
   pipe: |md
     **validate → winding → section → measure** \
-    validate.js · 194 — честный отказ с кодом \
-    winding.js · 335 — кольцо: r0 по лучам, шов \
-    section.js · 147 — срез и площадь кольца \
-    measure.js · 117 — FixtureReport
+    validate.js · 233 — честный отказ с кодом, включая базу \
+    winding.js · 353 — кольцо: r0 по лучам, шов \
+    section.js · 140 — срез и площадь кольца \
+    measure.js · 149 — FixtureReport
   | {class: file}
   gate: |md
-    **fixtures.js** · 516 · приёмка F01–F07 \
-    core-v2.test.mjs — 56 тестов \
+    **fixtures.js** · 563 · приёмка F01–F07 \
+    core-v2.test.mjs — 65 тестов и один todo (#205) \
     run-fixtures.mjs — шлюз CI (.github/workflows/core-v2.yml) \
     hash.js + canonical.js — детерминизм
   | {class: guard}
