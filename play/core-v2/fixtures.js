@@ -459,6 +459,30 @@ export function acceptF07(steps, swapped, overlap) {
       : fail(`F07-${uMm}:areas`));
   }
   const valid = steps.filter((s) => s.a.report.status === 'valid');
+  // ⚠ ЭТО ХАРАКТЕРИЗАЦИЯ РЕАЛИЗАЦИИ, А НЕ ПРОВЕРКА КОНТРАКТА (#205, разбор 06.09).
+  //
+  // Всё, что ниже, зашивает ТОЧКУ СКАЧКА: `side` объявляет, что порядок кусков меняется ровно
+  // на `uMm = 60`, и дальше требует неподвижности внутри стороны и скачка на границе. Ровно
+  // это erratum-007 и называет дефектом: «работает НОМЕР в порядке следования после сортировки,
+  // а не сама координата». Проверка написана под ту реализацию, которую должна была ловить,
+  // и покраснеть может только от смены самой точки 60 — но не от возвращения полочной укладки.
+  //
+  // Замер, показывающий цену: на серии, где куски по листу НЕ перекрываются (зонд 20…44 при
+  // соседе на 60), действующая укладка даёт СМЕЩЕНИЕ НОЛЬ при ходе зонда в 24 мм. Ни одна
+  // строка ниже этого не видит, потому что вся серия F07 лежит внутри одной «стороны».
+  //
+  // Почему не переписано на контракт прямо сейчас. Куски F07 перекрываются на листе на КАЖДОМ
+  // шаге (6…8 мм) вопреки собственной спецификации fixture («оба патча тонкие, чтобы окно
+  // пересечения было маленьким»). Для перекрывающихся кусков требование erratum-007 о
+  // непрерывности «включая сам момент совпадения координат» невыполнимо ни при какой
+  // детерминированной реализации: два прижатых твёрдых куска не проходят друг сквозь друга,
+  // и кто окажется слева — дискретный выбор. А выполнить букву erratum-007 («переупаковки нет
+  // вовсе») мешает #186: без упаковки пустота внутри границы ядра растёт с 10 % до 17,3 %,
+  // и две его проверки краснеют. Три утверждения, любые два исключают третье; развилка описана
+  // в #205 и требует источников, а не чтения кода.
+  //
+  // До её решения строки ниже остаются как СЛЕПОК поведения — они честно ловят изменение
+  // реализации, но не подтверждают erratum-007 и цитировать их как подтверждение нельзя.
   const side = (u) => (u < 60 ? -1 : 1);
   for (let i = 1; i < valid.length; i++) {
     const p0 = findVis(valid[i - 1].a.report, 'tamago-0');
@@ -466,9 +490,9 @@ export function acceptF07(steps, swapped, overlap) {
     const d = Math.hypot(p1.centerXmm - p0.centerXmm, p1.centerYmm - p0.centerYmm);
     const same = side(valid[i].uMm) === side(valid[i - 1].uMm);
     if (same) {
-      checks.push(d <= EPS_LENGTH_MM ? ok(`F07-cont-${valid[i].uMm}`) : fail(`F07-cont-${valid[i].uMm}`, d));
+      checks.push(d <= EPS_LENGTH_MM ? ok(`F07-charact-cont-${valid[i].uMm}`) : fail(`F07-charact-cont-${valid[i].uMm}`, d));
     } else {
-      checks.push(d > EPS_LENGTH_MM ? ok(`F07-swap-side-${valid[i].uMm}`) : fail(`F07-swap-side-${valid[i].uMm}`, d));
+      checks.push(d > EPS_LENGTH_MM ? ok(`F07-charact-swap-${valid[i].uMm}`) : fail(`F07-charact-swap-${valid[i].uMm}`, d));
     }
   }
   const bySide = new Map();
@@ -478,7 +502,7 @@ export function acceptF07(steps, swapped, overlap) {
     const c0 = findVis(bySide.get(k).a.report, 'cucumber-0');
     const c = findVis(s.a.report, 'cucumber-0');
     const d = Math.hypot(c.centerXmm - c0.centerXmm, c.centerYmm - c0.centerYmm);
-    checks.push(d <= EPS_LENGTH_MM ? ok(`F07-neigh-${s.uMm}`) : fail(`F07-neigh-${s.uMm}`, d));
+    checks.push(d <= EPS_LENGTH_MM ? ok(`F07-charact-neigh-${s.uMm}`) : fail(`F07-charact-neigh-${s.uMm}`, d));
   }
   const step56 = steps.find((s) => s.uMm === 56);
   if (swapped.report.status === 'valid' && step56?.a.report.status === 'valid') {
