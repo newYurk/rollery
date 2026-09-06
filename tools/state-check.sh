@@ -68,12 +68,21 @@ for b in $(git branch --format='%(refname:short)' | grep -v '^main$' | grep -v '
 done
 
 say "── доска Projects"
+# ⚠ ПУСТОЙ ОТВЕТ — ЭТО «НЕ ПРОВЕРЕНО», А НЕ «КАРТОЧЕК НЕТ». 06.09 после серии правок доски
+# упёрлись в лимит API, `gh` вернул пустоту, и сторож напечатал 182 ложные тревоги — по одной
+# на каждую задачу репозитория. Отличить отказ от настоящей пропажи легко: доска, на которой
+# НИ ОДНОЙ карточки, — это отказ инструмента, а не состояние проекта. Молчать про отказ тоже
+# нельзя: тогда раздел тихо перестанет проверять. Поэтому — отдельная строка «не проверено».
 have=$(gh project item-list $PROJ --owner $OWNER --limit 500 --format json -q '[.items[].content.number] | @tsv' 2>/dev/null | tr '\t' '\n' | sort -n)
-miss=0
-while read -r n; do
-  echo "$have" | grep -qx "$n" || { warn "issue #$n не на доске"; miss=$((miss+1)); }
-done < <(gh issue list -R $REPO --state all --limit 500 --json number -q '.[].number')
-[ "$miss" = "0" ] && say "  ✓ все issues на доске"
+if [ -z "$have" ]; then
+  say "  · доска не ответила (лимит API или сеть) — раздел НЕ ПРОВЕРЕН"
+else
+  miss=0
+  while read -r n; do
+    echo "$have" | grep -qx "$n" || { warn "issue #$n не на доске"; miss=$((miss+1)); }
+  done < <(gh issue list -R $REPO --state all --limit 500 --json number -q '.[].number')
+  [ "$miss" = "0" ] && say "  ✓ все issues на доске"
+fi
 
 say "── milestone у открытых задач"
 # ⚠ ИМЯ ПЕРЕМЕННОЙ ЛАТИНИЦЕЙ. Кириллическое bash не принимает: «без=: command not found».
@@ -81,9 +90,15 @@ say "── milestone у открытых задач"
 # ⚠ МЕТКА НЕ ЗАМЕНЯЕТ MILESTONE, и это не очевидно. 01.09 обе новые задачи получили метку
 # «фундамент» и остались БЕЗ milestone — то есть не попали ни в один срез доски и не считались
 # в прогрессе «Полноты модели». Владелец заметила это раньше сторожа; теперь сторож.
+# ⚠ ЗДЕСЬ ОТКАЗ ОПАСНЕЕ, ЧЕМ ВЫШЕ: пустой ответ читается как «ни одной задачи без milestone»,
+# то есть сторож зеленеет НА ОТКАЗЕ. Ложная тревога заставляет посмотреть, ложное «всё хорошо»
+# не заставляет ничего. Поэтому сначала проверяем, что список задач вообще пришёл.
+open_n=$(gh issue list -R $REPO --state open --limit 200 --json number -q '.[].number' 2>/dev/null | grep -c .)
 no_ms=$(gh issue list -R $REPO --state open --limit 200 --json number,milestone \
       -q '.[] | select(.milestone == null) | .number' 2>/dev/null)
-if [ -n "$no_ms" ]; then
+if [ "$open_n" = "0" ]; then
+  say "  · список задач не пришёл (лимит API или сеть) — раздел НЕ ПРОВЕРЕН"
+elif [ -n "$no_ms" ]; then
   cnt=$(printf '%s\n' "$no_ms" | grep -c .)
   warn "открытых задач без milestone: $cnt — они не попадают ни в один срез"
   printf '%s\n' "$no_ms" | sed 's/^/      #/'
@@ -101,6 +116,13 @@ gh project item-list $PROJ --owner $OWNER --limit 500 --format json \
 gh issue list -R $REPO --state all --limit 500 --json number,state \
   -q '.[] | "\(.number)\t\(.state)"' 2>/dev/null | sort -k1,1 > /tmp/sc-issues.tsv
 nc=$(wc -l < /tmp/sc-cards.tsv | tr -d ' '); ni=$(wc -l < /tmp/sc-issues.tsv | tr -d ' ')
+# Та же защита, что и выше: пустой список карточек или issues — отказ инструмента.
+if [ "$nc" = "0" ] || [ "$ni" = "0" ]; then
+  say "  · списки не пришли (лимит API или сеть) — раздел НЕ ПРОВЕРЕН"
+  rm -f /tmp/sc-cards.tsv /tmp/sc-issues.tsv
+  nc=-1
+fi
+if [ "$nc" != "-1" ]; then
 [ "$nc" -ge 500 ] && warn "список карточек упёрся в предел 500 — поднять лимит"
 [ "$ni" -ge 500 ] && warn "список issues упёрся в предел 500 — поднять лимит"
 mism=$(join -t$'\t' /tmp/sc-cards.tsv /tmp/sc-issues.tsv | \
@@ -111,6 +133,7 @@ else
   op=$(awk -F'\t' '$2=="OPEN"' /tmp/sc-issues.tsv | wc -l | tr -d ' ')
   cl=$(awk -F'\t' '$2=="CLOSED"' /tmp/sc-issues.tsv | wc -l | tr -d ' ')
   say "  ✓ статусы сходятся: открытых $op · закрытых $cl · карточек $nc"
+fi
 fi
 rm -f /tmp/sc-cards.tsv /tmp/sc-issues.tsv
 
