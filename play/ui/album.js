@@ -44,6 +44,18 @@ function withRecipe(e, fn) {
   finally { S.base = keep.base; S.wrap = keep.wrap; S.turns = keep.turns; S.shape = keep.shape; S.hand = keep.hand; S.lists[e.base] = keep.list; }
   return out;
 }
+// ПАЛИТРА ЗАПИСИ — С СОХРАНЁННОЙ ОБЁРТКОЙ, А НЕ С УМОЛЧАНИЕМ БАЗЫ (находка ревью PR #219).
+// `BASES[e.base]` — сырая база из каталога; её поле `wrapper` описывает обёртку ПО УМОЛЧАНИЮ.
+// Игрок обёртку выбирает, и `albumSave` пишет выбор в `e.wrap` — именно его рисует `albumFace`.
+// Если брать умолчание, хосомаки, завёрнутый в гюхи, покажут срез в гюхи, а решение о кромке
+// примут по нори: светлая обёртка останется без границы ровно там, где она нужнее всего.
+// Логика повторяет `B()` намеренно: обёртка — единственное поле, которое там подменяется, и
+// цвет берётся из WRAPPERS, а не из дубля в каталоге.
+function albumPal(e) {
+  const b = BASES[e.base] || B();
+  const wk = b.wrapFixed ? null : ((e.wrap && WRAPPERS[e.wrap]) ? e.wrap : (b.wrapKey || 'nori'));
+  return wk ? Object.assign({}, b, { wrapper: WRAPPERS[wk].color }) : b;
+}
 function albumFace(e, size, v) { return withRecipe(e, m => face(v == null ? 0.5 : v, size, m)); }
 function albumLoad(i) {
   const e = S.album[i]; if (!e) return;
@@ -98,8 +110,8 @@ function drawAlbum() {
     if (y > top + viewH || y + rowH < top - rowH) return;
     albumCells.push({ i, x, y, w: cell, h: cell });
     const bp = Math.max(5, Math.round(cell * 0.07)), cfs = cell - 2 * bp;
-    drawMat(x, y, cell, cell, 12, BASES[e.base] || B());
-    try { drawFaceImg(albumFace(e, cfs), x + cell / 2, y + cell / 2, cfs); } catch (err) {}
+    drawMat(x, y, cell, cell, 12, albumPal(e));
+    try { drawFaceImg(albumFace(e, cfs), x + cell / 2, y + cell / 2, cfs, 1, 1, false, albumPal(e)); } catch (err) {}
     ctx.fillStyle = '#6f6754'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     const tag = (BASES[e.base] ? BASES[e.base].emoji : '') + ' ' + albumDate(e.at) + (e.sim != null ? ' · ' + e.sim + ' %' : '');
     ctx.fillText(tag, x + cell / 2, y + cell + 5);
@@ -116,17 +128,17 @@ function drawAlbum() {
     ctx.fillStyle = 'rgba(23,23,19,0.93)'; ctx.fillRect(0, 0, W, H);
     // Число кусков — у базы САМОЙ ЗАПИСИ, а не текущей: футомаки режется на восемь, хосомаки
     // на шесть, и запись помнит, чем была (#134-side, правка 01.09).
-    const eb0 = BASES[e.base] || B(), k = eb0.pieces || 6;
+    const eb0 = albumPal(e), k = eb0.pieces || 6;
     const fs = Math.min((cw - 40 - (k - 1) * 8) / k, 0.22 * L.ch, 120);
     const cx = ox + cw / 2, y0 = L.top + 40;
     ctx.fillStyle = '#b8ad95'; ctx.font = font(13); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillText(`${BASES[e.base] ? BASES[e.base].name : e.base} · ${albumDate(e.at)}${e.sim != null ? ' · совпало на ' + e.sim + ' %' : ''}`, cx, y0 - 12);
     const x0 = cx - ((k - 1) * (fs + 8)) / 2, eb = eb0;
     drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y: y0 + fs / 2, size: fs })), 1, eb, k);
-    for (let i = 0; i < k; i++) { try { drawFaceImg(albumFace(e, fs, pieceV(i, k)), x0 + i * (fs + 8), y0 + fs / 2, fs); } catch (err) {} }
+    for (let i = 0; i < k; i++) { try { drawFaceImg(albumFace(e, fs, pieceV(i, k)), x0 + i * (fs + 8), y0 + fs / 2, fs, 1, 1, false, eb); } catch (err) {} }
     const big = Math.min(0.5 * cw, 0.42 * L.ch, 300);
     drawSlab([{ x: cx, y: y0 + fs + 24 + big / 2, size: big }], 1, eb, 8);
-    try { drawFaceImg(albumFace(e, big), cx, y0 + fs + 24 + big / 2, big); } catch (err) {}
+    try { drawFaceImg(albumFace(e, big), cx, y0 + fs + 24 + big / 2, big, 1, 1, false, eb); } catch (err) {}
     const hl = e.hand && (e.hand.air || e.hand.wobble || e.hand.press !== 1) ? handLabelOf(e.hand) : '';
     if (hl) { ctx.fillStyle = '#6f6754'; ctx.font = font(12); ctx.textBaseline = 'top'; ctx.fillText(hl, cx, y0 + fs + 24 + big + 12); }
     buttons = []; buttonRow([['albumopen_load', 'На лист', true], ['albumopen_share', '🔗 Ссылка'], ['albumopen_del', 'Убрать']]);
