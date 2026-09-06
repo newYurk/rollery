@@ -166,18 +166,18 @@
   "play/core-v2/app.js": 253,
   "play/core-v2/bridge.js": 79,
   "play/core-v2/canonical.js": 31,
-  "play/core-v2/fixtures.js": 539,
+  "play/core-v2/fixtures.js": 563,
   "play/core-v2/from-layout.js": 192,
   "play/core-v2/hash.js": 61,
   "play/core-v2/knife.js": 45,
   "play/core-v2/legacy-probe.js": 92,
-  "play/core-v2/measure.js": 117,
+  "play/core-v2/measure.js": 149,
   "play/core-v2/recipe.js": 245,
   "play/core-v2/render.js": 413,
-  "play/core-v2/section.js": 147,
-  "play/core-v2/units.js": 323,
-  "play/core-v2/validate.js": 194,
-  "play/core-v2/winding.js": 335,
+  "play/core-v2/section.js": 140,
+  "play/core-v2/units.js": 349,
+  "play/core-v2/validate.js": 233,
+  "play/core-v2/winding.js": 353,
   "play/domain/recipe-v2.js": 65,
   "play/domain/roll.js": 303,
   "play/inverse/materials.js": 161,
@@ -209,15 +209,15 @@
   "ring_leak": 0,
   "state_swaps": 1
  },
- "ref": "2203854",
+ "ref": "d19105a",
  "scripts": {
   "count": 16,
   "versions": [
    "226"
   ]
  },
- "subject": "The chamfer fork collapsed to one path, and point H was parked in a question (#125, #137) (#221)",
- "total_lines": 14886,
+ "subject": "F07's acceptance was a characterisation test wearing a contract's name (#205) (#224)",
+ "total_lines": 15018,
  "touchModel": {
   "play/checks.js": 55,
   "play/modes/puzzle.js": 3,
