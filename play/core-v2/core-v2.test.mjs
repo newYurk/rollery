@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   runF01, runF02, runF03, runF04a, runF04b, runF05, runF06, runF07,
-  acceptF01, acceptF02, allPassed,
+  acceptF01, acceptF02, allPassed, runFixture,
   makeF01Recipe, makeCucumberRecipe, cucumberCatalogAreaMm2,
 } from './fixtures.js';
 import { validateRecipe, assessWinding } from './validate.js';
@@ -13,7 +13,7 @@ import {
   pieceLengthMm, snapCutFraction,
 } from './knife.js';
 import { catalogAreaMm2, cutFillSector, makeF02Recipe, makeF05Recipe, makeF07Recipe, makeHosogiriRecipe, makeCrowdedHosoRecipe } from './recipe.js';
-import { sampleSection } from './section.js';
+import { sampleSection, samplePatch } from './section.js';
 import { adapt, adaptScenario } from './adapter.js';
 
 function clone(x) { return structuredClone(x); }
@@ -125,6 +125,93 @@ test('mutation: missing windDirection', () => {
   delete recipe.windDirection;
   const v = validateRecipe(recipe);
   assert.equal(v.diagnostics[0].code, 'recipe_missing_wind_direction');
+});
+
+// ── #205, ПУНКТ 1: БАЗА ОТКАЗЫВАЕТ, А НЕ ПОДМЕНЯЕТСЯ ──────────────────────────
+// До 06.09 `baseOf()` возвращал хосомаки для ЛЮБОГО чужого `baseId`, а `validateRecipe`
+// про поле не знал вовсе. Проверяется обе стороны: чужая база отказывается, своя проходит.
+test('#205: чужой baseId — честный отказ, а не молчаливый хосомаки', () => {
+  const свои = ['hosomaki', 'futomaki'];
+  for (const id of свои) {
+    const v = validateRecipe({ ...makeF01Recipe(), baseId: id });
+    assert.equal(v.status, 'valid', `своя база ${id} должна проходить`);
+  }
+  // ADR-001, «Поведение вне модели»: у двух видов свой код, у остальных общий.
+  const ожидание = [
+    ['temaki', 'conical_roll'],
+    ['uramaki', 'inside_wrap_topology'],
+    ['uramaki-deluxe', 'section_shape'],
+    ['НЕТ ТАКОЙ', 'section_shape'],
+    ['', 'section_shape'],
+    [null, 'section_shape'],
+    [42, 'section_shape'],
+  ];
+  for (const [id, code] of ожидание) {
+    const v = validateRecipe({ ...makeF01Recipe(), baseId: id });
+    assert.equal(v.status, 'unsupported', `baseId ${JSON.stringify(id)} прошёл как валидный`);
+    assert.equal(v.diagnostics[0].code, code, `baseId ${JSON.stringify(id)}: не тот код`);
+    // erratum-012 требует `requestedFeature` у всех трёх кодов этой группы.
+    assert.equal(typeof v.diagnostics[0].context.requestedFeature, 'string');
+  }
+});
+
+// Отдельно — то, что делало дефект незаметным: отчёт был БИТ В БИТ равен F01.
+test('#205: чужая база не даёт хеша F01', () => {
+  const свой = runF01().report.hashes.winding;
+  const чужой = runFixture('F01', { ...makeF01Recipe(), baseId: 'temaki' });
+  assert.notEqual(чужой.status, 'valid');
+  assert.notEqual(чужой.hashes.winding, свой);
+});
+
+// ── #205, ПУНКТ 4: СТРОКА ОТЧЁТА НЕ ОБЪЯВЛЯЕТ БОЛЬШЕ, ЧЕМ СЧИТАЕТ ────────────
+// ⚠ ЭТО КОНТРАКТ НА ФОРМУ ОТЧЁТА, А НЕ ФИЗИЧЕСКИЙ ОРАКУЛ, и путать нельзя. У строки нори
+// `u1 − u0` равно `arcMm` ПО ПОСТРОЕНИЮ (`seam.uStartMm` и `noriArcMm` — одно число), значит
+// само равенство ничего не измеряет. Ловит проверка другое и вполне конкретное: возврат к
+// прежнему `u1Mm: L` при неизменном `arcMm`, то есть заявку на весь лист при дуге в один
+// оборот — 97 × EPS на F01 и 425 × EPS на F05. Физику дуги меряет `arc:nori` в fixtures.js,
+// сверяя интеграл по лучам с замкнутой формулой; здесь — честность подписи.
+test('#205: каждая строка arcByLayerMm объявляет ровно ту длину, что и считает', () => {
+  for (const [имя, run] of [['F01', runF01], ['F02', runF02]]) {
+    const { report } = run();
+    const L = report.sheet.lengthMm;
+    let сумма = 0;
+    for (const row of report.sheet.arcByLayerMm) {
+      const объявлено = row.u1Mm - row.u0Mm;
+      assert.ok(Math.abs(объявлено - row.arcMm) <= 1e-9,
+        `${имя}/${row.layerId}: объявлено ${объявлено}, дуга ${row.arcMm}`);
+      if (row.layerId.startsWith('nori')) сумма += row.arcMm;
+    }
+    assert.ok(Math.abs(сумма - L) <= 1e-9, `${имя}: виток + нахлёст = ${сумма}, лист ${L}`);
+    const rows = report.sheet.arcByLayerMm.filter((r) => r.layerId.startsWith('nori'));
+    assert.equal(rows.length, 2, `${имя}: нахлёст обязан быть отдельной строкой`);
+  }
+});
+
+// ── #205, ПУНКТ 5: ВЕТКА СЕКТОРА БОЛЬШЕ НЕ НЕПОКРЫТА ─────────────────────────
+// Мутация `cutFillSector() * 1.4` ВЫЖИВАЛА в шлюзе с распиской «закроется вместе с #205»:
+// огурец F02 — брусок 8×8, и ни одна фикстура не строила патч с `cut: 'сектор'`, поэтому
+// формулу erratum-015 не проверял никто. Дыра закрывается не фикстурой, а независимым
+// оракулом, который уже лежал рядом и ни с чем не сверялся: `sampleSector` считает площадь
+// СЕТКОЙ 320², а `catalogAreaMm2` — замкнутой формулой `w · h · cutFill`. Два разных пути.
+//
+// Замер: сетка 76,9826 мм², формула 76,9744 мм², отношение 1,000106. Мутация ×1,4 уводит
+// отношение к 0,714 — порог 1,005 её ловит с запасом в шестьдесят раз.
+test('#205: площадь сектора сеткой сходится с замкнутой формулой', () => {
+  // Размеры — живого каталога (`catalog.js`, огурец 14 × 9,9, сектор): проверяется ФОРМА,
+  // а не конкретный патч F02, и от смены реза огурца в V2 проверка не зависит.
+  const patch = { id: 'cuc-sector', materialId: 'cucumber', cut: 'сектор',
+                  widthMm: 14, heightMm: 9.9, uMm: 52.5, lengthFactor: 1 };
+  const recipe = { patches: [patch], sheet: { lengthMm: 105, widthMm: 190 } };
+  const s = samplePatch(recipe, patch);
+  const формула = catalogAreaMm2(patch);
+  assert.ok(s._gridAreaMm2 > 0, 'сетка не посчиталась — ветка сектора не выполнилась');
+  const r = s._gridAreaMm2 / формула;
+  assert.ok(r > 0.995 && r < 1.005,
+    `сетка ${s._gridAreaMm2} против формулы ${формула}, отношение ${r}`);
+  // И сама доля вещества: сектор занимает заметно меньше описанного прямоугольника,
+  // но не вырождается. Ловит подмену cutFill на 1 (площадь прямоугольника) и на 0.
+  const доля = cutFillSector();
+  assert.ok(доля > 0.5 && доля < 0.6, `cutFillSector = ${доля}`);
 });
 
 test('mutation: copy nori arc into rice', () => {

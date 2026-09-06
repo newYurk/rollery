@@ -23,8 +23,14 @@
       {
         "layerId": "nori",
         "u0Mm": 0,
-        "u1Mm": 105,
+        "u1Mm": 90.519357,
         "arcMm": 90.519357
+      },
+      {
+        "layerId": "nori-overlap",
+        "u0Mm": 90.519357,
+        "u1Mm": 105,
+        "arcMm": 14.480643
       }
     ]
   },
@@ -7259,8 +7265,8 @@
   "visiblePatches": [],
   "hashes": {
     "recipe": "b913d1a5a7b0b1000cff110a55379197cf055df900496a04bc46b100cb01f539",
-    "winding": "bda44e890cb690551f2f303ee1cde485e61b2f0dcfd97d9fd21ab61118ab78d5",
-    "section": "bd8f9d418840dbaff92500691fd4337535a55f968fb7cf32858985159ab7163b"
+    "winding": "cb0f5ffd1e58f3bf67ccd338839045cca6e958dc351989fa76f995930758584e",
+    "section": "e018c7ecbc24fa8bb1afacd6c35268643b8d856c0ffadbccf727aaf95e94e0c3"
   },
   "eps": {
     "EPS_LENGTH_MM": 0.15,

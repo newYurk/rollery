@@ -47,6 +47,37 @@ export function validateRecipe(recipe) {
     return { status: 'unsupported', diagnostics };
   }
 
+  // ── БАЗА: ОТКАЗ ПО ИМЕНИ, А НЕ МОЛЧАЛИВЫЙ ОТКАТ (#205, пункт 1) ──────────────
+  // `baseOf()` возвращает HOSOMAKI для всего, что не `futomaki`, и до 06.09 сюда не заглядывал
+  // никто: `validateRecipe` про `baseId` не знал вовсе. Замер: рецепт F01 с `baseId` 'temaki',
+  // 'uramaki-deluxe', 'НЕТ ТАКОЙ', '', null и даже числом 42 давал `status: 'valid'`,
+  // `diagnostics: []` и winding hash БИТ В БИТ равный F01. То есть ядро молча подменяло вид
+  // ролла — ровно то, что ADR-001 запрещает прямым текстом («Никакой из этих случаев не должен
+  // silently fallback»), и ровно то, ради чего заведён `diagnostics`.
+  //
+  // Коды берутся из ЗАКРЫТОГО списка erratum-012, нового не заводится:
+  //   тэмаки  → `conical_roll`         (ADR-001, «Поведение вне модели»)
+  //   урамаки → `inside_wrap_topology` (там же)
+  //   всё остальное → `section_shape` с `requestedFeature` — та же связка, которой этот файл
+  //                   уже отвечает на чужой `version` и чужую `winding`.
+  //
+  // ⚠ Сопоставление ПО ИМЕНИ, и это осознанное упрощение. Пространство `baseId` у V2 своё,
+  // и полного справочника видов у него нет; две строки ниже — не справочник, а исполнение двух
+  // именованных строк ADR. Всё, чего в них нет, отказывается честно, но менее подробно.
+  const KNOWN_BASE_IDS = ['hosomaki', 'futomaki'];
+  const BASE_REFUSALS = { temaki: 'conical_roll', тэмаки: 'conical_roll',
+                          uramaki: 'inside_wrap_topology', ura: 'inside_wrap_topology',
+                          урамаки: 'inside_wrap_topology' };
+  const baseId = recipe.baseId;
+  if (typeof baseId !== 'string' || !KNOWN_BASE_IDS.includes(baseId)) {
+    const shown = baseId == null ? 'missing' : String(baseId);
+    const code = BASE_REFUSALS[shown] || 'section_shape';
+    diagnostics.push(diagnostic(code, `V2 alpha winds only ${KNOWN_BASE_IDS.join(' / ')}`, {
+      requestedFeature: shown,
+    }));
+    return { status: 'unsupported', diagnostics };
+  }
+
   if (recipe.windDirection !== 'fromUZero' && recipe.windDirection !== 'fromULength') {
     diagnostics.push(diagnostic('recipe_missing_wind_direction', 'windDirection required', {
       observedValue: recipe.windDirection == null ? null : String(recipe.windDirection),

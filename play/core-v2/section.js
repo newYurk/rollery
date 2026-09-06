@@ -130,18 +130,11 @@ export function coreGapAreaMm2(winding, n = 320) {
   return gap;
 }
 
+/**
+ * ДОМЕН ХЕША СРЕЗА — ВЕСЬ `SectionResult`, по той же причине, что у намотки (#205).
+ * Из хеша выпадали `layers` целиком (вместо него — четыре скаляра), `angleRad`,
+ * `riceAreaMm2` и `coreGapAreaMm2`; `erratum-011` требует «полного SectionResult».
+ */
 export function sectionForHash(section) {
-  return {
-    vSliceMm: section.vSliceMm,
-    visiblePatches: section.visiblePatches.map((p) => ({
-      id: p.id,
-      areaMm2: p.areaMm2,
-      centerXmm: p.centerXmm,
-      centerYmm: p.centerYmm,
-    })),
-    riceInnerMm: section.layers.rice.innerMm,
-    riceOuterMm: section.layers.rice.outerMm,
-    noriInnerMm: section.layers.nori.innerMm,
-    noriOuterMm: section.layers.nori.outerMm,
-  };
+  return section;
 }
