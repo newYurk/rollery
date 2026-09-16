@@ -591,7 +591,7 @@ const PRACTICE = [
       //   3. ловила `g.coreGaps` (#151) вместо вдавливания — рис в промежутках ядра приходит
       //      с того же листа и к のせる отношения не имеет.
       // Вдавливание — это ЯМКА, то есть местное отклонение. Его и меряем: максимальная
-      // разность профилей по точкам, с отключённым вычетом за промежутки.
+      // разность профилей по точкам, с одинаковым вычетом за промежутки.
       //
       // ⚠ КРАСНОЕ ДОКАЗАНО ИНАЧЕ, И ЭТО НАДО ЗНАТЬ. Сломать модель локально не удалось: даже
       // если снять отсев `p.inCore` в `riceField`, профиль остаётся ТОЖДЕСТВЕННЫМ (замер:
@@ -604,16 +604,13 @@ const PRACTICE = [
       //
       // Когда вытеснение вернётся (а оно вернётся с #1, «карта высот»), эта мерка покраснеет
       // первой, и тогда придётся показать источник, который говорит, что куски вдавливают.
-      const профиль = () => {
-        c.touchModel(); c.layout();
-        const m = c.getModel(), g = m.g;
-        const держим = g.coreGaps; g.coreGaps = 0;
-        try { return Array.from(c.thicknessProfile(0.5, g, m.list)); }
-        finally { g.coreGaps = держим; }
-      };
       try {
-        S.lists.futo = []; const пусто = профиль();
-        S.lists.futo = canonLayout(); const сНачинкой = профиль();
+        S.lists.futo = canonLayout(); c.touchModel(); c.layout();
+        const m = c.getModel();
+        // Same core budget in both profiles: measure a local depression, not rice
+        // transferred from the sheet into two differently sized central regions.
+        const пусто = c.thicknessProfile(0.5, m.g, []);
+        const сНачинкой = c.thicknessProfile(0.5, m.g, m.list);
         let макс = 0;
         for (let i = 0; i < Math.min(пусто.length, сНачинкой.length); i++)
           макс = Math.max(макс, Math.abs(пусто[i] - сНачинкой[i]));

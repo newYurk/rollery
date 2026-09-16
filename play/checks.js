@@ -221,6 +221,7 @@ const SIZES = [[390, 844], [844, 390], [1024, 768], [1024, 1366], [1180, 820], [
 function runChecks(detail) {
   const fails = [], notes = [], known = [];
   const keep = { base: S.base, wrap: S.wrap, shape: S.shape, turns: S.turns, hand: S.hand, mode: S.mode,
+                 winding: S.winding, hasWinding: Object.prototype.hasOwnProperty.call(S, 'winding'),
                  lists: JSON.parse(JSON.stringify(S.lists)), W, H, DPR };
   // ПРОВЕРКА НЕ ИМЕЕТ ПРАВА ТРОГАТЬ СОХРАНЁННОЕ ИГРОКОМ. Раздел §4 гоняет puzzleStart для всех
   // шестнадцати уровней, а puzzleStart пишет в localStorage {level, seed, max} — после прогона
@@ -257,6 +258,67 @@ function runChecks(detail) {
   };
 
   try {
+    S.winding = null; // Fixtures choose automatic winding regardless of the player's override.
+    // Сохранение риса: исходная постель против фактического materialAt после скрутки.
+    // Кольцо, круг, нейтральная рука; допуск 0,5 % — погрешность сетки, не запас массы.
+    {
+      const keys = ['base', 'wrap', 'turns', 'shape', 'hand', 'winding'];
+      const saved = keys.map(k => [k, Object.prototype.hasOwnProperty.call(S, k), S[k]]);
+      const piece = extra => ({ kind: 'tamago', u: 0.30, v: 0.5, z0: 0, z1: 0, phase: 1, ...extra });
+      const probes = [];
+      for (const base of ['hoso', 'futo', 'ura']) {
+        probes.push({ base, name: 'empty', v: 0.5, list: [] });
+        probes.push({ base, name: 'short/outside', v: 0.2, list: [piece({ dv: 0.35 })] });
+      }
+      probes.push({ base: 'hoso', name: 'tall', v: 0.5, list: [piece({ hU: 3 })] });
+      probes.push({ base: 'ura', name: 'noriWrap', v: 0.5, list: [piece({ noriWrap: true })] });
+      let tested = 0, passed = 0, worst = 0;
+      try {
+        for (const q of probes) {
+          Object.assign(S, { base: q.base, wrap: null, turns: null, shape: 'round', hand: handOf(), winding: 'ring' });
+          const b = B(), g = { T: b.T, w: b.w, L: sheetLen(b), Wv: b.Wv,
+            spreadStart: b.spreadStart === undefined ? SPREAD_START : b.spreadStart, spreadEnd: b.spreadEnd, press: 1 };
+          // Только входной spreadAt: без riceField, coreFill, профилей и радиусов результата.
+          let input = 0;
+          const ns = 4000;
+          for (let i = 0; i < ns; i++) input += spreadAt((i + 0.5) / ns, g, q.v);
+          input *= g.T * g.L / ns;
+          const m = buildModel(q.list, q.v), wd = windFor(m, q.v);
+          const na = 360, nr = 224, dr = m.Rmax * 1.015 / nr, da = TAU / na;
+          let output = 0;
+          for (let a = 0; a < na; a++) for (let j = 0; j < nr; j++) {
+            const r = (j + 0.5) * dr, c = materialAt(m, wd, q.v, r, (a + 0.5) * da);
+            const d = c.mt && c.mt.d;
+            if (c.cls === 'spread' || c.cls === 'core' || (c.cls === 'patch' && d && d.paint && d.mixed)) output += r * dr * da;
+          }
+          const error = input > 0 ? Math.abs(output - input) / input : Infinity;
+          tested++; worst = Math.max(worst, error);
+          if (ok(m.g.winding === 'ring' && error <= 0.005,
+            `рис ${q.base}/${q.name}, v=${q.v}: вход ${(input * U_MM * U_MM).toFixed(2)} мм², выход ${(output * U_MM * U_MM).toFixed(2)} мм², ошибка ${(100 * error).toFixed(3)} % (допуск 0,5 %)`)) passed++;
+        }
+        Object.assign(S, { base: 'hoso', wrap: null, turns: null, shape: 'round', hand: handOf(), winding: 'ring' });
+        const shortModel = buildModel([piece({ dv: 20 / 190 })]);
+        for (const edge of [0.5 - 10 / 190, 0.5 + 10 / 190]) {
+          const before = windFor(shortModel, edge - 1e-6), after = windFor(shortModel, edge + 1e-6);
+          ok(before !== after && before.riceBudget && after.riceBudget &&
+            Math.abs(Math.abs(before.riceBudget.core - after.riceBudget.core) * 25 - 120) < 1e-5,
+            `рис у торца v=${edge}: соседние срезы должны учитывать исчезновение 120 мм² начинки`);
+        }
+        const angleWind = windFor(shortModel, 0.5);
+        let angleMismatch = 0;
+        const materialKey = c => c.cls + (c.mt ? ':' + c.mt.p.kind : '');
+        for (let a = 0; a < 12; a++) for (let j = 0; j < 24; j++) {
+          const phi = (a + 0.37) * TAU / 12, r = (j + 0.41) * shortModel.Rmax / 24;
+          const expected = materialKey(materialAt(shortModel, angleWind, 0.5, r, phi));
+          for (const turn of [-TAU, TAU])
+            if (materialKey(materialAt(shortModel, angleWind, 0.5, r, phi + turn)) !== expected) angleMismatch++;
+        }
+        ok(angleMismatch === 0, `углы atan2: ${angleMismatch} расхождений материала при добавлении полного оборота`);
+      } finally {
+        for (const [k, existed, value] of saved) { if (existed) S[k] = value; else delete S[k]; }
+      }
+      notes.push(`сохранение риса: ${passed}/${tested}, максимальная ошибка ${(100 * worst).toFixed(3)} %`);
+    }
     // ── 1. ГЕОМЕТРИЯ: диаметры, витки, ядро, круглость ──
     // ⚑ КАЖДАЯ БАЗА КАТАЛОГА ОБЯЗАНА ИМЕТЬ ЭТАЛОН (заведено 01.09 вместе с узумаки, #142).
     // Проверки ниже идут по ключам REF, а не по каталогу, — и новая база просто не проверялась
@@ -2002,6 +2064,7 @@ function runChecks(detail) {
   } finally {
     Object.assign(S, { base: keep.base, wrap: keep.wrap, shape: keep.shape, turns: keep.turns,
                        hand: keep.hand, mode: keep.mode, lists: keep.lists });
+    if (keep.hasWinding) S.winding = keep.winding; else delete S.winding;
     S.puzzle = null;                       // §4 оставлял активный уровень висеть в состоянии
     W = keep.W; H = keep.H; DPR = keep.DPR;
     try { touchModel(); layout(); dirty = true; requestFrame(); } catch (e) {}
