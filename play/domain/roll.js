@@ -185,7 +185,7 @@ function materialMapOf(size, vSlice, m, Rref) {
     const r = Math.hypot(dx, dy) * shapeK(phi, si);
     if (r > wd.Rout) continue;
     const mat = materialAt(m, wd, vSlice, r, phi);
-    out[py * size + px] = mat.cls === 'out' ? 0 : mat.cls === 'wrap' ? 2 : mat.cls === 'patch' ? 3 + ROLL_KIND_IDS.indexOf(mat.mt.p.kind) : 1;
+    out[py * size + px] = mat.cls === 'out' || mat.cls === 'air' ? 0 : mat.cls === 'wrap' ? 2 : mat.cls === 'patch' ? 3 + ROLL_KIND_IDS.indexOf(mat.mt.p.kind) : 1;
   }
   return out;
 }

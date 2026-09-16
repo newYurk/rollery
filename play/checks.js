@@ -300,8 +300,12 @@ function runChecks(detail) {
         const shortModel = buildModel([piece({ dv: 20 / 190 })]);
         for (const edge of [0.5 - 10 / 190, 0.5 + 10 / 190]) {
           const before = windFor(shortModel, edge - 1e-6), after = windFor(shortModel, edge + 1e-6);
+          // Само ядро теперь тоже сужается у торца. Начинка — разность полной
+          // площади ЭТОГО среза и риса внутри него, а не скачок одного riceBudget.core.
+          const occupied = wd => (wd.core ? wd.core.A : shortModel.core.A) - wd.riceBudget.core;
           ok(before !== after && before.riceBudget && after.riceBudget &&
-            Math.abs(Math.abs(before.riceBudget.core - after.riceBudget.core) * 25 - 120) < 1e-5,
+            Math.abs(Math.abs(occupied(before) - occupied(after)) * 25 - 120) < 1e-5 &&
+            Math.abs(before.riceBudget.input - after.riceBudget.input) < 1e-4,
             `рис у торца v=${edge}: соседние срезы должны учитывать исчезновение 120 мм² начинки`);
         }
         const angleWind = windFor(shortModel, 0.5);
@@ -318,6 +322,162 @@ function runChecks(detail) {
         for (const [k, existed, value] of saved) { if (existed) S[k] = value; else delete S[k]; }
       }
       notes.push(`сохранение риса: ${passed}/${tested}, максимальная ошибка ${(100 * worst).toFixed(3)} %`);
+    }
+    // Поворот бруска в плоскости листа меняет срез, но не его объём.
+    // Вход задан миллиметрами и пересечением четырёх рёбер прямоугольника;
+    // выход измеряется через materialAt, без patchSRange/coreRiceAreaAt.
+    // Это ловит прежнюю потерю 40 % объёма тамаго при повороте на 90°.
+    {
+      const keys = ['base', 'wrap', 'turns', 'shape', 'hand', 'winding'];
+      const saved = keys.map(k => [k, S[k]]);
+      let tested = 0, passed = 0, worst = 0;
+      const cases = [];
+      for (const base of ['hoso', 'futo']) for (const degrees of [0, 30, 60, 90, -45])
+        cases.push({ base, degrees, length: 20 });
+      cases.push({ base: 'futo', degrees: 90, length: 190 });
+      try {
+        for (const q of cases) {
+          Object.assign(S, { base: q.base, wrap: null, turns: null, shape: 'round', hand: handOf(), winding: 'ring' });
+          const angle = q.degrees * Math.PI / 180, co = Math.cos(angle), si = Math.sin(angle);
+          const polygon = [[-6, -q.length / 2], [6, -q.length / 2], [6, q.length / 2], [-6, q.length / 2]]
+            .map(([x, y]) => [co * x - si * y, si * x + co * y]);
+          const breaks = [...new Set(polygon.map(p => +p[1].toFixed(10)))].sort((a, b) => a - b);
+          const sourceArea = y => {
+            const xs = [];
+            for (let i = 0; i < polygon.length; i++) {
+              const a = polygon[i], b = polygon[(i + 1) % polygon.length], dy = b[1] - a[1];
+              if (Math.abs(dy) < 1e-10) continue;
+              const t = (y - a[1]) / dy;
+              if (t >= 0 && t <= 1) xs.push(a[0] + t * (b[0] - a[0]));
+            }
+            return xs.length ? (Math.max(...xs) - Math.min(...xs)) * 10 : 0;
+          };
+          const axis = BASES[q.base].Wv * U_MM;
+          const m = buildModel([{ kind: 'tamago', u: 0.5, v: 0.5, dv: q.length / axis,
+            rot: angle, phase: 1, z0: 0, z1: 0 }]);
+          const area = v => {
+            const wd = windFor(m, v), c = wd.core === undefined ? m.core : wd.core;
+            const width = c ? c.Wc : 2 * m.Rmax, height = c ? c.Hc : 2 * m.Rmax;
+            const nx = 192, ny = 96, cell = width * height * U_MM * U_MM / (nx * ny);
+            let count = 0;
+            for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+              const x = ((i + 0.5) / nx - 0.5) * width, y = ((j + 0.5) / ny - 0.5) * height;
+              const material = materialAt(m, wd, v, Math.hypot(x, y), Math.atan2(y, x));
+              if (material.cls === 'patch' && material.mt && material.mt.p.kind === 'tamago' && !material.mt.оболочка) count++;
+            }
+            return count * cell;
+          };
+          let volume = 0, slicesOk = true;
+          // На каждом интервале между вершинами входное сечение линейно:
+          // два узла Гаусса интегрируют его точно; сетка нужна только выходу.
+          for (let i = 1; i < breaks.length; i++) {
+            const middle = (breaks[i - 1] + breaks[i]) / 2, half = (breaks[i] - breaks[i - 1]) / 2;
+            for (const sign of [-1, 1]) {
+              const y = middle + sign * half / Math.sqrt(3), expected = sourceArea(y), actual = area(0.5 + y / axis);
+              volume += actual * half;
+              slicesOk = ok(Math.abs(actual - expected) <= Math.max(2, expected * 0.018),
+                `начинка ${q.base}/${q.degrees}°/${q.length} мм, срез ${y.toFixed(3)} мм: ${actual.toFixed(2)} вместо ${expected.toFixed(2)} мм²`) && slicesOk;
+            }
+          }
+          const expectedVolume = 12 * 10 * q.length, error = Math.abs(volume / expectedVolume - 1);
+          tested++; worst = Math.max(worst, error);
+          const volumeOk = ok(error <= 0.018,
+            `объём начинки ${q.base}/${q.degrees}°/${q.length} мм: ${volume.toFixed(1)} вместо ${expectedVolume} мм³ (допуск сетки 1,8 %)`);
+          const outside = [breaks[0] - 0.01, breaks[breaks.length - 1] + 0.01]
+            .filter(y => 0.5 + y / axis >= 0 && 0.5 + y / axis <= 1);
+          const endsOk = ok(outside.every(y => area(0.5 + y / axis) === 0),
+            `начинка ${q.base}/${q.degrees}°/${q.length} мм видна за своим торцом`);
+          if (slicesOk && volumeOk && endsOk) passed++;
+        }
+        // Короткий кусок между штатными ломтиками должен помещаться в общий
+        // масштаб отрисовки. Раньше список SLICES мог вообще его не пересечь.
+        for (const base of ['hoso', 'futo']) for (const v of [0.04, 0.96]) {
+          Object.assign(S, { base, wrap: null, turns: null, shape: 'round', hand: handOf(), winding: 'ring' });
+          const m = buildModel([{ kind: 'tamago', u: 0.5, v, dv: 2 / 190, phase: 1, z0: 0, z1: 0 }]);
+          const wd = windFor(m, v);
+          ok(wd.Rout <= m.Rmax + 1e-7,
+            `масштаб ${base}, короткая начинка v=${v}: радиус среза ${(wd.Rout * U_MM).toFixed(3)} мм больше общего ${(m.Rmax * U_MM).toFixed(3)} мм`);
+        }
+      } finally {
+        for (const [k, value] of saved) S[k] = value;
+      }
+      notes.push(`поворот начинки: ${passed}/${tested}, максимальная ошибка объёма ${(100 * worst).toFixed(3)} %`);
+    }
+    // Запас риса и тела в витках проверяются по входу, а не по внутреннему
+    // балансу намотки: баланс может быть самосогласованным и всё же создавать еду.
+    {
+      const keys = ['base', 'wrap', 'turns', 'shape', 'hand', 'winding'];
+      const saved = keys.map(k => [k, S[k]]);
+      const configure = (base, winding) => Object.assign(S, {
+        base, winding, wrap: null, turns: null, shape: 'round', hand: handOf(),
+      });
+      const piece = extra => ({ kind: 'tamago', u: 0.5, v: 0.5, phase: 1, z0: 0, z1: 0, ...extra });
+      const riceOnSheet = (m, v) => {
+        let sum = 0; const n = 8000;
+        for (let i = 0; i < n; i++) sum += spreadAt((i + 0.5) / n, m.g, v);
+        return sum * m.g.T * m.g.L * U_MM * U_MM / n;
+      };
+      const areas = (m, v) => {
+        const wd = windFor(m, v), na = 720, nr = 480, dr = wd.Rout * 1.015 / nr, da = TAU / na, out = {};
+        for (let a = 0; a < na; a++) for (let j = 0; j < nr; j++) {
+          const r = (j + 0.5) * dr, c = materialAt(m, wd, v, r, (a + 0.5) * da);
+          const key = c.cls === 'core' || c.cls === 'spread' ? 'rice' : c.cls === 'patch' ? c.mt.p.kind : c.cls;
+          out[key] = (out[key] || 0) + r * dr * da * U_MM * U_MM;
+        }
+        return out;
+      };
+      try {
+        configure('hoso', 'ring');
+        const short = buildModel(Array.from({ length: 5 }, () => piece({ dv: 20 / 190 })));
+        const shortWind = windFor(short, 0.2), shortAreas = areas(short, 0.2), riceInput = riceOnSheet(short, 0.2);
+        ok(shortWind.riceBudget.deficit === 0,
+          'короткая начинка: пустой срез резервирует место под пять отсутствующих брусков и создаёт дефицит риса');
+        ok(Math.abs((shortAreas.rice || 0) / riceInput - 1) < 0.005 && !shortAreas.tamago,
+          `короткая начинка: вне пяти брусков риса ${(shortAreas.rice || 0).toFixed(2)} вместо ${riceInput.toFixed(2)} мм²`);
+
+        // Четыре широких углубления убирают всю постель. Тело 60×5 мм остаётся,
+        // незаполненное пространство становится воздухом; выходного риса нет.
+        const emptyBed = buildModel([piece({ wU: 12, hU: 1, dv: 1 }),
+          ...Array.from({ length: 4 }, () => ({ kind: 'riceDip', u: 0.5, v: 0.5,
+            wU: 50, hU: 0.6, dv: 1, phase: 1, z0: 0, z1: 0 }))]);
+        const emptyWind = windFor(emptyBed, 0.5), emptyAreas = areas(emptyBed, 0.5);
+        ok(emptyWind.riceBudget.input < 1e-9 && (emptyAreas.rice || 0) < 1e-6 && emptyAreas.air > 0 &&
+          Math.abs((emptyAreas.tamago || 0) / 300 - 1) < 0.01,
+          `нулевой запас: рис ${(emptyAreas.rice || 0).toFixed(4)}, воздух ${(emptyAreas.air || 0).toFixed(2)}, начинка ${(emptyAreas.tamago || 0).toFixed(2)} вместо 300 мм²`);
+
+        let bandPassed = 0;
+        const bandCases = [
+          { base: 'hoso', mode: 'spiral', u: 0.68 },
+          { base: 'futo', mode: 'spiral', u: 0.38 },
+          { base: 'futo', mode: 'ring', u: 0.7101, pair: true },
+          { base: 'futo', mode: null, u: 0.71019, pair: true },
+        ];
+        for (const q of bandCases) {
+          configure(q.base, q.mode);
+          const list = [piece({ u: q.u, dv: 1 })];
+          if (q.pair) list.unshift({ kind: 'cucumber', u: 0.25, v: 0.5, dv: 1, phase: 2, z0: 0, z1: 0 });
+          const m = buildModel(list), wd = windFor(m, 0.5), out = areas(m, 0.5), input = riceOnSheet(m, 0.5);
+          const tag = `${q.base}/${q.mode || 'auto'}/u=${q.u}`;
+          let passed = ok(Math.abs((out.tamago || 0) / 120 - 1) < 0.01 && Math.abs((out.rice || 0) / input - 1) < 0.005,
+            `виток ${tag}: тамаго ${(out.tamago || 0).toFixed(2)}/120 мм², рис ${(out.rice || 0).toFixed(2)}/${input.toFixed(2)} мм²`);
+          if (q.pair) {
+            // Огурец — сектор 45°, растянутый в габарит 14×9,9 мм.
+            const cucumberArea = 14 * 9.9 * Math.PI / (4 * Math.SQRT2);
+            passed = ok(Math.abs((out.cucumber || 0) / cucumberArea - 1) < 0.01,
+              `виток ${tag}: огурец ${(out.cucumber || 0).toFixed(2)} вместо ${cucumberArea.toFixed(2)} мм²`) && passed;
+          }
+          if (q.mode === null) {
+            configure(q.base, 'spiral');
+            const forced = buildModel(list), forcedWind = windFor(forced, 0.5);
+            passed = ok(m.g.winding === 'spiral' && m.g.coreGaps === 0 && Math.abs(wd.Rout - forcedWind.Rout) < 1e-6,
+              'автоматическая спираль должна иметь ту же геометрию и нулевой долг кольцевого ядра, что и явная спираль') && passed;
+          }
+          if (passed) bandPassed++;
+        }
+        notes.push(`сохранение в витках: ${bandPassed}/${bandCases.length}`);
+      } finally {
+        for (const [k, value] of saved) S[k] = value;
+      }
     }
     // ── 1. ГЕОМЕТРИЯ: диаметры, витки, ядро, круглость ──
     // ⚑ КАЖДАЯ БАЗА КАТАЛОГА ОБЯЗАНА ИМЕТЬ ЭТАЛОН (заведено 01.09 вместе с узумаки, #142).

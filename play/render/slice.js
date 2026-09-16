@@ -333,7 +333,7 @@ function renderSection(size, vSlice, m, Rref) {
       // ⚠ Рисуем полостью, а не дырой в холсте: у кольца тот же класс достаётся ПРОМЕЖУТКАМ
       // между начинками, и они рис (за него платит постель, #151). Различает `m.core`: есть
       // ядро — промежутки, нет ядра — полость спирали.
-      if (mat.cls === 'core' && !m.core) rgb = HOLLOW_RGB;
+      if (mat.cls === 'air' || (mat.cls === 'core' && !m.core)) rgb = HOLLOW_RGB;
       else if (mat.cls === 'wrap') rgb = wrapperColor(px, py, b);
       else if (sweet && mat.cls === 'patch') {
         rgb = patchColor(mat.mt, px, py);
@@ -652,4 +652,3 @@ function face(vSlice, cssSize, m, Rref) {
 // Умолчание берёт нынешнюю базу. Альбом обязан передавать своё: его запись сделана другой
 // базой, и делить её ролл на число кусков текущей — значит показать чужую нарезку.
 const pieceV = (i, n) => i / (n || npieces()) + 0.002;   // левая грань кусочка; кусочек 0 — торец ролла
-

@@ -959,6 +959,197 @@ const SPREAD_W = 1.4;
 //
 // Рис не кладётся на голое нори: раздача идёт только в столбики, где грядка есть, и нормируется
 // заново, чтобы сумма сошлась после отсечения.
+// Консервативная карта смешанного слоя. Исходные столбики сохраняют толщины
+// материалов; обе координаты намотки измеряют ПЛОЩАДЬ, а не длину дуги
+// и радиальную глубину: dA = r dr dφ = d(r²/2) dφ.
+function bandSourceColumns(v, g, list, coreRice) {
+  const L = g.L, cuts = [0, L], bodies = [];
+  for (let s = PROF_DS / 2; s < L; s += PROF_DS) cuts.push(s);
+  for (const p of list) {
+    const d = ING[p.kind];
+    if (p.inCore || d.paint || d.bedDelta) continue;
+    const rg = patchSRange(p, v, g); if (!rg) continue;
+    const a = Math.max(0, rg[0]), b = Math.min(L, rg[1]); if (!(b > a)) continue;
+    cuts.push(a, b); bodies.push({ p, d, rg });
+  }
+  cuts.sort((a, b) => a - b);
+  const columns = []; let riceInput = 0, fillingArea = 0;
+  for (let i = 1; i < cuts.length; i++) {
+    const a = cuts[i - 1], b = cuts[i]; if (b - a < 1e-10) continue;
+    const s = (a + b) / 2, u = s / L, spans = [];
+    let rice = spreadAt(u, g, v) * g.T;
+    for (const p of list) {
+      const d = ING[p.kind]; if (!d.bedDelta || p.inCore) continue;
+      const rg = patchSRange(p, v, g); if (!rg || s < rg[0] || s > rg[1]) continue;
+      const lu = ((s - rg[2] * L) * rg[5] + rg[7] * rg[6]) / rg[3];
+      rice = Math.max(0, rice + d.bedDelta * cutTop(d, lu) * g.T);
+    }
+    for (const q of bodies) {
+      const {p, d, rg} = q; if (s < rg[0] || s > rg[1]) continue;
+      const lu = ((s - rg[2] * L) * rg[5] + rg[7] * rg[6]) / rg[3];
+      const span = cutSpan(d, lu), h = dims(p, g).h * g.T * rg[8];
+      const lo = p.z0 * g.T + h * span[0], hi = p.z0 * g.T + h * span[1];
+      if (hi > lo) spans.push({p, d, rg, lu, lo, hi, z0:p.z0 * g.T, height:h});
+    }
+    spans.sort((a, b) => a.lo - b.lo);
+    // restack gives non-overlapping bodies; keep their actual occupied heights,
+    // rather than counting all empty space below the top as extra filling.
+    const body = spans.reduce((sum, q) => sum + q.hi - q.lo, 0);
+    riceInput += rice * (b - a); fillingArea += body * (b - a);
+    columns.push({a, b, u, rice, spans, body});
+  }
+  const riceRemaining = Math.max(0, riceInput - coreRice);
+  let weight = 0;
+  for (const c of columns) {
+    c.riceWeight = Math.max(0, (g.bandCapacityAt ? g.bandCapacityAt((c.a + c.b) / 2) : c.rice + c.body) - c.body);
+    weight += c.riceWeight * (c.b - c.a);
+  }
+  if (weight < 1e-12) { weight = riceInput; for (const c of columns) c.riceWeight = c.rice; }
+  const riceScale = weight > 1e-12 ? riceRemaining / weight : 0;
+  let area = 0;
+  for (const c of columns) {
+    let rice = c.riceWeight * riceScale, z = 0, previous = 0;
+    for (const q of c.spans) {
+      const gap = Math.min(rice, Math.max(0, q.lo - previous));
+      rice -= gap; z += gap;
+      q.start = z; z += q.hi - q.lo; q.end = z; previous = q.hi;
+    }
+    c.height = z + rice; c.area0 = area;
+    area += c.height * (c.b - c.a); c.area1 = area;
+  }
+  return {columns, area, fillingArea, riceInput, riceRemaining, coreRice,
+    paints:list.filter(p => ING[p.kind].paint && !p.inCore)};
+}
+
+// Сетка конечных объёмов: sampleWind и innerAt используют одинаковые границы.
+// Разные правила интерполяции слоёв создавали нахлёсты и пустоты между ними.
+function windSectorAngle(wd, idx) {
+  if (idx !== wd.lastIdx) return DPHI;
+  const end = wd.phiEnd - (idx % NB) * DPHI;
+  return clamp(end < 0 ? end + TAU : end, 0, DPHI);
+}
+function bandSector(wd, idx, g) {
+  const b = idx % NB, k = Math.floor(idx / NB);
+  if (wd.rin[idx] < 0 || wd.rout[idx] <= 0 || (wd.ringBand && wd.ringBand[b] !== k)) return null;
+  const ri = wd.rin[idx], ro = wd.rout[idx], wrap = wd.ringBand ? 0 : Math.min(g.w, ro - ri);
+  const A = Math.max(0, ((ro - wrap) * (ro - wrap) - ri * ri) / 2);
+  const angle = windSectorAngle(wd, idx);
+  return {A, B:0, C:0, angle, area:angle * A};
+}
+function conservativeBand(wd, v, g, list) {
+  // Pure rice rings already use the exact ring-area construction. Keep their
+  // mapping (including surface pigments) intact.
+  if (g.winding !== 'spiral' && !list.some(p => !p.inCore && !ING[p.kind].paint && !ING[p.kind].bedDelta)) return null;
+  let coreArea = 0;
+  for (let b = 0; b < NB; b++) {
+    const a = Math.max(0, wd.rin[b]);
+    coreArea += DPHI * a * a / 2;
+  }
+  const coreRice = g.coreRiceAt ? g.coreRiceAt(v) : coreArea;
+  // Рис текуч: после обжима он занимает остаток слоя вокруг тела. Если снова
+  // оставить под куском исходную постель, кусок пришлось бы лишний раз сдавить.
+  const capacity = []; let distance = 0;
+  for (let i = 0; i < wd.kmax * NB; i++) {
+    if (wd.rin[i] < 0 || wd.rout[i] <= 0) continue;
+    const q = bandSector(wd, i, g);
+    if (wd.ringBand) {
+      if (q) capacity.push({a:wd.u0[i] * g.L, b:wd.u1[i] * g.L, area:q.area});
+    } else {
+      const ds = (wd.rin[i] + wd.rout[i]) / 2 * windSectorAngle(wd, i);
+      capacity.push({a:distance, b:distance + ds, area:q ? q.area : 0}); distance += ds;
+    }
+  }
+  const lengthScale = wd.ringBand ? 1 : g.L / Math.max(1e-12, distance);
+  for (const c of capacity) { c.a *= lengthScale; c.b *= lengthScale; c.height = c.area / Math.max(1e-12, c.b - c.a); }
+  capacity.sort((a, b) => a.a - b.a);
+  const bandCapacityAt = s => {
+    let lo = 0, hi = capacity.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (capacity[mid].b <= s) lo = mid + 1; else hi = mid; }
+    const c = capacity[lo]; return c && s >= c.a && s <= c.b ? c.height : 0;
+  };
+  const source = bandSourceColumns(v, {...g,bandCapacityAt}, list, coreRice);
+  let coreScale = 1;
+  if (!g.coreRiceAt && source.coreRice > source.riceInput) {
+    // The seed radius is a bending heuristic. It cannot demand rice that was
+    // never supplied; reduce its area before putting material in the band.
+    coreScale = Math.sqrt(source.riceInput / Math.max(1e-12, source.coreRice));
+    source.coreRice = source.riceInput;
+  }
+  const size = wd.kmax * NB, starts = new Float64Array(NB), thick = new Float64Array(size), wraps = new Float64Array(size);
+  for (let b = 0; b < NB; b++) starts[b] = wd.rin[b] * coreScale;
+  for (let i = 0; i < size; i++) {
+    if (wd.rin[i] < 0) continue;
+    const t = Math.max(0, wd.rout[i] - wd.rin[i]);
+    const isBand = wd.ringBand ? wd.ringBand[i % NB] === Math.floor(i / NB) : true;
+    wraps[i] = isBand ? (wd.ringBand ? 0 : Math.min(g.w, t)) : t;
+    thick[i] = isBand ? t - wraps[i] : 0;
+  }
+  const apply = scale => {
+    let R = 0;
+    for (let b = 0; b < NB; b++) {
+      let r = starts[b];
+      for (let k = 0; k < wd.kmax; k++) {
+        const i = k * NB + b; if (wd.rin[i] < 0) break;
+        wd.rin[i] = r; r += thick[i] * scale + wraps[i]; wd.rout[i] = r;
+      }
+      wd.top[b] = r; R = Math.max(R, r);
+    }
+    wd.Rout = R;
+    let area = 0;
+    for (let i = 0; i < size; i++) { const q = bandSector(wd, i, g); if (q) area += q.area; }
+    return area;
+  };
+  // At scale k, previous filled bands move this band's inner radius by k*p.
+  // Its sector area is therefore A*k²+B*k; solve the total exactly once.
+  let A = 0, B = 0;
+  for (let b = 0; b < NB; b++) {
+    let base = starts[b], prefix = 0;
+    for (let k = 0; k < wd.kmax; k++) {
+      const i = k * NB + b; if (wd.rin[i] < 0) break;
+      const t = thick[i];
+      const angle = windSectorAngle(wd, i);
+      A += angle * (prefix * t + t * t / 2); B += angle * base * t;
+      prefix += t; base += wraps[i];
+    }
+  }
+  const scale = source.area > 0 ? 2 * source.area / Math.max(1e-12, B + Math.sqrt(B * B + 4 * A * source.area)) : 0;
+  apply(scale);
+  const sectors = new Array(size); let area = 0;
+  for (let i = 0; i < size; i++) {
+    const q = bandSector(wd, i, g); if (!q || q.area <= 1e-12) continue;
+    q.area0 = area; area += q.area; sectors[i] = q;
+  }
+  return {source, sectors, area, riceBudget:{input:source.riceInput,core:Math.min(source.coreRice,source.riceInput),requiredCore:source.coreRice,remaining:source.riceRemaining,deficit:Math.max(0,source.coreRice-source.riceInput)}};
+}
+function conservativeBandMaterial(m, wd, v, r, sm) {
+  const map = wd.materialTransport, sector = map.sectors[sm.idx];
+  if (!sector) return {cls:'wrap',sm};
+  const g = m.g, outer = sm.rOut - (wd.ringBand ? 0 : g.w), inner = sm.rIn;
+  if (r >= outer) return {cls:'wrap',sm};
+  const f = sm.frac;
+  const area = sector.area0 + sector.angle * (sector.A * f + sector.B * f * f / 2 + sector.C * f * f * f / 3);
+  const target = clamp(area * map.source.area / Math.max(1e-12,map.area), 0, map.source.area);
+  const cs = map.source.columns; let lo = 0, hi = cs.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (cs[mid].area1 <= target) lo = mid + 1; else hi = mid; }
+  const c = cs[lo], fraction = clamp((outer * outer - r * r) / Math.max(1e-12,outer * outer - inner * inner),0,1), z = fraction * c.height;
+  const s = c.a + (target - c.area0) / Math.max(1e-12,c.height), u = clamp(s / g.L,0,1);
+  sm.u = u;
+  for (const q of c.spans) if (z >= q.start && z <= q.end) {
+    const sourceZ = q.lo + z - q.start, lz = (sourceZ - q.z0) / q.height, rg = q.rg;
+    const du = s - rg[2] * g.L, lu = (du * rg[5] + rg[7] * rg[6]) / rg[3], lv = (-du * rg[6] + rg[7] * rg[5]) / rg[4];
+    if (q.p.noriWrap) {
+      const hN=WRAP_HU(), w0=q.p.wU??q.d.wU, h0=q.p.hU??q.d.hU;
+      const luIn=lu*(w0+2*hN)/w0,lzIn=(lz-hN/(h0+2*hN))*(h0+2*hN)/h0,sp=cutSpan(q.d,luIn);
+      if (Math.abs(luIn)>.5 || lzIn<sp[0] || lzIn>sp[1]) return {cls:'patch',mt:{p:q.p,d:ING.nori,lu,lz,lv,оболочка:true},sm};
+      return {cls:'patch',mt:{p:q.p,d:q.d,lu:luIn,lz:lzIn,lv},sm};
+    }
+    return {cls:'patch',mt:{p:q.p,d:q.d,lu,lz,lv},sm};
+  }
+  const paintZ = fraction;
+  const mt = map.source.paints.length ? matAt(u,v,paintZ,map.source.paints,g,paintZ) : null;
+  return mt ? {cls:'patch',mt,sm} : {cls:'spread',sm};
+}
+
 function thicknessProfile(vSlice, g, list) {
   const fld = riceField(vSlice, g, list), M = fld.M, bed = fld.bed, H = fld.fill, lo = fld.lo;
   const ring = g.winding !== 'spiral';
@@ -967,12 +1158,24 @@ function thicknessProfile(vSlice, g, list) {
   if (ring) {
     let input = 0;
     for (let i = 0; i < M; i++) input += bed[i] * g.T * cellWidth(i);
-    const core = g.coreRiceAt ? g.coreRiceAt(vSlice) : (g.coreGaps || 0) + (g.coreFill || 0);
+    const requiredCore = g.coreRiceAt ? g.coreRiceAt(vSlice) : (g.coreGaps || 0) + (g.coreFill || 0);
+    const core = Math.min(input, requiredCore);
+    if (g.boundCore && requiredCore > input + 1e-9) {
+      // Keep the bodies intact. If their packed gaps exceed the available rice,
+      // leave the unpaid gaps as air instead of silently inventing material.
+      // A prefix of the gap area is a deterministic allocation, not a flow model.
+      let lo = 0, hi = g.boundCore.Wc;
+      for (let i = 0; i < 32; i++) {
+        const mid = (lo + hi) / 2;
+        if (coreRiceAreaAt(g.boundCore, g, vSlice, mid) < input) lo = mid; else hi = mid;
+      }
+      g.coreRiceLimit = (lo + hi) / 2;
+    }
     const remaining = Math.max(0, input - core);
     const scale = input > 1e-12 ? remaining / input : 0;
     // The core consumes rice, never the filling mixed into the profile below.
     for (let i = 0; i < M; i++) bed[i] *= cellWidth(i) > 0 ? scale : 0;
-    riceBudget = { input, core, remaining, deficit: Math.max(0, core - input) };
+    riceBudget = { input, core, remaining, requiredCore, deficit: Math.max(0, requiredCore - input) };
   }
   let a = new Float32Array(M), tmp = new Float32Array(M);
   const bt = betaEff(g);
@@ -1164,8 +1367,13 @@ function resampleRingProfile(prof, g) {
 
 function wind(vSlice, sMax, g, list, routOnly) {
   const radiusOnly = routOnly;
-  // Ring shaping must use the same layers for a radius query and a full slice.
-  if (g.winding !== 'spiral') routOnly = false;
+  // The bundle is a cross-section, not the bounding box of the whole roll.
+  // Bind both the winding boundary and its rice debit to this exact axial cut.
+  const sliceCore = g.coreAt ? g.coreAt(vSlice) : null;
+  if (sliceCore) g = { ...g, boundCore: sliceCore, r0: sliceCore.R, r0At: sliceCore.rAt,
+    coreRiceAt: v => coreRiceAreaAt(sliceCore, g, v) };
+  // Radius queries use the same conservative material geometry as full slices.
+  routOnly = false;
   // ⚑ КОЛЬЦО, А НЕ СПИРАЛЬ (issue #132, правка 01.09).
   //
   // Прежде лист наматывался архимедовой спиралью: позиция на листе росла ВМЕСТЕ с углом И с
@@ -1777,6 +1985,9 @@ function wind(vSlice, sMax, g, list, routOnly) {
       top[b] = r; Rout = Math.max(Rout, r);
     }
   }
+  const transportState = {rin, rout, u0, u1, top, Rout, kmax, lastIdx, phiEnd, ringBand};
+  const materialTransport = conservativeBand(transportState, vSlice, g, list);
+  Rout = transportState.Rout;
   if (radiusOnly) return Rout;
   // ⚑ УСТРОЙСТВО НАМОТКИ ОТВЕЧАЕТ НА ВОПРОСЫ, А НЕ ОТДАЁТ СЫРЬЁ (#146, правка 01.09).
   //
@@ -1848,7 +2059,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
     // Голый ли бин: рис до него не дошёл.
     голый: (b, r0) => top[b] <= r0 + 1e-6,
   };
-  return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax, turns, sClose, sEnd, sTurn1, обёртка, ringBand, riceBudget: prof.riceBudget,
+  return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax, turns, sClose, sEnd, sTurn1, обёртка, ringBand, materialTransport, riceBudget: materialTransport ? materialTransport.riceBudget : prof.riceBudget, core: sliceCore, coreRiceLimit: g.coreRiceLimit,
            хватило, нехватка: Math.max(0, периметр - L), периметр };   // φНори жил в ветке кольца, наружу не нужен   // #141: сколько нори НЕ хватило, в единицах листа
 }
 // ГРАНИ ПО ФОРМАМ — углы плоскостей, φ = 0 это шов (кладут вниз, на грань, а не на угол).
@@ -1886,7 +2097,7 @@ function sampleWind(wd, r, phi) {
   for (let k = 0; k < wd.kmax; k++) {
     const idx = k * NB + b, ri = wd.rin[idx]; if (ri < 0) break;
     const ro = wd.rout[idx]; let ri2 = ri, ro2 = ro, f = frac;
-    if (idx === wd.lastIdx) { const fe = (wd.phiEnd - b * DPHI) / DPHI; if (frac > fe) continue; f = fe > 1e-6 ? frac / fe : 0; }
+    if (idx === wd.lastIdx) { const fe = windSectorAngle(wd, idx) / DPHI; if (frac > fe) continue; f = fe > 1e-6 ? frac / fe : 0; }
     // Сосед для интерполяции берётся по ПОРЯДКУ НАМОТКИ. Внутри витка это верно. Два случая, где нет:
     //   1) на последнем бине витка сосед — бин 0 СЛЕДУЮЩЕГО витка, то есть поверхность на оборот дальше
     //      по листу. Там innerAt (он на шве не интерполирует) и sampleWind расходились, и у угла 0
@@ -1899,14 +2110,14 @@ function sampleWind(wd, r, phi) {
     //      доходит, первое условие про полтолщины отсекает такого соседа раньше. Значит
     //      лишние 0,01 толщины на голой полосе приходят не отсюда, а из обжима циновкой ниже.
     //      Разбор — issue #130.
-    else { const nidx = b + 1 < NB ? idx + 1 : -1; if (nidx > 0 && wd.rin[nidx] >= 0 && (!wd.ringBand || (wd.ringBand[b] === k) === (wd.ringBand[b + 1] === k)) && Math.abs(wd.rin[nidx] - ri) <= 0.5 * (ro - ri)) { ri2 = wd.rin[nidx]; ro2 = wd.rout[nidx]; } }
+    else if (!wd.materialTransport) { const nidx = b + 1 < NB ? idx + 1 : -1; if (nidx > 0 && wd.rin[nidx] >= 0 && (!wd.ringBand || (wd.ringBand[b] === k) === (wd.ringBand[b + 1] === k)) && Math.abs(wd.rin[nidx] - ri) <= 0.5 * (ro - ri)) { ri2 = wd.rin[nidx]; ro2 = wd.rout[nidx]; } }
     const rIn = ri + (ri2 - ri) * f, rOut = ro + (ro2 - ro) * f;
-    if (r >= rIn && r < rOut) return { u: wd.u0[idx] + (wd.u1[idx] - wd.u0[idx]) * f, zr: r - rIn, t: rOut - rIn, rOut,
+    if (r >= rIn && r < rOut) return { u: wd.u0[idx] + (wd.u1[idx] - wd.u0[idx]) * f, zr: r - rIn, t: rOut - rIn, rOut, rIn, idx, frac: f,
       wrap: wd.ringBand ? wd.ringBand[b] !== k : undefined };
   }
   return null;
 }
-function innerAt(wd, phi) { if (phi < 0 || phi >= TAU) phi = (phi % TAU + TAU) % TAU; const fb = phi / DPHI; let b = Math.floor(fb); if (b >= NB) b = NB - 1; const f = fb - b, b2 = Math.min(NB - 1, b + 1); const a = wd.rin[b] >= 0 ? wd.rin[b] : -1, c = wd.rin[b2] >= 0 ? wd.rin[b2] : a; return a < 0 ? -1 : a + (c - a) * f; }
+function innerAt(wd, phi) { if (phi < 0 || phi >= TAU) phi = (phi % TAU + TAU) % TAU; const fb = phi / DPHI; let b = Math.floor(fb); if (b >= NB) b = NB - 1; const f = fb - b, b2 = Math.min(NB - 1, b + 1); const a = wd.rin[b] >= 0 ? wd.rin[b] : -1, c = wd.rin[b2] >= 0 ? wd.rin[b2] : a; return a < 0 ? -1 : wd.materialTransport ? a : a + (c - a) * f; }
 function topAt(wd, phi) { if (phi < 0 || phi >= TAU) phi = (phi % TAU + TAU) % TAU; const fb = phi / DPHI; let b = Math.floor(fb); if (b >= NB) b = NB - 1; const f = fb - b, b2 = (b + 1) % NB; return wd.top[b] + (wd.top[b2] - wd.top[b]) * f; }
 // Модель = список патчей + намотки на стандартных срезах; общий масштаб — по максимальному радиусу.
 const SLICES = [0.5]; for (let i = 0; i < 6; i++) SLICES.push(i / 6 + 0.002); for (let i = 0; i < 3; i++) SLICES.push((i + 0.5) / 3); for (let i = 0; i < 6; i++) SLICES.push((i + 0.5) / 6);
@@ -1914,7 +2125,7 @@ const modelCaches = new Map();
 // Подворот: начинки, лежащие вплотную у ближнего края, сминаются в ядро. «Постель» зоны сгиба складывается
 // пополам: дальняя половина — нижний слой, ближняя ложится сверху перевёрнутой (её нори — внутренний крючок).
 // Площадь ядра = рис + начинки; ядро — диск той же площади; остаток листа наматывается вокруг него.
-function computeCore(list, g) {
+function computeCore(list, g, vSlice = .5) {
   // ⚠ НЕ УДАЛЯТЬ КАК МЁРТВЫЙ КОД. Ветка `!g.tuck` — спираль без подворота. Сейчас её не
   // использует НИ ОДНА база: рулет и лаваш сняты 31.08 (только японская тематика), а у всех
   // четырёх оставшихся `tuck: true`. Выглядит недостижимой — и не является ею.
@@ -2167,10 +2378,15 @@ function computeCore(list, g) {
   // однозначно, просто через порядок, а не через растянутый габарит.
   const W = g.w;
   {
+    // Keep core membership stable along the roll; only the section being packed
+    // changes. A piece absent at this v must not reserve a rice-filled rectangle.
+    for (const p of inside) p.inCore = true;
     const шт = inside.map(p => {
-      const d = ING[p.kind], m = dims(p, g, true);
-      return { p, d, ш: m.du * L, в: Math.max(1e-6, (p.z1 - p.z0) * T) };
-    }).sort((a, b) => a.p.u - b.p.u);
+      const d = ING[p.kind], m = dims(p, g), rg = patchSRange(p, vSlice, g);
+      if (!rg) return null;
+      return { p, d, rg, ш: rg[1] - rg[0], в: m.h * T * rg[8],
+        sourceOffset: (rg[0] + rg[1]) / 2 - rg[2] * L };
+    }).filter(Boolean).sort((a, b) => a.p.u - b.p.u);
     // Целевая ширина полки — из площади связки: пучок стремится к квадрату.
     //
     // ⚠ ЦЕЛЬ НЕ МЕНЬШЕ ДВУХ САМЫХ ШИРОКИХ КУСКОВ (правка 02.09). При √площади ровно два куска
@@ -2192,18 +2408,19 @@ function computeCore(list, g) {
       ряды[ряды.length - 1].push(x); шр += x.ш;
     }
     let Wб = 0, Hб = 0;
-    for (const р of ряды) { Wб = Math.max(Wб, р.reduce((a, x) => a + x.ш, 0)); Hб += Math.max(...р.map(x => x.в)); }
+    for (const р of ряды) { Wб = Math.max(Wб, р.reduce((a, x) => a + x.ш, 0)); Hб += Math.max(0, ...р.map(x => x.в)); }
     core.Wc = Math.max(Wб, 1);
-    core.HA = Math.max(T, Hб) * sqB;         // связка садится по высоте, площадь сохраняется (#118)
+    core.HA = Math.max(T, Hб); // dims already applies each piece's volume-preserving squash.
     core.HB = 0;
     // Центры в координатах коробки: x от левого края, y снизу вверх.
     let y = W;
     for (const р of ряды) {
-      const вр = Math.max(...р.map(x => x.в)) * sqB;
+      const вр = Math.max(0, ...р.map(x => x.в));
       let x = 0;
       for (const it of р) {
         it.p.inCore = true;
-        core.items.push({ p: it.p, d: it.d, cx: x + it.ш / 2, y0: y, y1: y + it.в * sqB, far: true, paint: false, hw: it.ш / 2 });
+        core.items.push({ p: it.p, d: it.d, rg: it.rg, sourceOffset: it.sourceOffset,
+          cx: x + it.ш / 2, y0: y, y1: y + it.в, far: true, paint: false, hw: it.ш / 2 });
         x += it.ш;
       }
       y += вр;
@@ -2348,36 +2565,39 @@ function diskToSquare(x, y) {
 // никто, из источников взят только ПОРЯДОК кусков по жёсткости. Здесь тот же порядок работает
 // на другую величину — на изгиб, а не на высоту.
 // Shared geometry of a non-paint core item at one x (core-box coordinates).
-// IMPORTANT: cutSpan intentionally clamps lu; do not add abs(lu) <= .5 here.
-// This matches the existing classifier, including its axial/rotation conventions.
+// Transform the packed slice back into the actual rotated source piece before
+// evaluating its profile. cutSpan clamps coordinates; it cannot test membership.
 // Both a noriWrap shell and its filling exclude rice: the outer interval suffices.
 function coreBodyColumn(it, rg, x) {
   if (it.paint || !rg) return null;
-  const dx = x - it.cx, h = it.y1 - it.y0;
-  if (Math.abs(dx) > it.hw || !(h > 0) || !(rg[3] > 0)) return null;
+  const localX = x - it.cx, dx = localX + (it.sourceOffset || 0), h = it.y1 - it.y0;
+  if (Math.abs(localX) > it.hw || !(h > 0) || !(rg[3] > 0)) return null;
   const lu = (dx * rg[5] + rg[7] * rg[6]) / rg[3];
+  const along = -dx * rg[6] + rg[7] * rg[5];
+  if (Math.abs(lu) > .5 + 1e-12 || Math.abs(along) > rg[4] / 2 + 1e-12) return null;
   const sp = cutSpan(it.d, lu);
   const lo = it.y0 + h * Math.max(0, sp[0]);
   const hi = it.y0 + h * Math.min(1, sp[1]);
-  return hi >= lo ? { lo, hi, lu, along: -dx * rg[6] + rg[7] * rg[5] } : null;
+  return hi >= lo ? { lo, hi, lu, along } : null;
 }
 
 // Model/core objects are immutable after construction. Cache is scoped to BOTH
 // core and geometry passport, and uses the exact v (never rounded across an end).
 const CORE_RICE_AREA_CACHE = new WeakMap();
 const CORE_RICE_AREA_EPS = 1e-7; // model units squared (2.5e-6 mm²)
-function coreRiceAreaAt(core, g, v) {
+function coreRiceAreaAt(core, g, v, maxX = core ? core.Wc : 0) {
   if (!core) return 0;
   let byGeometry = CORE_RICE_AREA_CACHE.get(core);
   if (!byGeometry) { byGeometry = new WeakMap(); CORE_RICE_AREA_CACHE.set(core, byGeometry); }
   let cache = byGeometry.get(g);
   if (!cache) { cache = new Map(); byGeometry.set(g, cache); }
-  if (cache.has(v)) return cache.get(v);
-  const W = core.Wc, H = core.Hc, boxArea = W * H;
+  const cacheKey = maxX === core.Wc ? v : v + ':' + maxX;
+  if (cache.has(cacheKey)) return cache.get(cacheKey);
+  const W = Math.max(0, Math.min(core.Wc, maxX)), H = core.Hc, boxArea = W * H;
   const items = [], knots = [0, W];
   for (const it of core.items) {
     if (it.paint) continue;
-    const rg = patchSRange(it.p, v, g);
+    const rg = it.rg || patchSRange(it.p, v, g);
     if (!rg || !(rg[3] > 0) || !(it.y1 > it.y0)) continue;
     const left = Math.max(0, it.cx - it.hw), right = Math.min(W, it.cx + it.hw);
     if (!(right > left) || it.y1 <= 0 || it.y0 >= H) continue;
@@ -2385,7 +2605,7 @@ function coreRiceAreaAt(core, g, v) {
     // Clamp edges, profile center, and the sector's straight/arc join.
     // Profile clipping/union crossings are handled by adaptive quadrature below.
     if (Math.abs(rg[5]) > 1e-12) for (const lu of [-.5, 0, Math.cos(SECTOR_ANGLE) - .5, .5]) {
-      const x = it.cx + (lu * rg[3] - rg[7] * rg[6]) / rg[5];
+      const x = it.cx - (it.sourceOffset || 0) + (lu * rg[3] - rg[7] * rg[6]) / rg[5];
       if (x > left && x < right) knots.push(x);
     }
   }
@@ -2441,14 +2661,14 @@ function coreRiceAreaAt(core, g, v) {
   // Bound only quadrature roundoff; this does NOT cap a debt to the available bed.
   const rice = Math.max(0, Math.min(boxArea, boxArea - occupied));
   if (cache.size >= 64) cache.delete(cache.keys().next().value);
-  cache.set(v, rice);
+  cache.set(cacheKey, rice);
   return rice;
 }
 
-function coreMaterial(m, r, phi, vSlice) {
+function coreMaterial(m, r, phi, vSlice, core = m.core, riceLimit = Infinity) {
   // ⚑ БЕЗ ОТОБРАЖЕНИЯ: точка берётся в коробке как есть (#152). Разбор — над `core.rAt`.
   // Смещение от центра коробки в её же единицах, начало отсчёта — левый нижний угол.
-  const c = m.core;
+  const c = core;
   const x = r * Math.cos(phi) + c.Wc / 2, y = r * Math.sin(phi) + c.Hc / 2;
   // Прежние «жёсткие» координаты совпадают с обычными: искажать больше нечему, и смесь по
   // жёсткости (`stiff`) стала тождеством. Оставлена, чтобы не переписывать тело функции: как
@@ -2461,11 +2681,12 @@ function coreMaterial(m, r, phi, vSlice) {
   const L = m.g.L, half = c.гр0;
   for (let pass = 0; pass < 2; pass++) for (let i = c.items.length - 1; i >= 0; i--) {
     const it = c.items[i]; if (it.paint !== (pass === 1)) continue;
+    if (pass === 1 && x > riceLimit) return { cls: 'air' };
     // Смесь координат по жёсткости: 0 — целиком по кругу, 1 — целиком свои прямые.
     const ст = it.paint ? 0 : (it.d.stiff === undefined ? 0 : it.d.stiff);
     const xк = x + (xЖ - x) * ст, yк = y + (yЖ - y) * ст;
     if (yк < it.y0 || yк > it.y1) continue;
-    const rg = patchSRange(it.p, vSlice, m.g); if (!rg) continue;
+    const rg = it.rg || patchSRange(it.p, vSlice, m.g); if (!rg) continue;
     // ⚑ КУСОК ИЩЕТСЯ В ПУЧКЕ, А НЕ ПО ПОЛОЖЕНИЮ НА ЛИСТЕ (#152, правка 02.09).
     //
     // Прежде смещение считалось от центра куска НА ЛИСТЕ (`sU − uc·L`), то есть координата
@@ -2476,8 +2697,8 @@ function coreMaterial(m, r, phi, vSlice) {
     // Теперь у каждого куска есть свой центр в пучке (`it.cx`) и своя полуширина (`it.hw`), и
     // смещение берётся от них. Всё остальное прежнее: поворот (rg[5], rg[6]), координата вдоль
     // оси (rg[7]) и масштаб ширины (rg[3]) — они про сам кусок, а не про коробку.
-    const dx = xк - it.cx;
-    if (Math.abs(dx) > it.hw) continue;
+    const localX = xк - it.cx, dx = localX + (it.sourceOffset || 0);
+    if (Math.abs(localX) > it.hw) continue;
     const across = dx * rg[5] + rg[7] * rg[6], along = -dx * rg[6] + rg[7] * rg[5];
     const lu = across / rg[3], lz = (yк - it.y0) / (it.y1 - it.y0);
     if (!it.paint) {
@@ -2504,6 +2725,7 @@ function coreMaterial(m, r, phi, vSlice) {
   // полностью закрашенном листе внизу-справа ядра оставался белый сектор. Физически прижим
   // схлопывает пустоту, и объём занимает НИЖНИЙ слой — дальняя половина сгиба; краску берём у
   // неё на той же поперечной координате. Твёрдые куски так не продлеваем: у них своя высота.
+  if (x > riceLimit) return { cls: 'air' };
   const sUnear = half - x;
   if (sUnear >= 0 && spreadAt(sUnear / L, m.g) <= 1e-6) {
     for (let i = c.items.length - 1; i >= 0; i--) {
@@ -2688,7 +2910,7 @@ function buildModel(list, only) {
     // из одного риса и был на 18–25 % меньше кольцевого. У узумаки не проявлялось: там
     // `tuck: false`, computeCore выходит раньше и меток не ставит.
     for (const p of m.list) p.inCore = false;
-    m.core = null; g.sStart = 0;
+    m.core = null; g.sStart = 0; g.coreGaps = 0;
     // ⚑ СЕРДЕЧНИК ПЕРЕЕХАЛ В ОБЩИЙ ХВОСТ (вариант А, решение владельца 03.09).
     //
     // Прежний комментарий на этом месте сам же и требовал переезда: «Радиус, круче которого
@@ -2748,7 +2970,17 @@ function buildModel(list, only) {
   // середину. Развязывать `computeCore` от `tuck` было бы не унификацией, а выдумыванием приёма.
   if (m.core) {
     g.r0 = m.core.R; g.r0At = m.core.rAt; g.sStart = 0;
-    g.coreRiceAt = v => coreRiceAreaAt(m.core, g, v);
+    const cores = new Map([[.5, m.core]]);
+    g.coreAt = v => {
+      let core = cores.get(v);
+      if (!core) {
+        core = computeCore(m.list, g, v);
+        if (cores.size >= 96) cores.delete(cores.keys().next().value);
+        cores.set(v, core);
+      }
+      return core;
+    };
+    g.coreRiceAt = v => coreRiceAreaAt(g.coreAt(v), g, v);
   }
   else {
     g.r0 = Math.max(R0, g.T + g.w);
@@ -2758,8 +2990,17 @@ function buildModel(list, only) {
   // Rmax — по всем стандартным ломтикам (общий масштаб ролла), но ЛЁГКИМ проходом: сами витки
   // строит windFor тому ломтику, который спросят. Модель перестала весить 3 МБ намоток, а поиску,
   // которому нужен один срез из шестнадцати, не приходится мотать остальные пятнадцать.
-  const scan = only === undefined ? SLICES : [only];
-  for (const v of scan) m.Rmax = Math.max(m.Rmax, windRout(v, g.L, g, m.list));
+  // Short pieces between the presentation slices still determine the roll's
+  // bounds. In particular, a rotated slice can be widest at its own center.
+  const scan = only === undefined ? new Set([...SLICES, ...m.list.map(p => p.v)]) : [only];
+  for (const v of scan) {
+    // The middle/explicit preview slice is immediately consumed by the caller.
+    // Its bounds require the same full construction, so keep that result.
+    if (only !== undefined || v === .5) {
+      const wd = wind(v, g.L, g, m.list);
+      m.wds.set(v, wd); m.Rmax = Math.max(m.Rmax, wd.Rout);
+    } else m.Rmax = Math.max(m.Rmax, windRout(v, g.L, g, m.list));
+  }
   modelCaches.set(key, m); return m;
 }
 function getModel() { return buildModel(patches()); }
@@ -2789,9 +3030,10 @@ function materialAt(m, wd, vSlice, r, phi) {
   // внутри дырки, где листа физически нет.
   // ⚑ У СПИРАЛИ СЕРЕДИНА — ВДАВЛЕННЫЙ РИС, А НЕ ПУСТОТА (#154). Разбор — над `g.coreFill`.
   // Класс 'spread' здесь честен: за этот рис платит постель, площадь сходится.
-  if (r < coreR) return m.core ? coreMaterial(m, r, phi, vSlice) : { cls: 'spread', sm: null };
+  if (r < coreR) return m.core ? coreMaterial(m, r, phi, vSlice, wd.core || m.core, wd.coreRiceLimit) : { cls: 'spread', sm: null };
   const sm = sampleWind(wd, r, phi);
   if (!sm) return { cls: 'out' };
+  if (wd.materialTransport) return conservativeBandMaterial(m, wd, vSlice, r, sm);
   // ⚠ У УРАМАКИ ОБЁРТКА НА ВНУТРЕННЕМ КРАЮ ВИТКА, А НЕ НА ВНЕШНЕМ (#124, 01.09).
   // Так его и делают: рис намазан на нори, лист ПЕРЕВОРАЧИВАЮТ рисом на циновку, начинку
   // кладут на голую нори — и она заворачивает начинку первой, а рис остаётся снаружи.
