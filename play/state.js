@@ -280,12 +280,19 @@ function riceSpanU(g) {
   const P = spreadPre(g), A = edgeRagAmp() / gL(g);
   return { u0: P.s0 + A, u1: P.se - A };
 }
+// ⚑ ПОЛУШИРИНА СЛЕДА — ПО КОПИИ С u = 0, КАК В genTarget (17.09, замечание проверки #253).
+// `bounds` даёт края как u ∓ h, и разность (u + h) − (u − h) на плавающей точке зависит от u в
+// последнем разряде. Кусок, упёртый в кромку, повторный layU сдвигал на 1e-16: ссылка на цель
+// пазла возвращала не тот бит (#236) — 63 цели из 28 800 (100 зёрен × 3 обёртки), и 1914 упоров
+// из 64 962 меняли u при втором вызове. От u след не зависит, а при u = 0 разность точная, и
+// layU(p, layU(p, u)) === layU(p, u) до бита.
+function halfU(p, g) { const bb = bounds(Object.assign({}, p, { u: 0 }), g, true); return (bb.u1 - bb.u0) / 2; }
 function layFits(p, g) {
-  const bb = bounds(p, g, true), r = riceSpanU(g);
-  return bb.u1 - bb.u0 <= r.u1 - r.u0;
+  const r = riceSpanU(g);
+  return 2 * halfU(p, g) <= r.u1 - r.u0;
 }
 function layU(p, u, g) {
-  const bb = bounds(p, g, true), hu = (bb.u1 - bb.u0) / 2, r = riceSpanU(g);
+  const hu = halfU(p, g), r = riceSpanU(g);
   const lo = r.u0 + hu, hi = r.u1 - hu;
   return lo > hi ? (r.u0 + r.u1) / 2 : clamp(u, lo, hi);
 }
