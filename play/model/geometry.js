@@ -1020,10 +1020,10 @@ function bandSourceColumns(v, g, list, coreRice) {
   }
   const riceRemaining = Math.max(0, riceInput - coreRice);
   let weight = 0;
+  const щели = g.щели;   // голая нори бывшей щели кольца (#249) риса не держит: её угол занимают соседи
   for (const c of columns) {
     c.riceWeight = Math.max(0, (g.bandCapacityAt ? g.bandCapacityAt((c.a + c.b) / 2) : c.rice + c.body) - c.body);
-    // голая нори бывшей щели кольца (#249) риса не держит: её угол занимают соседи
-    if (g.щели && !(c.rice > 0) && !(c.body > 0) && вЩели(g.щели, (c.a + c.b) / 2)) c.riceWeight = 0;
+    if (щели && !(c.rice > 0) && !(c.body > 0) && вЩели(щели, (c.a + c.b) / 2)) c.riceWeight = 0;
     weight += c.riceWeight * (c.b - c.a);
   }
   if (weight < 1e-12) { weight = riceInput; for (const c of columns) c.riceWeight = c.rice; }
@@ -1373,13 +1373,16 @@ function thicknessProfile(vSlice, g, list) {
   //     голом крае): замкнутых колец с нулевыми бинами ленты 96 → 0, у всех 96 был провал 7…34 мм.
   // Кольца без внутренних нулей не меняются побитно: проход прежний, а опору кольца (те же
   // условия, что в resampleRingProfile) он отмечает попутно — второй проход только при щели.
-  const старт = ring ? Math.max(0, g.sStart || 0) : 0;
+  // Условие «после старта» монотонно по i, поэтому считается один раз номером отсчёта.
+  const старт = Math.max(0, g.sStart || 0);
+  let сСтарта = ring ? 0 : M;
+  if (ring) while (сСтарта < M && !(Math.min(g.L, (сСтарта + 0.5) * PROF_DS) > старт)) сСтарта++;
   let массаПосле = 0, первый = -1, последний = -1, заполненных = 0, щели = null;
   for (let i = 0; i < M; i++) {
     a[i] *= маска[i];
     const w = cellWidth(i);
     массаПосле += a[i] * w;
-    if (ring && a[i] > 0 && w > 0 && Math.min(g.L, (i + 0.5) * PROF_DS) > старт) {
+    if (i >= сСтарта && a[i] > 0 && w > 0) {
       if (первый < 0) первый = i;
       последний = i; заполненных++;
     }
