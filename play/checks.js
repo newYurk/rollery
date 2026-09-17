@@ -2343,6 +2343,38 @@ function runChecks(detail) {
           ok(!плохо.length && кругов > 0 && поДороге > 0,
              `#253 круг обёрток: ${плохо.length} нарушений в ${кругов} кругах (сдвигалось по дороге ${поДороге}) — ${плохо.slice(0, 3).join(' · ')}`);
         }
+        // 3д. ПЕРЕБОР ОБЁРТОК ПРОПУСКАЕТ ОБЁРТКУ, НА КОТОРОЙ НЕ ПОМЕЩАЕТСЯ ЦЕЛЬ ПАЗЛА, и при пустом листе
+        // (замечание проверки 17.09: мутант «смотреть только на раскладку» проходил — 3в кладёт банан на
+        // лист). Ссылка: узумаки, 2 витка, омлет, в цели манго. Где манго шире риса между фактическими
+        // кромками (нори, рисовая бумага, соя), перебор вставать не должен, а цель — лежать на голом.
+        {
+          const плохо = [], видели = [];
+          const ширМанго = () => { const bb = bounds(кусок('mango', 0.5, 0.5), undefined, true); return bb.u1 - bb.u0; };
+          const мёртвоНа = w => { const keep = { b: S.base, w: S.wrap, t: S.turns };
+            S.base = 'uzumaki'; S.wrap = w; S.turns = 2;
+            try { const кк = кромки(); return ширМанго() > кк.z - кк.a; }
+            finally { S.base = keep.b; S.wrap = keep.w; S.turns = keep.t; } };
+          const ОБЁРТКИ = Object.keys(WRAPPERS), закрытые = ОБЁРТКИ.filter(мёртвоНа);
+          S.base = 'uzumaki'; S.wrap = 'egg'; S.turns = 2; S.hand = handOf(); S.shape = 'square'; S.mode = 'lay';
+          const url = encodePuzzle([кусок('mango', 0.5, 0.5)], 2);
+          S.base = 'hoso'; S.wrap = null; S.turns = null;
+          const pz = decodePuzzle(url);
+          if (!pz || pz.base !== 'uzumaki' || pz.wrap !== 'egg' || pz.turns !== 2) плохо.push(`ссылка разобралась не так: ${pz ? pz.base + '/' + pz.wrap + '/' + pz.turns : '—'}`);
+          else {
+            puzzleFromLink(pz); layout();
+            if (мёртвоНа('egg')) плохо.push('на омлете манго не помещается — пример не годится');
+            for (let k = 0; k < ОБЁРТКИ.length + 1; k++) {
+              action('sheet'); видели.push(S.wrap);
+              if (закрытые.includes(S.wrap)) плохо.push(`обёртка ${S.wrap}: манго цели места нет, а перебор на неё встал`);
+              S.puzzle.target.forEach(p => { if (голых(p)) плохо.push(`обёртка ${S.wrap}: цель на голом`); });
+            }
+            if (patches().length) плохо.push(`на листе ${patches().length} кусков, а должен быть пустой`);
+            puzzleStop();
+          }
+          S.shape = 'round';
+          ok(!плохо.length && закрытые.length >= 3 && видели.some(w => w !== 'egg'),
+             `#253 перебор обёрток при цели шире риса (закрыты ${закрытые.join(', ')}; перебор ${видели.join('→')}): ${плохо.slice(0, 3).join(' · ')}`);
+        }
         // 4. ПРЕЖНИЕ РАСКЛАДКИ КАНОНА ЛЕЖАТ НА РИСЕ — правило их не двигает.
         {
           S.base = 'futo'; S.wrap = null; clean();
@@ -2388,6 +2420,16 @@ function runChecks(detail) {
               const ярус = []; let выше = 0;
               t.forEach((p, i) => { let m = 0; if (!плоск(p)) { for (let j = 0; j < i; j++) if (!плоск(t[j]) && overlap(p, t[j], undefined)) m = Math.max(m, ярус[j]); m++; } ярус.push(m); выше = Math.max(выше, m); });
               if (выше > ряды.length) стопки.push(`${тег}: ${выше} ярусов при ${ряды.length} рядах — ${t.map((p, i) => p.kind + ':' + ярус[i]).join(' ')}`);
+              // Нижний ряд — раньше в списке (restack кладёт позднее на раннее), поэтому самый широкий
+              // твёрдый кусок — омлет-лист, если он есть, — лежит в нижнем ярусе, как лист под начинкой.
+              // Мутант проверки 17.09 «ряды в обратном порядке» проходил: ярусов столько же, омлет сверху.
+              const широкий = тв[ширины.indexOf(Math.max(...ширины))], iш = t.indexOf(широкий);
+              if (ярус[iш] !== 1) стопки.push(`${тег}: самый широкий ${широкий.kind} в ярусе ${ярус[iш]}, а не внизу — ${t.map((p, i) => p.kind + ':' + ярус[i]).join(' ')}`);
+              // Башни нет: два твёрдых куска не стоят в одной точке (одиночные ряды разнесены по рису, а не
+              // сложены посередине — прежде узумаки на нори, уровень 5, ставил два джема один на другой).
+              for (let i = 0; i < тв.length; i++) for (let j = i + 1; j < тв.length; j++)
+                if (Math.abs(тв[i].u - тв[j].u) < 1e-9 && overlap(тв[i], тв[j], undefined))
+                  стопки.push(`${тег}: ${тв[i].kind} и ${тв[j].kind} в одной точке u ${тв[i].u.toFixed(4)} — башня`);
             }
             const url = encodePuzzle(t, S.turns), keep = { b: S.base, w: S.wrap, t: S.turns };
             S.base = база === 'hoso' ? 'futo' : 'hoso'; S.wrap = null; S.turns = null;
