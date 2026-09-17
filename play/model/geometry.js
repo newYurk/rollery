@@ -2138,6 +2138,7 @@ const windRout = (vSlice, sMax, g, list) => wind(vSlice, sMax, g, list, true);
 function sampleWind(wd, r, phi) {
   if (phi < 0 || phi >= TAU) phi = (phi % TAU + TAU) % TAU;
   const fb = phi / DPHI; let b = Math.floor(fb); if (b >= NB) b = NB - 1; const frac = fb - b;
+  if (wd.ringBand && !wd.materialTransport) return sampleRing(wd, r, b, frac);
   for (let k = 0; k < wd.kmax; k++) {
     const idx = k * NB + b, ri = wd.rin[idx]; if (ri < 0) break;
     const ro = wd.rout[idx]; let ri2 = ri, ro2 = ro, f = frac;
@@ -2154,10 +2155,49 @@ function sampleWind(wd, r, phi) {
     //      доходит, первое условие про полтолщины отсекает такого соседа раньше. Значит
     //      лишние 0,01 толщины на голой полосе приходят не отсюда, а из обжима циновкой ниже.
     //      Разбор — issue #130.
-    else if (!wd.materialTransport) { const nidx = b + 1 < NB ? idx + 1 : -1; if (nidx > 0 && wd.rin[nidx] >= 0 && (!wd.ringBand || (wd.ringBand[b] === k) === (wd.ringBand[b + 1] === k)) && Math.abs(wd.rin[nidx] - ri) <= 0.5 * (ro - ri)) { ri2 = wd.rin[nidx]; ro2 = wd.rout[nidx]; } }
+    //   Кольцо сюда не доходит (16.09, #245): без переноса его читает sampleRing, с переносом
+    //   интерполяции нет вовсе. Значит эта ветка — только спираль.
+    else if (!wd.materialTransport) { const nidx = b + 1 < NB ? idx + 1 : -1; if (nidx > 0 && wd.rin[nidx] >= 0 && Math.abs(wd.rin[nidx] - ri) <= 0.5 * (ro - ri)) { ri2 = wd.rin[nidx]; ro2 = wd.rout[nidx]; } }
     const rIn = ri + (ri2 - ri) * f, rOut = ro + (ro2 - ro) * f;
     if (r >= rIn && r < rOut) return { u: wd.u0[idx] + (wd.u1[idx] - wd.u0[idx]) * f, zr: r - rIn, t: rOut - rIn, rOut, rIn, idx, frac: f,
       wrap: wd.ringBand ? wd.ringBand[b] !== k : undefined };
+  }
+  return null;
+}
+// ⚑ КОЛЬЦО ИНТЕРПОЛИРУЕТСЯ ВСЕЙ СТОПКОЙ, А НЕ СЛОЙ ЗА СЛОЕМ (16.09, #245).
+//
+// Правило «сосед не дальше полутолщины СВОЕГО слоя» писалось для хвоста спирали. В кольце оно
+// разводило слои одного бина: у риса полутолщина 2,4 мм, у нори 0,05. На ступени контура
+// (тюмаки, канон-7, бины 36 → 37: верх 17,08 → 21,93 мм) рис тянулся к соседу, а нори стояла
+// на месте — и рис выходил на поверхность поверх неё. У урамаки то же на ступени ЯДРА: нори
+// стоит, а innerAt и рис уезжают, и рис касается начинки. Там, где контур падает, наоборот:
+// нори висит над рисом, под ней пустота. Замер 16.09 (лучи 1440 и 2880, три фазы; мерка —
+// первый материал оболочки по materialAt): тюмаки канон-7 — рис поверх нори на 9,00…9,25°;
+// урамаки с семью брусками — рис раньше нори до 38°, нори в растре на 5,2 % меньше, чем в
+// массивах. После правки: 633 замкнутых кольца матрицы (6 баз × 5 обёрток × 3 формы × 5
+// раскладок, ring и auto) — ноль таких лучей, нори растра против массивов в пределах 0,05 %.
+//
+// Кольцо после финальной переукладки в wind() СПЛОШНОЕ: rin[k+1] = rout[k] в каждом бине.
+// Значит правильный срез между бинами — та же стопка: основание берётся как в innerAt
+// (rin слоя 0, к соседу), а сверху слои кладутся подряд своей толщиной. Толщина тянется к
+// соседу, если у соседа есть слой с тем же номером и той же ролью (рис/обёртка); иначе своя —
+// так конец нахлёста и смена ролей у вывернутого не превращаются в клин. Через шов не
+// интерполируем, как и раньше; последний сектор (lastIdx) обрезается по углу, как и раньше.
+// Когда тянутся все слои, это ровно прежняя послойная интерполяция — меняется только то, что
+// разъезжалось.
+function sampleRing(wd, r, b, frac) {
+  const b2 = b + 1 < NB ? b + 1 : -1, band = wd.ringBand;
+  let rIn = wd.rin[b]; if (rIn < 0) return null;
+  if (b2 >= 0 && wd.rin[b2] >= 0) rIn += (wd.rin[b2] - rIn) * frac;
+  if (r < rIn) return null;
+  for (let k = 0; k < wd.kmax; k++) {
+    const idx = k * NB + b, ri = wd.rin[idx]; if (ri < 0) break;
+    let t = wd.rout[idx] - ri, f = frac;
+    if (idx === wd.lastIdx) { const fe = windSectorAngle(wd, idx) / DPHI; if (frac > fe) continue; f = fe > 1e-6 ? frac / fe : 0; }
+    else if (b2 >= 0) { const n = idx + 1; if (wd.rin[n] >= 0 && (band[b] === k) === (band[b2] === k)) t += (wd.rout[n] - wd.rin[n] - t) * frac; }
+    const rOut = rIn + t;
+    if (r < rOut) return { u: wd.u0[idx] + (wd.u1[idx] - wd.u0[idx]) * f, zr: r - rIn, t, rOut, rIn, idx, frac: f, wrap: band[b] !== k };
+    rIn = rOut;
   }
   return null;
 }
