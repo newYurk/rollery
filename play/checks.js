@@ -1775,6 +1775,29 @@ function runChecks(detail) {
         S.base = было.base; S.hand = было.hand; S.lists.futo = было.futo; S.winding = было.winding; modelCaches.clear(); touchModel();
       }
     }
+    // И пока игрок тащит кусок, надпись «свернётся спиралью» остаётся (#240): границу охвата ищут
+    // именно перетаскиванием. Кадр раскладки рисуется с перехватом fillText и незаконченным сдвигом.
+    if (!globalThis.БЕЗ_БРАУЗЕРА && typeof drawLay === 'function') {
+      const было = { base: S.base, hand: S.hand, futo: S.lists.futo, winding: S.winding, mode: S.mode, preview: S.preview,
+                     dragKind: drag.kind, dragPatch: drag.patch, dragMoved: drag.moved, fillText: ctx.fillText };
+      const тексты = [];
+      try {
+        S.base = 'futo'; S.wrap = null; S.hand = handOf(); S.winding = null; S.mode = 'lay'; S.preview = true; clean();
+        S.lists.futo = [{ kind: 'cucumber', u: 0.25, v: 0.5, z0: 0, z1: 0, phase: 1 },
+                        { kind: 'tamago', u: 0.8, v: 0.5, z0: 0, z1: 0, phase: 1 }];
+        modelCaches.clear(); touchModel(); layout();
+        drag.kind = 'move'; drag.patch = S.lists.futo[1]; drag.moved = true;
+        ctx.fillText = function (t, ...rest) { тексты.push(String(t)); return было.fillText.call(this, t, ...rest); };
+        drawLay();
+      } finally {
+        ctx.fillText = было.fillText;
+        drag.kind = было.dragKind; drag.patch = было.dragPatch; drag.moved = было.dragMoved;
+        S.base = было.base; S.hand = было.hand; S.lists.futo = было.futo; S.winding = было.winding; S.mode = было.mode;
+        S.preview = было.preview; modelCaches.clear(); touchModel(); layout();
+      }
+      ok(тексты.some(t => t.includes('свернётся спиралью')),
+         'надпись «свернётся спиралью» пропадает, пока тащишь кусок (#240): в кадре её нет');
+    }
     // И надпись «свернётся спиралью» на листе (просьба владельца 02.09) не прячется под окошком
     // живого среза: 16.09 на телефоне с футомаки окошко закрывало её целиком.
     if (typeof overlayGeom === 'function' && typeof spiralNoteY === 'function') {
