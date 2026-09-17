@@ -43,20 +43,41 @@ function genTarget(lv, seed) {
   const full = base.filter(k => !isLocal(k)), local = base.filter(isLocal);
   const kinds = [];
   for (let i = 0; i < (lv.local || 0) && local.length; i++) kinds.push(local[Math.floor(rnd() * local.length)]);
-  if (lv.sheet && rnd() < 0.7) kinds.push(b.ingredients.find(isLong));
+  // Длинный кусок — только если он вообще ложится на рис (#253): у узумаки на двух витках лист
+  // 53 мм, грядка 45, а омлет-лист 50 — такой цели игроку не собрать. Слот тогда отдаётся
+  // обычному куску ниже.
+  if (lv.sheet && rnd() < 0.7) { const k = b.ingredients.find(isLong); if (k && layFits({ kind: k, u: 0.5, v: 0.5 })) kinds.push(k); }
   for (let i = 0; i < (lv.paint || 0) && paints.length; i++) kinds.push(paints[Math.floor(rnd() * paints.length)]);
   while (kinds.length < lv.n) kinds.push(full[Math.floor(rnd() * full.length)]);
   const items = kinds.map(kind => ({ kind, half: ING[kind].wU / L / 2 + 0.012 }));
   const uMax = 0.92;   // суши: только то, что точно намотается до замыкания (ядро + первый оборот)
+  // ⚑ ПОПЫТКА С КУСКОМ НА ГОЛОМ КРАЕ БРАКУЕТСЯ (#253, 17.09). Окно шло от 0,012 листа до uMax, то
+  // есть и по голым полям: замер 17.09 (шесть баз × 16 уровней × 24 зерна) — 976 кусков из 7344
+  // на голом крае, у хосомаки дальняя кромка риса 0,863 при uMax 0,92. Игрок так положить уже не
+  // может, значит и цель не может. Окно не сдвинуто, а попытка отбрасывается, как при наложении
+  // кусков: цели, которые и раньше лежали на рисе, остаются побитно прежними, меняются только те,
+  // что лежали на голом. Вариантов станет меньше — владелец это приняла.
+  const рис = riceSpanU();
+  const полу = items.map(it => { const bb = bounds({ kind: it.kind, u: 0, v: 0.5 }, undefined, true); return (bb.u1 - bb.u0) / 2; });
   let us = null;
   for (let tries = 0; tries < 80 && !us; tries++) {
     const cand = items.map(it => it.half + rnd() * (uMax - 2 * it.half));
     const order = cand.map((u, i) => i).sort((a, c) => cand[a] - cand[c]); let ok = true;
     for (let j = 1; j < order.length; j++) { const a = order[j - 1], c = order[j]; if (cand[c] - cand[a] < items[a].half + items[c].half) { ok = false; break; } }
+    if (ok && cand.some((u, i) => u - полу[i] < рис.u0 || u + полу[i] > рис.u1)) ok = false;
     if (ok) us = cand;
   }
-  if (!us) { let u = 0.03; us = items.map(it => { const x = u + it.half; u += 2 * it.half + 0.02; return x; }); }
-  const list = items.map((it, i) => { const d = ING[it.kind]; const p = { kind: it.kind, u: clamp(us[i], it.half, 1 - it.half), v: 0.5, z0: 0, z1: 0, phase: rnd() * TAU }; if (d.dv < 1) p.v = d.dv / 2 + rnd() * (1 - d.dv); return p; });
+  if (!us) {
+    // Запасная укладка — подряд от кромки риса (прежде от 0,03 листа, то есть с голого края).
+    // Окно риса уже листа, и подряд с прежними зазорами (0,012 у кромки, 0,044 между следами)
+    // влезает не всегда: тогда зазоры сжимаются поровну. Стопка остаётся только там, где следы не
+    // помещаются на рис даже встык, — хвост тогда прижмёт последний рубеж ниже.
+    const n = items.length, своб = (рис.u1 - рис.u0) - полу.reduce((a, h) => a + 2 * h, 0);
+    const край = Math.max(0, Math.min(0.012, своб / 2));
+    const зазор = Math.max(0, Math.min(0.044, (своб - 2 * край) / Math.max(1, n - 1)));
+    let u = рис.u0 + край; us = полу.map(h => { const x = u + h; u += 2 * h + зазор; return x; });
+  }
+  const list = items.map((it, i) => { const d = ING[it.kind]; const p = { kind: it.kind, u: us[i], v: 0.5, z0: 0, z1: 0, phase: rnd() * TAU }; if (d.dv < 1) p.v = d.dv / 2 + rnd() * (1 - d.dv); return p; });
   // Поворот исполняется, только пока он есть у игрока (#168) — тот же приём, что с wrap ниже.
   if (ROTATE_PIECE_ON && lv.rot) for (let r = 0, n0 = 0; r < list.length && n0 < lv.rot; r++) { const p = list[r]; if (ING[p.kind].wave || isLong(p.kind)) continue; p.rot = rnd() < 0.5 ? Math.PI / 4 : Math.PI / 2; p.dv = 0.22; p.v = 0.25 + rnd() * 0.5; n0++; }
   // Уровни свои `wrap` не теряют — их просто не исполняем, пока приём выключен: иначе цель
@@ -69,6 +90,9 @@ function genTarget(lv, seed) {
     const F = cands[Math.floor(rnd() * cands.length)]; F.wrapped = true; wrapInNoriList(F, list);
   }
   for (const p of list) delete p.wrapped;   // временная метка генератора; noriWrap остаётся — он и есть обёртка
+  // Последний рубеж — то же правило, что у игрока (#253): что не влезло в окно (запасная укладка,
+  // кусок шире окна, поворот или обёртка, если их вернут), встаёт на ближайшее место на рисе.
+  for (const p of list) p.u = layU(p, p.u);
   return list;
 }
 function puzzleStart(level, seed) {
