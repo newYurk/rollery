@@ -38,10 +38,14 @@ function withRecipe(e, fn) {
   // а он уже на блине (issue #86).
   const keep = { base: S.base, wrap: S.wrap, turns: S.turns, shape: S.shape, hand: S.hand, list: S.lists[e.base] };
   S.base = e.base; S.wrap = (e.wrap && WRAPPERS[e.wrap]) ? e.wrap : null;
-  S.turns = turnsOf(e.turns); S.shape = SHAPES[e.shape] ? e.shape : 'round';
+  // Витки записи — по тому же правилу, что у ссылки (#253, решение владельца 17.09): лист не
+  // короче 2 витков и такой, чтобы на рис лёг каждый кусок.
+  S.turns = recipeTurns(e, e.list); S.shape = SHAPES[e.shape] ? e.shape : 'round';
   S.hand = Object.assign(handOf(), e.hand || {});
   let out;
-  try { out = fn(buildModel(JSON.parse(JSON.stringify(e.list)))); }
+  // Запись до 17.09 могла положить кусок на голый край — миниатюра считается уже со сдвигом,
+  // той же дорогой, что «На лист» и ссылка (#253). Сама запись в хранилище не переписывается.
+  try { const list = JSON.parse(JSON.stringify(e.list)); layOnRice(list); out = fn(buildModel(list)); }
   finally { S.base = keep.base; S.wrap = keep.wrap; S.turns = keep.turns; S.shape = keep.shape; S.hand = keep.hand; S.lists[e.base] = keep.list; }
   return out;
 }
@@ -62,7 +66,7 @@ function albumLoad(i) {
   const e = S.album[i]; if (!e) return;
   if (S.puzzle) puzzleStop();
   S.base = e.base; S.wrap = (e.wrap && WRAPPERS[e.wrap]) ? e.wrap : null;   // старые записи без поля → обёртка базы (issue #86)
-  S.turns = turnsOf(e.turns); S.shape = SHAPES[e.shape] ? e.shape : 'round';
+  S.turns = recipeTurns(e, e.list); S.shape = SHAPES[e.shape] ? e.shape : 'round';   // #253: как у ссылки
   S.hand = Object.assign(handOf(), e.hand || {});
   S.sel = uiIngredients()[0] || B().ingredients[0]; S.selPatch = null;
   // ⚠ ФИЛЬТР ПО KIND, КАК ПРИ ЗАГРУЗКЕ СОХРАНЁННОГО (#150). Альбом хранит рецепты и открывает
@@ -70,6 +74,7 @@ function albumLoad(i) {
   // `load()` в state.js такие отсеивает, а этот путь клал список как есть — и запись со снятой
   // начинкой валила не плитку, а саму игру.
   S.lists[e.base] = JSON.parse(JSON.stringify(e.list)).filter(p => ING[p.kind]);
+  layOnRice(S.lists[e.base]);                    // #253: кусок с голого края — на ближайшее место на рисе
   histReset();                                   // #150: пришла другая раскладка — прошлого нет
   S.albumOpen = -1; S.mode = 'lay'; S.rollP = 0; anim = null; cut = null; slicing = null;
   touchModel(); layout(); dirty = true; requestFrame();

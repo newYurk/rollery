@@ -150,7 +150,13 @@ function drawLay() {
   ctx.save(); ctx.beginPath(); ctx.rect(s.x - 8, s.y - 8, s.w + 16, Math.max(0, yb - s.y + 8)); ctx.clip();
   rr(s.x - 5, s.y - 5, s.w + 10, s.h + 10, 6); ctx.fillStyle = B().wrapper; ctx.fill();
   const mdl = getModel(), wd0 = windFor(mdl, 0.5), Lm = mdl.g.L;
-  const uClose = wd0.sClose >= 0 ? wd0.sClose / Lm : B().spreadEnd, uEnd = wd0.sEnd < Lm ? wd0.sEnd / Lm : 1;
+  // ⚑ У СПИРАЛИ РИС КОНЧАЕТСЯ НА spreadEnd, А НЕ У КРАЯ ЛИСТА (#253, 17.09). `sClose` у спирали —
+  // конец листа (она замыкается им), и лист узумаки рисовался рисом до самого верха, хотя в модели
+  // там 21 мм голой нори. Пока класть можно было куда угодно, это было неточностью картинки; с
+  // запретом голого края кусок упирался бы посреди нарисованного риса. У кольца `sClose` — конец
+  // риса на среднем срезе, как и было.
+  const uClose = mdl.g.winding === 'spiral' ? B().spreadEnd : wd0.sClose >= 0 ? wd0.sClose / Lm : B().spreadEnd;
+  const uEnd = wd0.sEnd < Lm ? wd0.sEnd / Lm : 1;
   const bare = (1 - uClose) * s.h, rimPx = B().spreadEnd < 1 ? RIM_W * s.h : 0;
   // ⚑ БЛИЖНЯЯ ГОЛАЯ ПОЛОСА. Рис начинается не от кромки, а отступив: 「手前2cm位」.
   // Раньше он доходил до самого низа, и лист читался как «полоска нори сверху плюс
