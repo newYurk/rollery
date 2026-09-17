@@ -1095,9 +1095,8 @@ function conservativeBand(wd, v, g, list) {
       wd.top[b] = r; R = Math.max(R, r);
     }
     wd.Rout = R;
-    let area = 0;
-    for (let i = 0; i < size; i++) { const q = bandSector(wd, i, g); if (q) area += q.area; }
-    return area;
+    // Площадь секторов здесь не считается: её никто не читал, а цикл строил объект на
+    // каждый сектор всех витков. Итоговую площадь даёт проход по `sectors` ниже.
   };
   // At scale k, previous filled bands move this band's inner radius by k*p.
   // Its sector area is therefore A*k²+B*k; solve the total exactly once.
