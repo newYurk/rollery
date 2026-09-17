@@ -2162,6 +2162,44 @@ function runChecks(detail) {
           puzzleStop();
           ok(!плохо.length, `#253 смена обёртки: ${плохо.join(' · ')}`);
         }
+        // 3б. ОТМЕНА И ВОЗВРАТ ПОСЛЕ СМЕНЫ ОБЁРТКИ (замечание проверки 17.09). Снимок истории снят
+        // на прежнем листе, а обёртка в историю не входит: «положить у кромки → положить ещё →
+        // сменить обёртку → отменить» клал снимок как есть — 784 случая из 1920, до 2,84 мм на голом.
+        // Настоящий путь: касания через onDown/onUp, действия 'sheet', 'undo', 'redo'. Все базы ×
+        // витки 2, 3, 4 × каждая обёртка на старте × все переходы по кругу.
+        {
+          const плохо = []; let случаев = 0;
+          const ОБЁРТКИ = Object.keys(WRAPPERS);
+          for (const база of БАЗЫ) {
+            if (BASES[база].wrapFixed) continue;
+            for (const lv of [4, 0, 3]) for (const старт of ОБЁРТКИ) {
+              S.base = база; S.wrap = старт; S.hand = handOf(); S.mode = 'lay'; S.rollP = 0; anim = null;
+              puzzleStart(lv, 1); layout(); buttons.length = 0; icons.length = 0;
+              const s = SB(), кк = кромки();
+              const тап = (kind, u, v) => { S.sel = kind; const sc = toScreen(s.x + s.w * v, s.y + (1 - u) * s.h); onDown(sc.x, sc.y, 78); onUp(sc.x, sc.y, 78); };
+              // У кромок — короткие куски (креветка, треть длины ролла), третий — в середину риса и в
+              // другой трети ролла: лист узумаки на двух витках 67 px в высоту, и ореол касания
+              // (HIT_PAD 14 px) длинных кусков у кромок перекрывал его середину — касание выделяло
+              // кусок, а не клало новый.
+              тап('shrimp', 0.999, 0.3); тап('shrimp', 0.001, 0.3); тап('cucumber', (кк.a + кк.z) / 2, 0.8);
+              const тег0 = `${база} ${LEVELS[lv].turns} вит. с ${старт}`;
+              if (patches().length !== 3) { плохо.push(`${тег0}: положено ${patches().length} из 3`); puzzleStop(); continue; }
+              for (let k = 1; k < ОБЁРТКИ.length; k++) {
+                const с = S.wrap; action('sheet'); случаев++;
+                const тег = `${тег0}: ${с}→${S.wrap}`, до = JSON.stringify(patches());
+                patches().forEach(p => { if (голых(p)) плохо.push(`${тег}, после смены ${p.kind} на голом`); });
+                action('undo');
+                if (patches().length !== 2) плохо.push(`${тег}, отмена оставила ${patches().length} куска из 2`);
+                patches().forEach(p => { if (голых(p)) плохо.push(`${тег}, после отмены ${p.kind} на голом, u ${p.u.toFixed(4)}`); });
+                action('redo');
+                patches().forEach(p => { if (голых(p)) плохо.push(`${тег}, после возврата ${p.kind} на голом`); });
+                if (JSON.stringify(patches()) !== до) плохо.push(`${тег}, возврат дал не ту раскладку, что была до отмены`);
+              }
+              puzzleStop();
+            }
+          }
+          ok(!плохо.length && случаев > 0, `#253 смена обёртки → отмена и возврат: ${плохо.length} нарушений в ${случаев} переходах — ${плохо.slice(0, 3).join(' · ')}`);
+        }
         // 4. ПРЕЖНИЕ РАСКЛАДКИ КАНОНА ЛЕЖАТ НА РИСЕ — правило их не двигает.
         {
           S.base = 'futo'; S.wrap = null; clean();

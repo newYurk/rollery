@@ -167,7 +167,17 @@ function pushHistory() {
   if (hist.past.length > HIST_MAX) hist.past.shift();
   hist.future.length = 0;                       // новое действие обрывает ветку «вперёд»
 }
-function histApply(json) { S.lists[S.base] = JSON.parse(json); S.selPatch = null; touchModel(); }
+// ⚑ СНИМОК МОГ БЫТЬ СНЯТ НА ЛИСТЕ ДРУГОЙ ДЛИНЫ (#253, 17.09, замечание проверки). Обёртка в
+// историю не входит, а при заданных витках (пазл) она меняет длину листа, и с ней — долю куска
+// и кромки риса. «Положить у кромки → положить ещё → сменить обёртку → отменить» возвращал
+// снимок как есть: 784 случая из 1920, кусок до 2,84 мм на голом. Поэтому снимок, прежде чем
+// лечь, проходит то же правило, что касание: кусок — на рис (лежавший на рисе не трогается до
+// бита), а кусок, которому на этом листе места нет вовсе, не возвращается.
+function histApply(json) {
+  const list = JSON.parse(json).filter(p => !ING[p.kind] || layFits(p));
+  layOnRice(list);
+  S.lists[S.base] = list; S.selPatch = null; touchModel();
+}
 function undo() {
   if (hist.base !== S.base || !hist.past.length) return false;
   hist.future.push(histSnap());
