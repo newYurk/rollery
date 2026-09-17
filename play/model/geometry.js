@@ -981,7 +981,9 @@ function bandSourceColumns(v, g, list, coreRice) {
     const a = Math.max(0, rg[0]), b = Math.min(L, rg[1]); if (!(b > a)) continue;
     cuts.push(a, b); bodies.push({ p, d, rg });
   }
-  cuts.sort((a, b) => a - b);
+  // Числовая сортировка типизированного массива даёт тот же порядок: NaN сюда не попадает
+  // (!(b > a) отсекает), −0 тоже (Math.max(0, …) и литерал 0 дают +0).
+  const cutsSorted = Float64Array.from(cuts).sort();
   // Всё, что зависит только от куска, считается один раз, а не в каждом столбике:
   // диапазон грядки/ложбинки, высота тела и его подъём над листом.
   const deltas = [];
@@ -992,8 +994,8 @@ function bandSourceColumns(v, g, list, coreRice) {
   for (const q of bodies) { q.h = dims(q.p, g).h * g.T * q.rg[8]; q.z0T = q.p.z0 * g.T; }
   const columns = []; let riceInput = 0, fillingArea = 0;
   const spP = spreadPre(g, v);
-  for (let i = 1; i < cuts.length; i++) {
-    const a = cuts[i - 1], b = cuts[i]; if (b - a < 1e-10) continue;
+  for (let i = 1; i < cutsSorted.length; i++) {
+    const a = cutsSorted[i - 1], b = cutsSorted[i]; if (b - a < 1e-10) continue;
     const s = (a + b) / 2, u = s / L, spans = [];
     let rice = spreadAtPre(u, spP) * g.T;
     for (const e of deltas) {
@@ -1093,9 +1095,14 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
   let ord = null;
   if (wd.ringBand) { ord = new Array(capN); for (let j = 0; j < capN; j++) ord[j] = j; ord.sort((x, y) => capA[x] - capA[y]); }
   const at = j => ord ? ord[j] : j;
+  // Столбики спрашивают ёмкость по возрастанию s, а концы отрезков спирали не убывают
+  // (capB[j] === capA[j + 1]): курсор вперёд находит тот же номер, что двоичный поиск.
+  // Кольцо и любой запрос назад идут двоичным поиском.
+  let sweepLo = 0, sweepS = -Infinity;
   const bandCapacityAt = s => {
     let lo = 0, hi = capN - 1;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (capB[at(mid)] <= s) lo = mid + 1; else hi = mid; }
+    if (!ord && s >= sweepS) { lo = sweepLo; while (lo < hi && capB[lo] <= s) lo++; sweepLo = lo; sweepS = s; }
+    else while (lo < hi) { const mid = (lo + hi) >> 1; if (capB[at(mid)] <= s) lo = mid + 1; else hi = mid; }
     if (lo >= capN) return 0;
     const c = at(lo); return s >= capA[c] && s <= capB[c] ? capH[c] : 0;
   };
