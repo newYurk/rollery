@@ -2842,7 +2842,8 @@ function buildModel(list, only) {
   //
   // Ловится это только замером: дефект не роняет ничего и не рисует мусор — он показывает
   // ПРАВИЛЬНУЮ прошлую картинку, а такую глазами не отличить от «переключатель не на то влияет».
-  const key = S.base + '|' + (B().wrapKey || '-') + '|' + S.shape + '|' + (S.winding || '-') + '|' + (S.turns || '') + '|' + hd.air.toFixed(3) + ',' + hd.wobble.toFixed(3) + ',' + hd.phase.toFixed(2) + ',' + hd.press.toFixed(2) + '|s:' + (only === undefined ? 'all' : only) + '|' + listKey(list);
+  // Рука в ключе — точно, как и поля кусков (numKey): округление склеивало разные почерки в одну модель.
+  const key = S.base + '|' + (B().wrapKey || '-') + '|' + S.shape + '|' + (S.winding || '-') + '|' + (S.turns || '') + '|' + numKey(hd.air) + ',' + numKey(hd.wobble) + ',' + numKey(hd.phase) + ',' + numKey(hd.press) + '|s:' + (only === undefined ? 'all' : only) + '|' + listKey(list);
   let m = modelCaches.get(key); if (m) { modelCaches.delete(key); modelCaches.set(key, m); return m; }
   // ⚑ ВЫТЕСНЯЕМ СТАРЕЙШУЮ, А НЕ ВЫБРАСЫВАЕМ ВСЁ (#36, правка 01.09). `clear()` на
   // семнадцатой записи ронял и те модели, которыми прямо сейчас рисуют: альбом кладёт в кадр
