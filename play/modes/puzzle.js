@@ -38,8 +38,11 @@ const puzzleSlices = k => { const vs = []; for (let i = 0; i < k; i++) vs.push((
 function genTarget(lv, seed) {
   const rnd = mulberry32(seed), b = B(), L = sheetLen(b);
   const isLong = k => ING[k].wU >= 6, isLocal = k => ING[k].dv < 1;
-  const base = b.ingredients.filter(k => k !== 'nori' && !ING[k].wave && !isLong(k) && !ING[k].paint);
-  const paints = b.ingredients.filter(k => ING[k].paint);
+  // В цель — только то, что игрок может положить на этот лист: фишка не тусклая (#253). Сегодня
+  // фильтр ничего не отсекает — все обычные куски и краски, что ложатся в уровнях, помещаются
+  // (дэмбу не помещается только на двух витках, а краски там нет), — он стережёт завтрашние уровни.
+  const base = b.ingredients.filter(k => k !== 'nori' && !ING[k].wave && !isLong(k) && !ING[k].paint && chipFits(k));
+  const paints = b.ingredients.filter(k => ING[k].paint && chipFits(k));
   const full = base.filter(k => !isLocal(k)), local = base.filter(isLocal);
   const kinds = [];
   for (let i = 0; i < (lv.local || 0) && local.length; i++) kinds.push(local[Math.floor(rnd() * local.length)]);
@@ -98,6 +101,7 @@ function genTarget(lv, seed) {
 function puzzleStart(level, seed) {
   level = clamp(level, 0, LEVELS.length - 1); const lv = LEVELS[level];
   S.turns = lv.turns; S.selPatch = null; S.shape = lv.shape || 'round';
+  selOnRice();   // лист уровня короче — выбранная фишка могла стать тусклой (#253)
   S.puzzle = { level, seed, lv, target: null, vs: puzzleSlices(lv.pieces), result: null };
   S.puzzle.target = genTarget(lv, seed * 7919 + level * 131);
   // СРЕЗЫ ОБЯЗАНЫ ПРОХОДИТЬ ЧЕРЕЗ КАЖДУЮ НАЧИНКУ. Иначе часть цели невидима, и её можно
@@ -175,6 +179,7 @@ function decodePuzzle(hash) {
 function puzzleFromLink(pz) {
   S.base = pz.base; S.wrap = pz.wrap || null; S.sel = uiIngredients()[0] || B().ingredients[0];
   S.turns = turnsOf(pz.turns); S.selPatch = null; S.shape = pz.shape || 'round';
+  selOnRice();   // #253: первая фишка всегда ложится, но правило одно на все пути
   if (pz.hand) S.hand = pz.hand;
   const local = pz.list.some(p => (p.dv ?? ING[p.kind].dv) < 1), n = pz.list.filter(p => p.kind !== 'nori').length;
   const lv = { n, turns: S.turns || B().turns, pieces: local ? 3 : 1, custom: true };

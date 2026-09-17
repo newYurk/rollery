@@ -54,9 +54,14 @@ function action(id) {
     // ⚠ Имя 'wrap' уже занято: так называется «обернуть НАЧИНКУ в нори». Первый совпавший
     // case выигрывает, поэтому моя ветка была недостижима и кнопка молча ничего не делала.
     case 'sheet': {
-      const ks = Object.keys(WRAPPERS), cur = B().wrapKey || 'nori';
-      S.wrap = ks[(ks.indexOf(cur) + 1) % ks.length];
+      const ks = Object.keys(WRAPPERS), cur = B().wrapKey || 'nori', i0 = ks.indexOf(cur);
+      // Обёртку, на которой лежащий кусок не поместился бы на рис вовсе, перебор пропускает (#253,
+      // 17.09): узумаки в пазле на двух витках — банан, положенный на омлете, на нори не ложится.
+      let next = cur;
+      for (let d = 1; d < ks.length; d++) { const k = ks[(i0 + d) % ks.length]; if (sheetTakes(k)) { next = k; break; } }
+      S.wrap = next;
       layRefit();   // при заданных витках обёртка меняет длину листа, кусок у кромки съехал бы на голое (#253)
+      selOnRice();  // и выбранная фишка могла перестать помещаться
       wrapNote = WRAPPERS[S.wrap].name + ' · ' + WRAPPERS[S.wrap].mm + ' мм';
       wrapNoteT = performance.now();
       save(); touchModel(); layout(); dirty = true; break;
@@ -96,7 +101,8 @@ function onDown(x, y, id) {
     if (anim) return;
     if (inRect(x, y, chipsRect())) {
       if (L.chipScroll) { drag.id = id; drag.kind = 'chips'; drag.x0 = x; drag.s0 = chipScrollX; drag.moved = false; return; }
-      for (const c of chips) if (inRect(x, y, c)) { S.sel = c.kind; dirty = true; requestFrame(); return; }
+      // тусклая фишка (кусок не помещается на рис этого листа, #253) не выбирается
+      for (const c of chips) if (inRect(x, y, c)) { if (!c.dead) S.sel = c.kind; dirty = true; requestFrame(); return; }
       return;
     }
     const s = L.sheet;
@@ -221,7 +227,7 @@ function onUp(x, y, id) {
   if (drag.id !== id) return;
   const kind = drag.kind; drag.id = null; drag.kind = null;
   if (kind === 'chips') {
-    if (!drag.moved) for (const c of chips) if (inRect(x, y, c)) { S.sel = c.kind; break; }
+    if (!drag.moved) for (const c of chips) if (inRect(x, y, c)) { if (!c.dead) S.sel = c.kind; break; }
   } else if (kind === 'roll') {
     sfx.rustleStop();
     measureHand();
@@ -233,8 +239,9 @@ function onUp(x, y, id) {
     else { if (drag.outside) { const l = patches(); l.splice(l.indexOf(p), 1); S.selPatch = null; } touchModel(); }
     drag.outside = false;
   } else if (kind === 'place') {
-    // кусок шире всей грядки не ложится (#253) — и пустой снимок в историю не пишем
-    if (!drag.moved && layFits({ kind: S.sel, u: 0.5, v: 0.5 })) { const uv = sheetUV(x, y); pushHistory(); placeAt(uv.u, uv.v); }
+    // кусок шире всей грядки не ложится (#253) — и пустой снимок в историю не пишем. Сюда такой
+    // выбор не доходит: фишка тусклая, а выбранная уходит на доступную (selOnRice); это запасной упор.
+    if (!drag.moved && chipFits(S.sel)) { const uv = sheetUV(x, y); pushHistory(); placeAt(uv.u, uv.v); }
   }
   dirty = true; requestFrame();
 }
