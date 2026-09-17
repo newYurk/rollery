@@ -17,13 +17,13 @@ const LEVELS = [
   { n: 1, turns: 3, pieces: 1 },
   { n: 2, turns: 3, pieces: 1 },
   { n: 3, turns: 3, pieces: 1 },
-  { n: 2, turns: 3, pieces: 1, wrap: 1, rot: 1 },   // rot добавлен 02.09: без wrap уровень был копией второго (#159)
+  { n: 2, turns: 4, pieces: 1, wrap: 1, rot: 1 },   // rot добавлен 02.09, turns 3→4 16.09: без wrap и rot уровень — копия второго (#159, #168)
   { n: 3, turns: 2, pieces: 1, shape: 'square' },
   { n: 3, turns: 3, pieces: 3, local: 1 },
   { n: 4, turns: 4, pieces: 1, shape: 'triangle' },
   { n: 3, turns: 3, pieces: 6, local: 2 },
   { n: 3, turns: 3, pieces: 6, rot: 1 },
-  { n: 3, turns: 3, pieces: 3, local: 1, wrap: 1, rot: 1 },   // то же: без wrap был копией шестого (#159)
+  { n: 3, turns: 4, pieces: 3, local: 1, wrap: 1, rot: 1 },   // то же, копия шестого; turns 3→4 16.09 (#159, #168)
   { n: 4, turns: 4, pieces: 6, local: 2, wrap: 1 },
   { n: 4, turns: 2, pieces: 3, local: 1, wrap: 1, sheet: 1, shape: 'square' },
   { n: 3, turns: 3, pieces: 1, paint: 1, shape: 'triangle' },
@@ -57,7 +57,8 @@ function genTarget(lv, seed) {
   }
   if (!us) { let u = 0.03; us = items.map(it => { const x = u + it.half; u += 2 * it.half + 0.02; return x; }); }
   const list = items.map((it, i) => { const d = ING[it.kind]; const p = { kind: it.kind, u: clamp(us[i], it.half, 1 - it.half), v: 0.5, z0: 0, z1: 0, phase: rnd() * TAU }; if (d.dv < 1) p.v = d.dv / 2 + rnd() * (1 - d.dv); return p; });
-  if (lv.rot) for (let r = 0, n0 = 0; r < list.length && n0 < lv.rot; r++) { const p = list[r]; if (ING[p.kind].wave || isLong(p.kind)) continue; p.rot = rnd() < 0.5 ? Math.PI / 4 : Math.PI / 2; p.dv = 0.22; p.v = 0.25 + rnd() * 0.5; n0++; }
+  // Поворот исполняется, только пока он есть у игрока (#168) — тот же приём, что с wrap ниже.
+  if (ROTATE_PIECE_ON && lv.rot) for (let r = 0, n0 = 0; r < list.length && n0 < lv.rot; r++) { const p = list[r]; if (ING[p.kind].wave || isLong(p.kind)) continue; p.rot = rnd() < 0.5 ? Math.PI / 4 : Math.PI / 2; p.dv = 0.22; p.v = 0.25 + rnd() * 0.5; n0++; }
   // Уровни свои `wrap` не теряют — их просто не исполняем, пока приём выключен: иначе цель
   // потребовала бы того, чего игрок сделать не может (#159). Разбор — над WRAP_PIECE_ON.
   for (let w = 0; WRAP_PIECE_ON && w < (lv.wrap || 0); w++) {
@@ -159,6 +160,6 @@ function sharePuzzle() {
 function levelTitle(lv, i) {
   if (lv.custom) return `Пазл по ссылке · ${lv.n} нач. · ${lv.pieces > 1 ? lv.pieces + ' кус.' : '1 срез'}`;
   const parts = [`Уровень ${i + 1}`, `${lv.n} нач.`, `${lv.turns} вит.`, lv.pieces > 1 ? `${lv.pieces} кус.` : '1 срез'];
-  if (lv.wrap) parts.push('нори'); if (lv.local) parts.push('короткие'); if (lv.paint) parts.push('цв. рис'); if (lv.rot) parts.push('поворот'); if (lv.shape && lv.shape !== 'round') parts.push(SHAPES[lv.shape].glyph);
+  if (lv.wrap && WRAP_PIECE_ON) parts.push('нори'); if (lv.local) parts.push('короткие'); if (lv.paint) parts.push('цв. рис'); if (lv.rot && ROTATE_PIECE_ON) parts.push('поворот'); if (lv.shape && lv.shape !== 'round') parts.push(SHAPES[lv.shape].glyph);
   return parts.join(' · ');
 }

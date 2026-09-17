@@ -1740,14 +1740,37 @@ function runChecks(detail) {
     // одной цели не должно быть обёрнутого куска. Проверяются все уровни на трёх зёрнах —
     // обёртывание случайно, и одно зерно могло бы промахнуться.
     {
-      let обёрнуто = 0, где = [];
+      let обёрнуто = 0, где = [], повёрнуто = 0, гдеПоворот = [];
       for (let i = 0; i < LEVELS.length; i++) {
         for (const seed of [1, 7, 42]) {
           S.base = 'futo'; S.wrap = null; S.hand = handOf(); clean(); touchModel();
           const цель = genTarget(LEVELS[i], seed * 7919 + i * 131) || [];
           const n = цель.filter(p => p.noriWrap).length;
           if (n) { обёрнуто += n; if (где.indexOf(i + 1) < 0) где.push(i + 1); }
+          const r = цель.filter(p => p.rot).length;
+          if (r) { повёрнуто += r; if (гдеПоворот.indexOf(i + 1) < 0) гдеПоворот.push(i + 1); }
         }
+      }
+      // ⚑ ТО ЖЕ С ПОВОРОТОМ (#168, 16.09): кнопки «⟳» нет — цель не имеет права его требовать.
+      ok(ROTATE_PIECE_ON || повёрнуто === 0,
+         `пазл ставит повёрнутые куски в цели уровней ${гдеПоворот.join(', ')} (${повёрнуто} шт.), а поворота у игрока нет — уровни непроходимы (#168)`);
+      kn(!ROTATE_PIECE_ON || повёрнуто > 0,
+         'поворот включён, но ни один уровень им не пользуется — уровни потеряли свой rot (#168)');
+      // Подпись уровня не обещает приёмов, которых нет: игрок читает её как задание.
+      for (let i = 0; i < LEVELS.length; i++) {
+        const t = levelTitle(LEVELS[i], i);
+        ok(WRAP_PIECE_ON || !/нори/.test(t), `подпись уровня ${i + 1} обещает «нори», а приёма нет (#159): ${t}`);
+        ok(ROTATE_PIECE_ON || !/поворот/.test(t), `подпись уровня ${i + 1} обещает поворот, а его нет (#168): ${t}`);
+      }
+      // И само действие: пока поворот выключен, «⟳» не меняет кусок, даже если его позвать в обход кнопки.
+      {
+        S.base = 'hoso'; S.wrap = null; S.hand = handOf(); clean();
+        S.lists.hoso = [{ kind: 'tamago', u: 0.5, v: 0.5, z0: 0, z1: 0, phase: 1 }]; touchModel();
+        S.selPatch = S.lists.hoso[0];
+        action('rotate');
+        ok(ROTATE_PIECE_ON || !S.lists.hoso[0].rot,
+           `поворот выключен (#168), а «⟳» повернул кусок на ${((S.lists.hoso[0].rot || 0) * 180 / Math.PI).toFixed(0)}°`);
+        S.selPatch = null; S.lists.hoso = []; clean(); touchModel();
       }
       ok(WRAP_PIECE_ON || обёрнуто === 0,
          `пазл ставит обёрнутые куски в цели уровней ${где.join(', ')} (${обёрнуто} шт.), а кнопки «Кусок в нори» нет — эти уровни непроходимы вручную (#159)`);
@@ -1763,6 +1786,7 @@ function runChecks(detail) {
         const значимо = (lv) => {
           const o = Object.assign({}, lv);
           if (!WRAP_PIECE_ON) delete o.wrap;
+          if (!ROTATE_PIECE_ON) delete o.rot;
           return Object.keys(o).sort().map(k => k + ':' + o[k]).join(' ');
         };
         const виденные = new Map();

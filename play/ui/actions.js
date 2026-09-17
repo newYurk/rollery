@@ -30,7 +30,7 @@ function action(id) {
     // вида сбоку: раскладка и поворот живут ТОЛЬКО в виде сверху.
     // Диапазон берётся ИЗ ФОРМЫ: у симметричного куска 180° — то же, что 0°, и лишние щелчки
     // только раздражают; у несимметричного (сектор) все 360° дают разные положения.
-    case 'rotate': if (S.mode === 'lay' && S.selPatch) { pushHistory(); const p = S.selPatch;
+    case 'rotate': if (ROTATE_PIECE_ON && S.mode === 'lay' && S.selPatch) { pushHistory(); const p = S.selPatch;
       const span = cutSymmetric(ING[p.kind]) ? Math.PI : TAU;
       p.rot = ((p.rot || 0) + Math.PI / 4) % span; if (p.rot < 1e-6) delete p.rot; const bb = bounds(p), hu = (bb.u1 - bb.u0) / 2, hv = (bb.v1 - bb.v0) / 2; p.u = clamp(p.u, Math.min(0.5, hu), Math.max(0.5, 1 - hu)); p.v = clamp(p.v, Math.min(0.5, hv), Math.max(0.5, 1 - hv)); touchModel(); sfx.place(); } break;
     case 'remove': if (S.mode === 'lay' && S.selPatch) { pushHistory(); const l = patches(), i = l.indexOf(S.selPatch); if (i >= 0) l.splice(i, 1); S.selPatch = null; touchModel(); } break;
