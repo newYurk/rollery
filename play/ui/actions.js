@@ -239,9 +239,13 @@ function onUp(x, y, id) {
     else { if (drag.outside) { const l = patches(); l.splice(l.indexOf(p), 1); S.selPatch = null; } touchModel(); }
     drag.outside = false;
   } else if (kind === 'place') {
-    // кусок шире всей грядки не ложится (#253) — и пустой снимок в историю не пишем. Сюда такой
-    // выбор не доходит: фишка тусклая, а выбранная уходит на доступную (selOnRice); это запасной упор.
-    if (!drag.moved && chipFits(S.sel)) { const uv = sheetUV(x, y); pushHistory(); placeAt(uv.u, uv.v); }
+    // Кусок шире всей грядки не ложится (#253). Через палитру такой выбор не попадает: фишка
+    // тусклая, а выбранная уходит на доступную при смене листа (selOnRice). Если он всё же пришёл
+    // в обход (код, консоль), касание не молчит: выбор уходит на доступную фишку, и кладётся она.
+    if (!drag.moved) {
+      selOnRice();
+      if (chipFits(S.sel)) { const uv = sheetUV(x, y); pushHistory(); placeAt(uv.u, uv.v); }
+    }
   }
   dirty = true; requestFrame();
 }

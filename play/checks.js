@@ -2161,6 +2161,12 @@ function runChecks(detail) {
                 const s = SB(), n0 = patches().length, sc = toScreen(s.x + s.w * 0.5, s.y + s.h * 0.5);
                 тапНа(sc.x, sc.y);
                 if (patches().length !== n0 + 1) плохо.push(`${тег}: касание листа фишкой ${S.sel} ничего не положило`);
+                // выбор, поставленный мимо палитры (код, консоль), касание тоже не глушит: уводит и кладёт
+                if (мёртвые.length) {
+                  S.lists[S.base] = []; S.sel = мёртвые[0]; тапНа(sc.x, sc.y);
+                  if (patches().length !== 1 || мёртв(S.sel))
+                    плохо.push(`${тег}: ${мёртвые[0]} в обход палитры — касание положило ${patches().length}, выбрано ${S.sel}`);
+                }
                 puzzleStop();
               }
             }
