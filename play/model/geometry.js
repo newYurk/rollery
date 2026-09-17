@@ -1036,7 +1036,7 @@ function bandSector(wd, idx, g) {
   const angle = windSectorAngle(wd, idx);
   return {A, B:0, C:0, angle, area:angle * A};
 }
-function conservativeBand(wd, v, g, list) {
+function conservativeBand(wd, v, g, list, radiusOnly) {
   // Pure rice rings already use the exact ring-area construction. Keep their
   // mapping (including surface pigments) intact.
   if (g.winding !== 'spiral' && !list.some(p => !p.inCore && !ING[p.kind].paint && !ING[p.kind].bedDelta)) return null;
@@ -1113,6 +1113,9 @@ function conservativeBand(wd, v, g, list) {
   }
   const scale = source.area > 0 ? 2 * source.area / Math.max(1e-12, B + Math.sqrt(B * B + 4 * A * source.area)) : 0;
   apply(scale);
+  // Запросу радиуса (14 срезов из 15 при сборке модели) нужна только внешняя граница,
+  // она уже в wd.Rout. Карта секторов нужна одному materialAt — отображаемому срезу.
+  if (radiusOnly) return null;
   const sectors = new Array(size); let area = 0;
   for (let i = 0; i < size; i++) {
     const q = bandSector(wd, i, g); if (!q || q.area <= 1e-12) continue;
@@ -1985,7 +1988,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
     }
   }
   const transportState = {rin, rout, u0, u1, top, Rout, kmax, lastIdx, phiEnd, ringBand};
-  const materialTransport = conservativeBand(transportState, vSlice, g, list);
+  const materialTransport = conservativeBand(transportState, vSlice, g, list, radiusOnly);
   Rout = transportState.Rout;
   if (radiusOnly) return Rout;
   // ⚑ УСТРОЙСТВО НАМОТКИ ОТВЕЧАЕТ НА ВОПРОСЫ, А НЕ ОТДАЁТ СЫРЬЁ (#146, правка 01.09).
