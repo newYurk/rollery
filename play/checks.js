@@ -2237,16 +2237,18 @@ function runChecks(detail) {
                      fruit: S.lists.fruit, hoso: S.lists.hoso };
       const lv = LEVELS[10];
       // [подпись, база, режим, витки, форма, срезы, раскладка]
+      // Витки уровня с 17.09 зависят от базы (лист = доля листа базы), поэтому у пазла они
+      // считаются функцией — ПОСЛЕ того, как база встала в S (levelTurns смотрит на B()).
       const случаи = [
-        ['фруктовые, пазл уровня 11, сид 11', 'fruit', null, lv.turns, lv.shape || 'round', puzzleSlices(lv.pieces),
+        ['фруктовые, пазл уровня 11, сид 11', 'fruit', null, () => levelTurns(lv), lv.shape || 'round', puzzleSlices(lv.pieces),
           () => genTarget(lv, 11 * 7919 + 10 * 131)],
-        ['хосомаки кольцом, канон, 0,5 витка', 'hoso', 'ring', 0.5, 'round', [0.5], () => canonLayout()],
+        ['хосомаки кольцом, канон, 0,5 витка', 'hoso', 'ring', () => 0.5, 'round', [0.5], () => canonLayout()],
       ];
       const толстые = [];
       let слоёв = 0;
       try {
         for (const [имя, база, режим, витки, форма, срезы, список] of случаи) {
-          clean(); S.base = база; S.wrap = null; S.winding = режим; S.turns = витки; S.shape = форма;
+          clean(); S.base = база; S.wrap = null; S.winding = режим; S.turns = витки(); S.shape = форма;
           S.lists[база] = список(); modelCaches.clear(); touchModel();
           const mm = getModel(), wМм = WRAPPERS[B().wrapKey].mm;
           let худший = 0, где = '', срезов = 0;
@@ -3072,8 +3074,12 @@ function runChecks(detail) {
                      lists: JSON.parse(JSON.stringify(S.lists)), album: S.album, albumOpen: S.albumOpen, mode: S.mode,
                      sel: S.sel, selPatch: S.selPatch, puzzle: S.puzzle };
       // Своя копия формулы листа пазла (sheetLen): эталон не из той функции, которую проверяем.
+      // Шаг витка — с обёрткой по умолчанию базы, как её ставит B(): у узумаки и фруктовых это
+      // омлет (1,5 мм), а не нори, и лист в витках у них поэтому другой (найдено сторожем 17.09).
       const листПри = (база, витки) => { if (витки === null) return BASES[база].L;
-        const b = BASES[база], P0 = b.T + b.w, th = TAU * витки; return R0 * th + P0 * th * th / (2 * TAU); };
+        const b = BASES[база], wk = b.wrapFixed ? null : (b.wrapKey || 'nori');
+        const w = wk && WRAPPERS[wk] ? WRAPPERS[wk].mm / U_MM : b.w;
+        const P0 = b.T + w, th = TAU * витки; return R0 * th + P0 * th * th / (2 * TAU); };
       const поЛисту = (m, L) => Math.abs(m.g.L - L) <= 1e-9 * L;
       try {
         S.base = 'hoso'; S.wrap = null; S.winding = null; S.puzzle = null; clean();
@@ -3112,31 +3118,142 @@ function runChecks(detail) {
             ok(r.turns === ждём, `сохранённый рецепт с ${дано} вит. прочитан как ${r.turns}, ждали ${ждём} (17.09, #253)`);
           }
         }
-        // Уровни: наименьший — ровно порог, и ни один уровень правило не меняет.
-        const витУровней = LEVELS.map(l => l.turns);
-        ok(Math.min(...витУровней) === МИН, `наименьший уровень пазла — ${Math.min(...витУровней)} вит., а ссылка и альбом поднимают до ${МИН}: правила разошлись`);
-        S.base = 'futo'; clean();
-        for (let lv = 0; lv < LEVELS.length; lv++) {
-          puzzleStart(lv, 5);
-          const L = листПри('futo', LEVELS[lv].turns), m = getModel();
-          ok(S.turns === LEVELS[lv].turns && поЛисту(m, L), `пазл ур.${lv}: витков ${S.turns}, лист ${(m.g.L * U_MM).toFixed(1)} мм — ждали ${LEVELS[lv].turns} и ${(L * U_MM).toFixed(1)} мм`);
-          const адрес = encodePuzzle(S.puzzle.target, S.turns), got = decodePuzzle(адрес);
-          ok(!!got && got.turns === LEVELS[lv].turns, `ссылка на уровень ${lv}: витков ${got && got.turns}, у уровня ${LEVELS[lv].turns}`);
-          puzzleStop();
-          if (got) {
-            puzzleFromLink(got);
-            const mm = getModel();
-            ok(S.turns === LEVELS[lv].turns && поЛисту(mm, L) && encodePuzzle(S.puzzle.target, S.turns) === адрес,
-               `ссылка на уровень ${lv} открылась другим пазлом: витков ${S.turns}, лист ${(mm.g.L * U_MM).toFixed(1)} мм`);
+        // ⚑ КАК ДВА ПРАВИЛА О ЛИСТЕ СХОДЯТСЯ (17.09). Лист уровня — доля листа базы (share в
+        // modes/puzzle.js), лист ссылки и альбома — не короче 2 витков. Уровень пропускает свою
+        // долю через тот же порог, поэтому витков у него всегда ≥ 2, ссылка несёт их как есть
+        // и открывается ТЕМ ЖЕ листом: acceptTurns на входе ссылки на уровень — тождество.
+        // Ждём ДЛИНУ, а не витки: длина растёт с витками монотонно, и «не меньше 2 витков» —
+        // это ровно «не короче листа в 2 витка», так что обратная формула (turnsFor) здесь не
+        // нужна и эталон не берётся из проверяемого кода.
+        // Уровень, где доля даёт меньше порога, обязан быть: иначе правило про порог у уровней
+        // не проверяется вовсе (у хосомаки, урамаки и фруктовых так стоят уровни 5 и 12).
+        let вПол = 0;
+        for (const база of Object.keys(BASES)) {
+          S.base = база; S.wrap = null; clean();   // обёртка — своя у базы, иначе шаг витка чужой
+          for (let lv = 0; lv < LEVELS.length; lv++) {
+            const доля = LEVELS[lv].share, поДоле = доля * BASES[база].L, порог = листПри(база, МИН);
+            const L = Math.max(поДоле, порог);
+            if (поДоле < порог) вПол++;
+            puzzleStart(lv, 5);
+            const m = getModel();
+            ok(поЛисту(m, L) && S.turns >= МИН,
+               `пазл ${база} ур.${lv + 1}: лист ${(m.g.L * U_MM).toFixed(1)} мм, ${S.turns.toFixed(3)} вит. — ждали ` +
+               `${(L * U_MM).toFixed(1)} мм и не меньше ${МИН} вит. (доля ${доля} от ${(BASES[база].L * U_MM).toFixed(0)} мм; 17.09)`);
+            const адрес = encodePuzzle(S.puzzle.target, S.turns), got = decodePuzzle(адрес);
+            ok(!!got && got.turns === S.turns,
+               `ссылка на уровень ${lv + 1} (${база}): витков ${got && got.turns}, у уровня ${S.turns.toFixed(3)} — ` +
+               'порог ссылки переписал лист уровня, правила разошлись (17.09)');
             puzzleStop();
+            if (got) {
+              puzzleFromLink(got);
+              const mm = getModel();
+              ok(поЛисту(mm, L) && encodePuzzle(S.puzzle.target, S.turns) === адрес,
+                 `ссылка на уровень ${lv + 1} (${база}) открылась другим пазлом: лист ${(mm.g.L * U_MM).toFixed(1)} мм вместо ${(L * U_MM).toFixed(1)}`);
+              puzzleStop();
+            }
           }
         }
+        ok(вПол > 0, `ни один уровень ни на одной базе не упирается в порог ${МИН} вит. — порог у уровней не проверяется (17.09)`);
       } finally {
         Object.assign(S, { base: было.base, wrap: было.wrap, hand: было.hand, winding: было.winding, turns: было.turns,
                            shape: было.shape, lists: было.lists, album: было.album, albumOpen: было.albumOpen, mode: было.mode,
                            sel: было.sel, selPatch: было.selPatch, puzzle: было.puzzle });
         modelCaches.clear(); touchModel();
+        if (typeof layout === 'function') layout();   // L остался от последней базы цикла (#72, facade)
       }
+    }
+
+    // ── 7д. ЛИСТ УРОВНЯ НЕ КОРОЧЕ, ЧЕМ НУЖНО ЕГО НАЧИНКЕ (решение владельца 17.09).
+    //
+    // Лист уровня — доля листа базы, а не витки (modes/puzzle.js). Правило появилось потому,
+    // что витки мерили РОЛЛ, а не лист: у узумаки шаг витка 3 мм против 7,1 мм у хосомаки, и
+    // «2 витка» у него — 53,4 мм при настоящем листе 420. На такой лист генератор клал начинку
+    // уровня целиком, а ролл из него выходил ⌀14,5 мм: куски занимали ВЕСЬ срез и торчали из
+    // него. Замер 17.09 (round4, 480 сцен на общей ветке против 480 на ветке, 6 баз × 16 уровней
+    // × 5 зёрен, мерка только через materialAt):
+    //   • узумаки, уровень 8, зерно 3 — начинка 103 % круга под обёрткой, некруглость 146,9 %
+    //     при пределе 6 %; стало 38 % и 3,3 %;
+    //   • узумаки, уровень 12, зерно 3 — 90 % круга и 87,9 % некруглости; стало 27 % и 24,2 %;
+    //   • узумаки, уровень 5, зерно 2 — 85 % круга и 61,1 % некруглости; стало 25 % и 23,9 %.
+    //   Всего критерий 11 на уровнях: 35 провалов из 480 → 13, и все 13 — прежние классы
+    //   (край предела у форм и кусок в рисе кольца), ни одного на узумаки сверх формы.
+    //
+    // ЧТО ЗДЕСЬ ИЗМЕРЯЕТСЯ И ПОЧЕМУ ИМЕННО ЭТИ ПОРОГИ.
+    // (1) «Лист не короче, чем нужно начинке» — это не про длину саму по себе, а про то, что
+    //     начинке ХВАТАЕТ МЕСТА В РОЛЛЕ, который из этого листа скручивается. Мера — доля
+    //     площади начинки в круге под обёрткой, порог 90 %. Порог НЕ выдуман: это граница
+    //     исключения критерия 11 (task5-rigid/ACCEPTANCE.md, п. 11) — выше неё круглость от
+    //     модели не требуется, «места нет». Уровень, который сам переступает эту границу,
+    //     делает себя исключением из критерия: это и значит «лист короче, чем нужно начинке».
+    // (2) «Уровни на узумаки дают круглый ролл» — критерий 11: некруглость ≤ max(6 %, двойник
+    //     + 1 п. п.), двойник — та же сцена и тот же лист без тел. У уровней С ФОРМОЙ (5 и 12 —
+    //     квадрат) предел шире, двойник + 2 п. п., и это про форму, а не про лист: на ОБЩЕЙ
+    //     ветке квадрат превышает «двойник + 1 п. п.» на 1,2–1,6 п. п. у хосомаки (23,3 при
+    //     21,7), тюмаки (23,4 при 22,0) и футомаки (23,8 при 22,6) — там лист не менялся вовсе.
+    //     Сторож ловит нехватку листа, а она видна десятками процентов (61–147 %), не долями.
+    // Сцены — узумаки: где витки и лист расходятся сильнее всего. Три штуки, по одной на каждую
+    // долю (уровень 8 — 1,59, уровень 5 — 0,74, уровень 12 — 0,74 с длинной начинкой), с
+    // двойником у каждой. Больше не берём: каждая сцена — ролл в 5,4–8,0 витка, а прогон
+    // сторожей должен оставаться быстрым.
+    if (typeof puzzleStart === 'function' && typeof genTarget === 'function') {
+      const было = { base: S.base, wrap: S.wrap, hand: S.hand, winding: S.winding, turns: S.turns, shape: S.shape,
+                     lists: JSON.parse(JSON.stringify(S.lists)), mode: S.mode, puzzle: S.puzzle, selPatch: S.selPatch };
+      const ЛУЧЕЙ = 360, ДОЛЯ_МАКС = 0.9;
+      const телоЛи7д = p => !ING[p.kind].paint && !ING[p.kind].bedDelta;
+      // Контур ролла — только через materialAt: наружу от края материала нет.
+      const обмер = (v, m, wd) => {
+        const снаружи = (r, φ) => { const q = materialAt(m, wd, v, r, φ); return !q || q.cls === 'out'; };
+        let мин = Infinity, макс = 0, сумма = 0;
+        for (let i = 0; i < ЛУЧЕЙ; i++) {
+          const φ = (i + 0.5) / ЛУЧЕЙ * TAU;
+          let hi = topAt(wd, φ) + 0.05;
+          while (!снаружи(hi, φ)) hi += 0.05;
+          let lo = hi - 0.02;
+          while (lo > 0 && снаружи(lo, φ)) { hi = lo; lo -= 0.02; }
+          for (let it = 0; it < 30; it++) { const md = (lo + hi) / 2; if (снаружи(md, φ)) hi = md; else lo = md; }
+          мин = Math.min(мин, lo); макс = Math.max(макс, lo); сумма += lo;
+        }
+        return { некругл: макс / мин - 1, Rср: сумма / ЛУЧЕЙ };
+      };
+      const сцена = (уровень, зерно, безТел) => {
+        clean(); S.base = 'uzumaki'; S.wrap = null; S.winding = null; S.hand = handOf();
+        puzzleStart(уровень, зерно);
+        const цель = S.puzzle.target.filter(p => !безТел || !телоЛи7д(p));
+        S.lists.uzumaki = JSON.parse(JSON.stringify(цель));
+        modelCaches.clear(); touchModel();
+        const m = getModel(), v = 0.5, wd = windFor(m, v);
+        const к = обмер(v, m, wd);
+        const тела = bandSourceColumns(v, m.g, m.list.filter(p => телоЛи7д(p)), 0).fillingArea;
+        const круг = Math.PI * Math.max(1e-9, к.Rср - m.g.w) ** 2;
+        const из = { L: m.g.L * U_MM, витки: S.turns, форма: S.shape, некругл: к.некругл, доля: тела / круг,
+                     намотка: m.g.winding };
+        puzzleStop();
+        return из;
+      };
+      const коротко = [], некругло = [], промахи = [];
+      try {
+        // [уровень (с нуля), зерно]
+        for (const [ур, зерно] of [[7, 3], [4, 2], [11, 3]]) {
+          const с = сцена(ур, зерно, false), д = сцена(ур, зерно, true);
+          if (!(с.L > 0) || с.намотка !== 'spiral')
+            промахи.push(`узумаки ур.${ур + 1} з.${зерно}: намотка ${с.намотка}, лист ${с.L.toFixed(1)} мм — сцена перестала быть спиралью`);
+          if (!(с.доля <= ДОЛЯ_МАКС))
+            коротко.push(`узумаки ур.${ур + 1} з.${зерно}: начинка заняла ${(100 * с.доля).toFixed(0)} % круга под обёрткой при пределе ` +
+              `${100 * ДОЛЯ_МАКС} % — лист ${с.L.toFixed(1)} мм (${с.витки.toFixed(2)} вит.) короче, чем нужно этой начинке (17.09)`);
+          const предел = Math.max(0.06, д.некругл + (с.форма === 'round' ? 0.01 : 0.02));
+          if (!(с.некругл <= предел + 1e-9))
+            некругло.push(`узумаки ур.${ур + 1} з.${зерно} (${с.форма}): некруглость ${(100 * с.некругл).toFixed(1)} % при пределе ` +
+              `${(100 * предел).toFixed(1)} % (без тел ${(100 * д.некругл).toFixed(1)} %), лист ${с.L.toFixed(1)} мм`);
+        }
+      } finally {
+        Object.assign(S, { base: было.base, wrap: было.wrap, hand: было.hand, winding: было.winding, turns: было.turns,
+                           shape: было.shape, lists: было.lists, mode: было.mode, puzzle: было.puzzle, selPatch: было.selPatch });
+        clean(); modelCaches.clear(); touchModel();
+        if (typeof layout === 'function') layout();   // то же: раскладка осталась от узумаки
+      }
+      ok(!промахи.length, `сцены мерки «лист уровня не короче начинки» перестали быть собой — мерить нечего: ${промахи.join(' · ')}`);
+      for (const с of коротко) ok(false, `лист уровня короче, чем нужно его начинке (решение владельца 17.09, лист = доля листа базы): ${с}`);
+      for (const с of некругло) ok(false, `уровень на узумаки дал некруглый ролл (критерий 11, решение владельца 17.09): ${с}`);
     }
 
     // ── 8. МИГРАЦИЯ ГЕОМЕТРИИ (issue #72): legacy baseline и facade ──
