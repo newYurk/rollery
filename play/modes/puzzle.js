@@ -241,7 +241,9 @@ function decodePuzzle(hash) {
   } catch (e) { return null; }
 }
 function puzzleFromLink(pz) {
-  S.base = pz.base; S.wrap = pz.wrap || null; S.sel = uiIngredients()[0] || B().ingredients[0];
+  // Пазл по ссылке: база и обёртка приходят из ссылки, выбор начинки остаётся прежним, если он
+  // у этой базы есть (17.09) — palSync() же открывает страницу палитры с ним.
+  S.base = pz.base; S.wrap = pz.wrap || null; palSync();
   S.turns = turnsOf(pz.turns); S.selPatch = null; S.shape = pz.shape || 'round';
   selOnRice();   // #253: первая фишка всегда ложится, но правило одно на все пути
   if (pz.hand) S.hand = pz.hand;
