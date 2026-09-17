@@ -851,6 +851,39 @@ function runChecks(detail) {
         S.base = было.base; S.hand = было.hand; S.lists.hoso = было.hoso; S.lists.futo = было.futo; touchModel();
       }
     }
+    // ── 5а-кватер. КООРДИНАТЫ МАТЕРИАЛА ВСЕГДА ЧИСЛА (16.09).
+    //
+    // Краска в ядре (дэмбу в праздничном футомаки) приходила с lu = NaN: укладка в пучок не даёт
+    // краске ни центра, ни полуширины. Отрисовка затеняет кромку куска по hypot(lu, lz), NaN
+    // проходил в цвет, и розовое между начинками рисовалось ЧЁРНЫМИ пятнами — с v227 и раньше.
+    // Сверяется инвариант, а не формула: у любой точки среза с материалом lu, lz, lv конечны.
+    {
+      const было = { base: S.base, wrap: S.wrap, hand: S.hand, futo: S.lists.futo, hoso: S.lists.hoso, winding: S.winding, shape: S.shape };
+      const раскладки = [
+        ['futo', 'ring', () => canonLayout7()], ['futo', null, () => canonLayout()], ['futo', 'spiral', () => canonLayout7()],
+        ['hoso', null, () => [{ kind: 'ricePink', u: 0.3, v: 0.5, z0: 0, z1: 0, phase: 1 }, { kind: 'salmon', u: 0.5, v: 0.5, z0: 0, z1: 0, phase: 2 }]],
+      ];
+      const плохие = [];
+      try {
+        for (const [база, режим, список] of раскладки) {
+          S.base = база; S.wrap = null; S.hand = handOf(); S.winding = режим; S.shape = 'round'; clean();
+          S.lists[база] = список(); modelCaches.clear(); touchModel();
+          const m = getModel(), wd = windFor(m, 0.5), N = 96, R = m.Rmax;
+          let n = 0;
+          for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+            const x = ((i + 0.5) / N * 2 - 1) * R, y = ((j + 0.5) / N * 2 - 1) * R;
+            let phi = Math.atan2(y, x); if (phi < 0) phi += TAU;
+            const q = materialAt(m, wd, 0.5, Math.hypot(x, y), phi);
+            if (q && q.mt && !(isFinite(q.mt.lu) && isFinite(q.mt.lz) && isFinite(q.mt.lv))) n++;
+          }
+          if (n) плохие.push(`${база}/${режим || 'авто'}: ${n} точек`);
+        }
+      } finally {
+        S.base = было.base; S.wrap = было.wrap; S.hand = было.hand; S.lists.futo = было.futo; S.lists.hoso = было.hoso;
+        S.winding = было.winding; S.shape = было.shape; modelCaches.clear(); touchModel();
+      }
+      ok(!плохие.length, `координаты материала не числа (краска в ядре рисуется чёрным): ${плохие.join(' · ')}`);
+    }
     // ── 5б. МОДУЛИ INVERSE: каталог не разошёлся с игрой ──
     // Числа материалов продублированы в play/inverse/materials.js НАМЕРЕННО — модуль обязан
     // работать без страницы. Единственное, что защищает их от дрейфа, — эта сверка, и потому
