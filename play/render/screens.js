@@ -254,6 +254,21 @@ function drawLay() {
     let ht = p > 0 ? 'ещё… ↑' : '↑';
     ctx.fillText(ht, hd.x + hd.w / 2, hd.y + hd.h / 2);
   }
+  // ⚑ «ОЧИСТИТЬ» — ВНИЗУ, НА ЦИНОВКЕ (решение владельца 17.09: «очистить куда-то вниз надо
+  // перенести»). Шапку разгрузили, а отдельный ряд под кнопку стоил бы места листу (#157),
+  // поэтому она сидит в углу циновки-ручки: там нечего задеть, кроме самой тяги, а касание
+  // по иконке проверяется раньше тяги (onDown смотрит icons первыми). Подтверждение — прежнее,
+  // в два касания (clearArm), подсказка «Ещё раз — очистить» — в шапке.
+  if (p === 0 && patches().length) {
+    const sz = 32, вдоль = L.sheet.uAxis === 'x';
+    const cb = вдоль ? { x: hd.x + (hd.w - sz) / 2, y: hd.y + 8, w: sz, h: sz }
+                     : { x: hd.x + 10, y: hd.y + (hd.h - sz) / 2, w: sz, h: sz };
+    rr(cb.x, cb.y, cb.w, cb.h, 8);
+    ctx.fillStyle = clearArm > performance.now() ? '#4a4331' : 'rgba(38,38,31,0.82)'; ctx.fill();
+    ctx.font = '17px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#f3e7ca';
+    ctx.fillText('🗑', cb.x + cb.w / 2, cb.y + cb.h / 2 + 1);
+    icons.push({ id: 'clear', ...cb });
+  }
   drawPreviewArea(p);
   buttons = [];
   const area = L.layBtn;

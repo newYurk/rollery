@@ -57,10 +57,15 @@ const patches = () => S.lists[S.base];
 // огурец) + нори + две краски (розовый и зелёный — главные цвета кадзаримаки).
 // Каждая проба в игре тогда сверяема с прогоном лаборатории тем же материалом.
 // ?full возвращает всё: остальные базы, полную палитру, пазл, альбом, обёртки.
+// С 17.09 наоборот: полное — по умолчанию, минимальный стенд — по ?min (см. FULL_UI ниже).
 // Это фильтр ВИТРИНЫ, не модели: модель, регрессия ?check и сохранённые
 // раскладки знают полный каталог; ссылки ?puzzle продолжают работать.
-// Полный интерфейс: ?full, вход в пазл (?puzzle) или ссылка-пазл (#p=… — хэш, не query).
-const FULL_UI = /[?&](full|puzzle)/.test(location.search) || /#p=/.test(location.hash);
+// ⚑ ПОЛНЫЙ ИНТЕРФЕЙС — ПО УМОЛЧАНИЮ (решение владельца 17.09.2026). Палитра выросла до 27 начинок
+// со своими спрайтами, и прятать их за ?full значило их не видеть: «вынеси full, чтобы я его видела
+// в ветке, ничего не прописывая». Минимальный стенд #96 не удалён — он по ?min (для сверки с
+// лабораторией). ?full, ?puzzle и ссылка-пазл по-прежнему дают полный интерфейс, даже вместе с ?min.
+const FULL_UI = !/[?&]min(?:[=&]|$)/.test(location.search)
+  || /[?&](full|puzzle)/.test(location.search) || /#p=/.test(location.hash);
 const V2_SCENARIO = (() => {
   const q = new URLSearchParams(location.search);
   if (!q.has('v2')) return null;
@@ -368,9 +373,10 @@ function load() {
     // пустоту над листом и лист не уменьшает. Глаз в панели выключает за тап,
     // и выбор запоминается: null (первый запуск) — да, '0' — нет.
     { const pv = localStorage.getItem('rollery.preview'); S.preview = pv === null ? true : pv === '1'; }
-    // Ключа нет — новый игрок, звук молчит. Сравнение с '1' давало обратное:
-    // отсутствие ключа читалось как «не выключено» и игра начинала со звуком.
-    S.mute = localStorage.getItem('rollery.mute') !== '0';
+    // ⚑ ЗВУК ВКЛЮЧЁН ВСЕГДА (17.09, решение владельца): кнопки больше нет, и сохранённое
+    // «выключено» заперло бы игрока в тишине без выхода. Молчание — дело телефона: беззвучный
+    // режим и громкость (audioSession 'ambient' в audio.js). Старый ключ убираем.
+    S.mute = false; localStorage.removeItem('rollery.mute');
     S.shape = localStorage.getItem('rollery.shape') || 'round';
     S.cutsTotal = +(localStorage.getItem('rollery.cuts') || 0);
     S.album = JSON.parse(localStorage.getItem('rollery.album') || '[]');
@@ -388,7 +394,6 @@ function save() {
   try {
     localStorage.setItem('rollery.model.v2', JSON.stringify({ base: S.base, lists: S.lists, wrap: S.wrap }));
     localStorage.setItem('rollery.preview', S.preview ? '1' : '0');
-    localStorage.setItem('rollery.mute', S.mute ? '1' : '0');
     localStorage.setItem('rollery.shape', S.shape);
     localStorage.setItem('rollery.cuts', String(S.cutsTotal));
   } catch (e) {}
