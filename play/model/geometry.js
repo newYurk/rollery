@@ -1018,27 +1018,35 @@ function bandSourceColumns(v, g, list, coreRice) {
     riceInput += rice * (b - a); fillingArea += body * (b - a);
     columns.push({a, b, u, rice, spans, body});
   }
-  const riceRemaining = Math.max(0, riceInput - coreRice);
   let weight = 0;
   for (const c of columns) {
     c.riceWeight = Math.max(0, (g.bandCapacityAt ? g.bandCapacityAt((c.a + c.b) / 2) : c.rice + c.body) - c.body);
     weight += c.riceWeight * (c.b - c.a);
   }
   if (weight < 1e-12) { weight = riceInput; for (const c of columns) c.riceWeight = c.rice; }
-  const riceScale = weight > 1e-12 ? riceRemaining / weight : 0;
-  let area = 0;
-  for (const c of columns) {
-    let rice = c.riceWeight * riceScale, z = 0, previous = 0;
-    for (const q of c.spans) {
-      const gap = Math.min(rice, Math.max(0, q.lo - previous));
-      rice -= gap; z += gap;
-      q.start = z; z += q.hi - q.lo; q.end = z; previous = q.hi;
-    }
-    c.height = z + rice; c.area0 = area;
-    area += c.height * (c.b - c.a); c.area1 = area;
-  }
-  return {columns, area, fillingArea, riceInput, riceRemaining, coreRice,
+  const out = {columns, area: 0, fillingArea, riceInput, riceRemaining: 0, coreRice,
     paints:list.filter(p => ING[p.kind].paint && !p.inCore)};
+  // Раздача риса по столбикам — отдельно: у спирали трубка меняется, когда доводится конец листа,
+  // и рис ленты раздаётся заново, а столбики с телами остаются теми же (17.09, #242).
+  out.перераздать = core => {
+    const riceRemaining = Math.max(0, riceInput - core);
+    const riceScale = weight > 1e-12 ? riceRemaining / weight : 0;
+    let area = 0;
+    for (const c of columns) {
+      let rice = c.riceWeight * riceScale, z = 0, previous = 0;
+      for (const q of c.spans) {
+        const gap = Math.min(rice, Math.max(0, q.lo - previous));
+        rice -= gap; z += gap;
+        q.start = z; z += q.hi - q.lo; q.end = z; previous = q.hi;
+      }
+      c.height = z + rice; c.area0 = area;
+      area += c.height * (c.b - c.a); c.area1 = area;
+    }
+    out.area = area; out.riceRemaining = riceRemaining; out.coreRice = core;
+    return area;
+  };
+  out.перераздать(coreRice);
+  return out;
 }
 
 // Сетка конечных объёмов: sampleWind и innerAt используют одинаковые границы.
@@ -1061,13 +1069,263 @@ function bandSector(wd, idx, g) {
   const angle = windSectorAngle(wd, idx);
   return {A, B:0, C:0, angle, area:angle * A};
 }
+// Стопка витка: старт бина, толщины риса (множатся) и обёртки (переносятся как есть).
+function наложитьСлои(wd, starts, thick, wraps, scale) {
+  let R = 0;
+  for (let b = 0; b < NB; b++) {
+    let r = starts[b];
+    for (let k = 0; k < wd.kmax; k++) {
+      const i = k * NB + b; if (wd.rin[i] < 0) break;
+      wd.rin[i] = r; r += thick[i] * scale + wraps[i]; wd.rout[i] = r;
+    }
+    wd.top[b] = r; R = Math.max(R, r);
+  }
+  wd.Rout = R;
+  // Площадь секторов здесь не считается: её никто не читал, а цикл строил объект на
+  // каждый сектор всех витков. Итоговую площадь даёт проход по `sectors` в conservativeBand.
+}
+// At scale k, previous filled bands move this band's inner radius by k*p.
+// Its sector area is therefore A*k²+B*k; solve the total exactly once.
+function масштабСлоёв(wd, starts, thick, wraps, area) {
+  let A = 0, B = 0;
+  for (let b = 0; b < NB; b++) {
+    let base = starts[b], prefix = 0;
+    for (let k = 0; k < wd.kmax; k++) {
+      const i = k * NB + b; if (wd.rin[i] < 0) break;
+      const t = thick[i];
+      const angle = windSectorAngle(wd, i);
+      A += angle * (prefix * t + t * t / 2); B += angle * base * t;
+      prefix += t; base += wraps[i];
+    }
+  }
+  return area > 0 ? 2 * area / Math.max(1e-12, B + Math.sqrt(B * B + 4 * A * area)) : 0;
+}
+// ⚑ КОНЕЦ ЛИСТА СПИРАЛИ ДОВОДИТСЯ ПО ДЛИНЕ НОРИ (#134, #242; решение владельца 16.09, правка 17.09).
+//
+// Площадь риса и тел — `area`, длина нори — лист: общий множитель риса s и конец листа θ.
+//
+// Зовётся дважды. Сразу после намотки: рис на вогнутой стороне витка короче листа, множитель
+// досыпает его до площади плоского листа, и конец листа встаёт на длину L. И после обжима, в
+// conservativeBand: обжим, растекание и грани двигают радиусы, трубка доливается, перенос
+// площади снова меняет множитель — и нори уходит от листа. Замер на матрице task10 (232 спирали):
+// после обжима нори 0,82…1,18 листа каталога (медиана 1,001; с короткими листами пазла от 0,31),
+// вторая подгонка сдвигает конец на 5,6° по медиане и до 31° у 90 % срезов листа каталога.
+//
+// Стопка бина — старт, толщины риса t·s и обёртки w. Тогда и площадь риса, и длина средней
+// линии нори — многочлены от s: площадь A·s² + B·s, длина C0 + C1·s (у слоя с w ≤ W нори лежит
+// во внешних w, её середина — старт + обёртки ниже + w/2 + s·(рис ниже и свой)). Вклад бина
+// считается один раз, а при сдвиге конца пересчитываются только задетые бины; массивы намотки
+// пишутся один раз, в конце. Так подгонка стоит пару проходов по бинам, а не по проходу на шаг.
+//
+// f(θ) = C0 + C1·s − L растёт с θ: новый сектор входит с нулевым углом, лишний рис в нём
+// раздаётся множителем по всему пути. Сектора за концом намотки наследуют состав последнего
+// (обычно голая полоса листа: у пяти баз из шести последние 5–12 % листа без риса), срезанные —
+// удаляются, но их толщины помнятся, если следующий шаг вернёт конец назад.
+//
+// `трубка` — только для второй подгонки: { площадь(core) → площадь ленты при трубке core,
+// пустой(b) → старт бина без долива, рис — рис листа }. С ней конец ставится на целый бин и
+// держится контур (см. приколоть); без неё конец дробный, контура нет.
+// Рабочие массивы подгонки — одни на все вызовы: подгонка идёт дважды на каждый из пятнадцати
+// срезов сборки, и новые массивы на каждый вызов давали сборщику мусора лишние мегабайты.
+const СКЛАД_ЛИСТА = {
+  вA: new Float64Array(NB), вB: new Float64Array(NB), вC0: new Float64Array(NB), вC1: new Float64Array(NB),
+  толщ0: new Float64Array(KMAX * NB), старт0: new Float64Array(NB), метка: new Uint8Array(NB), список: new Int32Array(NB),
+  нач: new Float64Array(NB), толщ: new Float64Array(KMAX * NB), обёрт: new Float64Array(KMAX * NB),
+};
+function уложитьПоДлине(wd, g, starts, thick, wraps, size, area, трубка) {
+  const L = g.L, n0 = wd.lastIdx;
+  if (n0 < 0) { наложитьСлои(wd, starts, thick, wraps, масштабСлоёв(wd, starts, thick, wraps, area)); return; }
+  let площадь = area;
+  const tT = thick[n0], tW = wraps[n0];
+  let last = n0, уголКонца = windSectorAngle(wd, n0);
+  // вклады бинов и суммы
+  const { вA, вB, вC0, вC1, метка, список } = СКЛАД_ЛИСТА;
+  вA.fill(0); вB.fill(0); вC0.fill(0); вC1.fill(0);
+  let A = 0, B = 0, C0 = 0, C1 = 0;
+  const вклад = b => {
+    let a = 0, bb = 0, c0 = 0, c1 = 0, base = starts[b], prefix = 0;
+    for (let i = b; i <= last && i < size; i += NB) {
+      const t = thick[i], w = wraps[i], ang = i === last ? уголКонца : DPHI;
+      a += ang * (prefix * t + t * t / 2); bb += ang * base * t;
+      c0 += ang * (base + w / 2); prefix += t; c1 += ang * prefix;
+      base += w;
+    }
+    A += a - вA[b]; B += bb - вB[b]; C0 += c0 - вC0[b]; C1 += c1 - вC1[b];
+    вA[b] = a; вB[b] = bb; вC0[b] = c0; вC1[b] = c1;
+  };
+  for (let b = 0; b < NB; b++) вклад(b);
+  // Суммы копятся вычитанием — пересобираются заново, когда задето много бинов, чтобы ошибка
+  // округления не накапливалась.
+  const пересобрать = () => { A = B = C0 = C1 = 0; for (let b = 0; b < NB; b++) { A += вA[b]; B += вB[b]; C0 += вC0[b]; C1 += вC1[b]; } };
+  const масштаб = () => площадь > 0 ? 2 * площадь / Math.max(1e-12, B + Math.sqrt(B * B + 4 * A * площадь)) : 0;
+  const s0 = масштаб();
+  let s = s0;
+  const f = () => C0 + C1 * s - L;
+  const радиусКонца = () => {
+    let r = starts[last % NB], prefix = 0;
+    for (let i = last % NB; i < last; i += NB) { prefix += thick[i]; r += wraps[i]; }
+    return Math.max(1e-6, r + wraps[last] / 2 + s * (prefix + thick[last]));
+  };
+  // ── контур для второй подгонки (приколоть) ──
+  // Контур уже обжат и растёкся. Бины, где конец листа добавил или снял виток, приводятся к
+  // этому же контуру долей риса своей стопки — иначе новый голый хвост встаёт горбом поверх
+  // сглаженного, а снятый оставляет ямку. Замер 17.09 (матрица task10, некруглость по 5760
+  // лучам): без этого узумаки 8,0 %, узумаки-канон 7,7 %, фруктовые-канон 9,7 % (контроль 0,6 / 3,0 /
+  // 3,4); с ним 1,4 / 3,5 / 4,0. Медиана замкнутых спиралей 9,05 → 4,36 %.
+  //
+  // Бин, где первого витка больше нет или где стопка осталась без риса, доливается трубкой до
+  // контура (как в обжиме); в долитый бин, куда пришёл виток с рисом, долив возвращается в ленту.
+  // Трубка меняется — рис ленты раздаётся заново (`трубка.площадь`), так что рис среза остаётся
+  // рисом листа, а тела не растягиваются.
+  const толщ0 = трубка ? СКЛАД_ЛИСТА.толщ0 : null, старт0 = трубка ? СКЛАД_ЛИСТА.старт0 : null;
+  if (трубка) { толщ0.set(thick.subarray(0, size)); старт0.set(starts); }
+  const контур = b => {   // верх исходной стопки при исходном множителе — то, что сгладил обжим
+    let r = старт0[b];
+    for (let i = b; i <= n0 && i < size; i += NB) r += толщ0[i] * s0 + wraps[i];
+    return r;
+  };
+  let трубкаВся = 0, прежняя = NaN;
+  if (трубка) for (let b = 0; b < NB; b++) трубкаВся += DPHI * starts[b] * starts[b] / 2;
+  const стартБина = (b, r) => { трубкаВся += DPHI * (r * r - starts[b] * starts[b]) / 2; starts[b] = r; };
+  const задетые = [], долив = [], сРисом = [];
+  const приколоть = (j, грязные) => {
+    for (const b of задетые) {
+      стартБина(b, старт0[b]);
+      for (let i = b; i < size; i += NB) thick[i] = i > n0 ? tT : толщ0[i];
+      грязные.add(b);
+    }
+    задетые.length = 0;
+    const lo = Math.min(n0, j), hi = Math.max(n0, j);
+    if (hi - lo + 1 >= NB) for (let b = 0; b < NB; b++) задетые.push(b);
+    else for (let i = lo; i <= hi; i++) задетые.push(i % NB);
+    if (s > 1e-12) {
+      долив.length = 0; сРисом.length = 0;
+      for (const b of задетые) {
+        грязные.add(b);
+        const к = контур(b);
+        if (b > j) { долив.push(b, Math.max(старт0[b], к)); continue; }   // витка нет: трубка до контура
+        let сумT = 0, сумW = 0, сумT0 = 0;
+        for (let i = b; i < size && i <= j; i += NB) { сумT += thick[i]; сумW += wraps[i]; if (i <= n0) сумT0 += толщ0[i]; }
+        if (!(сумT > 1e-12)) {
+          // Стопка без риса (сняли виток с рисом, или пришёл голый хвост): пустоту под контуром
+          // закрывает трубка, как в обжиме. Не рис первого витка: сектор в начале пути перетянул бы
+          // к себе начало листа, и кусок оттуда рвался надвое (урамаки, авокадо у края: 17 бинов
+          // куска отдельно от 197).
+          долив.push(b, Math.max(starts[b], к - сумW));
+          continue;
+        }
+        // В стопку без риса пришёл виток с рисом: долив трубки уходит в ленту — если под контуром
+        // есть место; иначе остаётся трубкой (рис, которому в ленте места нет, пропал бы из среза).
+        // Без этого урамаки с коротким авокадо (срез 0,359) вставал шипом 7,7 мм риса поверх
+        // долитой трубки: некруглость 52 %.
+        if (сумT0 <= 1e-12) {
+          const п = трубка.пустой(b);
+          if (п < starts[b] && к - п - сумW > 0) стартБина(b, п);
+        }
+        сРисом.push(b, сумT, сумW, к);
+      }
+      // Трубка не берёт риса больше, чем есть на листе. Долив урезается одной долей на все бины,
+      // а не снимается целиком: иначе на соседних концах листа он то есть, то нет, длина нори
+      // прыгает, и конец не находится (футомаки с бруском 55 мм: −5,3 и +4,4 мм на соседних бинах).
+      let нужно = 0;
+      for (let q = 0; q < долив.length; q += 2) { const b = долив[q], r = долив[q + 1]; нужно += DPHI * (r * r - starts[b] * starts[b]) / 2; }
+      const доля = нужно > 1e-15 ? clamp((трубка.рис - трубкаВся) / нужно, 0, 1) : 1;
+      for (let q = 0; q < долив.length; q += 2) {
+        const b = долив[q], r = долив[q + 1], r0b = starts[b];
+        стартБина(b, Math.sqrt(r0b * r0b + доля * (r * r - r0b * r0b)));
+      }
+      // места под контуром нет — новый виток ложится одной обёрткой, без риса
+      for (let q = 0; q < сРисом.length; q += 4) {
+        const b = сРисом[q], сумT = сРисом[q + 1], сумW = сРисом[q + 2], к = сРисом[q + 3];
+        const f = Math.max(0, к - starts[b] - сумW) / (s * сумT);
+        for (let i = b; i < size && i <= j; i += NB) thick[i] *= f;
+      }
+    }
+    if (трубкаВся !== прежняя) { площадь = трубка.площадь(трубкаВся); прежняя = трубкаВся; }   // трубка та же — раздача та же
+  };
+  const грязные = { n: 0, add(b) { if (!метка[b]) { метка[b] = 1; список[this.n++] = b; } } };
+  const поставить = θ => {
+    θ = clamp(θ, DPHI * 1e-6, size * DPHI);
+    // допуск 1e-9 бина: целое число бинов в плавающей точке не должно давать сектор нулевой ширины
+    const j = clamp(Math.ceil(θ / DPHI - 1e-9) - 1, 0, size - 1);
+    грязные.n = 0;
+    const iLo = Math.min(last, j), iHi = Math.max(last, j);
+    if (iHi - iLo + 1 >= NB) for (let b = 0; b < NB; b++) грязные.add(b);
+    else for (let i = iLo; i <= iHi; i++) грязные.add(i % NB);
+    for (let i = last + 1; i <= j; i++) {
+      if (i > n0) { thick[i] = tT; wraps[i] = tW; }
+      wd.rin[i] = 0; wd.rout[i] = 1;                   // заглушки: радиусы ставит наложитьСлои
+    }
+    for (let i = j + 1; i <= last; i++) { wd.rin[i] = -1; wd.rout[i] = 0; }
+    last = j; уголКонца = Math.min(DPHI, θ - j * DPHI);
+    wd.lastIdx = j; wd.kmax = Math.floor(j / NB) + 1; wd.phiEnd = (j % NB) * DPHI + уголКонца;
+    if (трубка) приколоть(j, грязные);
+    for (let q = 0; q < грязные.n; q++) { const b = список[q]; метка[b] = 0; вклад(b); }
+    if (грязные.n > NB / 4) пересобрать();
+    s = масштаб();
+  };
+  const θсейчас = () => last * DPHI + уголКонца;
+  if (!трубка) {
+    // Первая подгонка: дробный конец, секущая до четверти дуги бина — точнее не нужно, конец
+    // всё равно доводит вторая.
+    let θa = θсейчас(), fa = f();
+    if (Math.abs(fa) > DPHI * радиусКонца() / 4) {
+      let θb = θa - fa / радиусКонца();
+      поставить(θb);
+      let fb = f();
+      for (let шаг = 0; шаг < 8 && Math.abs(fb) > DPHI * радиусКонца() / 4; шаг++) {
+        const θc = Math.abs(fb - fa) > 1e-15 ? θb - fb * (θb - θa) / (fb - fa) : θb - fb / радиусКонца();
+        θa = θb; fa = fb; θb = θc;
+        поставить(θb);
+        fb = f();
+      }
+    }
+  } else {
+    // Вторая подгонка: конец — ЦЕЛОЕ число бинов. Дробный сектор рисовался бы ступенькой уже
+    // бина: в его доле без витка контур проваливается на толщину слоя. Ищется соседняя пара
+    // n, n + 1 с f(n) ≤ 0 < f(n + 1), и берётся та, где |f| меньше, — ошибка длины не больше
+    // половины дуги бина на радиусе конца, в пределах допуска мерки (DPHI·R). f растёт с n, но не
+    // гладко: у короткого листа бин то доливается трубкой, то получает виток, и множитель риса
+    // прыгает. Поэтому секущая по целым с вилкой.
+    const счёт = n => { поставить(n * DPHI); return f(); };
+    let n = clamp(Math.round((θсейчас() - f() / радиусКонца()) / DPHI), 1, size);
+    let fn = счёт(n);
+    let низ = -1, fНиз = 0, верх = -1, fВерх = 0;      // вилка: f(низ) ≤ 0 < f(верх)
+    const в = (m, fm) => { if (fm <= 0) { if (низ < 0 || m > низ) { низ = m; fНиз = fm; } } else if (верх < 0 || m < верх) { верх = m; fВерх = fm; } };
+    в(n, fn);
+    for (let шаг = 0; шаг < 24 && !(низ >= 0 && верх === низ + 1); шаг++) {
+      let m;
+      if (низ >= 0 && верх >= 0) {
+        if (верх <= низ) break;                          // f не монотонна: вилки нет, берём лучшее
+        m = clamp(Math.round(низ + (верх - низ) * (-fНиз) / Math.max(1e-15, fВерх - fНиз)), низ + 1, верх - 1);
+      } else {
+        const шагБинов = Math.max(1, Math.abs(Math.round(fn / (радиусКонца() * DPHI))));
+        m = clamp(fn > 0 ? n - шагБинов : n + шагБинов, 1, size);
+        if (m === n) break;                              // упёрлись в край таблицы
+      }
+      n = m; fn = счёт(n); в(n, fn);
+    }
+    let лучший = n;
+    if (низ >= 0 && верх >= 0) лучший = -fНиз <= fВерх ? низ : верх;
+    else if (низ >= 0) лучший = низ; else if (верх >= 0) лучший = верх;
+    if (лучший !== n) счёт(лучший);
+  }
+  наложитьСлои(wd, starts, thick, wraps, s);
+}
 function conservativeBand(wd, v, g, list, radiusOnly) {
   // Pure rice rings already use the exact ring-area construction. Keep their
   // mapping (including surface pigments) intact.
   if (g.winding !== 'spiral' && !list.some(p => !p.inCore && !ING[p.kind].paint && !ING[p.kind].bedDelta)) return null;
+  const спираль = !wd.ringBand;
+  // ⚑ ТРУБКУ СПИРАЛИ ОПЛАЧИВАЕТ ПОСТЕЛЬ ЦЕЛИКОМ, И КОГДА ЛИСТ НЕ ОБОШЁЛ ОБОРОТА (#242, 17.09).
+  // Прежде платили только бины, где первый виток есть (`max(0, rin)` даёт 0 там, где его нет), а
+  // materialAt красил рисом всю трубку r < r₀. Короткий лист пазла рис СОЗДАВАЛ: хосомаки на
+  // 0,5 витка — 171,8 мм² риса в срезе при 46,5 на листе (+270 %), на 1,2 витка +12 %. Теперь
+  // трубка — полный круг r₀ во всех бинах, и радиус, до которого её сжал недостаток риса,
+  // уходит в намотку (`tubeR`), чтобы materialAt красил ровно оплаченное.
   let coreArea = 0;
   for (let b = 0; b < NB; b++) {
-    const a = Math.max(0, wd.rin[b]);
+    const a = wd.rin[b] >= 0 || !спираль ? Math.max(0, wd.rin[b]) : wd.трубка ? wd.трубка[b] : g.r0;
     coreArea += DPHI * a * a / 2;
   }
   const coreRice = g.coreRiceAt ? g.coreRiceAt(v) : coreArea;
@@ -1084,12 +1342,21 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
     if (wd.ringBand) {
       if (sa >= 0) { capA[capN] = wd.u0[i] * g.L; capB[capN] = wd.u1[i] * g.L; capH[capN] = area; capN++; }
     } else {
-      const ds = (wd.rin[i] + wd.rout[i]) / 2 * windSectorAngle(wd, i);
-      capA[capN] = distance; capB[capN] = distance + ds; capH[capN] = area; capN++; distance += ds;
+      // Место на листе отмеряется по средней линии НОРИ, как и в намотке (17.09, см. wind). А
+      // высота — площадь сектора на дугу средней линии СЛОЯ: это толщина слоя, и с ней ниже
+      // сравнивается высота тела. Поделённая на дугу нори, она на внутренних витках меньше
+      // толщины на 10–30 %, вокруг куска не оставалось риса, и кусок размазывался на всю
+      // толщину первого витка: дуга тамаго против его длины на листе 0,67…1,24 при 1,07…1,21
+      // (checks.js, #134).
+      const angle = windSectorAngle(wd, i);
+      const ds = (wd.rout[i] - Math.min(g.w, wd.rout[i] - wd.rin[i]) / 2) * angle;
+      capA[capN] = distance; capB[capN] = distance + ds;
+      capH[capN] = area / Math.max(1e-12, (wd.rin[i] + wd.rout[i]) / 2 * angle); capN++; distance += ds;
     }
   }
   const lengthScale = wd.ringBand ? 1 : g.L / Math.max(1e-12, distance);
-  for (let j = 0; j < capN; j++) { capA[j] *= lengthScale; capB[j] *= lengthScale; capH[j] = capH[j] / Math.max(1e-12, capB[j] - capA[j]); }
+  if (wd.ringBand) for (let j = 0; j < capN; j++) { capA[j] *= lengthScale; capB[j] *= lengthScale; capH[j] = capH[j] / Math.max(1e-12, capB[j] - capA[j]); }
+  else for (let j = 0; j < capN; j++) { capA[j] *= lengthScale; capB[j] *= lengthScale; }
   // У спирали отрезки идут подряд по накопленной длине — таблица уже упорядочена. Кольцо
   // упорядочивается устойчивой сортировкой номеров по тому же ключу, что прежде объекты.
   let ord = null;
@@ -1114,8 +1381,14 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
     coreScale = Math.sqrt(source.riceInput / Math.max(1e-12, source.coreRice));
     source.coreRice = source.riceInput;
   }
-  const size = wd.kmax * NB, starts = new Float64Array(NB), thick = new Float64Array(size), wraps = new Float64Array(size);
+  // У спирали таблицы на два витка длиннее: конец листа может уйти дальше намотанного (ниже).
+  const size = (спираль ? Math.min(KMAX, wd.kmax + 2) : wd.kmax) * NB;
+  const starts = new Float64Array(NB), thick = new Float64Array(size), wraps = new Float64Array(size);
   for (let b = 0; b < NB; b++) starts[b] = wd.rin[b] * coreScale;
+  if (спираль) {
+    // бин без первого витка начинается там же, где трубка, которую он оплатил (см. coreArea)
+    for (let b = 0; b < NB; b++) if (wd.rin[b] < 0) starts[b] = (wd.трубка ? wd.трубка[b] : g.r0) * coreScale;
+  }
   for (let i = 0; i < size; i++) {
     if (wd.rin[i] < 0) continue;
     const t = Math.max(0, wd.rout[i] - wd.rin[i]);
@@ -1123,35 +1396,21 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
     wraps[i] = isBand ? (wd.ringBand ? 0 : Math.min(g.w, t)) : t;
     thick[i] = isBand ? t - wraps[i] : 0;
   }
-  const apply = scale => {
-    let R = 0;
-    for (let b = 0; b < NB; b++) {
-      let r = starts[b];
-      for (let k = 0; k < wd.kmax; k++) {
-        const i = k * NB + b; if (wd.rin[i] < 0) break;
-        wd.rin[i] = r; r += thick[i] * scale + wraps[i]; wd.rout[i] = r;
-      }
-      wd.top[b] = r; R = Math.max(R, r);
+  if (спираль) {
+    // Обжим мог выжать рис ленты в ноль (короткий лист с толстой обёрткой: трубка на весь круг,
+    // вся стопка — омлет). Тела при этом рисовать негде, и они пропадали из среза. Тогда ёмкость
+    // раздаётся ровно по всем секторам — как у кольца с пустой полосой.
+    if (source.area > 0) {
+      let ёмкость = 0;
+      for (let i = 0; i < size; i++) if (wd.rin[i] >= 0) ёмкость += thick[i];
+      if (!(ёмкость > 1e-9)) for (let i = 0; i < size; i++) if (wd.rin[i] >= 0) thick[i] = 1;
     }
-    wd.Rout = R;
-    // Площадь секторов здесь не считается: её никто не читал, а цикл строил объект на
-    // каждый сектор всех витков. Итоговую площадь даёт проход по `sectors` ниже.
-  };
-  // At scale k, previous filled bands move this band's inner radius by k*p.
-  // Its sector area is therefore A*k²+B*k; solve the total exactly once.
-  let A = 0, B = 0;
-  for (let b = 0; b < NB; b++) {
-    let base = starts[b], prefix = 0;
-    for (let k = 0; k < wd.kmax; k++) {
-      const i = k * NB + b; if (wd.rin[i] < 0) break;
-      const t = thick[i];
-      const angle = windSectorAngle(wd, i);
-      A += angle * (prefix * t + t * t / 2); B += angle * base * t;
-      prefix += t; base += wraps[i];
-    }
-  }
-  const scale = source.area > 0 ? 2 * source.area / Math.max(1e-12, B + Math.sqrt(B * B + 4 * A * source.area)) : 0;
-  apply(scale);
+    уложитьПоДлине(wd, g, starts, thick, wraps, size, source.area, {
+      площадь: core => source.перераздать(core), рис: source.riceInput,
+      пустой: b => (g.r0At ? g.r0At(b * DPHI) : g.r0) * coreScale });
+    // бин без первого витка: трубка того радиуса, который оплачен (materialAt, #242)
+    for (let b = 0; b < NB; b++) if (wd.rin[b] < 0) { wd.tubeAt = Float32Array.from(starts); break; }
+  } else наложитьСлои(wd, starts, thick, wraps, масштабСлоёв(wd, starts, thick, wraps, source.area));
   // Запросу радиуса (14 срезов из 15 при сборке модели) нужна только внешняя граница,
   // она уже в wd.Rout. Карта секторов нужна одному materialAt — отображаемому срезу.
   if (radiusOnly) return null;
@@ -1536,11 +1795,48 @@ function wind(vSlice, sMax, g, list, routOnly) {
     // Правильно так: лист — одна кривая, и виток k+1 садится на СВОЮ ЖЕ поверхность в этом
     // бине, то есть на top[b]. А внутренняя грань витка 0 обязана подняться за оборот ровно
     // на толщину НАЧАЛА листа t0, иначе шов не смыкается.
-    const _pv0 = prof[Math.min(prof.length - 1, 0)] || 0;
-    let t0 = _pv0 + (g.air || 0) * clamp(_pv0 / g.T, 0, 1);
-    if (g.wobble) t0 *= 1 + g.wobble * Math.sin(g.phase || 0);
-    t0 += W;
-    let θ = 0, sп = 0, kМакс = 0, последний = -1;
+    // ⚑ НОРИ СПИРАЛИ = ЛИСТ (#134, #242; решение владельца 16.09, правка 17.09).
+    //
+    // Лист в витке лежит СНАРУЖИ своего риса (верх намазки смотрит внутрь), и нерастяжим именно
+    // он. Прежде лист отмерялся по средней линии ВСЕГО слоя, `ds = DPHI·(r + t/2)`, а нори
+    // красилась у внешней грани, на полтолщины риса дальше. Замер растром по materialAt (1440·4
+    // луча, площадь обёртки / w, 232 спирали матрицы task10): нори в срезе 0,92…1,86 листа,
+    // у канона хосомаки 137,5 мм при листе 105, у футомаки с одним бруском 257,9 при 210.
+    //
+    // Теперь шаг листа — дуга СРЕДНЕЙ ЛИНИИ НОРИ, `ds = DPHI·(r + ρ + W/2)`. Рис на вогнутой
+    // стороне витка короче своего листа, и сектор (r·ρ + ρ²/2)·DPHI меньше плоской полосы ρ·ds:
+    // сразу после намотки общий множитель риса досыпает недостачу, и конец листа ставится там,
+    // где нори набрала ровно L (`уложитьПоДлине`, ещё до обжима — чтобы обжим и растекание
+    // сглаживали уже настоящий конец). Витков от этого меньше: хосомаки-канон 1,42 → 1,00 (и лист
+    // на 0,4 мм не сходится: риса и тел 880 мм² при 872, которые лист 105 мм обнимает кругом),
+    // футомаки с одним бруском 2,28 → 1,84, узумаки 5,93 → 5,69.
+    //
+    // Пробовано и отвергнуто 17.09: толщина риса из площади каждого шага отдельно (корень
+    // c²/2 + (r − ρ)·c − ρ·(r + W/2) = 0, «рис не течёт вдоль листа»). На малом радиусе он
+    // раздувал бугор куска: хосомаки с огурцом и тамаго — после намотки 24,3 мм при контуре 16,
+    // и обжим (оставляет 10 % отклонения) выпускал ролл некруглым на 14 % против 3 % контроля.
+    const толщинаНачала = () => {
+      const pv0 = prof[Math.min(prof.length - 1, 0)] || 0;
+      let t = pv0 + (g.air || 0) * clamp(pv0 / g.T, 0, 1);
+      if (g.wobble) t *= 1 + g.wobble * Math.sin(g.phase || 0);
+      return t + W;
+    };
+    let t0 = толщинаНачала();
+    // Профиль уже оплатил круг трубки π·r₀² (thicknessProfile, «долг»), но трубка — это всё, что
+    // внутри первого витка, а его внутренняя грань за оборот поднимается пандусом на t0:
+    // ∫(r₀ + t0·φ/TAU)²/2 dφ = π·r₀² + π·r₀·t0 + π·t0²/3. Клин пандуса перенос площади списывал
+    // потом общим множителем уже ПОСЛЕ обжима, и конец листа уезжал мимо растекания: узумаки
+    // (омлет 1,5 мм) — на 11,6°, ступень обёртки 1,5 мм, некруглость 1 → 8 %. Клин снимается здесь.
+    {
+      const r0c = r0At(0), клин = Math.PI * r0c * t0 + Math.PI * t0 * t0 / 3;
+      let масса = 0; for (let i = 0; i < prof.length; i++) масса += (prof[i] || 0) * PROF_DS;
+      if (масса > клин + 1e-9) {
+        const k = (масса - клин) / масса;
+        for (let i = 0; i < prof.length; i++) prof[i] *= k;
+        t0 = толщинаНачала();
+      }
+    }
+    let θ = 0, sп = 0, kМакс = 0, последний = -1, плоская = 0;
     // ⚑ СПИРАЛЬ СТАРТУЕТ С ТОГО ЖЕ r₀(φ), ЧТО И КОЛЬЦО (вариант А, 03.09). Стояло `top[b] = r0e`
     // — плоское семя одним числом на все 1440 бинов, второй способ задать старт намотки рядом
     // с уже существующим `r0At`. Теперь способ один: если ядра нет, `r0At` сам отдаёт
@@ -1552,28 +1848,46 @@ function wind(vSlice, sMax, g, list, routOnly) {
       const r = (k === 0) ? r0At(b) + t0 * (шаг * DPHI) / TAU : top[b];
       // The spiral includes bare sheet edges, whose profile must stay zero.
       const pv = prof[Math.min(prof.length - 1, Math.max(0, Math.round(sп / PROF_DS)))] || 0;
-      let t = pv + (g.air || 0) * clamp(pv / g.T, 0, 1);
-      if (g.wobble) t *= 1 + g.wobble * Math.sin(TAU * (sп / L) * 2.5 + (g.phase || 0));
-      t += W;                                          // носитель под рисом
-      // ⚠ ДЛИНА ЛИСТА — ПО СРЕДНЕЙ ЛИНИИ СЛОЯ, А НЕ ПО ЕГО ВНУТРЕННЕЙ ГРАНИ. Согнутый лист
-      // сохраняет длину именно в середине толщины: внутренняя грань короче, внешняя длиннее.
-      // Считая по внутренней, я укладывала в кольцевой сектор больше площади, чем брала с
-      // листа, — на t²/2·dφ за каждый слой. Замер: уложено 85,7 при площади листа 58,5,
-      // то есть 46 % лишних, и радиус вышел 6,9 вместо 4,3.
-      const ds = DPHI * Math.max(1e-6, r + t / 2);
+      let ρ = pv + (g.air || 0) * clamp(pv / g.T, 0, 1);
+      if (g.wobble) ρ *= 1 + g.wobble * Math.sin(TAU * (sп / L) * 2.5 + (g.phase || 0));
+      const t = ρ + W;                                  // рис витка и носитель снаружи него
+      // ⚠ ДЛИНА ЛИСТА — ПО СРЕДНЕЙ ЛИНИИ ЛИСТА, А НЕ СЛОЯ (17.09, разбор выше). Согнутый лист
+      // сохраняет длину в середине СВОЕЙ толщины. 01.09 здесь перешли с внутренней грани слоя на
+      // его середину (площадь сходилась лучше: уложено 85,7 при листе 58,5 было до того), но
+      // середина слоя — это середина риса, а не нори.
+      const ds = DPHI * Math.max(1e-6, r + ρ + W / 2);
+      // последний сектор дробный: лист кончается внутри бина, а не на его краю
+      const доля = sп + ds > L ? Math.max(0, (L - sп) / ds) : 1;
       if (!routOnly) {
         const idx = k * NB + b;
         rin[idx] = r; rout[idx] = r + t;
-        u0[idx] = sп / L; u1[idx] = Math.min(1, (sп + ds) / L);
+        u0[idx] = sп / L; u1[idx] = Math.min(1, (sп + ds * доля) / L);
         последний = idx;
       }
       top[b] = r + t;
       if (top[b] > Rout) Rout = top[b];
-      kМакс = k; sп += ds; θ += DPHI;
+      kМакс = k; sп += ds * доля; θ += DPHI * доля; плоская += pv * ds * доля;
+      if (доля < 1) break;
     }
     turns = θ / TAU; phiEnd = θ % TAU; lastIdx = последний;
     kmax = Math.min(KMAX, kМакс + 1); sClose = L; sEnd = L; sTurn1 = L;
-    периметр = TAU * Rout;
+    // Рис — до площади плоского листа (воздух руки выжимается, как и прежде при переносе), конец
+    // листа — до длины нори L. Хватило ли листа на обхват, решается после переноса площади.
+    {
+      // тот же набор полей, что у transportState ниже: одна форма объекта для горячих функций
+      const size = Math.min(KMAX, kmax + 2) * NB,
+            st = { rin, rout, u0, u1, top, Rout, kmax, lastIdx, phiEnd, ringBand, трубка: null, tubeAt: undefined };
+      const starts = СКЛАД_ЛИСТА.нач, thick = СКЛАД_ЛИСТА.толщ, wraps = СКЛАД_ЛИСТА.обёрт;
+      thick.fill(0, 0, size); wraps.fill(0, 0, size);
+      for (let b = 0; b < NB; b++) starts[b] = rin[b] >= 0 ? rin[b] : r0At(b);
+      for (let i = 0; i < size; i++) {
+        if (rin[i] < 0) continue;
+        const tt = rout[i] - rin[i]; wraps[i] = Math.min(W, tt); thick[i] = tt - wraps[i];
+      }
+      уложитьПоДлине(st, g, starts, thick, wraps, size, плоская, null);
+      ({ lastIdx, phiEnd, kmax, Rout } = st);
+      turns = (lastIdx * DPHI + windSectorAngle(st, lastIdx)) / TAU;
+    }
   } else {
 
   // ── зона 0: кольцо риса плюс нори поверх него ──
@@ -1863,6 +2177,27 @@ function wind(vSlice, sMax, g, list, routOnly) {
   // рис намотки считается тем же порогом шума, что и в перекладке (#244): округление — не рис
   for (let i = 0; i < рис0.length; i++) if (rin[i] >= 0) рис0[i] = рисСлоя(rout[i] - rin[i], rout[i]);
   const ВЫЖАТ = 1e-5;   // ед.; шум Float32 на радиусе модели ~5e-7, настоящий рис — от 1e-3
+  // ⚑ У СПИРАЛИ МЕСТО БЕЗ РИСА ПОД ЦЕЛЬЮ ОБЖИМА ЗАНИМАЕТ ТРУБКА (#134, #242; 17.09).
+  //
+  // Когда нори спирали стала равна листу, витков стало меньше (хосомаки-канон 1,42 → 1,0), и
+  // голая полоса у ближнего края перестала накрываться рисом следующего витка: на 0…40° стопка —
+  // одна нори на трубке и голый хвост листа поверх. Обжим такие бины поднять не мог (риса нет,
+  // «контур кончается там, где кончился материал»), а поправку площади считал так, будто поднял.
+  // Замер 17.09 на итоговой правке, но без этого долива: хосомаки-канон — провал контура до
+  // трубки 7,2 мм при R 18,6, риса в срезе 507,9 мм² при 602,7 на листе; короткий лист (меньше
+  // оборота) — веер без всякой стопки: хосомаки «7 полос» 7,1 при 24,7 мм, фруктовые на 1,5
+  // витка 11,5 при 20,3.
+  //
+  // Рис мягкий, циновка вдавливает его в пустоту. Здесь это делает трубка — тот самый
+  // вдавленный рис сердечника (#154): в бине, где риса нет ни в одном витке, свободное место до
+  // цели уходит в неё, голая нори остаётся на своём месте, изнутри. За трубку платит постель
+  // (coreArea в conservativeBand читает уже поднятый старт), так что рис не создаётся. В бине
+  // без единого витка (лист не обошёл оборот) трубка поднимается до контура, и в дыре снаружи
+  // рис — честная дыра, как у кольца с нехваткой листа.
+  // Кольцо не трогается: у него свой обход голых бинов (#243, #244).
+  const трубкаДоливом = g.winding === 'spiral';
+  const трубка = трубкаДоливом ? new Float32Array(NB) : null, пандус0 = трубкаДоливом ? new Float32Array(NB) : null;
+  if (трубкаДоливом) for (let b2 = 0; b2 < NB; b2++) { трубка[b2] = r0At(b2); пандус0[b2] = (rin[b2] >= 0 ? rin[b2] : r0At(b2)) - gR0; }
   const переложить = (b2, tgt) => {
     const rin0 = rin[b2] >= 0 ? rin[b2] : gR0;      // где намотка начинается в ЭТОМ бине
     // ⚑ ПАНДУС МОЖЕТ БЫТЬ И ОТРИЦАТЕЛЬНЫМ (#124, правка 02.09).
@@ -1892,7 +2227,12 @@ function wind(vSlice, sMax, g, list, routOnly) {
     // рис выжат прежней перекладкой, а место под него снова есть — доли из намотки (см. выше)
     const изНамотки = свобод > 0 && рисВс < ВЫЖАТ && рис0Вс >= ВЫЖАТ;
     const fр = изНамотки ? свобод / рис0Вс : рисВс > 1e-9 ? Math.max(0, свобод / рисВс) : 1;
-    let r = gR0 + пандус, prevOut = rin0;
+    let старт = пандус;
+    if (трубкаДоливом && рисВс < ВЫЖАТ && рис0Вс < ВЫЖАТ) {
+      старт = Math.max(пандус0[b2], пандус + свобод);
+      if (rin[b2] < 0) трубка[b2] = gR0 + старт;
+    }
+    let r = gR0 + старт, prevOut = rin0;
     for (let k2 = 0; k2 < KMAX; k2++) {
       const i2 = k2 * NB + b2; if (rin[i2] < 0) break;
       r += Math.max(0, rin[i2] - prevOut); prevOut = rout[i2];
@@ -1973,7 +2313,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
   const голый = new Uint8Array(NB);
   let голых = 0, sum = 0, cnt = 0;
   for (let b2 = 0; b2 < NB; b2++) {
-    if (top[b2] <= r0At(b2) + 1e-6) { голый[b2] = 1; голых++; }
+    if (!трубкаДоливом && top[b2] <= r0At(b2) + 1e-6) { голый[b2] = 1; голых++; }
     else { sum += top[b2]; cnt++; }
   }
   if (cnt) {
@@ -2128,10 +2468,35 @@ function wind(vSlice, sMax, g, list, routOnly) {
       top[b] = r; Rout = Math.max(Rout, r);
     }
   }
-  const transportState = {rin, rout, u0, u1, top, Rout, kmax, lastIdx, phiEnd, ringBand};
+  const transportState = {rin, rout, u0, u1, top, Rout, kmax, lastIdx, phiEnd, ringBand, трубка, tubeAt: undefined};
   const materialTransport = conservativeBand(transportState, vSlice, g, list, radiusOnly);
   Rout = transportState.Rout;
   if (radiusOnly) return Rout;
+  let tubeAt;
+  if (g.winding === 'spiral') {
+    // конец листа мог сдвинуться в conservativeBand (уложитьПоДлине)
+    ({ lastIdx, phiEnd, kmax, tubeAt } = transportState);
+    const θ = lastIdx * DPHI + windSectorAngle(transportState, lastIdx);
+    turns = θ / TAU;
+    // ⚑ ХВАТИЛО ЛИ ЛИСТА — ОБОШЁЛ ЛИ ОН ОБОРОТ (#242, 17.09). Стояло `хватило = true` всегда и
+    // `периметр = TAU·Rout` до обжима — сотни мм на коротком листе, «нехватка» без нехватки у
+    // каждой спирали (замер task10: 159 срезов из 232 с неверным флагом, в том числе дыра 312°
+    // при «хватило»). Снаружи спирали нори на каждом угле, если лист прошёл полный оборот; иначе
+    // на дуге TAU − θ снаружи трубка риса — честная дыра.
+    // Периметр — длина нори ПЕРВОГО оборота, то есть сколько листа нужно, чтобы ролл сомкнулся;
+    // недостающая дуга меряется на радиусе конца листа.
+    let первый = 0;
+    for (let b = 0; b < NB && b <= lastIdx; b++) {
+      const ro = rout[b];
+      первый += (ro - Math.min(W, ro - rin[b]) / 2) * windSectorAngle(transportState, b);
+    }
+    if (θ < TAU) {
+      const ro = rout[lastIdx];
+      первый += (ro - Math.min(W, ro - rin[lastIdx]) / 2) * (TAU - θ);
+    }
+    периметр = первый;
+    хватило = θ >= TAU - 1e-9;
+  }
   // ⚑ УСТРОЙСТВО НАМОТКИ ОТВЕЧАЕТ НА ВОПРОСЫ, А НЕ ОТДАЁТ СЫРЬЁ (#146, правка 01.09).
   //
   // Пять мест снаружи читали массивы напрямую, ЗНАЯ, что слой k = 1 — это обёртка поверх риса:
@@ -2170,14 +2535,17 @@ function wind(vSlice, sMax, g, list, routOnly) {
   // бина, дуга к длине не приводится вовсе, и слой риса со слоем нори несут один отрезок с
   // разной дугой (#165). Чинить её этим приёмом нельзя — сперва нужна сама карта.
   if (спираль && !routOnly && u0 && u1) {
+    // 17.09: дуга — по средней линии НОРИ и по настоящему углу сектора (последний дробный), как
+    // в намотке; после подгонки конца листа сумма равна L, и множитель k — единица с точностью 1e-6.
+    const дуга = i => (rout[i] - Math.min(W, rout[i] - rin[i]) / 2) * windSectorAngle(transportState, i);
     let сумма = 0;
-    for (let i = 0; i < n; i++) if (rout[i] > 0 && rin[i] >= 0) сумма += (rin[i] + rout[i]) / 2 * DPHI;
+    for (let i = 0; i < n; i++) if (rout[i] > 0 && rin[i] >= 0) сумма += дуга(i);
     if (сумма > 1e-9) {
-      const k = L / сумма;            // невязка обжима разносится ровно по всей длине
+      const k = L / сумма;            // невязка разносится ровно по всей длине
       let s2 = 0;
       for (let i = 0; i < n; i++) {
         if (!(rout[i] > 0 && rin[i] >= 0)) continue;
-        const ds2 = (rin[i] + rout[i]) / 2 * DPHI * k;
+        const ds2 = дуга(i) * k;
         u0[i] = s2 / L; u1[i] = Math.min(1, (s2 + ds2) / L); s2 += ds2;
       }
     }
@@ -2190,7 +2558,9 @@ function wind(vSlice, sMax, g, list, routOnly) {
     // Внешний край: контур ролла. Одинаков в обоих режимах.
     внеш: (b) => top[b],
     // Есть ли обёртка на этом угле вообще (лист мог не дойти, #141).
-    есть: (b) => спираль ? true : rin[NB + b] >= 0,
+    // У спирали — если лист прошёл через этот угол (первый виток есть); иначе снаружи трубка
+    // риса, дыра нехватки (#242, 17.09). Прежде `true` всегда, и обводка закрывала дыру нори.
+    есть: (b) => спираль ? rin[b] >= 0 : rin[NB + b] >= 0,
     // Толщина слоя k в бине b, в единицах листа; null — слоя нет.
     толщина: (k, b) => { const i = k * NB + b; return rin[i] >= 0 && rout[i] >= 0 ? rout[i] - rin[i] : null; },
     // Дошёл ли лист до этого бина на витке k (для обводки витков в линейке).
@@ -2203,7 +2573,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
     голый: (b, r0) => top[b] <= r0 + 1e-6,
   };
   return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax, turns, sClose, sEnd, sTurn1, обёртка, ringBand, materialTransport, riceBudget: materialTransport ? materialTransport.riceBudget : prof.riceBudget, core: sliceCore, coreRiceLimit: g.coreRiceLimit,
-           хватило, нехватка: Math.max(0, периметр - L), периметр };   // φНори жил в ветке кольца, наружу не нужен   // #141: сколько нори НЕ хватило, в единицах листа
+           хватило, нехватка: хватило ? 0 : Math.max(0, периметр - L), периметр, tubeAt };   // φНори жил в ветке кольца, наружу не нужен   // #141: сколько нори НЕ хватило, в единицах листа
 }
 // ГРАНИ ПО ФОРМАМ — углы плоскостей, φ = 0 это шов (кладут вниз, на грань, а не на угол).
 // round — ни одной (「カンピョウなら丸に」); kamaboko — низ и бока, верх свободен (銀座渡利);
@@ -3218,7 +3588,8 @@ function materialAt(m, wd, vSlice, r, phi) {
   // atan2 callers use [-pi, pi]; layer indexing uses one positive turn.
   if (phi < 0 || phi >= TAU) phi = (phi % TAU + TAU) % TAU;
   const g = m.g;
-  const rin0 = innerAt(wd, phi), coreR = rin0 >= 0 ? rin0 : g.r0;
+  // бин без витка у короткой спирали: трубка того радиуса, который оплатила постель (#242, 17.09)
+  const rin0 = innerAt(wd, phi), coreR = rin0 >= 0 ? rin0 : wd.tubeAt ? wd.tubeAt[Math.min(NB - 1, Math.floor(phi / DPHI))] : g.r0;
   // Внутри сердцевины материал берётся ТОЛЬКО у подворота (m.core). У спиральных баз ядра нет —
   // там полая трубка, и спрашивать лист при u = 0,002 нельзя: начинка у ближнего края проявлялась
   // внутри дырки, где листа физически нет.
