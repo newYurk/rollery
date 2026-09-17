@@ -828,15 +828,16 @@ function edgeRag(v, seed, g) {
   const A = edgeRagAmp();
   return (a + (b2 - a) * пл) * 2 * A - A;
 }
-function spreadAt(u, g, v) {
+// Профиль грядки на срезе v: кромки (с зерном, #24) и нормировка массы. От u не зависит,
+// поэтому столбцы одного среза считают его один раз и спрашивают spreadAtPre.
+function spreadPre(g, v) {
   const b = g || B();
   // Кромки гуляют на зерно (#24). Без v — как было, ровные: так зовут проверки и старые пути.
   const L = gL(g);
   const рв0 = v === undefined ? 0 : edgeRag(v, 1013, g) / L;
   const рв1 = v === undefined ? 0 : edgeRag(v, 7919, g) / L;
-  const se = b.spreadEnd + рв1; if (u >= se) return 0;
+  const se = b.spreadEnd + рв1;
   const s0 = (b.spreadStart === undefined ? SPREAD_START : b.spreadStart) + рв0;
-  if (u < s0) return 0;                               // голая полоса у ближнего края
   const span = se - s0, w = Math.min(RIM_W, span * 0.5), e = Math.min(RIM_EDGE, w * 0.6);
   // ⚑ БЛИЖНЯЯ КРОМКА ТОЖЕ СХОДИТ, А НЕ СТОИТ СТЕНОЙ (правка 02.09, #153).
   //
@@ -863,11 +864,18 @@ function spreadAt(u, g, v) {
   // Числитель теперь `span` — длина, на которой грядка действительно лежит. Тогда
   // `∫spreadAt du = span`, а масса риса = span·L·T, то есть T снова означает толщину постели.
   const k = (se - s0) / ((span - w - e) + e / 2 + (w - e) * (1 + RIM_H) / 2 + e * RIM_H / 2);
+  return { se, s0, w, e, k };
+}
+function spreadAtPre(u, P) {
+  const se = P.se, s0 = P.s0, w = P.w, e = P.e, k = P.k;
+  if (u >= se) return 0;
+  if (u < s0) return 0;                               // голая полоса у ближнего края
   if (u < s0 + e) return k * (u - s0) / e;            // подъём у ближней кромки
   if (u <= se - w) return k;
   if (u <= se - e) return k * (1 + (RIM_H - 1) * (u - (se - w)) / (w - e));   // подъём к бортику
   return k * RIM_H * (se - u) / e;                    // и сход на нет: стеной рис не стоит
 }
+function spreadAt(u, g, v) { return spreadAtPre(u, spreadPre(g, v)); }
 const betaEff = g => clamp((g ? g.beta : B().beta) * (g ? g.press : (S.hand ? S.hand.press : 1)), 0.15, 0.95);
 // Намотка листа переменной толщины: по угловым бинам, виток за витком. sMax — сколько листа съедено (для анимации скрутки).
 const PROF_DS = 0.02, SMOOTH_R = 0.9;   // шаг профиля толщины и радиус сглаживания (единицы ≈ 5 мм)
@@ -910,7 +918,8 @@ function riceField(vSlice, g, list) {
       if (p.z0 < lo[i]) lo[i] = p.z0;                    // низ стопки — нужен для ТОЛЩИНЫ начинки
     }
   }
-  for (let i = 0; i < M; i++) { bed[i] = spreadAt(Math.min(1, i * PROF_DS / L), g, vSlice); if (!isFinite(lo[i])) lo[i] = fill[i]; }
+  const spP = spreadPre(g, vSlice);
+  for (let i = 0; i < M; i++) { bed[i] = spreadAtPre(Math.min(1, i * PROF_DS / L), spP); if (!isFinite(lo[i])) lo[i] = fill[i]; }
   // ⚑ ГРЯДКА И ЛОЖБИНКА МЕНЯЮТ САМУ ПОСТЕЛЬ (#17, 01.09), а не лежат на ней телом.
   //
   // Это разница между «положил кусок» и «намазал толще». Кусок вытесняет рис и поднимает
@@ -982,10 +991,11 @@ function bandSourceColumns(v, g, list, coreRice) {
   }
   for (const q of bodies) { q.h = dims(q.p, g).h * g.T * q.rg[8]; q.z0T = q.p.z0 * g.T; }
   const columns = []; let riceInput = 0, fillingArea = 0;
+  const spP = spreadPre(g, v);
   for (let i = 1; i < cuts.length; i++) {
     const a = cuts[i - 1], b = cuts[i]; if (b - a < 1e-10) continue;
     const s = (a + b) / 2, u = s / L, spans = [];
-    let rice = spreadAt(u, g, v) * g.T;
+    let rice = spreadAtPre(u, spP) * g.T;
     for (const e of deltas) {
       const d = e.d, rg = e.rg; if (!rg || s < rg[0] || s > rg[1]) continue;
       const lu = ((s - rg[2] * L) * rg[5] + rg[7] * rg[6]) / rg[3];
