@@ -164,6 +164,8 @@ function sharePuzzle() {
 function levelTitle(lv, i) {
   if (lv.custom) return `Пазл по ссылке · ${lv.n} нач. · ${lv.pieces > 1 ? lv.pieces + ' кус.' : '1 срез'}`;
   const parts = [`Уровень ${i + 1}`, `${lv.n} нач.`, `${lv.turns} вит.`, lv.pieces > 1 ? `${lv.pieces} кус.` : '1 срез'];
-  if (lv.wrap && WRAP_PIECE_ON) parts.push('нори'); if (lv.local) parts.push('короткие'); if (lv.paint) parts.push('цв. рис'); if (lv.rot && ROTATE_PIECE_ON) parts.push('поворот'); if (lv.shape && lv.shape !== 'round') parts.push(SHAPES[lv.shape].glyph);
+  // ⚑ «цв. рис» → «цв. ПОСТЕЛЬ ТЕКУЩЕЙ БАЗЫ» (#255, 17.09): на сладкой базе постель — паста,
+  // и подпись уровня обещала бы цветной рис там, где риса нет. Слово берётся из каталога.
+  if (lv.wrap && WRAP_PIECE_ON) parts.push('нори'); if (lv.local) parts.push('короткие'); if (lv.paint) parts.push('цв. ' + bedOf(B()).short); if (lv.rot && ROTATE_PIECE_ON) parts.push('поворот'); if (lv.shape && lv.shape !== 'round') parts.push(SHAPES[lv.shape].glyph);
   return parts.join(' · ');
 }
