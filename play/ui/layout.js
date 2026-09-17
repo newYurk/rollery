@@ -81,16 +81,24 @@ function chipLabelPad(size, list) {
 // ⚠ ИМЯ УСТУПАЕТ ВКЛАДКАМ ЛЕСТНИЦЕЙ, А НЕ ОБРЕЗАЕТСЯ. Порядок уступок тот же, что у подписи
 // в шапке и у подписи чипа: полное имя → короткое → вкладки ужимаются до 26 → имени нет вовсе.
 // Обрезанное слово выглядит поломкой, поэтому многоточия здесь нет.
+//
+// ⚠ ЛЕСТНИЦА МЕРИТ САМОЕ ДЛИННОЕ ИМЯ СРЕДИ ГРУПП, А НЕ ИМЯ ОТКРЫТОЙ. Иначе ширина вкладки
+// зависела бы от того, какую страницу листаешь: на узкой полосе «Рыба» влезала при 32, а
+// «Фрукты и сладкое» требовала 26 — и ряд вкладок ездил под пальцем на каждом перелистывании,
+// то есть цель касания меняла место у того, кто на неё смотрит. Полоса считается ОДИН РАЗ на
+// базу: либо полные имена у всех, либо короткие у всех.
 const TAB_H = 28, TAB_GAP = 4, TAB_W = 32, TAB_W_MIN = 26;
 function palStrip(x, y, w, groups, cur) {
   if (!groups || groups.length < 2) return null;    // одна группа — листать нечего, вкладок нет
   const g = groups[cur] || groups[0];
+  ctx.font = font(12);
+  const мера = k => groups.reduce((m, q) => Math.max(m, ctx.measureText(q[k] || q.name).width), 0);
+  const полные = мера('name'), краткие = мера('short');
   let tw = TAB_W, label = '';
   for (;;) {
     const свободно = w - (groups.length * tw + (groups.length - 1) * TAB_GAP) - 10;
-    ctx.font = font(12);
-    if (свободно >= ctx.measureText(g.name).width) { label = g.name; break; }
-    if (g.short && свободно >= ctx.measureText(g.short).width) { label = g.short; break; }
+    if (свободно >= полные) { label = g.name; break; }
+    if (свободно >= краткие) { label = g.short || g.name; break; }
     if (tw > TAB_W_MIN) { tw -= 2; continue; }
     break;                                          // места нет: полоса остаётся вкладками
   }
