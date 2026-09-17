@@ -1036,11 +1036,16 @@ function windSectorAngle(wd, idx) {
   const end = wd.phiEnd - (idx % NB) * DPHI;
   return clamp(end < 0 ? end + TAU : end, 0, DPHI);
 }
-function bandSector(wd, idx, g) {
+// Площадь сектора слоя без обёртки на единицу угла; −1, если сектора нет. Одно определение
+// для карты секторов (bandSector) и для таблицы ёмкости, которой объект не нужен.
+function bandSectorA(wd, idx, g) {
   const b = idx % NB, k = Math.floor(idx / NB);
-  if (wd.rin[idx] < 0 || wd.rout[idx] <= 0 || (wd.ringBand && wd.ringBand[b] !== k)) return null;
+  if (wd.rin[idx] < 0 || wd.rout[idx] <= 0 || (wd.ringBand && wd.ringBand[b] !== k)) return -1;
   const ri = wd.rin[idx], ro = wd.rout[idx], wrap = wd.ringBand ? 0 : Math.min(g.w, ro - ri);
-  const A = Math.max(0, ((ro - wrap) * (ro - wrap) - ri * ri) / 2);
+  return Math.max(0, ((ro - wrap) * (ro - wrap) - ri * ri) / 2);
+}
+function bandSector(wd, idx, g) {
+  const A = bandSectorA(wd, idx, g); if (A < 0) return null;
   const angle = windSectorAngle(wd, idx);
   return {A, B:0, C:0, angle, area:angle * A};
 }
@@ -1056,24 +1061,33 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
   const coreRice = g.coreRiceAt ? g.coreRiceAt(v) : coreArea;
   // Рис текуч: после обжима он занимает остаток слоя вокруг тела. Если снова
   // оставить под куском исходную постель, кусок пришлось бы лишний раз сдавить.
-  const capacity = []; let distance = 0;
-  for (let i = 0; i < wd.kmax * NB; i++) {
+  // Таблица ёмкости — три типизированных массива вместо объекта на сектор: отрезок листа
+  // [capA, capB] и высота слоя на нём capH.
+  const capMax = wd.kmax * NB;
+  const capA = new Float64Array(capMax), capB = new Float64Array(capMax), capH = new Float64Array(capMax);
+  let capN = 0, distance = 0;
+  for (let i = 0; i < capMax; i++) {
     if (wd.rin[i] < 0 || wd.rout[i] <= 0) continue;
-    const q = bandSector(wd, i, g);
+    const sa = bandSectorA(wd, i, g), area = sa < 0 ? 0 : windSectorAngle(wd, i) * sa;
     if (wd.ringBand) {
-      if (q) capacity.push({a:wd.u0[i] * g.L, b:wd.u1[i] * g.L, area:q.area});
+      if (sa >= 0) { capA[capN] = wd.u0[i] * g.L; capB[capN] = wd.u1[i] * g.L; capH[capN] = area; capN++; }
     } else {
       const ds = (wd.rin[i] + wd.rout[i]) / 2 * windSectorAngle(wd, i);
-      capacity.push({a:distance, b:distance + ds, area:q ? q.area : 0}); distance += ds;
+      capA[capN] = distance; capB[capN] = distance + ds; capH[capN] = area; capN++; distance += ds;
     }
   }
   const lengthScale = wd.ringBand ? 1 : g.L / Math.max(1e-12, distance);
-  for (const c of capacity) { c.a *= lengthScale; c.b *= lengthScale; c.height = c.area / Math.max(1e-12, c.b - c.a); }
-  capacity.sort((a, b) => a.a - b.a);
+  for (let j = 0; j < capN; j++) { capA[j] *= lengthScale; capB[j] *= lengthScale; capH[j] = capH[j] / Math.max(1e-12, capB[j] - capA[j]); }
+  // У спирали отрезки идут подряд по накопленной длине — таблица уже упорядочена. Кольцо
+  // упорядочивается устойчивой сортировкой номеров по тому же ключу, что прежде объекты.
+  let ord = null;
+  if (wd.ringBand) { ord = new Array(capN); for (let j = 0; j < capN; j++) ord[j] = j; ord.sort((x, y) => capA[x] - capA[y]); }
+  const at = j => ord ? ord[j] : j;
   const bandCapacityAt = s => {
-    let lo = 0, hi = capacity.length - 1;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (capacity[mid].b <= s) lo = mid + 1; else hi = mid; }
-    const c = capacity[lo]; return c && s >= c.a && s <= c.b ? c.height : 0;
+    let lo = 0, hi = capN - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (capB[at(mid)] <= s) lo = mid + 1; else hi = mid; }
+    if (lo >= capN) return 0;
+    const c = at(lo); return s >= capA[c] && s <= capB[c] ? capH[c] : 0;
   };
   const source = bandSourceColumns(v, {...g,bandCapacityAt}, list, coreRice);
   let coreScale = 1;
