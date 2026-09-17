@@ -165,6 +165,10 @@ function decodePuzzle(hash) {
     // Ссылки БЕЗ поля w (созданные до 30.08) читаются как обёртка базы по умолчанию —
     // формат расширен совместимо, старые ссылки продолжают открываться.
     const wrap = (data.w && WRAPPERS[data.w]) ? data.w : null;
+    // ⚑ СТАРАЯ ССЫЛКА С КУСКОМ НА ГОЛОМ КРАЮ (#253, 17.09): кусок сдвигается по u на ближайшее
+    // место на рисе — на листе той ссылки (база, обёртка, витки), а не того, что открыт сейчас.
+    // Лежавшее на рисе не трогается до бита (#236).
+    withSheetOf({ base: data.b, wrap, turns: data.t }, () => layOnRice(list));
     return { base: data.b, wrap, turns: data.t, shape: SHAPES[data.s] ? data.s : 'round', hand: hh, list };
   } catch (e) { return null; }
 }

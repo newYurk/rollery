@@ -2035,8 +2035,8 @@ function runChecks(detail) {
     // «Если на голый край листа повара не кладут, то мы тоже не должны позволять… лучше так.»
     // До правки экран клал кусок куда угодно в пределах листа, и в кольце кусок на голой полосе
     // вставал клином через весь рис (#249, вопрос 2). Мерка стережёт ВСЕ пути, которыми раскладка
-    // попадает в игру: касание, перетаскивание, цель пазла, смена обёртки при заданных витках.
-    // До правки красны все, кроме канона (замер 17.09:
+    // попадает в игру: касание, перетаскивание, цель пазла, ссылка, альбом, сохранённая раскладка,
+    // смена обёртки при заданных витках. До правки красны все, кроме канона (замер 17.09:
     // runs/continuation/task11-253).
     //
     // ⚠ ОЖИДАНИЕ НЕЗАВИСИМО ОТ ПРАВИЛА. Где рис, мерка спрашивает у самой модели — профиль
@@ -2190,6 +2190,87 @@ function runChecks(detail) {
           }
           ok(!плохо.length, `#253 пазл: ${плохо.length} из ${кусков} кусков в ${целей} целях лежат на голом крае — ${плохо.slice(0, 3).join(' · ')}`);
           ok(!стопки.length, `#253 пазл: ${стопки.length} целей сложены стопкой, хотя куски помещаются на рис рядом — ${стопки.slice(0, 3).join(' · ')}`);
+        }
+        // 6. ССЫЛКА: старый рецепт с куском на голом крае открывается, кусок сдвинут к ближайшему
+        // месту на рисе; лежавшее на рисе не тронуто до бита; вдоль ролла не двигается ничего.
+        {
+          const плохо = []; let сдвинуто = 0, кусков = 0;
+          const случаи = [];
+          for (const база of БАЗЫ) {
+            случаи.push({ база, wrap: null, t: null });
+            if (!BASES[база].wrapFixed) случаи.push({ база, wrap: 'egg', t: 3 });
+          }
+          for (const c of случаи) {
+            S.base = c.база; S.wrap = c.wrap; S.turns = c.t; S.hand = handOf();
+            const исход = [кусок('tamago', 0.001, 0.5), кусок('salmon', 0.999, 0.5), кусок('cucumber', 0.5, 0.5),
+                           кусок('mayo', 0.03, 0.5), кусок('ricePink', 0.97, 0.5), кусок('shrimp', 0.01, 0.2),
+                           кусок('riceDip', 0.93, 0.5)];
+            const url = encodePuzzle(исход, c.t);
+            S.base = 'hoso'; S.wrap = null; S.turns = null;   // разбор не зависит от того, что открыто сейчас
+            const got = decodePuzzle(url), тег = c.база + (c.t ? ' · витков ' + c.t : '');
+            if (!got) { плохо.push(`${тег}: ссылка не разобралась`); continue; }
+            S.base = got.base; S.wrap = got.wrap; S.turns = turnsOf(got.turns);
+            const кк = кромки();
+            if (got.list.length !== исход.length) плохо.push(`${тег}: кусков ${got.list.length} из ${исход.length}`);
+            got.list.forEach((p, i) => {
+              const src = исход[i]; кусков++;
+              if (p.v !== src.v) плохо.push(`${тег}/${p.kind}: сдвинут вдоль ролла`);
+              if (!голых(src)) { if (p.u !== src.u) плохо.push(`${тег}/${p.kind}: сдвинут, хотя лежал на рисе`); return; }
+              сдвинуто++;
+              if (голых(p)) { плохо.push(`${тег}/${p.kind}: остался на голом крае`); return; }
+              const з = зазорМм(p, кк, src.u > 0.5);
+              if (з > 0.5) плохо.push(`${тег}/${p.kind}: встал в ${з.toFixed(2)} мм от кромки`);
+            });
+          }
+          // ссылка старого формата (до 30.08: без обёртки, три поля на кусок)
+          {
+            const data = { b: 'futo', t: null, s: 'round', h: null, l: [['tamago', 0.012, 0.5], ['salmon', 0.5, 0.5]] };
+            const url = '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(data)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            const got = decodePuzzle(url);
+            S.base = 'futo'; S.wrap = null; S.turns = null;
+            if (!got || got.list.length !== 2) плохо.push('старый формат: ссылка не разобралась');
+            else { кусков += 2; сдвинуто++;
+              if (голых(got.list[0]) || зазорМм(got.list[0], кромки(), false) > 0.5) плохо.push(`старый формат: тамаго u ${got.list[0].u}`);
+              if (got.list[1].u !== 0.5) плохо.push('старый формат: лосось на рисе сдвинут'); }
+          }
+          ok(!плохо.length && сдвинуто > 0,
+             `#253 ссылка: ${плохо.length} нарушений на ${кусков} кусках (сдвигать надо было ${сдвинуто}) — ${плохо.slice(0, 3).join(' · ')}`);
+        }
+        // 7. АЛЬБОМ: запись с куском на голом крае — миниатюра считается и «На лист» кладёт со сдвигом.
+        {
+          const плохо = [];
+          const запись = { id: 'a253', base: 'hoso', wrap: null, turns: null, shape: 'round',
+            hand: { air: 0, wobble: 0, phase: 0, press: 1 }, at: 0, level: null, sim: null,
+            list: [кусок('tamago', 0.02, 0.5), кусок('salmon', 0.97, 0.5), кусок('cucumber', 0.5, 0.5)] };
+          const вМодели = withRecipe(JSON.parse(JSON.stringify(запись)), m => m.list.map(p => голых(p)));
+          if (вМодели.some(n => n)) плохо.push(`миниатюра: на голом крае ${вМодели.filter(n => n).length} куска`);
+          S.album = [JSON.parse(JSON.stringify(запись))];
+          albumLoad(0);
+          const л = S.lists.hoso;
+          if (S.base !== 'hoso' || л.length !== 3) плохо.push(`«На лист»: ${S.base}, кусков ${л.length}`);
+          else {
+            const кк = кромки();
+            if (голых(л[0]) || зазорМм(л[0], кк, false) > 0.5) плохо.push(`«На лист»: тамаго u ${л[0].u.toFixed(4)}`);
+            if (голых(л[1]) || зазорМм(л[1], кк, true) > 0.5) плохо.push(`«На лист»: лосось u ${л[1].u.toFixed(4)}`);
+            if (л[2].u !== 0.5) плохо.push('«На лист»: огурец на рисе сдвинут');
+          }
+          ok(!плохо.length, `#253 альбом: ${плохо.join(' · ')}`);
+        }
+        // 8. СОХРАНЁННАЯ РАСКЛАДКА (localStorage): открывается со сдвигом, у каждой базы по своей постели.
+        {
+          const плохо = [];
+          localStorage.setItem('rollery.model.v2', JSON.stringify({ base: 'futo', wrap: null, lists: {
+            futo: [кусок('tamago', 0.99, 0.5)], ura: [кусок('salmon', 0, 0.5), кусок('tamago', 1, 0.5)],
+            uzumaki: [кусок('cucumber', 0.97, 0.5)] } }));
+          S.turns = null;
+          load();
+          for (const [база, n] of [['futo', 1], ['ura', 2], ['uzumaki', 1]]) {
+            S.base = база; S.wrap = null;
+            const л = S.lists[база] || [];
+            if (л.length !== n) { плохо.push(`${база}: кусков ${л.length} из ${n}`); continue; }
+            л.forEach(p => { if (голых(p)) плохо.push(`${база}/${p.kind}: на голом крае, u ${p.u.toFixed(4)}`); });
+          }
+          ok(!плохо.length, `#253 сохранённая раскладка: ${плохо.join(' · ')}`);
         }
       } catch (e) { fails.push('#253 голый край: ' + e.message); }
       finally {

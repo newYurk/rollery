@@ -299,6 +299,14 @@ function layOnRice(list, g) {
   }
   return n;
 }
+// Правило спрашивает текущий лист (база, обёртка, витки). Чужой рецепт проверяется на своём
+// листе: состояние подменяется на время вызова и возвращается, как в `withRecipe` альбома.
+function withSheetOf(st, fn) {
+  const keep = { base: S.base, wrap: S.wrap, turns: S.turns };
+  S.base = st.base; S.wrap = (st.wrap && WRAPPERS[st.wrap]) ? st.wrap : null; S.turns = turnsOf(st.turns);
+  try { return fn(); }
+  finally { S.base = keep.base; S.wrap = keep.wrap; S.turns = keep.turns; }
+}
 // Лист сменился под лежащей раскладкой (обёртка при заданных витках меняет длину листа, а с ней
 // долю куска; база — свою постель): раскладку и цель пазла возвращаем на рис.
 function layRefit() {
@@ -331,6 +339,8 @@ function load() {
   if (!uiBases().includes(S.base)) S.base = 'futo';
   S.sel = uiIngredients()[0] || B().ingredients[0];
   for (const b in S.lists) S.lists[b] = S.lists[b].filter(p => ING[p.kind]);
+  // Сохранённое до 17.09 могло лежать на голом крае — сдвигаем, у каждой базы по её постели (#253).
+  for (const b in S.lists) if (BASES[b]) withSheetOf({ base: b, wrap: S.wrap, turns: S.turns }, () => layOnRice(S.lists[b]));
 }
 function save() {
   try {

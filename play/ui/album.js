@@ -41,7 +41,9 @@ function withRecipe(e, fn) {
   S.turns = turnsOf(e.turns); S.shape = SHAPES[e.shape] ? e.shape : 'round';
   S.hand = Object.assign(handOf(), e.hand || {});
   let out;
-  try { out = fn(buildModel(JSON.parse(JSON.stringify(e.list)))); }
+  // Запись до 17.09 могла положить кусок на голый край — миниатюра считается уже со сдвигом,
+  // той же дорогой, что «На лист» и ссылка (#253). Сама запись в хранилище не переписывается.
+  try { const list = JSON.parse(JSON.stringify(e.list)); layOnRice(list); out = fn(buildModel(list)); }
   finally { S.base = keep.base; S.wrap = keep.wrap; S.turns = keep.turns; S.shape = keep.shape; S.hand = keep.hand; S.lists[e.base] = keep.list; }
   return out;
 }
@@ -70,6 +72,7 @@ function albumLoad(i) {
   // `load()` в state.js такие отсеивает, а этот путь клал список как есть — и запись со снятой
   // начинкой валила не плитку, а саму игру.
   S.lists[e.base] = JSON.parse(JSON.stringify(e.list)).filter(p => ING[p.kind]);
+  layOnRice(S.lists[e.base]);                    // #253: кусок с голого края — на ближайшее место на рисе
   histReset();                                   // #150: пришла другая раскладка — прошлого нет
   S.albumOpen = -1; S.mode = 'lay'; S.rollP = 0; anim = null; cut = null; slicing = null;
   touchModel(); layout(); dirty = true; requestFrame();
