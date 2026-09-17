@@ -1752,6 +1752,25 @@ function runChecks(detail) {
         S.base = было.base; S.hand = было.hand; S.lists.futo = было.futo; S.winding = было.winding; modelCaches.clear(); touchModel();
       }
     }
+    // И надпись «свернётся спиралью» на листе (просьба владельца 02.09) не прячется под окошком
+    // живого среза: 16.09 на телефоне с футомаки окошко закрывало её целиком.
+    if (typeof overlayGeom === 'function' && typeof spiralNoteY === 'function') {
+      const было = { W, H, DPR, base: S.base, preview: S.preview, puzzle: S.puzzle };
+      let сверено = 0;
+      try {
+        S.puzzle = null;
+        for (const [w, h] of SIZES) for (const база of ['hoso', 'futo']) {
+          W = w; H = h; DPR = 2; S.base = база; S.preview = true; layout();
+          if (L.previewMode !== 'overlay') continue;
+          сверено++;
+          ok(spiralNoteY() >= overlayGeom().низ,
+             `${w}×${h} ${база}: надпись «свернётся спиралью» на ${Math.round(spiralNoteY() - L.sheet.y)} px, а окошко живого среза закрывает лист до ${Math.round(overlayGeom().низ - L.sheet.y)} px`);
+        }
+      } finally {
+        W = было.W; H = было.H; DPR = было.DPR; S.base = было.base; S.preview = было.preview; S.puzzle = было.puzzle; layout();
+      }
+      if (!globalThis.БЕЗ_БРАУЗЕРА) ok(сверено > 0, 'надпись «свернётся спиралью»: ни одного экрана с окошком на листе — сверять было нечего');
+    }
 
     // ── Р. ПАЗЛ НЕ ТРЕБУЕТ ТОГО, ЧЕГО ИГРОК СДЕЛАТЬ НЕ МОЖЕТ (#159, 02.09).
     //

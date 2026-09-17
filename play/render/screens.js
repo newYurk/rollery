@@ -50,11 +50,10 @@ function drawPreviewArea(p) {
     if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs); }
     else { drawSlab([{ x: cx - 30, y, size: 116 }], 1, B(), 8); drawFaceImg(face(0.5, 116), cx - 30, y, 116); label(cx + 30 + 14, y - 8, ['живой срез', turnsTxt()], 'left'); }
   } else if (pm === 'overlay') {
-    const s = L.sheet;
+    const s = L.sheet, o = overlayGeom();
     if (pz) {
-      const fs = Math.min(56, (s.w - 16 - 6 * (k - 1)) / k), x0 = s.x + s.w / 2 - ((k - 1) * (fs + 6)) / 2, y = s.y + fs / 2 + 8;
-      drawMat(s.x + 4, s.y + 4, s.w - 8, fs + 8, 10);
-      for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 6), y, fs);
+      drawMat(s.x + 4, s.y + 4, s.w - 8, o.fs + 8, 10);
+      for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], o.fs, tm), o.x0 + i * (o.fs + 6), o.y, o.fs);
     } else {
       // ОКОШКО «ЧТО ВНУТРИ» — КРУГЛАЯ ВРЕЗКА В УГЛУ ЛИСТА.
       //
@@ -74,11 +73,8 @@ function drawPreviewArea(p) {
       //   • ТЕНИ НЕТ. Она съедала поле, которое нужнее под сам рисунок, и нигде больше в этом
       //     окне не работает: тонкое кольцо циновки и так отделяет срез от риса;
       //   • включается и выключается кнопкой-глазом; когда сверка станет не нужна — снять целиком.
-      const fs = Math.round(Math.min(s.w, s.h) * 0.62);
-      const поле = 6, дШир = fs + 2 * поле, поля = 10;
-      const x = s.x + s.w - дШир / 2 - поля, y = s.y + дШир / 2 + поля;
-      drawMat(x - дШир / 2, y - дШир / 2, дШир, дШир, дШир / 2);
-      drawFaceImg(face(0.5, fs), x, y, fs, 1, 1, true);
+      drawMat(o.x - o.дШир / 2, o.y - o.дШир / 2, o.дШир, o.дШир, o.дШир / 2);
+      drawFaceImg(face(0.5, o.fs), o.x, o.y, o.fs, 1, 1, true);
     }
   } else if (pm === 'side') {
     const sd = L.side, cx = sd.x + sd.w / 2; let y = sd.y;
@@ -90,6 +86,25 @@ function drawPreviewArea(p) {
       const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 6); drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); label(cx, y + fs + 18, ['живой срез · ' + turnsTxt()]);
     }
   }
+}
+// Что окошко живого среза (или полоса целей пазла) кладёт ПОВЕРХ листа в режиме overlay. Одно
+// место, где считаются размеры: их читают и рисование выше, и надпись «свернётся спиралью», которую
+// окошко закрывало целиком (16.09: футомаки на телефоне — надпись в правом верхнем углу листа,
+// окошко там же). Режим overlay бывает только у неповёрнутого листа (layout.js), поэтому
+// координаты листа здесь совпадают с экранными.
+function overlayGeom() {
+  const s = L.sheet, pz = S.puzzle;
+  if (pz) {
+    const k = pz.vs.length, fs = Math.min(56, (s.w - 16 - 6 * (k - 1)) / k);
+    return { fs, x0: s.x + s.w / 2 - ((k - 1) * (fs + 6)) / 2, y: s.y + fs / 2 + 8, низ: s.y + 4 + fs + 8 };
+  }
+  const fs = Math.round(Math.min(s.w, s.h) * 0.62), поле = 6, дШир = fs + 2 * поле, поля = 10;
+  return { fs, дШир, x: s.x + s.w - дШир / 2 - поля, y: s.y + дШир / 2 + поля, низ: s.y + дШир + поля };
+}
+// Где встаёт надпись «свернётся спиралью»: у верхнего края листа — или под окошком, если оно там.
+function spiralNoteY() {
+  const s = L.sheet;
+  return L.previewMode === 'overlay' ? overlayGeom().низ + 6 : s.y + 14;
 }
 // РАДИУС РОЛЛА ПО ХОДУ ПРОТЯЖКИ — ПО ПЛОЩАДИ НАМОТАННОГО, А НЕ ПО МАКСИМУМУ ВИТКА.
 //
@@ -186,7 +201,7 @@ function drawLay() {
   if (p === 0 && !drag.patch) {
     const mm = getModel();
     if (mm.g.winding === 'spiral') {
-      unrot(s.x + s.w - 6, s.y + 14, () => {
+      unrot(s.x + s.w - 6, spiralNoteY(), () => {
         ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
         ctx.textAlign = 'right'; ctx.textBaseline = 'top';
         ctx.fillText('начинка по всему листу — свернётся спиралью', 0, 0);
