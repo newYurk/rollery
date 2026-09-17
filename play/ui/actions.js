@@ -32,7 +32,7 @@ function action(id) {
     // только раздражают; у несимметричного (сектор) все 360° дают разные положения.
     case 'rotate': if (ROTATE_PIECE_ON && S.mode === 'lay' && S.selPatch) { pushHistory(); const p = S.selPatch;
       const span = cutSymmetric(ING[p.kind]) ? Math.PI : TAU;
-      p.rot = ((p.rot || 0) + Math.PI / 4) % span; if (p.rot < 1e-6) delete p.rot; const bb = bounds(p), hu = (bb.u1 - bb.u0) / 2, hv = (bb.v1 - bb.v0) / 2; p.u = clamp(p.u, Math.min(0.5, hu), Math.max(0.5, 1 - hu)); p.v = clamp(p.v, Math.min(0.5, hv), Math.max(0.5, 1 - hv)); touchModel(); sfx.place(); } break;
+      p.rot = ((p.rot || 0) + Math.PI / 4) % span; if (p.rot < 1e-6) delete p.rot; const bb = bounds(p), hv = (bb.v1 - bb.v0) / 2; p.u = layU(p, p.u); p.v = clamp(p.v, Math.min(0.5, hv), Math.max(0.5, 1 - hv)); touchModel(); sfx.place(); } break;   // по u — на рис (#253)
     case 'remove': if (S.mode === 'lay' && S.selPatch) { pushHistory(); const l = patches(), i = l.indexOf(S.selPatch); if (i >= 0) l.splice(i, 1); S.selPatch = null; touchModel(); } break;
     case 'deselect': S.selPatch = null; dirty = true; break;
     case 'back': S.mode = 'lay'; S.rollP = 0; S.bigPiece = -1; S.albumOpen = -1; cut = null; slicing = null; if (S.puzzle) S.puzzle.result = null; dirty = true; break;
@@ -56,6 +56,7 @@ function action(id) {
     case 'sheet': {
       const ks = Object.keys(WRAPPERS), cur = B().wrapKey || 'nori';
       S.wrap = ks[(ks.indexOf(cur) + 1) % ks.length];
+      layRefit();   // при заданных витках обёртка меняет длину листа, кусок у кромки съехал бы на голое (#253)
       wrapNote = WRAPPERS[S.wrap].name + ' · ' + WRAPPERS[S.wrap].mm + ' мм';
       wrapNoteT = performance.now();
       save(); touchModel(); layout(); dirty = true; break;
@@ -81,7 +82,7 @@ function action(id) {
       // ничего не издаёт, и без этого игрок не знает, включилось ли что-нибудь.
       if (!S.mute && sfx._fireStart) sfx._fireStart();
       break;
-    case 'base': { const keys = uiBases(); S.base = keys[(keys.indexOf(S.base) + 1) % keys.length]; S.sel = uiIngredients()[0] || B().ingredients[0]; S.selPatch = null; wrapNote = BASES[S.base].name; wrapNoteT = performance.now(); touchModel(); layout(); if (S.puzzle) puzzleStart(S.puzzle.level, S.puzzle.seed); else if (S.mode !== 'lay') action('back'); break; }
+    case 'base': { const keys = uiBases(); S.base = keys[(keys.indexOf(S.base) + 1) % keys.length]; S.sel = uiIngredients()[0] || B().ingredients[0]; S.selPatch = null; layOnRice(patches()); wrapNote = BASES[S.base].name; wrapNoteT = performance.now(); touchModel(); layout(); if (S.puzzle) puzzleStart(S.puzzle.level, S.puzzle.seed); else if (S.mode !== 'lay') action('back'); break; }
   }
   requestFrame();
 }
@@ -151,7 +152,7 @@ function onMove(x, y, id) {
     if (speed > 0.05) drag.moveT = now;
     sfx.rustle(speed * 1.5);
   } else if (drag.kind === 'move') {
-    const uv = sheetUV(x, y), bb = bounds(drag.patch), hu = (bb.u1 - bb.u0) / 2, hv = (bb.v1 - bb.v0) / 2;
+    const uv = sheetUV(x, y), bb = bounds(drag.patch), hv = (bb.v1 - bb.v0) / 2;
     const wasMoved = drag.moved;
     drag.moved = drag.moved || Math.hypot(x - drag.x0, y - drag.y0) > 6;
     if (!drag.moved) return;
@@ -159,7 +160,11 @@ function onMove(x, y, id) {
     // и засорять им историю нельзя. Дальше кадры сдвига идут уже без снимков, поэтому «Отменить»
     // возвращает кусок туда, где он лежал ДО перетаскивания, а не на предыдущий кадр (issue #84).
     if (!wasMoved) pushHistory();
-    drag.patch.u = clamp(uv.u + drag.ou, Math.min(0.5, hu), Math.max(0.5, 1 - hu));
+    // ⚑ ПО u КУСОК УПИРАЕТСЯ В КРОМКУ РИСА, А НЕ В КРАЙ ЛИСТА (#253, 17.09). Упор плавный: кусок
+    // идёт за пальцем, пока может, стоит у кромки, пока палец над голой полосой, и едет обратно
+    // вместе с пальцем — смещение пальца от куска не теряется. Пропадает он, как и раньше,
+    // только если палец увели за лист (drag.outside ниже).
+    drag.patch.u = layU(drag.patch, uv.u + drag.ou);
     drag.patch.v = clamp(uv.v + drag.ov, Math.min(0.5, hv), Math.max(0.5, 1 - hv));
     drag.outside = !inRect(x, y, { x: L.sheet.x - 24, y: L.sheet.y - 24, w: L.sheet.w + 48, h: L.sheet.h + 48 });
   } else if (drag.kind === 'place') {
@@ -228,7 +233,8 @@ function onUp(x, y, id) {
     else { if (drag.outside) { const l = patches(); l.splice(l.indexOf(p), 1); S.selPatch = null; } touchModel(); }
     drag.outside = false;
   } else if (kind === 'place') {
-    if (!drag.moved) { const uv = sheetUV(x, y); pushHistory(); placeAt(uv.u, uv.v); }
+    // кусок шире всей грядки не ложится (#253) — и пустой снимок в историю не пишем
+    if (!drag.moved && layFits({ kind: S.sel, u: 0.5, v: 0.5 })) { const uv = sheetUV(x, y); pushHistory(); placeAt(uv.u, uv.v); }
   }
   dirty = true; requestFrame();
 }

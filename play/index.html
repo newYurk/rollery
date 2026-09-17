@@ -153,10 +153,16 @@ function hitPatch(x, y) {
   }
   return null;
 }
+// По u кусок встаёт на рис, а не просто в лист: на голый край не кладут (#253, 17.09) —
+// касание голой полосы кладёт кусок вплотную к кромке риса. Кусок шире всей грядки не ложится
+// вовсе. Правило — layU и layFits в state.js.
 function placeAt(u, v) {
-  const d = ING[S.sel], m = dims({ kind: S.sel });
-  const p = { kind: S.sel, u: clamp(u, m.du / 2 + (d.wave ? d.wave.amp : 0), 1 - m.du / 2 - (d.wave ? d.wave.amp : 0)), v: clamp(v, m.dv / 2, 1 - m.dv / 2), z0: 0, z1: m.h, phase: Math.random() * TAU };
+  const m = dims({ kind: S.sel });
+  const p = { kind: S.sel, u, v: clamp(v, m.dv / 2, 1 - m.dv / 2), z0: 0, z1: m.h, phase: Math.random() * TAU };
+  if (!layFits(p)) return false;
+  p.u = layU(p, u);
   patches().push(p); S.selPatch = null; touchModel(); sfx.place();
+  return true;
 }
 // «Обернуть нори»: четыре настоящих патча вокруг начинки — под, над и два торца.
 // ⚠ ЭТО НЕ КОНВЕРТ, А ЧЕТЫРЕ ПЛАШКИ. Помечено 31.08.2026 по замечанию владельца: «если

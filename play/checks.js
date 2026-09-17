@@ -2030,6 +2030,151 @@ function runChecks(detail) {
       S.lists.futo = []; clean(); touchModel();
     }
 
+    // ── ГК. НА ГОЛЫЙ КРАЙ ЛИСТА НАЧИНКУ НЕ КЛАДУТ (#253, решение владельца 17.09).
+    //
+    // «Если на голый край листа повара не кладут, то мы тоже не должны позволять… лучше так.»
+    // До правки экран клал кусок куда угодно в пределах листа, и в кольце кусок на голой полосе
+    // вставал клином через весь рис (#249, вопрос 2). Мерка стережёт ВСЕ пути, которыми раскладка
+    // попадает в игру: касание, перетаскивание, смена обёртки при заданных витках. До правки
+    // красны все, кроме канона (замер 17.09:
+    // runs/continuation/task11-253).
+    //
+    // ⚠ ОЖИДАНИЕ НЕЗАВИСИМО ОТ ПРАВИЛА. Где рис, мерка спрашивает у самой модели — профиль
+    // `spreadAtPre` по `spreadPre(g, v)` на 241 срезе вдоль ролла, с рваной кромкой (#24), — а не
+    // у функции, которая кусок двигает. След куска — `bounds(p, g, true)`: как положен, без прижима.
+    // «Ближайшее место» меряется так же: ближняя кромка — самая дальняя из рваных, дальняя — самая
+    // ближняя, и кусок, которого не пустили, обязан встать к ней вплотную (≤ 0,5 мм), а не куда-то.
+    {
+      const было = { base: S.base, wrap: S.wrap, turns: S.turns, hand: S.hand, sel: S.sel, mode: S.mode,
+        lists: JSON.parse(JSON.stringify(S.lists)), puzzle: S.puzzle, album: S.album, preview: S.preview,
+        mute: S.mute, shape: S.shape, cutsTotal: S.cutsTotal, rollP: S.rollP };
+      const БАЗЫ = Object.keys(BASES);
+      const СРЕЗЫ = Array.from({ length: 241 }, (_, i) => i / 240);
+      const ВИДЫ = ['tamago', 'salmon', 'cucumber', 'shrimp', 'mayo', 'nori', 'eggsheet', 'naruto',
+                    'kiwi', 'ricePink', 'denbu', 'riceRidge', 'riceDip'].filter(k => ING[k]);
+      const паспорт = () => { const b = B();
+        return { Wv: b.Wv, L: sheetLen(b), T: b.T, spreadEnd: b.spreadEnd, spreadStart: b.spreadStart }; };
+      const кромки = () => { const g = паспорт(); let a = -Infinity, z = Infinity;
+        for (const v of СРЕЗЫ) { const P = spreadPre(g, v); a = Math.max(a, P.s0); z = Math.min(z, P.se); }
+        return { a, z: Math.min(1, z), L: g.L }; };
+      // В скольких срезах под следом куска нет риса хотя бы у одного края следа. Между краями
+      // голого места не бывает: рис на срезе лежит одним отрезком [s0(v), se(v)].
+      const голых = (p) => { const g = паспорт(), bb = bounds(p, undefined, true); let n = 0;
+        for (const v of СРЕЗЫ) { const P = spreadPre(g, v);
+          if (!(spreadAtPre(bb.u0 + 1e-9, P) > 0) || !(spreadAtPre(bb.u1 - 1e-9, P) > 0)) n++; }
+        return n; };
+      // Куска не пустили — он стоит вплотную к той кромке, к которой его тянули.
+      const зазорМм = (p, кк, дальний) => { const bb = bounds(p, undefined, true);
+        return (дальний ? кк.z - bb.u1 : bb.u0 - кк.a) * кк.L * U_MM; };
+      const кусок = (kind, u, v, extra) => Object.assign({ kind, u, v, z0: 0, z1: 0, phase: 0.5 }, extra || {});
+      try {
+        S.winding = null; S.puzzle = null; S.mode = 'lay'; S.rollP = 0; anim = null;
+        // 1. КАСАНИЕ: всё, что игрок кладёт, встаёт на рис — ближе всего к месту касания — и не пропадает.
+        for (const база of БАЗЫ) {
+          S.base = база; S.wrap = null; clean(); S.lists[база] = []; S.selPatch = null; touchModel();
+          const кк = кромки(), плохо = []; let всего = 0;
+          for (const kind of ВИДЫ) for (const u of [0, 0.004, 0.024, 0.047, 0.9, 0.96, 0.995, 1]) {
+            S.sel = kind; const n0 = patches().length; всего++;
+            placeAt(u, 0.5);
+            if (patches().length !== n0 + 1) { плохо.push(`${kind}@${u}: не лёг`); continue; }
+            const p = patches()[n0], дальний = u > 0.5;
+            // куда кусок встал бы без правила — на то же место, только в пределах листа, как и раньше
+            const дм = dims({ kind }, undefined, true), amp = ING[kind].wave ? ING[kind].wave.amp : 0;
+            const тут = кусок(kind, clamp(u, дм.du / 2 + amp, 1 - дм.du / 2 - amp), 0.5);
+            const н = голых(p);
+            if (н) { плохо.push(`${kind}@${u}: голо в ${н} срезах из ${СРЕЗЫ.length}`); continue; }
+            if (голых(тут)) { const з = зазорМм(p, кк, дальний);
+              if (з > 0.5) плохо.push(`${kind}@${u}: встал в ${з.toFixed(2)} мм от кромки риса`); }
+            else if (p.u !== тут.u) плохо.push(`${kind}@${u}: сдвинут, хотя место было на рисе`);
+          }
+          ok(!плохо.length, `#253 ${BASES[база].name}: касание — ${плохо.length} из ${всего} укладок не по правилу: ${плохо.slice(0, 3).join(' · ')}`);
+          S.lists[база] = []; touchModel();
+        }
+        // Кусок шире всей грядки положить некуда: узумаки в пазле на двух витках — лист 53 мм,
+        // рис на всех срезах уже 45, омлет-лист 50. Касание его не кладёт.
+        {
+          S.base = 'uzumaki'; S.wrap = null; clean(); S.turns = 2; S.lists.uzumaki = []; touchModel();
+          const bb = bounds(кусок('eggsheet', 0.5, 0.5), undefined, true), кк = кромки();
+          const шире = bb.u1 - bb.u0 > кк.z - кк.a;
+          S.sel = 'eggsheet'; placeAt(0.5, 0.5); placeAt(0.02, 0.5);
+          ok(шире && patches().length === 0,
+             `#253 узумаки, 2 витка: омлет-лист ${шире ? 'шире' : 'не шире'} грядки, а на листе кусков ${patches().length} — класть его некуда`);
+          S.turns = null; S.lists.uzumaki = []; touchModel();
+        }
+        // 2. ПЕРЕТАСКИВАНИЕ: кусок упирается в кромку риса плавно — идёт за пальцем, пока может,
+        // встаёт вплотную к кромке, не прыгает, возвращается вместе с пальцем и не пропадает.
+        for (const база of БАЗЫ) {
+          S.base = база; S.wrap = null; clean(); S.selPatch = null; S.mode = 'lay'; S.rollP = 0; anim = null;
+          const p = кусок('tamago', 0.5, 0.5);
+          S.lists[база] = [p]; touchModel(); layout();
+          buttons.length = 0; icons.length = 0;
+          const кк = кромки(), s = SB(), ps = patchScreen(p), плохо = [];
+          const экран = (y) => toScreen(ps.cx, y);
+          let sc = экран(ps.cy); onDown(sc.x, sc.y, 77);
+          if (drag.kind !== 'move' || drag.patch !== p) плохо.push(`касание не взяло кусок (${drag.kind})`);
+          else {
+            const y1 = ps.cy - 10; sc = экран(y1); onMove(sc.x, sc.y, 77);   // за порог 6 px: кусок поехал
+            const u1 = p.u, путь = [], N = 60, yFar = s.y - 12, yNear = s.y + s.h + 12;
+            for (let i = 1; i <= N; i++) путь.push(y1 + (yFar - y1) * i / N);        // к дальнему краю и за лист
+            for (let i = 1; i <= N; i++) путь.push(yFar + (y1 - yFar) * i / N);      // обратно
+            const назад = путь.length;
+            for (let i = 1; i <= N; i++) путь.push(y1 + (yNear - y1) * i / N);      // к ближнему краю и за лист
+            let uPrev = p.u, yPrev = y1, скачков = 0, голо = 0, uMax = -1, uMin = 2, pMax = null, pMin = null, вернулся = true;
+            путь.forEach((y, i) => {
+              sc = экран(y); onMove(sc.x, sc.y, 77);
+              if (Math.abs(p.u - uPrev) > Math.abs(y - yPrev) / s.h + 1e-9) скачков++;
+              if (голых(p)) голо++;
+              if (p.u > uMax) { uMax = p.u; pMax = Object.assign({}, p); }
+              if (p.u < uMin) { uMin = p.u; pMin = Object.assign({}, p); }
+              if (i === назад - 1 && Math.abs(p.u - u1) > 1e-9) вернулся = false;
+              uPrev = p.u; yPrev = y;
+            });
+            if (голо) плохо.push(`на голом крае в ${голо} из ${путь.length} положений`);
+            if (скачков) плохо.push(`${скачков} скачков быстрее пальца`);
+            if (!вернулся) плохо.push('после упора не вернулся вместе с пальцем');
+            const зД = pMax ? зазорМм(pMax, кк, true) : 99, зБ = pMin ? зазорМм(pMin, кк, false) : 99;
+            if (зД > 0.5) плохо.push(`у дальнего края встал в ${зД.toFixed(2)} мм от кромки`);
+            if (зБ > 0.5) плохо.push(`у ближнего края встал в ${зБ.toFixed(2)} мм от кромки`);
+            onUp(sc.x, sc.y, 77);
+            if (patches().indexOf(p) < 0) плохо.push('после упора кусок пропал');
+          }
+          if (drag.id !== null) onUp(0, 0, drag.id);
+          ok(!плохо.length, `#253 ${BASES[база].name}: перетаскивание — ${плохо.join(' · ')}`);
+          S.lists[база] = []; S.selPatch = null; touchModel();
+        }
+        histReset();
+        // 3. СМЕНА ОБЁРТКИ ПРИ ЗАДАННЫХ ВИТКАХ меняет длину листа, а с ней долю куска: кусок у кромки
+        // (гюхи 1,5 мм → нори 0,1 мм, лист короче) и цель пазла не должны съехать на голое.
+        {
+          const плохо = [];
+          S.base = 'futo'; S.wrap = 'gyuhi'; clean(); S.mode = 'lay';
+          puzzleStart(2, 3);
+          S.sel = 'tamago'; placeAt(1, 0.5); placeAt(0, 0.5);
+          S.puzzle.target.push(Object.assign({}, patches()[0]), Object.assign({}, patches()[1]));
+          action('sheet');   // гюхи → нори: лист короче, доля куска больше
+          if (S.wrap !== 'nori') плохо.push(`обёртка после перебора ${S.wrap}`);
+          patches().forEach(p => { if (голых(p)) плохо.push(`раскладка/${p.kind}: на голом крае после смены обёртки`); });
+          S.puzzle.target.forEach(p => { if (голых(p)) плохо.push(`цель/${p.kind}: на голом крае после смены обёртки`); });
+          puzzleStop();
+          ok(!плохо.length, `#253 смена обёртки: ${плохо.join(' · ')}`);
+        }
+        // 4. ПРЕЖНИЕ РАСКЛАДКИ КАНОНА ЛЕЖАТ НА РИСЕ — правило их не двигает.
+        {
+          S.base = 'futo'; S.wrap = null; clean();
+          const канон = [...canonLayout(), ...canonLayout7()], голые = канон.filter(p => голых(p));
+          ok(!голые.length, `#253 канон: ${голые.length} кусков на голом крае — ${голые.map(p => p.kind).join(', ')}`);
+        }
+      } catch (e) { fails.push('#253 голый край: ' + e.message); }
+      finally {
+        if (drag.id !== null) { drag.id = null; drag.kind = null; drag.patch = null; }
+        S.puzzle = null;
+        Object.assign(S, { base: было.base, wrap: было.wrap, turns: было.turns, hand: было.hand, sel: было.sel,
+          mode: было.mode, lists: было.lists, puzzle: было.puzzle, album: было.album, preview: было.preview,
+          mute: было.mute, shape: было.shape, cutsTotal: было.cutsTotal, rollP: было.rollP });
+        S.selPatch = null; anim = null; histReset(); touchModel(); layout();
+      }
+    }
+
     // ── П. ПЛОЩАДЬ КУСКА НЕ ЗАВИСИТ ОТ ТОГО, ГДЕ ОН ЛЕЖИТ НА ЛИСТЕ (#134).
     //
     // Это не украшение модели, а её главный закон в применении к одному куску: начинку
