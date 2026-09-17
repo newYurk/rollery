@@ -60,27 +60,13 @@ function action(id) {
       wrapNoteT = performance.now();
       save(); touchModel(); layout(); dirty = true; break;
     }
-    // ⚑ ПЕРЕБОР РЕЖИМА НАМОТКИ: авто → кольцо → спираль → авто (#141, 02.09).
-    // Подпись всплывает той же дорогой, что у обёртки, — иначе три одинаковых кружка ничего
-    // не говорят. «Авто» показывает, ЧТО модель выбрала сама.
-    case 'winding': {
-      S.winding = S.winding === null ? 'ring' : S.winding === 'ring' ? 'spiral' : null;
-      const реж = S.winding === null ? (getModel().g.winding === 'spiral' ? 'спираль' : 'кольцо') : null;
-      wrapNote = S.winding === 'ring' ? 'кольцо — как маки'
-               : S.winding === 'spiral' ? 'спираль — лист сам на себя'
-               : `авто · сейчас ${реж}`;
-      wrapNoteT = performance.now();
-      touchModel(); save(); dirty = true; break;
-    }
+    // Перебор режима намотки (кнопка ◎/○/◍, #141) снят 17.09 по решению владельца: режим всегда
+    // авто. S.winding остаётся параметром модели — им пользуются сторожа и отпечаток.
     case 'shape': { const ks = Object.keys(SHAPES); S.shape = ks[(ks.indexOf(S.shape) + 1) % ks.length]; save(); if (S.puzzle && S.puzzle.result) S.puzzle.result = null; dirty = true; break; }
     case 'next': if (S.puzzle && S.puzzle.result && S.puzzle.result.pass) puzzleStart(Math.max(0, S.puzzle.level + 1), S.puzzle.seed + 1); break;
     case 'lvprev': if (S.puzzle && S.puzzle.level > 0) puzzleStart(S.puzzle.level - 1, S.puzzle.seed); else if (S.puzzle && S.puzzle.level < 0) puzzleStart(0, 1); break;
     case 'lvnext': if (S.puzzle && S.puzzle.level + 1 < LEVELS.length && S.puzzle.level + 1 <= puzzleMax()) puzzleStart(S.puzzle.level + 1, S.puzzle.seed); break;
-    case 'mute': S.mute = !S.mute; sfx.ensure(); sfx.setMute(S.mute); save(); dirty = true;
-      // Включили звук — играем заставку, если она ещё не звучала. Кнопка сама по себе
-      // ничего не издаёт, и без этого игрок не знает, включилось ли что-нибудь.
-      if (!S.mute && sfx._fireStart) sfx._fireStart();
-      break;
+    // Кнопка звука снята 17.09 (решение владельца): громкостью управляет телефон.
     case 'base': { const keys = uiBases(); S.base = keys[(keys.indexOf(S.base) + 1) % keys.length]; S.sel = uiIngredients()[0] || B().ingredients[0]; S.selPatch = null; wrapNote = BASES[S.base].name; wrapNoteT = performance.now(); touchModel(); layout(); if (S.puzzle) puzzleStart(S.puzzle.level, S.puzzle.seed); else if (S.mode !== 'lay') action('back'); break; }
   }
   requestFrame();
