@@ -973,9 +973,10 @@ const SPREAD_W = 1.4;
 // и радиальную глубину: dA = r dr dφ = d(r²/2) dφ.
 // Столбики листа и их суммы не зависят от ёмкости ленты — у спирали они считаются один раз на срез
 // (план конца листа берёт из них рис и тела, перенос ленты — сами столбики), а веса риса по ёмкости
-// ставит ленточныеВеса (17.09, раунд 2). У кольца обе части идут подряд, как прежде.
+// ставит ленточныеВеса (17.09, раунд 2). У кольца обе части идут подряд, как прежде. Запросу радиуса
+// (`толькоСуммы`) нужны только рис и тела листа — столбики-объекты не строятся.
 function bandSourceColumns(v, g, list, coreRice) { return ленточныеВеса(колонкиЛенты(v, g, list), g, coreRice); }
-function колонкиЛенты(v, g, list) {
+function колонкиЛенты(v, g, list, толькоСуммы) {
   const L = g.L, cuts = [0, L], bodies = [];
   for (let s = PROF_DS / 2; s < L; s += PROF_DS) cuts.push(s);
   for (const p of list) {
@@ -996,17 +997,29 @@ function колонкиЛенты(v, g, list) {
     deltas.push({ d, rg: patchSRange(p, v, g) });
   }
   for (const q of bodies) { q.h = dims(q.p, g).h * g.T * q.rg[8]; q.z0T = q.p.z0 * g.T; }
-  const columns = []; let riceInput = 0, fillingArea = 0;
+  const columns = толькоСуммы ? null : []; let riceInput = 0, fillingArea = 0;
   const spP = spreadPre(g, v);
   for (let i = 1; i < cutsSorted.length; i++) {
     const a = cutsSorted[i - 1], b = cutsSorted[i]; if (b - a < 1e-10) continue;
-    const s = (a + b) / 2, u = s / L, spans = [];
+    const s = (a + b) / 2, u = s / L;
     let rice = spreadAtPre(u, spP) * g.T;
     for (const e of deltas) {
       const d = e.d, rg = e.rg; if (!rg || s < rg[0] || s > rg[1]) continue;
       const lu = ((s - rg[2] * L) * rg[5] + rg[7] * rg[6]) / rg[3];
       rice = Math.max(0, rice + d.bedDelta * cutTop(d, lu) * g.T);
     }
+    if (толькоСуммы) {
+      let body = 0;
+      for (const q of bodies) {
+        const rg = q.rg; if (s < rg[0] || s > rg[1]) continue;
+        const lu = ((s - rg[2] * L) * rg[5] + rg[7] * rg[6]) / rg[3];
+        const lo = q.z0T + q.h * cutLow(q.d, lu), hi = q.z0T + q.h * cutTop(q.d, lu);
+        if (hi > lo) body += hi - lo;
+      }
+      riceInput += rice * (b - a); fillingArea += body * (b - a);
+      continue;
+    }
+    const spans = [];
     for (const q of bodies) {
       const rg = q.rg; if (s < rg[0] || s > rg[1]) continue;
       const p = q.p, d = q.d, h = q.h;
@@ -1152,6 +1165,7 @@ const СКЛАД_ЛИСТА = {
   пΣ: Array.from({ length: 10 }, () => new Float64Array(NB)), сумма: new Float64Array(10),
   суммыЛенты: new Float64Array(10), итогЛенты: { ρ: 1, cs: 1, κ: 1, длина: 0, x: 0, y: 0 },
   лC: new Float64Array(NB), лR: new Float64Array(NB), лРис: new Uint8Array(NB), рисДо: new Uint8Array(NB),
+  лC2: new Float64Array(NB), лR2: new Float64Array(NB),
 };
 function уложитьПоДлине(wd, g, starts, thick, wraps, size, area, трубка) {
   const L = g.L, n0 = wd.lastIdx;
@@ -1399,24 +1413,29 @@ function спиральПлан(st, g, r0At, лист, t0д, round, лента) 
   let сумT = 0, сумД = 0;
   for (let b = 0; b <= n1; b++) { сумT += thick[b]; сумД += двойник[b]; }
   const tСр = n1 >= 0 ? сумT / (n1 + 1) : 0, дСр = n1 >= 0 ? сумД / (n1 + 1) : 0;
-  const стартКонца = b => b <= n1 ? st.rin[b] : Math.fround(starts[b]);
+  const стартКонца = b => СКЛАД_ЛИСТА.лR[b];
   // Префиксы по бинам первого оборота (r — старт, τ — верх двойника): 0 Σверх, 1 Σ(верх² − r₀²),
   // 2 Στ, 3 Στ²; 4 бинов с рисом, 5 их Σr²; 6 голых, 7 их Σr², 8 Στ, 9 Στ².
-  const Σ = СКЛАД_ЛИСТА.сумма.fill(0);
+  // Сначала только полные суммы — решить, сомкнётся ли ролл (у большинства спиралей план на этом
+  // кончается); префиксы по бинам — если нет.
+  const Σ = СКЛАД_ЛИСТА.сумма.fill(0), верхДо = СКЛАД_ЛИСТА.лC, стартДо = СКЛАД_ЛИСТА.лR, рисДо = СКЛАД_ЛИСТА.рисДо;
+  const накопить = (b, запомнить) => {
+    const ro = верхДо[b], ri = стартДо[b], тд = τ[b];
+    Σ[0] += ro; Σ[1] += ro * ro - gR0 * gR0; Σ[2] += тд; Σ[3] += тд * тд;
+    if (рисДо[b]) { Σ[4] += 1; Σ[5] += ri * ri; }
+    else { Σ[6] += 1; Σ[7] += ri * ri; Σ[8] += тд; Σ[9] += тд * тд; }
+    if (запомнить) for (let k = 0; k < 10; k++) П[k][b] = Σ[k];
+  };
   for (let b = 0; b < NB; b++) {
     let ri, ro, д;
     if (b <= n1) { ri = st.rin[b]; ro = st.rout[b]; д = двойник[b]; }
     else { ri = Math.fround(starts[b]); ro = Math.fround(starts[b] + tСр * s1 + W); д = дСр; }
     const t = ro - ri, рис = t - W > F32 * ro ? t - W : 0;
-    const тд = r0At(b) + подъём * b * DPHI + s1 * д + W;
-    τ[b] = тд;
-    Σ[0] += ro; Σ[1] += ro * ro - gR0 * gR0; Σ[2] += тд; Σ[3] += тд * тд;
-    const сРисом = рис >= ВЫЖАТ;
-    СКЛАД_ЛИСТА.рисДо[b] = сРисом ? 1 : 0;
-    if (сРисом) { Σ[4] += 1; Σ[5] += ri * ri; }
-    else { Σ[6] += 1; Σ[7] += ri * ri; Σ[8] += тд; Σ[9] += тд * тд; }
-    for (let k = 0; k < 10; k++) П[k][b] = Σ[k];
+    τ[b] = r0At(b) + подъём * b * DPHI + s1 * д + W;
+    верхДо[b] = ro; стартДо[b] = ri; рисДо[b] = рис >= ВЫЖАТ ? 1 : 0;
+    накопить(b, false);
   }
+  for (let k = 0; k < 10; k++) П[k][NB - 1] = Σ[k];
   const тела = лента.тела, рис = лента.рис;
   // длина нори первого оборота с концом j (целый бин) после обжима и переноса ленты
   const Л = СКЛАД_ЛИСТА.суммыЛенты, итог = СКЛАД_ЛИСТА.итогЛенты;
@@ -1441,7 +1460,7 @@ function спиральПлан(st, g, r0At, лист, t0д, round, лента) 
   const f = j => длина(j) - L;
   // Точная длина: то же, но по бинам, с тем, что обжим не опускает стопку ниже «старт + нори»
   // (у пустого короткого листа так половина витка: префиксная оценка ошибалась на 0,1–2,3 мм).
-  const { лC, лR, лРис, рисДо } = СКЛАД_ЛИСТА;
+  const { лC2: лC, лR2: лR, лРис } = СКЛАД_ЛИСТА;
   const цель = j => {
     const n = j + 1, Rm = П[0][j] / n, mτ = П[2][j] / n, c = Rm - q * mτ;
     const a0 = П[1][j], a1 = n * c * c + 2 * c * q * П[2][j] + q * q * П[3][j] - n * gR0 * gR0;
@@ -1470,6 +1489,8 @@ function спиральПлан(st, g, r0At, лист, t0д, round, лента) 
   // одном витке» там не нужна, а у узумаки с нори первый оборот целиком голый, и она вырождается.
   let дыра = st.lastIdx < 2 * NB && f(NB - 1) > 0, j = NB - 1;
   if (дыра) {
+    Σ.fill(0);
+    for (let b = 0; b < NB; b++) накопить(b, true);
     // Последний конец с нори не длиннее листа. Длина растёт с концом, но не обязана строго: первая
     // редакция запасного режима ленты давала скачок вниз, и у фруктовых на 0,8 витка с тамаго было
     // два корня — 116° со ступенькой на краю дыры и 170° с гладким краем. Режимы теперь непрерывны,
@@ -1867,7 +1888,10 @@ function thicknessProfile(vSlice, g, list) {
   // той же раскладки без тел он свой. Поэтому намотка ведёт рядом «двойника» — тот же лист без
   // тел (грядка и краска остаются), — и обжим спирали оставляет отклонение двойника, а не своё.
   // Двойник проходит ту же обработку ниже, тем же кодом; кольцо его не заводит.
-  const двойник = g.winding === 'spiral' ? new Float32Array(M) : null;
+  // Без тел в этом срезе двойник совпадает с профилем, и второй раз сглаживать нечего.
+  let естьТела = false;
+  for (let i = 0; i < M && !естьТела; i++) if (H[i] > 0 || add[i] > 0) естьТела = true;
+  const двойник = g.winding === 'spiral' && естьТела ? new Float32Array(M) : null;
   if (двойник) for (let i = 0; i < M; i++) двойник[i] = bed[i] * g.T;
   const сгладить = (a, tmp) => {
     // ⚑ ГДЕ РИСА НЕТ, ТАМ ЕГО НЕТ И ПОСЛЕ СГЛАЖИВАНИЯ (issue #130).
@@ -1977,6 +2001,7 @@ function thicknessProfile(vSlice, g, list) {
   };
   a = сгладить(a, tmp);
   if (двойник) a.двойник = сгладить(двойник, new Float32Array(M));
+  else if (g.winding === 'spiral') a.двойник = a;
   a.riceBudget = riceBudget;
   return a;
 }
@@ -2197,7 +2222,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
       if (масса > клин + 1e-9) {
         const k = (масса - клин) / масса;
         for (let i = 0; i < prof.length; i++) prof[i] *= k;
-        if (профД) for (let i = 0; i < профД.length; i++) профД[i] *= k;
+        if (профД && профД !== prof) for (let i = 0; i < профД.length; i++) профД[i] *= k;
         t0 = толщинаНачала();
       }
     }
@@ -2206,7 +2231,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
     let t0д = pд0 + (g.air || 0) * clamp(pд0 / g.T, 0, 1);
     if (g.wobble) t0д *= 1 + g.wobble * Math.sin(g.phase || 0);
     t0д += W;
-    колонки = колонкиЛенты(vSlice, g, list);
+    колонки = колонкиЛенты(vSlice, g, list, radiusOnly);
     const лента = { рис: колонки.riceInput, тела: колонки.fillingArea };
     let θ = 0, sп = 0, kМакс = 0, последний = -1;
     // ⚑ СПИРАЛЬ СТАРТУЕТ С ТОГО ЖЕ r₀(φ), ЧТО И КОЛЬЦО (вариант А, 03.09). Стояло `top[b] = r0e`
