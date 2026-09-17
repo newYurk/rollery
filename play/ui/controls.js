@@ -49,6 +49,11 @@ let palTabs = [], palDX = 0;
 const ICONS = {};
 function iconImg(kind) {
   let im = ICONS[kind];
+  // ⚠ БЕЗ Image РИСОВАНИЕ НЕ ПАДАЕТ, А ОТКАТЫВАЕТСЯ К ФОРМЕ (17.09). В tools/check.js браузер
+  // заглушён, и Image там нет вовсе: сторож палитры считает НАРИСОВАННЫЕ фишки (раздел «ПГ»),
+  // то есть честно зовёт drawChips — и на `new Image()` терминальный прогон сваливался целиком.
+  // Спрайт — украшение, и его отсутствие уже предусмотрено ветвью «нет файла — рисуем по-старому».
+  if (im === undefined && typeof Image === 'undefined') { ICONS[kind] = null; return null; }
   if (im === undefined) {
     im = new Image();
     im.onload = () => { dirty = true; requestFrame(); };
