@@ -1999,17 +1999,40 @@ function wind(vSlice, sMax, g, list, routOnly) {
   // они из кэша модели и не сверялись), все — кольцо на коробке, в основном при нехватке
   // листа. Теперь интерфейс отдаёт этот флаг (ниже, в `обёртка`), и правило в модели одно;
   // сторож — «Г» в checks.js.
+  //
+  // ⚑ СТОРОНУ ОБЖИМА СТОРОЖ ВИДИТ ТОЛЬКО ЧЕРЕЗ СНИМОК (#250, правка 17.09).
+  //
+  // Флаг выше решает четыре вещи: какие бины входят в Rm, какие — в площадь, какие прижимаются
+  // и `closed`. Первая редакция сторожа «Г» сверяла с эталоном только `обёртка.голый`, то есть
+  // сам флаг. Проверка 17.09 отвязала от флага одно среднее и оставила флаг верным: дословный
+  // код из #250 (`if (top[b2] > g.r0) { sum += top[b2]; cnt++; }`) и «Rm по всем бинам» прошли
+  // весь check.js зелёными, хотя меняли 126 и 93 среза из 721 (узумаки, 0,5 витка, брусок
+  // 10 мм, срез 0,25: R 14,61 → 15,06 мм; фруктовые спиралью, 0,5 витка, пустой лист:
+  // 16,17 → 13,25 мм). После обжима ответ не восстановить: `top` дальше переписывают
+  // растекание, грани, `ringBand` и `conservativeBand`. Поэтому намотка отдаёт в `обжим`:
+  //   до     — контур до обжима (по нему считаются Rm и площадь);
+  //   r0, Rm — скаляр ядра этого среза и среднее, к которому тянули; Rm = null, если тянуть нечего;
+  //   a0     — Σ(top² − r₀²) по бинам, вошедшим в площадь;
+  //   цель   — куда тянули каждый прижатый бин; −1 — бин не прижимали (радиус таким не бывает).
+  //            NaN здесь — уже поломка: у мутанта «Rm по top > r₀» на тюмаки `sqrt(a0/a1)` брал
+  //            корень из отрицательного, и цель всех 1440 бинов была NaN;
+  //   closed — решение о растекании и гранях.
+  // Сторож считает те же суммы по бинам, которые эталон «ни одного слоя ненулевой толщины»
+  // называет непустыми, — флаг он не читает. Два массива по 1440 чисел заводятся только у
+  // полной намотки; у запроса радиуса (`radiusOnly`) снимка нет.
+  const контурДо = radiusOnly ? null : Float32Array.from(top);
+  const цельОбжима = radiusOnly ? null : new Float32Array(NB).fill(-1);
   const голый = new Uint8Array(NB);
-  let голых = 0, sum = 0, cnt = 0;
+  let голых = 0, sum = 0, cnt = 0, Rm = null, a0 = 0;
   for (let b2 = 0; b2 < NB; b2++) {
     if (top[b2] - r0At(b2) <= F32_ШАГОВ_ШУМА * top[b2]) { голый[b2] = 1; голых++; }
     else { sum += top[b2]; cnt++; }
   }
   if (cnt) {
-    const Rm = sum / cnt;
+    Rm = sum / cnt;
     // Обжим меняет ФОРМУ, а не количество риса. Радиусы тянутся к среднему, но площадь кольца
     // (∝ r² − r0²) от этого падает, поэтому вторым проходом возвращаем её на место.
-    let a0 = 0, a1 = 0;
+    let a1 = 0;
     for (let b2 = 0; b2 < NB; b2++) {
       if (голый[b2]) continue;
       const tgt = Rm + (1 - round) * (top[b2] - Rm);
@@ -2020,6 +2043,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
     for (let b2 = 0; b2 < NB; b2++) {
       if (голый[b2]) continue;
       const tgt = g.r0 + (Rm + (1 - round) * (top[b2] - Rm) - g.r0) * area;
+      if (цельОбжима) цельОбжима[b2] = tgt;
       const конец = routOnly ? tgt : переложить(b2, tgt);
       top[b2] = Math.min(tgt, конец); if (top[b2] > Rout) Rout = top[b2];
     }
@@ -2041,6 +2065,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
   // размазывать поверхность в пустоту значило бы придумать рис, которого нет.
   // Бины без материала сосчитаны до обжима, по своему контуру ядра (#243, см. выше).
   const closed = голых === 0;
+  const обжим = контурДо ? { до: контурДо, r0: g.r0, Rm, a0, цель: цельОбжима, closed } : null;
   if (closed) {
     const RAD = 60;                                   // ±15°: шире шва, уже овала от руки
     let cur = Float32Array.from(top), tmp = new Float32Array(NB);
@@ -2233,7 +2258,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
     // Прежде было `(b, r0) => top[b] <= r0 + 1e-6`: контур после обжима против скаляра r₀.
     голый: (b) => голый[b] === 1,
   };
-  return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax, turns, sClose, sEnd, sTurn1, обёртка, ringBand, materialTransport, riceBudget: materialTransport ? materialTransport.riceBudget : prof.riceBudget, core: sliceCore, coreRiceLimit: g.coreRiceLimit,
+  return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax, turns, sClose, sEnd, sTurn1, обёртка, обжим, ringBand, materialTransport, riceBudget: materialTransport ? materialTransport.riceBudget : prof.riceBudget, core: sliceCore, coreRiceLimit: g.coreRiceLimit,
            хватило, нехватка: Math.max(0, периметр - L), периметр };   // φНори жил в ветке кольца, наружу не нужен   // #141: сколько нори НЕ хватило, в единицах листа
 }
 // ГРАНИ ПО ФОРМАМ — углы плоскостей, φ = 0 это шов (кладут вниз, на грань, а не на угол).
