@@ -1124,14 +1124,16 @@ function масштабСлоёв(wd, starts, thick, wraps, area) {
 // если следующий шаг вернёт конец назад.
 //
 // `трубка` — только для второй подгонки: { площадь(core) → площадь ленты при трубке core,
-// пустой(b) → старт бина без долива, рис — рис листа }. С ней конец ставится на целый бин и
-// держится контур (см. приколоть); без неё конец дробный, контура нет.
+// раздать(core) → раздать рис ленты по столбикам под эту трубку, пустой(b) → старт бина без
+// долива, рис — рис листа }. С ней конец ставится на целый бин и держится контур (см.
+// приколоть); без неё конец дробный, контура нет.
 // Рабочие массивы подгонки — одни на все вызовы: подгонка идёт дважды на каждый из пятнадцати
 // срезов сборки, и новые массивы на каждый вызов давали сборщику мусора лишние мегабайты.
 const СКЛАД_ЛИСТА = {
   вA: new Float64Array(NB), вB: new Float64Array(NB), вC0: new Float64Array(NB), вC1: new Float64Array(NB),
   толщ0: new Float64Array(KMAX * NB), старт0: new Float64Array(NB), метка: new Uint8Array(NB), список: new Int32Array(NB),
   нач: new Float64Array(NB), толщ: new Float64Array(KMAX * NB), обёрт: new Float64Array(KMAX * NB),
+  трубка: new Float32Array(NB), пандус0: new Float32Array(NB),
 };
 function уложитьПоДлине(wd, g, starts, thick, wraps, size, area, трубка) {
   const L = g.L, n0 = wd.lastIdx;
@@ -1247,7 +1249,7 @@ function уложитьПоДлине(wd, g, starts, thick, wraps, size, area, �
         for (let i = b; i < size && i <= j; i += NB) thick[i] *= f;
       }
     }
-    if (трубкаВся !== прежняя) { площадь = трубка.площадь(трубкаВся); прежняя = трубкаВся; }   // трубка та же — раздача та же
+    if (трубкаВся !== прежняя) { площадь = трубка.площадь(трубкаВся); прежняя = трубкаВся; }   // трубка та же — площадь та же
   };
   const грязные = { n: 0, add(b) { if (!метка[b]) { метка[b] = 1; список[this.n++] = b; } } };
   const поставить = θ => {
@@ -1317,6 +1319,39 @@ function уложитьПоДлине(wd, g, starts, thick, wraps, size, area, �
     if (лучший !== n) счёт(лучший);
   }
   наложитьСлои(wd, starts, thick, wraps, s);
+  if (трубка) трубка.раздать(трубкаВся);   // столбики — один раз, под окончательную трубку
+}
+// Первая подгонка спирали, сразу после намотки (разбор — у уложитьПоДлине и в wind): рис — до
+// площади плоского листа, конец листа — до длины нори L. Отдельной функцией, чтобы wind не рос.
+function спиральПоЛисту(st, g, r0At, плоская) {
+  const W = g.w, size = Math.min(KMAX, st.kmax + 2) * NB, rin = st.rin, rout = st.rout;
+  const starts = СКЛАД_ЛИСТА.нач, thick = СКЛАД_ЛИСТА.толщ.fill(0, 0, size), wraps = СКЛАД_ЛИСТА.обёрт.fill(0, 0, size);
+  for (let b = 0; b < NB; b++) starts[b] = rin[b] >= 0 ? rin[b] : r0At(b);
+  for (let i = 0; i < size; i++) {
+    if (rin[i] < 0) continue;
+    const tt = rout[i] - rin[i]; wraps[i] = Math.min(W, tt); thick[i] = tt - wraps[i];
+  }
+  уложитьПоДлине(st, g, starts, thick, wraps, size, плоская, null);
+}
+// ⚑ ХВАТИЛО ЛИ ЛИСТА СПИРАЛИ — ОБОШЁЛ ЛИ ОН ОБОРОТ (#242, 17.09). Стояло `хватило = true` всегда и
+// `периметр = TAU·Rout` до обжима — сотни мм на коротком листе, «нехватка» без нехватки у
+// каждой спирали (замер task10: 159 срезов из 232 с неверным флагом, в том числе дыра 312°
+// при «хватило»). Снаружи спирали нори на каждом угле, если лист прошёл полный оборот; иначе
+// на дуге TAU − θ снаружи трубка риса — честная дыра.
+// Периметр — длина нори ПЕРВОГО оборота, то есть сколько листа нужно, чтобы ролл сомкнулся;
+// недостающая дуга меряется на радиусе конца листа.
+function спиральПервыйОборот(ts, W, θ) {
+  const rin = ts.rin, rout = ts.rout, last = ts.lastIdx;
+  let первый = 0;
+  for (let b = 0; b < NB && b <= last; b++) {
+    const ro = rout[b];
+    первый += (ro - Math.min(W, ro - rin[b]) / 2) * windSectorAngle(ts, b);
+  }
+  if (θ < TAU) {
+    const ro = rout[last];
+    первый += (ro - Math.min(W, ro - rin[last]) / 2) * (TAU - θ);
+  }
+  return первый;
 }
 function conservativeBand(wd, v, g, list, radiusOnly) {
   // Pure rice rings already use the exact ring-area construction. Keep their
@@ -1389,7 +1424,10 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
   }
   // У спирали таблицы на два витка длиннее: конец листа может уйти дальше намотанного (ниже).
   const size = (спираль ? Math.min(KMAX, wd.kmax + 2) : wd.kmax) * NB;
-  const starts = new Float64Array(NB), thick = new Float64Array(size), wraps = new Float64Array(size);
+  // у спирали рабочие массивы из склада подгонки (сборщику мусора — ни одного нового на срез)
+  const starts = спираль ? СКЛАД_ЛИСТА.нач : new Float64Array(NB),
+        thick = спираль ? СКЛАД_ЛИСТА.толщ.fill(0, 0, size) : new Float64Array(size),
+        wraps = спираль ? СКЛАД_ЛИСТА.обёрт.fill(0, 0, size) : new Float64Array(size);
   for (let b = 0; b < NB; b++) starts[b] = wd.rin[b] * coreScale;
   if (спираль) {
     // бин без первого витка начинается там же, где трубка, которую он оплатил (см. coreArea)
@@ -1412,7 +1450,11 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
       if (!(ёмкость > 1e-9)) for (let i = 0; i < size; i++) if (wd.rin[i] >= 0) thick[i] = 1;
     }
     уложитьПоДлине(wd, g, starts, thick, wraps, size, source.area, {
-      площадь: core => source.перераздать(core), рис: source.riceInput,
+      // Площадь ленты при трубке core — это тела плюс остаток риса: раздача по столбикам кладёт весь
+      // остаток, так что её сумма известна без прохода по столбикам (подгонка спрашивает её на каждом
+      // шаге, у хосомаки — до 70 раз за сборку).
+      площадь: core => source.fillingArea + Math.max(0, source.riceInput - core),
+      раздать: core => source.перераздать(core), рис: source.riceInput,
       пустой: b => (g.r0At ? g.r0At(b * DPHI) : g.r0) * coreScale });
     // бин без первого витка: трубка того радиуса, который оплачен (materialAt, #242)
     for (let b = 0; b < NB; b++) if (wd.rin[b] < 0) { wd.tubeAt = Float32Array.from(starts); break; }
@@ -1881,16 +1923,8 @@ function wind(vSlice, sMax, g, list, routOnly) {
     // листа — до длины нори L. Хватило ли листа на обхват, решается после переноса площади.
     {
       // тот же набор полей, что у transportState ниже: одна форма объекта для горячих функций
-      const size = Math.min(KMAX, kmax + 2) * NB,
-            st = { rin, rout, u0, u1, top, Rout, kmax, lastIdx, phiEnd, ringBand, трубка: null, tubeAt: undefined };
-      const starts = СКЛАД_ЛИСТА.нач, thick = СКЛАД_ЛИСТА.толщ, wraps = СКЛАД_ЛИСТА.обёрт;
-      thick.fill(0, 0, size); wraps.fill(0, 0, size);
-      for (let b = 0; b < NB; b++) starts[b] = rin[b] >= 0 ? rin[b] : r0At(b);
-      for (let i = 0; i < size; i++) {
-        if (rin[i] < 0) continue;
-        const tt = rout[i] - rin[i]; wraps[i] = Math.min(W, tt); thick[i] = tt - wraps[i];
-      }
-      уложитьПоДлине(st, g, starts, thick, wraps, size, плоская, null);
+      const st = { rin, rout, u0, u1, top, Rout, kmax, lastIdx, phiEnd, ringBand, трубка: null, tubeAt: undefined };
+      спиральПоЛисту(st, g, r0At, плоская);
       ({ lastIdx, phiEnd, kmax, Rout } = st);
       turns = (lastIdx * DPHI + windSectorAngle(st, lastIdx)) / TAU;
     }
@@ -2202,7 +2236,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
   // рис — честная дыра, как у кольца с нехваткой листа.
   // Кольцо не трогается: у него свой обход голых бинов (#243, #244).
   const трубкаДоливом = g.winding === 'spiral';
-  const трубка = трубкаДоливом ? new Float32Array(NB) : null, пандус0 = трубкаДоливом ? new Float32Array(NB) : null;
+  const трубка = трубкаДоливом ? СКЛАД_ЛИСТА.трубка : null, пандус0 = трубкаДоливом ? СКЛАД_ЛИСТА.пандус0 : null;
   if (трубкаДоливом) for (let b2 = 0; b2 < NB; b2++) { трубка[b2] = r0At(b2); пандус0[b2] = (rin[b2] >= 0 ? rin[b2] : r0At(b2)) - gR0; }
   const переложить = (b2, tgt) => {
     const rin0 = rin[b2] >= 0 ? rin[b2] : gR0;      // где намотка начинается в ЭТОМ бине
@@ -2484,23 +2518,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
     ({ lastIdx, phiEnd, kmax, tubeAt } = transportState);
     const θ = lastIdx * DPHI + windSectorAngle(transportState, lastIdx);
     turns = θ / TAU;
-    // ⚑ ХВАТИЛО ЛИ ЛИСТА — ОБОШЁЛ ЛИ ОН ОБОРОТ (#242, 17.09). Стояло `хватило = true` всегда и
-    // `периметр = TAU·Rout` до обжима — сотни мм на коротком листе, «нехватка» без нехватки у
-    // каждой спирали (замер task10: 159 срезов из 232 с неверным флагом, в том числе дыра 312°
-    // при «хватило»). Снаружи спирали нори на каждом угле, если лист прошёл полный оборот; иначе
-    // на дуге TAU − θ снаружи трубка риса — честная дыра.
-    // Периметр — длина нори ПЕРВОГО оборота, то есть сколько листа нужно, чтобы ролл сомкнулся;
-    // недостающая дуга меряется на радиусе конца листа.
-    let первый = 0;
-    for (let b = 0; b < NB && b <= lastIdx; b++) {
-      const ro = rout[b];
-      первый += (ro - Math.min(W, ro - rin[b]) / 2) * windSectorAngle(transportState, b);
-    }
-    if (θ < TAU) {
-      const ro = rout[lastIdx];
-      первый += (ro - Math.min(W, ro - rin[lastIdx]) / 2) * (TAU - θ);
-    }
-    периметр = первый;
+    периметр = спиральПервыйОборот(transportState, W, θ);
     хватило = θ >= TAU - 1e-9;
   }
   // ⚑ УСТРОЙСТВО НАМОТКИ ОТВЕЧАЕТ НА ВОПРОСЫ, А НЕ ОТДАЁТ СЫРЬЁ (#146, правка 01.09).
