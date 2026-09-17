@@ -145,7 +145,9 @@ function decodePuzzle(hash) {
   } catch (e) { return null; }
 }
 function puzzleFromLink(pz) {
-  S.base = pz.base; S.wrap = pz.wrap || null; S.sel = uiIngredients()[0] || B().ingredients[0];
+  // Пазл по ссылке: база и обёртка приходят из ссылки, выбор начинки остаётся прежним, если он
+  // у этой базы есть (17.09) — palSync() же открывает страницу палитры с ним.
+  S.base = pz.base; S.wrap = pz.wrap || null; palSync();
   S.turns = turnsOf(pz.turns); S.selPatch = null; S.shape = pz.shape || 'round';
   if (pz.hand) S.hand = pz.hand;
   const local = pz.list.some(p => (p.dv ?? ING[p.kind].dv) < 1), n = pz.list.filter(p => p.kind !== 'nori').length;
