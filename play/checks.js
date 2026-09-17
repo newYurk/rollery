@@ -1752,6 +1752,29 @@ function runChecks(detail) {
         S.base = было.base; S.hand = было.hand; S.lists.futo = было.futo; S.winding = было.winding; modelCaches.clear(); touchModel();
       }
     }
+    // И кэш модели не склеивает входы по разные стороны порога (16.09). Ключ округлял u до 1e-5:
+    // два тамаго в 0,002 мм друг от друга (одна корзина округления) получали одну модель — ту, что собрали первой, и режим
+    // у порога зависел от порядка сборок. Сверяется без сброса кэша, в обоих порядках.
+    {
+      const было = { base: S.base, hand: S.hand, futo: S.lists.futo, winding: S.winding };
+      const пара = d => [{ kind: 'cucumber', u: 0.25, v: 0.5, z0: 0, z1: 0, phase: 1 },
+                         { kind: 'tamago', u: 0.710135238095238 + d, v: 0.5, z0: 0, z1: 0, phase: 1 }];
+      try {
+        S.base = 'futo'; S.wrap = null; S.hand = handOf(); S.winding = null; clean();
+        const режимы = {};
+        for (const порядок of [[-1, 1], [1, -1]]) {
+          modelCaches.clear();
+          for (const знак of порядок) {
+            S.lists.futo = пара(знак * 1e-7); touchModel();
+            режимы[знак] = (режимы[знак] || '') + getModel().g.winding[0];
+          }
+        }
+        ok(режимы[-1] === 'rr' && режимы[1] === 'ss',
+           `кэш модели склеил входы у порога (u ±1e-7): до порога ${режимы[-1]}, после ${режимы[1]} (ожидалось rr и ss)`);
+      } finally {
+        S.base = было.base; S.hand = было.hand; S.lists.futo = было.futo; S.winding = было.winding; modelCaches.clear(); touchModel();
+      }
+    }
     // И надпись «свернётся спиралью» на листе (просьба владельца 02.09) не прячется под окошком
     // живого среза: 16.09 на телефоне с футомаки окошко закрывало её целиком.
     if (typeof overlayGeom === 'function' && typeof spiralNoteY === 'function') {
