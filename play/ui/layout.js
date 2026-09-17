@@ -68,6 +68,38 @@ function chipLabelPad(size, list) {
   let w = 0; for (const k of list) w = Math.max(w, ctx.measureText(chipLabel(k, ячейка)).width);
   return Math.max(0, Math.ceil((w - size) / 2));
 }
+// ── ПОЛОСА ВКЛАДОК ПАЛИТРЫ (17.09, просьба владельца «как в играх, как смайлы») ─────────
+//
+// Одна строка над лентой чипов: слева ИМЯ открытой группы, справа ряд образцов — по одному на
+// группу, активный выделен. Ровно то устройство, что у клавиатуры смайлов, и потому объяснять
+// его не нужно: ряд значков + жест влево-вправо читаются сами.
+//
+// ⚑ ГЕОМЕТРИЯ СЧИТАЕТСЯ ЗДЕСЬ, А НЕ ПРИ РИСОВАНИИ. Иначе сторож мерил бы полосу второй
+// формулой — тем же приёмом, которым уже разъезжались подпись чипа и её отступ (#157):
+// рисование берёт готовые числа из L.tabs, проверка читает их же.
+//
+// ⚠ ИМЯ УСТУПАЕТ ВКЛАДКАМ ЛЕСТНИЦЕЙ, А НЕ ОБРЕЗАЕТСЯ. Порядок уступок тот же, что у подписи
+// в шапке и у подписи чипа: полное имя → короткое → вкладки ужимаются до 26 → имени нет вовсе.
+// Обрезанное слово выглядит поломкой, поэтому многоточия здесь нет.
+const TAB_H = 28, TAB_GAP = 4, TAB_W = 32, TAB_W_MIN = 26;
+function palStrip(x, y, w, groups, cur) {
+  if (!groups || groups.length < 2) return null;    // одна группа — листать нечего, вкладок нет
+  const g = groups[cur] || groups[0];
+  let tw = TAB_W, label = '';
+  for (;;) {
+    const свободно = w - (groups.length * tw + (groups.length - 1) * TAB_GAP) - 10;
+    ctx.font = font(12);
+    if (свободно >= ctx.measureText(g.name).width) { label = g.name; break; }
+    if (g.short && свободно >= ctx.measureText(g.short).width) { label = g.short; break; }
+    if (tw > TAB_W_MIN) { tw -= 2; continue; }
+    break;                                          // места нет: полоса остаётся вкладками
+  }
+  const лента = groups.length * tw + (groups.length - 1) * TAB_GAP;
+  return { x, y, w, h: TAB_H, tabW: tw, gap: TAB_GAP, tabsX: x + w - лента, tabsW: лента, label, n: groups.length };
+}
+// Сколько высоты полоса вкладок отнимает у листа. Считается ДО раскладки: у базы с одной
+// группой (фруктовая) полосы нет, и лист не платит за неё ни пикселя.
+const palStripH = () => (uiGroups().length > 1 ? TAB_H + 6 : 0);
 // ПОЛ ЛИСТА — ФОРМУЛА, А НЕ ЧИСЛО. На листе кладут начинки пальцем: hitPatch расширяет патч
 // на HIT_PAD с каждой стороны, значит экранная высота патча должна быть ≥ TOUCH − 2·HIT_PAD.
 // Самая узкая начинка палитры занимает wU/L высоты. Отсюда пол = (TOUCH − 2·HIT_PAD) · L / wU.
@@ -119,7 +151,12 @@ const betterFit = floor => (a, c) => {
 // Всё считается в рамке cw × ch внутри safe-area; лист — в приоритете, предпросмотр/цель — полосой, накладкой или в боковой колонке.
 function layout() {
   const cw = W - SAFE.left - SAFE.right, ch = H - SAFE.top - SAFE.bottom, ox = SAFE.left, oy = SAFE.top;
-  const n = uiIngredients().length, pz = S.puzzle, k = pz ? pz.vs.length : 1, showPrev = !!(pz || S.preview);
+  // ⚑ n — РАЗМЕР СТРАНИЦЫ, А НЕ ВСЕЙ ПАЛИТРЫ (17.09). Здесь стояло `uiIngredients().length`,
+  // то есть все начинки базы разом (двадцать семь); с листанием по группам на экране всегда
+  // одна группа, и место считается по САМОЙ БОЛЬШОЙ из них — семь. Именно по большой, а не по
+  // открытой: иначе лист и лента прыгали бы на каждом перелистывании.
+  const n = uiPalMax(), pz = S.puzzle, k = pz ? pz.vs.length : 1, showPrev = !!(pz || S.preview);
+  const tabsH = palStripH();
   const mode = ch < 500 ? 'L' : cw >= 1100 ? 'D' : cw >= 600 ? 'T' : 'P';
   // ⚑ ДВЕ СТРОКИ ПОДСКАЗКИ — ТОЛЬКО ТАМ, ГДЕ ОНИ БЫВАЮТ (02.09, замечание владельца: «сверху
   // такой зазор, а там всего надпись в одну строку»). Панель резервировала 78 px под две
@@ -127,7 +164,7 @@ function layout() {
   // оставшиеся там — про выбранный кусок и про перетаскивание — умещаются в строку. Значит
   // шестнадцать пикселей просто стояли пустыми над циновкой, и владелец увидела именно их.
   const hint2 = mode === 'P' && cw < 480 && S.mode !== 'lay', panelH = hint2 ? 78 : 62, btnH = 44;
-  Object.assign(L, { mode, cw, ch, ox, oy, hint2, top: oy + panelH, side: null, previewMode: 'none', previewSize: 116, chipScroll: false, btnH , targetCell: 0, chipsShareBtn: false });
+  Object.assign(L, { mode, cw, ch, ox, oy, hint2, top: oy + panelH, side: null, previewMode: 'none', previewSize: 116, chipScroll: false, btnH , targetCell: 0, chipsShareBtn: false, tabs: null });
   L.rowBtn = { x: ox + (cw - Math.min(cw - 32, 560)) / 2, y: oy + ch - 12 - btnH, w: Math.min(cw - 32, 560), h: btnH, max: 3 };
   if (mode === 'L') {
     // Ландшафтный телефон СОЗНАТЕЛЬНО не повёрнут (#23): раскладка здесь вне нормы касания при
@@ -158,7 +195,7 @@ function layout() {
     const perRowFit = Math.max(1, Math.floor((swid + 8) / (chipSizeL + 8)));
     const prevBlock = ps => (showPrev ? (k > 1 ? Math.ceil(k / 3) * (L.targetCell + 8) : ps + 8) + 24 : 0);
     const btnBlock = rb => rb * 40 + (rb - 1) * 8 + gapAfterBtn;
-    const need = (ps, rb, rc) => prevBlock(ps) + btnBlock(rb) + rc * chipRowL + selLabelH;
+    const need = (ps, rb, rc) => prevBlock(ps) + btnBlock(rb) + tabsH + rc * chipRowL + selLabelH;
     let prevSize = 96, btnRows = 2, chipRows = Math.max(1, Math.min(3, Math.ceil(n / perRowFit)));
     if (need(prevSize, btnRows, chipRows) > L.side.h) btnRows = 1;          // 1) кнопки в один ряд по три
     if (need(prevSize, btnRows, chipRows) > L.side.h) prevSize = 64;        // 2) кружок предпросмотра меньше
@@ -167,6 +204,9 @@ function layout() {
     let y = L.side.y + prevBlock(prevSize);
     L.layBtn = { x: sx, y, w: swid, h: 40, max: btnRows === 1 ? 3 : 2 };
     y += btnBlock(btnRows);
+    // Полоса вкладок палитры — над лентой, в том же бюджете колонки (need учитывает её выше).
+    L.tabs = palStrip(sx, y, swid, uiGroups(), uiPalIndex());
+    y += tabsH;
     // Зажим, а не проверка: сколько рядов помещается от текущего y до низа колонки, столько
     // и рисуем. После этой строки y + высота ленты + подпись ≤ side.y + side.h тождественно.
     chipRows = Math.min(chipRows, Math.max(1, Math.floor((L.side.y + L.side.h - y - selLabelH) / chipRowL)));
@@ -201,8 +241,9 @@ function layout() {
     // требует 408 px при полезной ширине 356. Три ряда по пять требуют 252 — влезает и на 360.
     // Потолок не значит «всегда три»: сколько рядов по карману, решает betterFit ниже, и на
     // коротком экране он честно откатится к двум.
-    const ROWS_MAX = 3;
-    const wantRows = Math.max(1, Math.min(ROWS_MAX, Math.ceil(n / Math.max(1, Math.floor((inner + chipGap) / (chipSize + chipGap))))));
+    // ⚑ ПОТОЛОК ПОДНЯТ ДО ЧЕТЫРЁХ (17.09): последний ряд ОТДАН КНОПКАМ и в счёт палитры не
+    // идёт (см. `видимо` ниже), поэтому под саму палитру остаётся всё те же три.
+    const ROWS_MAX = 4;
     // Лист занимает рамку целиком: ширину даёт окно, высоту — то, что осталось после панели,
     // полосы, циновки, кнопок и ленты. Кламп «0,8…1,15» отсюда убран вместе с ph в ветке T/D
     // и по той же причине — пропорция листа больше не изображает физику (см. комментарий там).
@@ -241,11 +282,24 @@ function layout() {
     for (let проход = 0; проход < 3; проход++) {
       лентаИтог = полоса;
       const внутри = Math.max(chipSize, полоса - 2 * pad);
-      const размерПри = perR => Math.max(chipSize, Math.min(72, Math.floor((внутри - (perR - 1) * chipGap) / perR)));
+      // ⚑ ПОТОЛОК РАЗМЕРА ЧИПА — 56, А НЕ 72 (17.09). Страница группы это семь фишек, а не
+      // двадцать семь, и прежний потолок при таком числе упирался не в ширину, а в себя:
+      // четыре фишки на 393 px давали 72 px, то есть ряд высотой 90 — палитра из двух рядов
+      // стоила листу больше, чем прежние три. 56 — ещё вдвое выше нормы касания (44) и держит
+      // ряд в 74 px; лишняя ширина уходит в поле по краям, а не в раздутые фишки.
+      const размерПри = perR => Math.max(chipSize, Math.min(56, Math.floor((внутри - (perR - 1) * chipGap) / perR)));
       const влезает = Math.max(1, Math.floor((внутри + chipGap) / (chipSize + chipGap)));
+      // ⚑ ПОСЛЕДНИЙ РЯД В СЧЁТ ПАЛИТРЫ НЕ ИДЁТ (17.09, продолжение #157). Слот последнего ряда
+      // делится с кнопками действий — и пока кнопка там стоит, ряд палитры не рисуется. Пока
+      // палитра была одной лентой из двадцати семи, это стоило одного ряда из трёх. Со
+      // страницами группа может уместиться в ОДИН ряд — и тогда «спрятать последний» значило
+      // спрятать палитру целиком: в режиме «Пазл» кнопка «⟳ Другой» стоит там ВСЕГДА, и
+      // раскладывать стало бы нечем. Поэтому видимой считается палитра без последнего ряда, и
+      // отбор сам берёт на ряд больше.
+      const видимо = rowsC => Math.max(0, rowsC - 1) * влезает;
       const fitP = (bnd, rowsC) => {
-        const рядC = размерПри(Math.ceil(n / rowsC)) + 18;
-        const rem = ch - (panelH + 26 + belowSheet + bottomPad) - bnd - rowsC * рядC;
+        const рядC = размерПри(Math.ceil(n / Math.max(1, rowsC - 1))) + 18;
+        const rem = ch - (panelH + 26 + belowSheet + bottomPad + tabsH) - bnd - rowsC * рядC;
         // ⚑ СЧИТАЕМ ПО ВЫСОТЕ, КОТОРУЮ ЛИСТ ЗАЙМЁТ, А НЕ ПО ДОСТУПНОЙ.
         // Лист хосомаки — 190 × 105 мм, то есть вдвое шире, чем длинный, и на
         // портретном телефоне его высоту задаёт ШИРИНА экрана: 200 px при доступных
@@ -255,19 +309,26 @@ function layout() {
         // целиком помещалась в неё, но выбиралась накладка, закрывавшая пол-листа.
         const занято = sheetFit(sw, Math.max(90, rem), 'y').sh;
         const eaten = (!bnd && showPrev) ? (k > 1 ? sw * (Math.min(56, (sw - 16 - 6 * (k - 1)) / k) + 16) : 102 * 102) : 0;
-        return { band: bnd, rows: rowsC, sh: Math.max(90, rem), alongU: занято, vis: Math.min(n, rowsC * влезает), area: sw * занято - eaten };
+        return { band: bnd, rows: rowsC, sh: Math.max(90, rem), alongU: занято, vis: Math.min(n, видимо(rowsC)), area: sw * занято - eaten };
       };
       const cands = [];
-      for (let r = ROWS_MAX; r >= 1; r--) { if (bandFull) cands.push(fitP(bandFull, r)); cands.push(fitP(0, r)); }
+      // ⚠ ПОРЯДОК ПЕРЕБОРА — ЭТО ПРАВИЛО НИЧЬЕЙ, а не вкус. betterFit при равенстве оставляет
+      // ПЕРВОГО, поэтому ряды идут от меньшего: когда лист упёрся в ширину окна (хосомаки на
+      // телефоне), лишний ряд палитры не отнимает у листа ни пикселя, площади равны — и прежний
+      // порядок «от большего» молча брал три ряда палитры под страницу из семи фишек, раскладывая
+      // их 3 + 3 + 1. Видимость страницы при этом не страдала: она стоит в ранге ВЫШЕ площади,
+      // и ряд, который показывает новые фишки, выигрывает независимо от порядка.
+      for (let r = 2; r <= ROWS_MAX; r++) { if (bandFull) cands.push(fitP(bandFull, r)); cands.push(fitP(0, r)); }
       // ⚑ РОВНЫЕ РЯДЫ (просьба владельца: «не хотим сделать равное количество иконок в ряду?»).
       // Пятнадцать чипов при двух рядах дают 8 + 7, при трёх — 5 + 5 + 5. Ранжирование этого не
       // выберет: при равной видимости меньше рядов всегда даёт больший лист. Поэтому ровность —
       // условие ОТБОРА, а не слагаемое веса, и оно молча уступает, когда третий ряд не по карману.
-      const ровные = cands.filter(c => c.rows > 0 && n % c.rows === 0 && c.vis >= n && c.alongU >= FLOOR2);
+      // Ровность считается по РЯДАМ ПАЛИТРЫ (rows − 1): последний отдан кнопкам.
+      const ровные = cands.filter(c => c.rows > 1 && n % (c.rows - 1) === 0 && c.vis >= n && c.alongU >= FLOOR2);
       const pl = (ровные.length ? ровные : cands).reduce(betterFit(FLOOR2));
-      band = pl.band; rows = pl.rows; perRow = Math.ceil(n / rows);
+      band = pl.band; rows = pl.rows; perRow = Math.ceil(n / Math.max(1, rows - 1));
       размерЧипа = размерПри(perRow); рядЧипа = размерЧипа + 18;
-      const верхЗоны = L.top + 4 + band, зонаH = (низЧипов - rows * рядЧипа - 8) - верхЗоны;
+      const верхЗоны = L.top + 4 + band, зонаH = (низЧипов - rows * рядЧипа - tabsH - 8) - верхЗоны;
       const f = sheetFit(sw, Math.max(90, зонаH - (РАМКА_ВЕРХ + 8 + handleH + РАМКА_НИЗ)), 'y');
       const блок = РАМКА_ВЕРХ + f.sh + 8 + handleH + РАМКА_НИЗ;
       const y0 = верхЗоны + РАМКА_ВЕРХ + Math.max(0, (зонаH - блок) / 2);
@@ -281,6 +342,9 @@ function layout() {
     L.chips = { x: ox + (cw - лентаИтог) / 2, y: низЧипов - rows * рядЧипа, w: лентаИтог,
                 size: размерЧипа, rows, labels: true, perRow, pad };
     L.chipScroll = perRow * (размерЧипа + chipGap) - chipGap > Math.max(размерЧипа, лентаИтог - 2 * pad);
+    // Полоса вкладок стоит НАД лентой: последний ряд ленты занят кнопками действий, и вкладки
+    // под ними были бы прижаты к индикатору «домой».
+    L.tabs = palStrip(L.chips.x, L.chips.y - tabsH, лентаИтог, uiGroups(), uiPalIndex());
     // Действия над выбранным куском занимают СЛОТ ПОСЛЕДНЕГО РЯДА ЧИПОВ: пока кусок выбран,
     // ряд палитры прячется, а лист и остальные ряды не двигаются.
     L.layBtn = { x: L.rowBtn.x, y: L.chips.y + (rows - 1) * рядЧипа + (рядЧипа - btnH) / 2, w: L.rowBtn.w, h: btnH, max: 3 };
@@ -315,7 +379,7 @@ function layout() {
     // но место там вертикальное, и поворот был бы потерей. Запас 1,15 — чтобы почти-квадратное окно
     // не дёргалось между ориентациями от появления полосы предпросмотра.
     const bwR = (mode === 'D' ? Math.min(cw - 44, 1240) : cw - 44);
-    const bhR = ch - panelH - 26 - 12 - btnH - 12 - chipRow - 12;
+    const bhR = ch - panelH - 26 - 12 - btnH - 12 - tabsH - chipRow - 12;
     const rot = bwR > bhR * 1.15;
     const u0left = typeof SHEET_U0 === 'undefined' || SHEET_U0 === 'left';
     // Пол листа — тот же, что на телефоне, и считается одной формулой на всех (sheetFloor).
@@ -335,7 +399,7 @@ function layout() {
       const chipInner = rot ? Math.max(chipSize, cw - 24 - 2 * pad) : Math.max(chipSize, sw + 36 - 2 * pad);
       let rows = 1, sh = 0, bh = 0;
       for (;;) {
-        bh = ch - panelH - 26 - bnd - (rot ? 0 : handleH + 8) - 12 - btnH - 12 - rows * chipRow - 12;
+        bh = ch - panelH - 26 - bnd - (rot ? 0 : handleH + 8) - 12 - btnH - 12 - tabsH - rows * chipRow - 12;
         // Ряд чипов проверяется на ИТОГОВУЮ полосу, а не на bw: они расходятся до 680 px
         // (1440x900, рулет: bw 1240 при sw 561), а лишний чип просто обрезался бы молча.
         if (rows >= maxRows || n * (chipSize + 8) - 8 <= chipInner) break;
@@ -394,13 +458,14 @@ function layout() {
       // ⚑ ЦИНОВКА И СТЕК ВИСЯТ НА ЛИСТЕ, А НЕ НА РАМКЕ (17.09) — та же правка, что сделана для
       // телефона 02.09 в #157 и тогда же НЕ доведена до планшета. Здесь стояла высота рамки `sh`,
       // а лист держит честную пропорцию и потому её ниже: при этом он ещё и ЦЕНТРИРУЕТСЯ в рамке,
-      // так что стек уезжал вниз на половину разницы. Замер 17.09 (headless, шрифт-заглушка):
+      // так что стек уезжал вниз на половину разницы дважды. Замер 17.09 (headless, шрифт-заглушка):
       // низ ленты 1588 при экране 1366 (1024×1366, хосомаки), 915 при 900 (1440×900, узумаки) —
       // палитра просто лежала за краем экрана. Считаем от того, что нарисовано: L.sheet.h.
       L.handle = u0left ? { x: bx - 12 - handleH, y: L.sheet.y - 18, w: handleH, h: L.sheet.h + 36 }
                         : { x: bx + sw + 12, y: L.sheet.y - 18, w: handleH, h: L.sheet.h + 36 };
       L.layBtn = { x: bx - 18, y: L.sheet.y + L.sheet.h + 12, w: sw + 36, h: btnH, max: 3 };
-      L.chips = { x: ox + 12, y: L.layBtn.y + btnH + 12, w: cw - 24, size: chipSize, rows, labels: true, perRow, pad };
+      L.tabs = palStrip(ox + 12, L.layBtn.y + btnH + 12, cw - 24, uiGroups(), uiPalIndex());
+      L.chips = { x: ox + 12, y: L.layBtn.y + btnH + 12 + tabsH, w: cw - 24, size: chipSize, rows, labels: true, perRow, pad };
       L.chipScroll = perRow * (chipSize + 8) - 8 > Math.max(chipSize, cw - 24 - 2 * pad);
     } else {
     const groupW = sw + (sideOn ? 24 + scol : 0);
@@ -410,7 +475,8 @@ function layout() {
     // Циновка под ЛИСТОМ, а не под рамкой — см. разбор в повёрнутой ветке выше.
     L.handle = { x: bx - 18, y: L.sheet.y + L.sheet.h + 8, w: sw + 36, h: handleH };
     L.layBtn = { x: bx - 18, y: L.handle.y + handleH + 12, w: sw + 36, h: btnH, max: 3 };
-    L.chips = { x: bx - 18, y: L.layBtn.y + btnH + 12, w: sw + 36, size: chipSize, rows, labels: true, perRow, pad };
+    L.tabs = palStrip(bx - 18, L.layBtn.y + btnH + 12, sw + 36, uiGroups(), uiPalIndex());
+    L.chips = { x: bx - 18, y: L.layBtn.y + btnH + 12 + tabsH, w: sw + 36, size: chipSize, rows, labels: true, perRow, pad };
     // Страховка от молчаливого обреза: если полоса уже ряда — включаем прокрутку.
     L.chipScroll = perRow * (chipSize + 8) - 8 > Math.max(chipSize, sw + 36 - 2 * pad);
     if (sideOn) L.side = { x: bx + sw + 24, y: L.top + 16, w: scol, h: ch - panelH - 32 };

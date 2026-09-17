@@ -1003,9 +1003,16 @@ function runChecks(detail) {
         for (const prev of [false, true]) {
           S.preview = prev; touchModel(); layout();
           const tag = `${w}×${h} ${BASES[k].name}${prev ? ' +превью' : ''}`;
-          const ings = uiIngredients().length, per = L.chips.perRow || ings, rows = L.chips.rows || 1;
-          const hidden = Math.max(0, ings - per * rows);
-          ok(hidden === 0 || L.chipScroll, `${tag}: ${hidden} начинок спрятано БЕЗ прокрутки`);
+          // ⚑ СЧИТАЕМ СТРАНИЦУ, А НЕ ВСЮ ПАЛИТРУ (17.09). Здесь стояло `uiIngredients().length` —
+          // все начинки базы разом; с листанием по группам на экране всегда одна группа, и
+          // «спрятано» означало бы двадцать начинок на любом экране. Мерим самую большую группу
+          // (по ней раскладка и считает место) и РЯДЫ БЕЗ СЛОТА КНОПОК: последний ряд делится с
+          // ними, и то, что лежит в нём, прячется, как только кусок выбран или идёт пазл.
+          const стр = (typeof uiPalMax === 'function') ? uiPalMax() : uiIngredients().length;
+          const per = L.chips.perRow || стр;
+          const rows = Math.max(1, (L.chips.rows || 1) - (L.chipsShareBtn ? 1 : 0));
+          const hidden = Math.max(0, стр - per * rows);
+          ok(hidden === 0 || L.chipScroll, `${tag}: ${hidden} начинок страницы спрятано БЕЗ прокрутки`);
           // ⚠ БЫЛО «2 ед.» ЧИСЛОМ — литерал, уже разошедшийся с каталогом (лосось стал 1,6).
           // Меряем ту же величину, по которой считается пол листа: МЕДИАННУЮ начинку палитры.
           // Узкие (майо) сюда не идут — они в мягком канале ниже, с номером задачи #47.

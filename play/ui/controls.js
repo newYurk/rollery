@@ -34,6 +34,9 @@ function buttonRow(list, area) {
   });
 }
 let chips = [], chipScrollX = 0;
+// Вкладки групп палитры и сдвиг страницы под пальцем (17.09). palTabs — цели касания, как
+// chips и buttons: собираются при рисовании, там же и ловят попадание.
+let palTabs = [], palDX = 0;
 
 // ── ИКОНКИ-СПРАЙТЫ (issue #104) ─────────────────────────────────────────────
 // Чипы рисовались тем же кодом, что и начинки на листе, — то есть вычислялись. Но иконка
@@ -55,20 +58,68 @@ function iconImg(kind) {
   }
   return im && im.complete && im.naturalWidth ? im : null;
 }
+// ── ПОЛОСА ВКЛАДОК: ОБРАЗЕЦ ГРУППЫ И ИМЯ ОТКРЫТОЙ (17.09) ───────────────────────────────
+//
+// Вкладка — не буква и не слово, а ОБРАЗЕЦ: спрайт одной начинки группы, тот же, что на фишке.
+// Так ряд читается не читая — ровно как в клавиатуре смайлов, о которой и просила владелец.
+// Если спрайта нет (файл не пришёл, начинка без иконки) — кружок её цвета из каталога: то же
+// решение, что у кнопки обёртки («так видно выбор не читая», #158).
+//
+// Геометрию полосы считает раскладка (`palStrip` в ui/layout.js) — здесь только рисование и
+// цели касания, чтобы сторож и палец читали одни и те же числа.
+function drawPalTabs() {
+  palTabs = []; const t = L.tabs; if (!t) return;
+  const гр = uiGroups(), тек = uiPalIndex();
+  if (t.label) {
+    ctx.fillStyle = '#f3e7ca'; ctx.font = font(12); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(t.label, t.x, t.y + t.h / 2);
+  }
+  гр.forEach((g, i) => {
+    const x = t.tabsX + i * (t.tabW + t.gap), активна = i === тек;
+    palTabs.push({ key: g.key, x, y: t.y, w: t.tabW, h: t.h });
+    rr(x, t.y, t.tabW, t.h, 9);
+    ctx.fillStyle = активна ? '#4a4331' : '#26261f'; ctx.fill();
+    if (активна) { ctx.strokeStyle = '#f3e7ca'; ctx.lineWidth = 1.5; ctx.stroke(); }
+    const sp = iconImg(g.icon), d = ING[g.icon];
+    if (sp) {
+      const сторона = Math.min(t.tabW, t.h) - 6, k = Math.max(1, Math.floor(сторона / sp.width)), sz = sp.width * k;
+      ctx.save(); ctx.globalAlpha = активна ? 1 : 0.72; ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(sp, Math.round(x + (t.tabW - sz) / 2), Math.round(t.y + (t.h - sz) / 2), sz, sz);
+      ctx.restore();
+    } else if (d) {
+      ctx.save(); ctx.globalAlpha = активна ? 1 : 0.72; ctx.fillStyle = d.color;
+      ctx.beginPath(); ctx.arc(x + t.tabW / 2, t.y + t.h / 2, Math.min(t.tabW, t.h) / 2 - 7, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
+  });
+}
 // ПОСЛЕДНИЙ РЯД ПАЛИТРЫ — ОБЩИЙ СЛОТ С КНОПКАМИ ДЕЙСТВИЙ (#157, 02.09). Пока кусок выбран,
 // в этом слоте стоят «⟳» и «Убрать», и ряд чипов не рисуется. Пропускать надо не только
 // РИСОВАНИЕ, но и запись в `chips`: иначе под кнопкой остались бы живые цели касания, и тап
 // по «Убрать» менял бы заодно выбранную начинку.
+//
+// ⚑ РИСУЕТСЯ ОДНА ГРУППА — СТРАНИЦА (17.09). Раньше здесь шла вся палитра базы одной лентой;
+// теперь `uiPalGroup().ings`, а вкладки и жест меняют страницу. Место под ленту раскладка
+// считает по САМОЙ БОЛЬШОЙ группе, поэтому страница меньше просто не заполняет ряд до конца —
+// и ничего не сдвигает.
 function drawChips(скрытьПоследний) {
-  chips = []; const c = L.chips, ings = uiIngredients(), n = ings.length, gap = 8, size = c.size;
-  const perRow = c.perRow || n, rowH = size + (c.labels ? 18 : 6), rowW = perRow * (size + gap) - gap;
+  chips = []; const c = L.chips, ings = uiPalGroup().ings, n = ings.length, gap = 8, size = c.size;
+  const perRow = c.perRow || n, rowH = size + (c.labels ? 18 : 6);
+  // Лента центрируется по ТОМУ, ЧТО В НЕЙ ЕСТЬ, а не по размеру страницы: группа из двух фишек
+  // при странице на семь стояла бы в левом углу, будто ряд обрезан.
+  const rowW = Math.max(1, Math.min(perRow, n)) * (size + gap) - gap;
   const видимыхРядов = скрытьПоследний ? Math.max(0, c.rows - 1) : c.rows;
   // Подпись шире чипа, а полоса отсекается по своей рамке, поэтому содержимое живёт с отступом
   // pad от краёв: иначе крайняя подпись («Огурец» → «гурец») срезана даже при нулевой прокрутке.
   const pad = c.pad || 0, inner = Math.max(size, c.w - 2 * pad);
   const maxScroll = Math.max(0, rowW - inner); chipScrollX = clamp(chipScrollX, 0, L.chipScroll ? maxScroll : 0);
+  // Полоса вкладок живёт вместе с лентой: спрятали палитру целиком (один ряд, и он отдан
+  // кнопкам) — вкладки тоже уходят, иначе над кнопкой остался бы ряд, ничего не открывающий.
+  if (видимыхРядов > 0) drawPalTabs(); else palTabs = [];
   ctx.save(); ctx.beginPath(); ctx.rect(c.x - 2, c.y - 4, c.w + 4, видимыхРядов * rowH + 8); ctx.clip();
-  const x0 = c.x + pad + (L.chipScroll ? -chipScrollX : Math.max(0, (inner - rowW) / 2));
+  // Сдвиг страницы под пальцем (palDX) — это ответ на жест, а не прокрутка: страница уходит за
+  // край, и на отпускании либо встаёт соседняя группа, либо эта возвращается на место.
+  const x0 = c.x + pad + palDX + (L.chipScroll ? -chipScrollX : Math.max(0, (inner - rowW) / 2));
   ings.forEach((kind, i) => {
     const row = Math.floor(i / perRow), col = i % perRow, x = x0 + col * (size + gap), y = c.y + row * rowH, d = ING[kind], selected = kind === S.sel;
     if (row >= видимыхРядов) return;
