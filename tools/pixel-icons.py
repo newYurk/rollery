@@ -25,7 +25,12 @@ ART = 40                     # сторона спрайта в арт-пикс�
 PALETTE = 12                 # сколько цветов оставить
 
 
-def generate(prompt, neg=None, w=320, h=320, steps=8, seed=7, cfg=1, loras=None, sampler='Euler A Trailing'):
+# Модель — прямо в запросе (проверено 05.09): без неё берётся та, что выбрана в приложении, и
+# спрайты молча выходили бы из другой модели. Иконки набора сделаны на Flux.2 Klein 4B.
+MODEL = 'flux_2_klein_4b_q8p.ckpt'
+
+
+def generate(prompt, neg=None, w=320, h=320, steps=8, seed=7, cfg=1, loras=None, sampler='Euler A Trailing', model=MODEL):
     # ⚠ У Flux.2 негативного промпта НЕТ: модель дистиллированная, идёт на guidance 1, и
     # отрицание попросту не участвует в расчёте (указание владельца 31.08). Раньше он
     # передавался и создавал ложное ощущение, что чем-то управляет.
@@ -34,6 +39,7 @@ def generate(prompt, neg=None, w=320, h=320, steps=8, seed=7, cfg=1, loras=None,
     # другую модель), UniPC Trailing чистый, Euler A Trailing самый контрастный — берём его.
     body = {'prompt': prompt, 'steps': steps, 'sampler_name': sampler,
             'width': w, 'height': h, 'seed': seed, 'guidance_scale': cfg}
+    if model: body['model'] = model
     if loras: body['loras'] = loras
     req = urllib.request.Request(API, data=json.dumps(body).encode(),
                                  headers={'Content-Type': 'application/json'})
@@ -183,6 +189,21 @@ ITEMS = [
     ('shiitake', 'a simmered shiitake mushroom cap, dark brown with a pale cross-shaped crack on top'),
     ('kanpyo',   'three simmered kanpyo gourd ribbons, amber brown, glossy, lying side by side'),
     ('anago',    'a piece of grilled sea eel fillet glazed with dark tare sauce, glossy amber'),
+    # Третий заход 16.09 (просьба владельца): у двенадцати начинок полной палитры (?full) не было
+    # файла, и чип рисовался цветным прямоугольником. Краски риса — горкой, как розовый и зелёный;
+    # грядка и ложбинка — сама постель, потому что игрок кладёт не вещество, а рельеф.
+    ('riceYellow','a small mound of yellow coloured sushi rice, grains visible'),
+    ('riceBlack', 'a small mound of black sesame coloured sushi rice, dark grey grains visible'),
+    ('riceRidge', 'a raised ridge of white sushi rice heaped along a strip, grains visible'),
+    ('riceDip',   'a flat bed of white sushi rice with a shallow groove pressed along the middle'),
+    ('denbu',     'a small heap of fluffy pink sakura denbu fish flakes'),
+    ('eggsheet',  'a thin japanese egg crepe sheet folded in half, pale golden yellow'),
+    ('strawberry','a fresh red strawberry with green leaves on top, seeds visible'),
+    ('kiwi',      'a kiwi fruit cut in half, bright green flesh with a ring of tiny black seeds'),
+    ('mango',     'a long stick of ripe mango flesh, bright orange yellow, juicy'),
+    ('banana',    'a peeled banana, pale cream yellow, slightly curved'),
+    ('jam',       'a spoonful of glossy red berry jam'),
+    ('nut',       'a whole roasted hazelnut, warm brown shell'),
 ]
 
 # LoRA подключается ПРЯМО В ЗАПРОСЕ — проверено 31.08: API её принимает, а вот выбор в
