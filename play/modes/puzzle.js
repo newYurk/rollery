@@ -123,7 +123,11 @@ function puzzleEvaluate() {
 function encodePuzzle(list, turns) {
   // w — обёртка: она меняет шаг витка, а с ним число оборотов и ⌀ (issue #86). Без неё
   // друг открывал ссылку и получал ДРУГОЙ ролл: цель пазла считалась по нори вместо блина.
-  const h = S.hand || {}; const data = { b: S.base, w: B().wrapKey || null, t: turns || null, s: S.shape, h: (h.air || h.wobble || (h.press !== 1)) ? [+h.air.toFixed(3), +h.wobble.toFixed(3), +h.phase.toFixed(2), +h.press.toFixed(2)] : null, l: list.map(p => [p.kind, +p.u.toFixed(4), +p.v.toFixed(3), p.wU ?? null, p.hU ?? null, p.dv ?? null, +p.phase.toFixed(3), p.rot ? +p.rot.toFixed(4) : null]) };
+  // ⚑ ЧИСЛА — КАК ЕСТЬ, БЕЗ ОКРУГЛЕНИЯ (#236, 16.09). Здесь стояли toFixed(4) у u, (3) у v и фазы,
+  // (2–3) у руки: друг открывал ДРУГОЙ ролл, а у порога режима — даже другой режим (футомаки, тамаго
+  // на 149,13 мм: спираль → после ссылки кольцо). JSON и так пишет число кратчайшей точной записью.
+  // Старые ссылки с округлёнными числами читаются как раньше.
+  const h = S.hand || {}; const data = { b: S.base, w: B().wrapKey || null, t: turns || null, s: S.shape, h: (h.air || h.wobble || (h.press !== 1)) ? [h.air, h.wobble, h.phase, h.press] : null, l: list.map(p => [p.kind, p.u, p.v, p.wU ?? null, p.hU ?? null, p.dv ?? null, p.phase, p.rot || null]) };
   return location.origin + location.pathname + '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(data)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 function decodePuzzle(hash) {

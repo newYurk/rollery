@@ -18,7 +18,8 @@ function albumSave() {
   // S.wrap там не участвует — иначе в записи оказалось бы то, чего в модели не было.
   const e = { id: 'a' + Date.now().toString(36), base: S.base, wrap: B().wrapKey || null,
               turns: turnsOf(S.turns), shape: S.shape,
-              hand: { air: +(h.air || 0).toFixed(3), wobble: +(h.wobble || 0).toFixed(3), phase: +(h.phase || 0).toFixed(2), press: +(h.press || 1).toFixed(2) },
+              // Почерк — без округления (#236): запись обязана открываться тем же роллом, что сохранили.
+              hand: { air: h.air || 0, wobble: h.wobble || 0, phase: h.phase || 0, press: h.press || 1 },
               list: JSON.parse(JSON.stringify(list)), at: Date.now(),
               level: S.puzzle ? S.puzzle.level : null, sim: S.puzzle && S.puzzle.result ? Math.round(S.puzzle.result.sim * 100) : null };
   S.album.unshift(e); if (S.album.length > ALBUM_MAX) S.album.length = ALBUM_MAX;
