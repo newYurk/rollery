@@ -257,9 +257,10 @@ function load() {
     // пустоту над листом и лист не уменьшает. Глаз в панели выключает за тап,
     // и выбор запоминается: null (первый запуск) — да, '0' — нет.
     { const pv = localStorage.getItem('rollery.preview'); S.preview = pv === null ? true : pv === '1'; }
-    // Ключа нет — новый игрок, звук молчит. Сравнение с '1' давало обратное:
-    // отсутствие ключа читалось как «не выключено» и игра начинала со звуком.
-    S.mute = localStorage.getItem('rollery.mute') !== '0';
+    // ⚑ ЗВУК ВКЛЮЧЁН ВСЕГДА (17.09, решение владельца): кнопки больше нет, и сохранённое
+    // «выключено» заперло бы игрока в тишине без выхода. Молчание — дело телефона: беззвучный
+    // режим и громкость (audioSession 'ambient' в audio.js). Старый ключ убираем.
+    S.mute = false; localStorage.removeItem('rollery.mute');
     S.shape = localStorage.getItem('rollery.shape') || 'round';
     S.cutsTotal = +(localStorage.getItem('rollery.cuts') || 0);
     S.album = JSON.parse(localStorage.getItem('rollery.album') || '[]');
@@ -275,7 +276,6 @@ function save() {
   try {
     localStorage.setItem('rollery.model.v2', JSON.stringify({ base: S.base, lists: S.lists, wrap: S.wrap }));
     localStorage.setItem('rollery.preview', S.preview ? '1' : '0');
-    localStorage.setItem('rollery.mute', S.mute ? '1' : '0');
     localStorage.setItem('rollery.shape', S.shape);
     localStorage.setItem('rollery.cuts', String(S.cutsTotal));
   } catch (e) {}
