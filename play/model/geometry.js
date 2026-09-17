@@ -973,23 +973,31 @@ function bandSourceColumns(v, g, list, coreRice) {
     cuts.push(a, b); bodies.push({ p, d, rg });
   }
   cuts.sort((a, b) => a - b);
+  // Всё, что зависит только от куска, считается один раз, а не в каждом столбике:
+  // диапазон грядки/ложбинки, высота тела и его подъём над листом.
+  const deltas = [];
+  for (const p of list) {
+    const d = ING[p.kind]; if (!d.bedDelta || p.inCore) continue;
+    deltas.push({ d, rg: patchSRange(p, v, g) });
+  }
+  for (const q of bodies) { q.h = dims(q.p, g).h * g.T * q.rg[8]; q.z0T = q.p.z0 * g.T; }
   const columns = []; let riceInput = 0, fillingArea = 0;
   for (let i = 1; i < cuts.length; i++) {
     const a = cuts[i - 1], b = cuts[i]; if (b - a < 1e-10) continue;
     const s = (a + b) / 2, u = s / L, spans = [];
     let rice = spreadAt(u, g, v) * g.T;
-    for (const p of list) {
-      const d = ING[p.kind]; if (!d.bedDelta || p.inCore) continue;
-      const rg = patchSRange(p, v, g); if (!rg || s < rg[0] || s > rg[1]) continue;
+    for (const e of deltas) {
+      const d = e.d, rg = e.rg; if (!rg || s < rg[0] || s > rg[1]) continue;
       const lu = ((s - rg[2] * L) * rg[5] + rg[7] * rg[6]) / rg[3];
       rice = Math.max(0, rice + d.bedDelta * cutTop(d, lu) * g.T);
     }
     for (const q of bodies) {
-      const {p, d, rg} = q; if (s < rg[0] || s > rg[1]) continue;
+      const rg = q.rg; if (s < rg[0] || s > rg[1]) continue;
+      const p = q.p, d = q.d, h = q.h;
       const lu = ((s - rg[2] * L) * rg[5] + rg[7] * rg[6]) / rg[3];
-      const span = cutSpan(d, lu), h = dims(p, g).h * g.T * rg[8];
-      const lo = p.z0 * g.T + h * span[0], hi = p.z0 * g.T + h * span[1];
-      if (hi > lo) spans.push({p, d, rg, lu, lo, hi, z0:p.z0 * g.T, height:h});
+      // cutSpan без пары-массива: те же cutLow и cutTop
+      const lo = q.z0T + h * cutLow(d, lu), hi = q.z0T + h * cutTop(d, lu);
+      if (hi > lo) spans.push({p, d, rg, lu, lo, hi, z0:q.z0T, height:h});
     }
     spans.sort((a, b) => a.lo - b.lo);
     // restack gives non-overlapping bodies; keep their actual occupied heights,
