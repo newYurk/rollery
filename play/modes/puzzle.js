@@ -232,9 +232,12 @@ function decodePuzzle(hash) {
     const wrap = (data.w && WRAPPERS[data.w]) ? data.w : null;
     // ⚑ СТАРАЯ ССЫЛКА С КУСКОМ НА ГОЛОМ КРАЮ (#253, 17.09): кусок сдвигается по u на ближайшее
     // место на рисе — на листе той ссылки (база, обёртка, витки), а не того, что открыт сейчас.
-    // Лежавшее на рисе не трогается до бита (#236).
-    withSheetOf({ base: data.b, wrap, turns: data.t }, () => layOnRice(list));
-    return { base: data.b, wrap, turns: data.t, shape: SHAPES[data.s] ? data.s : 'round', hand: hh, list };
+    // Лежавшее на рисе не трогается до бита (#236). Витки — не меньше 2 и такие, чтобы на рис лёг
+    // каждый кусок (`recipeTurns`, решение владельца 17.09): старая цель узумаки уровня 12 с
+    // омлет-листом открывается на 3 витках, а не с омлетом на голой нори.
+    const turns = recipeTurns({ base: data.b, wrap, turns: data.t }, list);
+    withSheetOf({ base: data.b, wrap, turns }, () => layOnRice(list));
+    return { base: data.b, wrap, turns, shape: SHAPES[data.s] ? data.s : 'round', hand: hh, list };
   } catch (e) { return null; }
 }
 function puzzleFromLink(pz) {
