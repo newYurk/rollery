@@ -195,16 +195,28 @@ ITEMS = [
     ('riceYellow','a small mound of yellow coloured sushi rice, grains visible'),
     ('riceBlack', 'a small mound of black sesame coloured sushi rice, dark grey grains visible'),
     ('riceRidge', 'a raised ridge of white sushi rice heaped along a strip, grains visible'),
-    ('riceDip',   'a flat bed of white sushi rice with a shallow groove pressed along the middle'),
+    # Ложбинка «бороздой вдоль пласта» выходила таблеткой или ванночкой при любых шагах и размере
+    # (сравнение 16.09: 8/12/16 шагов × 320/512 — содержание не меняется). Горка с вмятиной
+    # читается сразу и стоит парой к грядке — та же горка без вмятины.
+    ('riceDip',   'a low wide mound of white sushi rice with a deep dent pressed into its middle, like a crater, grains visible'),
     ('denbu',     'a small heap of fluffy pink sakura denbu fish flakes'),
-    ('eggsheet',  'a thin japanese egg crepe sheet folded in half, pale golden yellow'),
+    # «Бледно-золотой» давал почти белый лист, неотличимый от риса; нужен насыщенный желток.
+    ('eggsheet',  'a thin sheet of bright yellow japanese omelette folded in half, vivid egg yolk yellow with light golden brown spots'),
     ('strawberry','a fresh red strawberry with green leaves on top, seeds visible'),
     ('kiwi',      'a kiwi fruit cut in half, bright green flesh with a ring of tiny black seeds'),
-    ('mango',     'a long stick of ripe mango flesh, bright orange yellow, juicy'),
-    ('banana',    'a peeled banana, pale cream yellow, slightly curved'),
+    # Брусок мякоти выходил морковкой. Разрез «ёжиком» узнаётся как манго сразу.
+    ('mango',     'half a mango cut hedgehog style, a grid of bright orange flesh cubes on a green and red skin'),
+    # Очищенный банан без кожуры вышел одного цвета с кожурой и не читался (владелец 16.09):
+    # полуочищенный узнаётся по жёлтой кожуре и всё равно показывает мякоть, которую кладут.
+    ('banana',    'a half peeled banana, bright yellow peel folded down, pale cream flesh sticking out on top'),
     ('jam',       'a spoonful of glossy red berry jam'),
     ('nut',       'a whole roasted hazelnut, warm brown shell'),
 ]
+
+# SEED — у каждой иконки свой, выбран глазами из нескольких (16.09: 7, 11, 23, 42). По умолчанию 7:
+# на нём сделан первый набор, и рисовые краски на одном seed выходят одной и той же горкой — семьёй.
+# Без записи seed спрайт не воспроизвести: тот же промпт на другом seed — другая картинка.
+SEEDS = {'riceRidge': 42, 'riceDip': 42, 'eggsheet': 11, 'kiwi': 23, 'mango': 11, 'nut': 23}
 
 # LoRA подключается ПРЯМО В ЗАПРОСЕ — проверено 31.08: API её принимает, а вот выбор в
 # интерфейсе на генерации через API не влияет (как и стиль-пресет).
@@ -236,6 +248,6 @@ if __name__ == '__main__':
         if only and k not in only:
             continue
         try:
-            make(k, what, outdir, loras=loras)
+            make(k, what, outdir, seed=SEEDS.get(k, 7), loras=loras)
         except Exception as e:
             print(f'{k}: ОШИБКА — {e}')
