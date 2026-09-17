@@ -828,15 +828,16 @@ function edgeRag(v, seed, g) {
   const A = edgeRagAmp();
   return (a + (b2 - a) * пл) * 2 * A - A;
 }
-function spreadAt(u, g, v) {
+// Профиль грядки на срезе v: кромки (с зерном, #24) и нормировка массы. От u не зависит,
+// поэтому столбцы одного среза считают его один раз и спрашивают spreadAtPre.
+function spreadPre(g, v) {
   const b = g || B();
   // Кромки гуляют на зерно (#24). Без v — как было, ровные: так зовут проверки и старые пути.
   const L = gL(g);
   const рв0 = v === undefined ? 0 : edgeRag(v, 1013, g) / L;
   const рв1 = v === undefined ? 0 : edgeRag(v, 7919, g) / L;
-  const se = b.spreadEnd + рв1; if (u >= se) return 0;
+  const se = b.spreadEnd + рв1;
   const s0 = (b.spreadStart === undefined ? SPREAD_START : b.spreadStart) + рв0;
-  if (u < s0) return 0;                               // голая полоса у ближнего края
   const span = se - s0, w = Math.min(RIM_W, span * 0.5), e = Math.min(RIM_EDGE, w * 0.6);
   // ⚑ БЛИЖНЯЯ КРОМКА ТОЖЕ СХОДИТ, А НЕ СТОИТ СТЕНОЙ (правка 02.09, #153).
   //
@@ -863,11 +864,18 @@ function spreadAt(u, g, v) {
   // Числитель теперь `span` — длина, на которой грядка действительно лежит. Тогда
   // `∫spreadAt du = span`, а масса риса = span·L·T, то есть T снова означает толщину постели.
   const k = (se - s0) / ((span - w - e) + e / 2 + (w - e) * (1 + RIM_H) / 2 + e * RIM_H / 2);
+  return { se, s0, w, e, k };
+}
+function spreadAtPre(u, P) {
+  const se = P.se, s0 = P.s0, w = P.w, e = P.e, k = P.k;
+  if (u >= se) return 0;
+  if (u < s0) return 0;                               // голая полоса у ближнего края
   if (u < s0 + e) return k * (u - s0) / e;            // подъём у ближней кромки
   if (u <= se - w) return k;
   if (u <= se - e) return k * (1 + (RIM_H - 1) * (u - (se - w)) / (w - e));   // подъём к бортику
   return k * RIM_H * (se - u) / e;                    // и сход на нет: стеной рис не стоит
 }
+function spreadAt(u, g, v) { return spreadAtPre(u, spreadPre(g, v)); }
 const betaEff = g => clamp((g ? g.beta : B().beta) * (g ? g.press : (S.hand ? S.hand.press : 1)), 0.15, 0.95);
 // Намотка листа переменной толщины: по угловым бинам, виток за витком. sMax — сколько листа съедено (для анимации скрутки).
 const PROF_DS = 0.02, SMOOTH_R = 0.9;   // шаг профиля толщины и радиус сглаживания (единицы ≈ 5 мм)
@@ -910,7 +918,8 @@ function riceField(vSlice, g, list) {
       if (p.z0 < lo[i]) lo[i] = p.z0;                    // низ стопки — нужен для ТОЛЩИНЫ начинки
     }
   }
-  for (let i = 0; i < M; i++) { bed[i] = spreadAt(Math.min(1, i * PROF_DS / L), g, vSlice); if (!isFinite(lo[i])) lo[i] = fill[i]; }
+  const spP = spreadPre(g, vSlice);
+  for (let i = 0; i < M; i++) { bed[i] = spreadAtPre(Math.min(1, i * PROF_DS / L), spP); if (!isFinite(lo[i])) lo[i] = fill[i]; }
   // ⚑ ГРЯДКА И ЛОЖБИНКА МЕНЯЮТ САМУ ПОСТЕЛЬ (#17, 01.09), а не лежат на ней телом.
   //
   // Это разница между «положил кусок» и «намазал толще». Кусок вытесняет рис и поднимает
@@ -972,24 +981,35 @@ function bandSourceColumns(v, g, list, coreRice) {
     const a = Math.max(0, rg[0]), b = Math.min(L, rg[1]); if (!(b > a)) continue;
     cuts.push(a, b); bodies.push({ p, d, rg });
   }
-  cuts.sort((a, b) => a - b);
+  // Числовая сортировка типизированного массива даёт тот же порядок: NaN сюда не попадает
+  // (!(b > a) отсекает), −0 тоже (Math.max(0, …) и литерал 0 дают +0).
+  const cutsSorted = Float64Array.from(cuts).sort();
+  // Всё, что зависит только от куска, считается один раз, а не в каждом столбике:
+  // диапазон грядки/ложбинки, высота тела и его подъём над листом.
+  const deltas = [];
+  for (const p of list) {
+    const d = ING[p.kind]; if (!d.bedDelta || p.inCore) continue;
+    deltas.push({ d, rg: patchSRange(p, v, g) });
+  }
+  for (const q of bodies) { q.h = dims(q.p, g).h * g.T * q.rg[8]; q.z0T = q.p.z0 * g.T; }
   const columns = []; let riceInput = 0, fillingArea = 0;
-  for (let i = 1; i < cuts.length; i++) {
-    const a = cuts[i - 1], b = cuts[i]; if (b - a < 1e-10) continue;
+  const spP = spreadPre(g, v);
+  for (let i = 1; i < cutsSorted.length; i++) {
+    const a = cutsSorted[i - 1], b = cutsSorted[i]; if (b - a < 1e-10) continue;
     const s = (a + b) / 2, u = s / L, spans = [];
-    let rice = spreadAt(u, g, v) * g.T;
-    for (const p of list) {
-      const d = ING[p.kind]; if (!d.bedDelta || p.inCore) continue;
-      const rg = patchSRange(p, v, g); if (!rg || s < rg[0] || s > rg[1]) continue;
+    let rice = spreadAtPre(u, spP) * g.T;
+    for (const e of deltas) {
+      const d = e.d, rg = e.rg; if (!rg || s < rg[0] || s > rg[1]) continue;
       const lu = ((s - rg[2] * L) * rg[5] + rg[7] * rg[6]) / rg[3];
       rice = Math.max(0, rice + d.bedDelta * cutTop(d, lu) * g.T);
     }
     for (const q of bodies) {
-      const {p, d, rg} = q; if (s < rg[0] || s > rg[1]) continue;
+      const rg = q.rg; if (s < rg[0] || s > rg[1]) continue;
+      const p = q.p, d = q.d, h = q.h;
       const lu = ((s - rg[2] * L) * rg[5] + rg[7] * rg[6]) / rg[3];
-      const span = cutSpan(d, lu), h = dims(p, g).h * g.T * rg[8];
-      const lo = p.z0 * g.T + h * span[0], hi = p.z0 * g.T + h * span[1];
-      if (hi > lo) spans.push({p, d, rg, lu, lo, hi, z0:p.z0 * g.T, height:h});
+      // cutSpan без пары-массива: те же cutLow и cutTop
+      const lo = q.z0T + h * cutLow(d, lu), hi = q.z0T + h * cutTop(d, lu);
+      if (hi > lo) spans.push({p, d, rg, lu, lo, hi, z0:q.z0T, height:h});
     }
     spans.sort((a, b) => a.lo - b.lo);
     // restack gives non-overlapping bodies; keep their actual occupied heights,
@@ -1028,15 +1048,20 @@ function windSectorAngle(wd, idx) {
   const end = wd.phiEnd - (idx % NB) * DPHI;
   return clamp(end < 0 ? end + TAU : end, 0, DPHI);
 }
-function bandSector(wd, idx, g) {
+// Площадь сектора слоя без обёртки на единицу угла; −1, если сектора нет. Одно определение
+// для карты секторов (bandSector) и для таблицы ёмкости, которой объект не нужен.
+function bandSectorA(wd, idx, g) {
   const b = idx % NB, k = Math.floor(idx / NB);
-  if (wd.rin[idx] < 0 || wd.rout[idx] <= 0 || (wd.ringBand && wd.ringBand[b] !== k)) return null;
+  if (wd.rin[idx] < 0 || wd.rout[idx] <= 0 || (wd.ringBand && wd.ringBand[b] !== k)) return -1;
   const ri = wd.rin[idx], ro = wd.rout[idx], wrap = wd.ringBand ? 0 : Math.min(g.w, ro - ri);
-  const A = Math.max(0, ((ro - wrap) * (ro - wrap) - ri * ri) / 2);
+  return Math.max(0, ((ro - wrap) * (ro - wrap) - ri * ri) / 2);
+}
+function bandSector(wd, idx, g) {
+  const A = bandSectorA(wd, idx, g); if (A < 0) return null;
   const angle = windSectorAngle(wd, idx);
   return {A, B:0, C:0, angle, area:angle * A};
 }
-function conservativeBand(wd, v, g, list) {
+function conservativeBand(wd, v, g, list, radiusOnly) {
   // Pure rice rings already use the exact ring-area construction. Keep their
   // mapping (including surface pigments) intact.
   if (g.winding !== 'spiral' && !list.some(p => !p.inCore && !ING[p.kind].paint && !ING[p.kind].bedDelta)) return null;
@@ -1048,24 +1073,38 @@ function conservativeBand(wd, v, g, list) {
   const coreRice = g.coreRiceAt ? g.coreRiceAt(v) : coreArea;
   // Рис текуч: после обжима он занимает остаток слоя вокруг тела. Если снова
   // оставить под куском исходную постель, кусок пришлось бы лишний раз сдавить.
-  const capacity = []; let distance = 0;
-  for (let i = 0; i < wd.kmax * NB; i++) {
+  // Таблица ёмкости — три типизированных массива вместо объекта на сектор: отрезок листа
+  // [capA, capB] и высота слоя на нём capH.
+  const capMax = wd.kmax * NB;
+  const capA = new Float64Array(capMax), capB = new Float64Array(capMax), capH = new Float64Array(capMax);
+  let capN = 0, distance = 0;
+  for (let i = 0; i < capMax; i++) {
     if (wd.rin[i] < 0 || wd.rout[i] <= 0) continue;
-    const q = bandSector(wd, i, g);
+    const sa = bandSectorA(wd, i, g), area = sa < 0 ? 0 : windSectorAngle(wd, i) * sa;
     if (wd.ringBand) {
-      if (q) capacity.push({a:wd.u0[i] * g.L, b:wd.u1[i] * g.L, area:q.area});
+      if (sa >= 0) { capA[capN] = wd.u0[i] * g.L; capB[capN] = wd.u1[i] * g.L; capH[capN] = area; capN++; }
     } else {
       const ds = (wd.rin[i] + wd.rout[i]) / 2 * windSectorAngle(wd, i);
-      capacity.push({a:distance, b:distance + ds, area:q ? q.area : 0}); distance += ds;
+      capA[capN] = distance; capB[capN] = distance + ds; capH[capN] = area; capN++; distance += ds;
     }
   }
   const lengthScale = wd.ringBand ? 1 : g.L / Math.max(1e-12, distance);
-  for (const c of capacity) { c.a *= lengthScale; c.b *= lengthScale; c.height = c.area / Math.max(1e-12, c.b - c.a); }
-  capacity.sort((a, b) => a.a - b.a);
+  for (let j = 0; j < capN; j++) { capA[j] *= lengthScale; capB[j] *= lengthScale; capH[j] = capH[j] / Math.max(1e-12, capB[j] - capA[j]); }
+  // У спирали отрезки идут подряд по накопленной длине — таблица уже упорядочена. Кольцо
+  // упорядочивается устойчивой сортировкой номеров по тому же ключу, что прежде объекты.
+  let ord = null;
+  if (wd.ringBand) { ord = new Array(capN); for (let j = 0; j < capN; j++) ord[j] = j; ord.sort((x, y) => capA[x] - capA[y]); }
+  const at = j => ord ? ord[j] : j;
+  // Столбики спрашивают ёмкость по возрастанию s, а концы отрезков спирали не убывают
+  // (capB[j] === capA[j + 1]): курсор вперёд находит тот же номер, что двоичный поиск.
+  // Кольцо и любой запрос назад идут двоичным поиском.
+  let sweepLo = 0, sweepS = -Infinity;
   const bandCapacityAt = s => {
-    let lo = 0, hi = capacity.length - 1;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (capacity[mid].b <= s) lo = mid + 1; else hi = mid; }
-    const c = capacity[lo]; return c && s >= c.a && s <= c.b ? c.height : 0;
+    let lo = 0, hi = capN - 1;
+    if (!ord && s >= sweepS) { lo = sweepLo; while (lo < hi && capB[lo] <= s) lo++; sweepLo = lo; sweepS = s; }
+    else while (lo < hi) { const mid = (lo + hi) >> 1; if (capB[at(mid)] <= s) lo = mid + 1; else hi = mid; }
+    if (lo >= capN) return 0;
+    const c = at(lo); return s >= capA[c] && s <= capB[c] ? capH[c] : 0;
   };
   const source = bandSourceColumns(v, {...g,bandCapacityAt}, list, coreRice);
   let coreScale = 1;
@@ -1095,9 +1134,8 @@ function conservativeBand(wd, v, g, list) {
       wd.top[b] = r; R = Math.max(R, r);
     }
     wd.Rout = R;
-    let area = 0;
-    for (let i = 0; i < size; i++) { const q = bandSector(wd, i, g); if (q) area += q.area; }
-    return area;
+    // Площадь секторов здесь не считается: её никто не читал, а цикл строил объект на
+    // каждый сектор всех витков. Итоговую площадь даёт проход по `sectors` ниже.
   };
   // At scale k, previous filled bands move this band's inner radius by k*p.
   // Its sector area is therefore A*k²+B*k; solve the total exactly once.
@@ -1114,6 +1152,9 @@ function conservativeBand(wd, v, g, list) {
   }
   const scale = source.area > 0 ? 2 * source.area / Math.max(1e-12, B + Math.sqrt(B * B + 4 * A * source.area)) : 0;
   apply(scale);
+  // Запросу радиуса (14 срезов из 15 при сборке модели) нужна только внешняя граница,
+  // она уже в wd.Rout. Карта секторов нужна одному materialAt — отображаемому срезу.
+  if (radiusOnly) return null;
   const sectors = new Array(size); let area = 0;
   for (let i = 0; i < size; i++) {
     const q = bandSector(wd, i, g); if (!q || q.area <= 1e-12) continue;
@@ -1761,8 +1802,11 @@ function wind(vSlice, sMax, g, list, routOnly) {
   // это лист, он не сжимается. Прежде коэффициент умножал радиусы целиком, и на голой полосе
   // слой из одной нори 0,02 давал 0,03 — этого хватало, чтобы materialAt вернул там «рис», и
   // на срезе появлялась узкая рисовая линия между двумя нори. Не трогать.
+  // r₀ и толщина обёртки читаются один раз: перекладка идёт в каждом бине до трёх раз за срез,
+  // а g у кольцевых срезов — копия паспорта другой формы.
+  const gR0 = g.r0, gW = g.w;
   const переложить = (b2, tgt) => {
-    const rin0 = rin[b2] >= 0 ? rin[b2] : g.r0;      // где намотка начинается в ЭТОМ бине
+    const rin0 = rin[b2] >= 0 ? rin[b2] : gR0;      // где намотка начинается в ЭТОМ бине
     // ⚑ ПАНДУС МОЖЕТ БЫТЬ И ОТРИЦАТЕЛЬНЫМ (#124, правка 02.09).
     //
     // Стояло `Math.max(0, rin0 − g.r0)`, и это молча теряло половину поугловой границы: с
@@ -1776,23 +1820,23 @@ function wind(vSlice, sMax, g, list, routOnly) {
     // двух сторон начинку».
     //
     // Ноль здесь стоял с тех пор, когда ядро было КРУГОМ и старт не мог быть меньше r0.
-    const пандус = rin0 - g.r0;
+    const пандус = rin0 - gR0;
     let рисВс = 0, нориВс = 0, зазорВс = 0, prev = rin0;
     for (let k2 = 0; k2 < KMAX; k2++) {
       const i2 = k2 * NB + b2; if (rin[i2] < 0) break;
       зазорВс += Math.max(0, rin[i2] - prev); prev = rout[i2];
       const t2 = rout[i2] - rin[i2];
-      рисВс += Math.max(0, t2 - g.w); нориВс += Math.min(g.w, t2);
+      рисВс += Math.max(0, t2 - gW); нориВс += Math.min(gW, t2);
     }
     // множитель только для риса: пандус, зазоры и нори переносятся как есть
-    const свобод = tgt - g.r0 - нориВс - пандус - зазорВс;
+    const свобод = tgt - gR0 - нориВс - пандус - зазорВс;
     const fр = рисВс > 1e-9 ? Math.max(0, свобод / рисВс) : 1;
-    let r = g.r0 + пандус, prevOut = rin0;
+    let r = gR0 + пандус, prevOut = rin0;
     for (let k2 = 0; k2 < KMAX; k2++) {
       const i2 = k2 * NB + b2; if (rin[i2] < 0) break;
       r += Math.max(0, rin[i2] - prevOut); prevOut = rout[i2];
-      const t2 = rout[i2] - rin[i2], рис = Math.max(0, t2 - g.w);
-      rin[i2] = r; r += рис * fр + Math.min(g.w, t2); rout[i2] = r;
+      const t2 = rout[i2] - rin[i2], рис = Math.max(0, t2 - gW);
+      rin[i2] = r; r += рис * fр + Math.min(gW, t2); rout[i2] = r;
     }
     // ⚠ КОНТУР КОНЧАЕТСЯ ТАМ, ГДЕ КОНЧИЛСЯ МАТЕРИАЛ, А НЕ ГДЕ ХОТЕЛ ОБЖИМ.
     // На голой полосе листа слой состоит из ОДНОЙ обёртки (у урамаки замер дал 0,02 при
@@ -1986,7 +2030,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
     }
   }
   const transportState = {rin, rout, u0, u1, top, Rout, kmax, lastIdx, phiEnd, ringBand};
-  const materialTransport = conservativeBand(transportState, vSlice, g, list);
+  const materialTransport = conservativeBand(transportState, vSlice, g, list, radiusOnly);
   Rout = transportState.Rout;
   if (radiusOnly) return Rout;
   // ⚑ УСТРОЙСТВО НАМОТКИ ОТВЕЧАЕТ НА ВОПРОСЫ, А НЕ ОТДАЁТ СЫРЬЁ (#146, правка 01.09).
