@@ -735,6 +735,46 @@ test('переводчик: класс нарезки поддержан ров�
   for (const c of SUPPORTED_CUTS) assert.ok(cuts.has(c), `каталог потерял класс ${c}`);
 });
 
+// ── #246: БРУСКИ ВСТЫК — НЕ ПЕРЕКРЫТИЕ, А ПЕРЕКРЫТИЕ 1e-6 ММ — ПЕРЕКРЫТИЕ ──────
+// Замер 16.09 (task4-nori, развёртка count): футомаки, 3–6 брусков лосося 10 мм встык от
+// u = 0,20 отказывались как `patch_material_overlap`. Ожидание здесь выведено не из validate.js:
+// центры стоят ровно через ширину бруска (du = 2 ед из 42), значит пересечение следов равно 0.
+// В double же след пары 1–2 заходит на соседний на 7,1e-15 мм — это округление u·L, не раскладка.
+// До правки: count 3–6 → invalid. После: valid; сдвиг на 1e-6 мм внутрь и stack — по-прежнему invalid.
+test('#246: бруски одного вещества встык принимаются, перекрытие в 1e-6 мм — нет', () => {
+  const L = BASES.futo.sheetCm * 10;
+  const du = ING.salmon.wU / (L / CATALOG_U_MM);
+  const row = (n) => Array.from({ length: n }, (_, i) => ({ kind: 'salmon', u: 0.20 + (i + 0.5) * du, v: 0.5 }));
+  const touching = lay('futo', row(3));
+  assert.equal(touching.status, 'valid');
+  const [, b, c] = touching.recipe.patches;
+  assert.equal(b.widthMm, 10);
+  const roundOff = (b.uMm + b.widthMm / 2) - (c.uMm - c.widthMm / 2);
+  // Случай должен остаться тем самым: положительное «перекрытие» размером в ULP, иначе тест пустой.
+  assert.ok(roundOff > 0 && roundOff < 1e-12, `пара 1–2 должна заходить на ULP, а заходит на ${roundOff}`);
+  for (let n = 2; n <= 6; n++) {
+    const v = validateRecipe(lay('futo', row(n)).recipe);
+    assert.equal(v.status, 'valid', `${n} брусков встык: ${v.diagnostics[0]?.code}`);
+  }
+  // Встык проходит весь конвейер, а не только валидацию.
+  assert.equal(adapt(touching.recipe).ok, true);
+
+  // Настоящее перекрытие: третий брусок на 1e-6 мм внутрь — на восемь порядков крупнее ULP.
+  const deep = row(3);
+  deep[2] = { ...deep[2], u: deep[2].u - 1e-6 / L };
+  const d = lay('futo', deep).recipe;
+  const real = (d.patches[1].uMm + d.patches[1].widthMm / 2) - (d.patches[2].uMm - d.patches[2].widthMm / 2);
+  assert.ok(Math.abs(real - 1e-6) < 1e-12, `перекрытие ${real}, ждали 1e-6 мм`);
+  const v = validateRecipe(d);
+  assert.equal(v.status, 'invalid');
+  assert.equal(v.diagnostics[0].code, 'patch_material_overlap');
+  assert.deepEqual(v.diagnostics[0].context, { patchIds: ['salmon-1', 'salmon-2'], materialId: 'salmon' });
+
+  // Два бруска в одной точке (развёртка stack) — перекрытие во всю ширину, отказ законный.
+  const stack = validateRecipe(lay('futo', [{ kind: 'salmon', u: 0.3, v: 0.5 }, { kind: 'salmon', u: 0.3, v: 0.5 }]).recipe);
+  assert.equal(stack.diagnostics[0]?.code, 'patch_material_overlap');
+});
+
 // ── переносимость хешей (#175) ─────────────────────────────────────────────
 import { hashValue, quantize, HASH_QUANTUM_MM } from './hash.js';
 import { windingForHash } from './winding.js';
