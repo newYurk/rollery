@@ -16,6 +16,13 @@ function drawParticles(dt) {
   for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; ctx.globalAlpha = 1 - p.t / p.life; ctx.fillStyle = rgbCss(p.c); ctx.fillRect(p.x, p.y, p.s, p.s); }
   ctx.globalAlpha = 1;
 }
+// ⚑ РЕЖИМ НАМОТКИ ПОДПИСАН ТАМ ЖЕ, ГДЕ ВИТКИ (решение владельца 16.09). Автомат переключает
+// кольцо в спираль скачком — так решено 02.09 (#141), и 16.09 владелец это подтвердила: «скачок
+// честный». Честный скачок должен быть виден словом: без подписи узор на границе просто
+// перескакивает, и не понять почему. Подпись — в строке живого среза, не на листе: подсказок на
+// экране раскладки нет намеренно (02.09). Одно название режима на все экраны.
+const windingName = m => (m.g.winding === 'spiral' ? 'спираль' : 'кольцо');
+const liveTurnsText = (m, v = 0.5) => `${windingName(m)}, ${windFor(m, v).turns.toFixed(1).replace('.', ',')} витка`;
 const hints = {
   // ⚑ ПОСТОЯННАЯ ПОДСКАЗКА НА ЛИСТЕ СНЯТА 02.09 по просьбе владельца («можно подсказку про
   // скручивание и раскладку убрать пока»). Пустая строка, а не удалённый ключ: подсказку
@@ -37,17 +44,16 @@ function drawPreviewArea(p) {
   const pm = L.previewMode; if (pm === 'none' || p > 0) return;
   const pz = S.puzzle, k = pz ? pz.vs.length : 1, tm = pz ? targetModel() : null;
   const label = (x, y, lines, align = 'center') => { ctx.fillStyle = '#b8ad95'; ctx.font = font(12); ctx.textAlign = align; ctx.textBaseline = 'middle'; lines.forEach((t, i) => ctx.fillText(t, x, y + i * 16)); };
-  const turnsTxt = () => `${windFor(getModel(), 0.5).turns.toFixed(1).replace('.', ',')} витка`;
+  const turnsTxt = () => liveTurnsText(getModel());
   if (pm === 'band') {
     const cx = L.ox + L.cw / 2, y = L.previewY;
     if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs); }
     else { drawSlab([{ x: cx - 30, y, size: 116 }], 1, B(), 8); drawFaceImg(face(0.5, 116), cx - 30, y, 116); label(cx + 30 + 14, y - 8, ['живой срез', turnsTxt()], 'left'); }
   } else if (pm === 'overlay') {
-    const s = L.sheet;
+    const s = L.sheet, o = overlayGeom();
     if (pz) {
-      const fs = Math.min(56, (s.w - 16 - 6 * (k - 1)) / k), x0 = s.x + s.w / 2 - ((k - 1) * (fs + 6)) / 2, y = s.y + fs / 2 + 8;
-      drawMat(s.x + 4, s.y + 4, s.w - 8, fs + 8, 10);
-      for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 6), y, fs);
+      drawMat(s.x + 4, s.y + 4, s.w - 8, o.fs + 8, 10);
+      for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], o.fs, tm), o.x0 + i * (o.fs + 6), o.y, o.fs);
     } else {
       // ОКОШКО «ЧТО ВНУТРИ» — КРУГЛАЯ ВРЕЗКА В УГЛУ ЛИСТА.
       //
@@ -67,11 +73,8 @@ function drawPreviewArea(p) {
       //   • ТЕНИ НЕТ. Она съедала поле, которое нужнее под сам рисунок, и нигде больше в этом
       //     окне не работает: тонкое кольцо циновки и так отделяет срез от риса;
       //   • включается и выключается кнопкой-глазом; когда сверка станет не нужна — снять целиком.
-      const fs = Math.round(Math.min(s.w, s.h) * 0.62);
-      const поле = 6, дШир = fs + 2 * поле, поля = 10;
-      const x = s.x + s.w - дШир / 2 - поля, y = s.y + дШир / 2 + поля;
-      drawMat(x - дШир / 2, y - дШир / 2, дШир, дШир, дШир / 2);
-      drawFaceImg(face(0.5, fs), x, y, fs, 1, 1, true);
+      drawMat(o.x - o.дШир / 2, o.y - o.дШир / 2, o.дШир, o.дШир, o.дШир / 2);
+      drawFaceImg(face(0.5, o.fs), o.x, o.y, o.fs, 1, 1, true);
     }
   } else if (pm === 'side') {
     const sd = L.side, cx = sd.x + sd.w / 2; let y = sd.y;
@@ -83,6 +86,25 @@ function drawPreviewArea(p) {
       const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 6); drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); label(cx, y + fs + 18, ['живой срез · ' + turnsTxt()]);
     }
   }
+}
+// Что окошко живого среза (или полоса целей пазла) кладёт ПОВЕРХ листа в режиме overlay. Одно
+// место, где считаются размеры: их читают и рисование выше, и надпись «свернётся спиралью», которую
+// окошко закрывало целиком (16.09: футомаки на телефоне — надпись в правом верхнем углу листа,
+// окошко там же). Режим overlay бывает только у неповёрнутого листа (layout.js), поэтому
+// координаты листа здесь совпадают с экранными.
+function overlayGeom() {
+  const s = L.sheet, pz = S.puzzle;
+  if (pz) {
+    const k = pz.vs.length, fs = Math.min(56, (s.w - 16 - 6 * (k - 1)) / k);
+    return { fs, x0: s.x + s.w / 2 - ((k - 1) * (fs + 6)) / 2, y: s.y + fs / 2 + 8, низ: s.y + 4 + fs + 8 };
+  }
+  const fs = Math.round(Math.min(s.w, s.h) * 0.62), поле = 6, дШир = fs + 2 * поле, поля = 10;
+  return { fs, дШир, x: s.x + s.w - дШир / 2 - поля, y: s.y + дШир / 2 + поля, низ: s.y + дШир + поля };
+}
+// Где встаёт надпись «свернётся спиралью»: у верхнего края листа — или под окошком, если оно там.
+function spiralNoteY() {
+  const s = L.sheet;
+  return L.previewMode === 'overlay' ? overlayGeom().низ + 6 : s.y + 14;
 }
 // РАДИУС РОЛЛА ПО ХОДУ ПРОТЯЖКИ — ПО ПЛОЩАДИ НАМОТАННОГО, А НЕ ПО МАКСИМУМУ ВИТКА.
 //
@@ -179,7 +201,7 @@ function drawLay() {
   if (p === 0 && !drag.patch) {
     const mm = getModel();
     if (mm.g.winding === 'spiral') {
-      unrot(s.x + s.w - 6, s.y + 14, () => {
+      unrot(s.x + s.w - 6, spiralNoteY(), () => {
         ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
         ctx.textAlign = 'right'; ctx.textBaseline = 'top';
         ctx.fillText('начинка по всему листу — свернётся спиралью', 0, 0);
@@ -352,9 +374,8 @@ function drawRollPreview(R) {
   if (v2ok) {
     ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy);
   } else {
-    const wd = windFor(getModel(), 0.5);
     ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy - 8);
-    ctx.fillText(`${wd.turns.toFixed(1).replace('.', ',')} витка`, g.cx + g.fs / 2 - 16, g.cy + 8);
+    ctx.fillText(liveTurnsText(getModel()), g.cx + g.fs / 2 - 16, g.cy + 8);
   }
 }
 // ── ПАСПОРТ РОЛЛА ПОД ДОСКОЙ (#193) ─────────────────────────────────────────
@@ -525,7 +546,7 @@ function drawRevealed() {
   {
     const mm = getModel(), wd = windFor(mm, c.v);
     const вит = +wd.turns;
-    const режим = mm.g.winding === 'spiral' ? 'спираль' : 'кольцо';
+    const режим = windingName(mm);
     const хвост = вит < 3 && mm.g.winding === 'spiral' ? ' — мало для узора' : '';
     ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины · ${режим}, ${вит.toFixed(1).replace('.', ',')} витка${хвост}`,
                  cx, L.faceY + L.faceSize / 2 + 14);
