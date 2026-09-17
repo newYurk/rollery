@@ -16,6 +16,13 @@ function drawParticles(dt) {
   for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; ctx.globalAlpha = 1 - p.t / p.life; ctx.fillStyle = rgbCss(p.c); ctx.fillRect(p.x, p.y, p.s, p.s); }
   ctx.globalAlpha = 1;
 }
+// ⚑ РЕЖИМ НАМОТКИ ПОДПИСАН ТАМ ЖЕ, ГДЕ ВИТКИ (решение владельца 16.09). Автомат переключает
+// кольцо в спираль скачком — так решено 02.09 (#141), и 16.09 владелец это подтвердила: «скачок
+// честный». Честный скачок должен быть виден словом: без подписи узор на границе просто
+// перескакивает, и не понять почему. Подпись — в строке живого среза, не на листе: подсказок на
+// экране раскладки нет намеренно (02.09). Одно название режима на все экраны.
+const windingName = m => (m.g.winding === 'spiral' ? 'спираль' : 'кольцо');
+const liveTurnsText = (m, v = 0.5) => `${windingName(m)}, ${windFor(m, v).turns.toFixed(1).replace('.', ',')} витка`;
 const hints = {
   // ⚑ ПОСТОЯННАЯ ПОДСКАЗКА НА ЛИСТЕ СНЯТА 02.09 по просьбе владельца («можно подсказку про
   // скручивание и раскладку убрать пока»). Пустая строка, а не удалённый ключ: подсказку
@@ -37,7 +44,7 @@ function drawPreviewArea(p) {
   const pm = L.previewMode; if (pm === 'none' || p > 0) return;
   const pz = S.puzzle, k = pz ? pz.vs.length : 1, tm = pz ? targetModel() : null;
   const label = (x, y, lines, align = 'center') => { ctx.fillStyle = '#b8ad95'; ctx.font = font(12); ctx.textAlign = align; ctx.textBaseline = 'middle'; lines.forEach((t, i) => ctx.fillText(t, x, y + i * 16)); };
-  const turnsTxt = () => `${windFor(getModel(), 0.5).turns.toFixed(1).replace('.', ',')} витка`;
+  const turnsTxt = () => liveTurnsText(getModel());
   if (pm === 'band') {
     const cx = L.ox + L.cw / 2, y = L.previewY;
     if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs); }
@@ -352,9 +359,8 @@ function drawRollPreview(R) {
   if (v2ok) {
     ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy);
   } else {
-    const wd = windFor(getModel(), 0.5);
     ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy - 8);
-    ctx.fillText(`${wd.turns.toFixed(1).replace('.', ',')} витка`, g.cx + g.fs / 2 - 16, g.cy + 8);
+    ctx.fillText(liveTurnsText(getModel()), g.cx + g.fs / 2 - 16, g.cy + 8);
   }
 }
 // ── ПАСПОРТ РОЛЛА ПОД ДОСКОЙ (#193) ─────────────────────────────────────────
@@ -525,7 +531,7 @@ function drawRevealed() {
   {
     const mm = getModel(), wd = windFor(mm, c.v);
     const вит = +wd.turns;
-    const режим = mm.g.winding === 'spiral' ? 'спираль' : 'кольцо';
+    const режим = windingName(mm);
     const хвост = вит < 3 && mm.g.winding === 'spiral' ? ' — мало для узора' : '';
     ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины · ${режим}, ${вит.toFixed(1).replace('.', ',')} витка${хвост}`,
                  cx, L.faceY + L.faceSize / 2 + 14);
