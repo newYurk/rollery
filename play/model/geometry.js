@@ -3403,7 +3403,7 @@ const RICE = {
 // пасты гладкий, зёрен на нём не видно.
 // ⚠ ОБА СЛАГАЕМЫХ ЗНАКОПЕРЕМЕННЫЕ И ВОКРУГ НУЛЯ — компенсация яркости (RICE.level у риса) здесь
 // не нужна, и сторож «яркость постели» меряет пасту тем же допуском ±3.
-const PASTE = { waveA: 3.2, waveF: 0.55, wave2F: 1.3, wave2A: 1.5, gritA: 2.4, gritF: 2.6, blueK: 0.78, greenK: 0.94 };
+const PASTE = { waveA: 8.0, waveF: 0.55, wave2F: 1.3, wave2A: 4.0, gritA: 5.0, gritF: 2.6, blueK: 0.78, greenK: 0.94 };
 function pasteNoise(x, y) {                                // гладкий двумерный шум на том же hash
   const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j;
   const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
