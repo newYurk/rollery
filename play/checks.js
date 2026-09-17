@@ -884,6 +884,44 @@ function runChecks(detail) {
       }
       ok(!плохие.length, `координаты материала не числа (краска в ядре рисуется чёрным): ${плохие.join(' · ')}`);
     }
+    // ── 5а-квинт. НЕХВАТКА ЛИСТА ВИДНА (#242, решение владельца 16.09: «честная дыра»).
+    //
+    // Хосомаки с бруском 30 мм: листа не хватает на 42 мм, модель оставляет снаружи рис на дуге
+    // 257°…360° — а обводка рисовала нори по всему кругу. Сверяется по модели, независимо от
+    // обводки: зонд materialAt у внешней границы говорит, что на поверхности, и обводка обязана
+    // идти ровно там, где это нори. И нехватка сказана словами, а без неё — не сказана.
+    if (typeof rimHasWrap === 'function' && typeof sheetShortText === 'function') {
+      const было = { base: S.base, wrap: S.wrap, hand: S.hand, hoso: S.lists.hoso, winding: S.winding, shape: S.shape };
+      const поверхность = (m, wd, phi) => {
+        const top = topAt(wd, phi);
+        for (let r = top * 0.9999; r > top * 0.9; r -= top * 0.0005) {
+          const q = materialAt(m, wd, 0.5, r, phi); if (q && q.cls !== 'out') return q.cls;
+        }
+        return null;
+      };
+      try {
+        for (const [имя, сторона, ждёмНехватку] of [['брусок 30 мм', 6, true], ['брусок 10 мм', 2, false]]) {
+          S.base = 'hoso'; S.wrap = null; S.hand = handOf(); S.winding = null; S.shape = 'round'; clean();
+          S.lists.hoso = [{ kind: 'salmon', u: 0.3, v: 0.5, z0: 0, z1: 0, phase: 0, wU: сторона, hU: сторона }];
+          modelCaches.clear(); touchModel();
+          const m = getModel(), wd = windFor(m, 0.5);
+          let лишней = 0, голых = 0;
+          for (let i = 0; i < 360; i++) {
+            const b = Math.floor((i + 0.5) / 360 * NB), phi = (b + 0.5) * DPHI;
+            const нори = поверхность(m, wd, phi) === 'wrap';
+            if (!нори) голых++;
+            if (rimHasWrap(wd, b, false) && !нори) лишней++;
+          }
+          ok(лишней === 0, `#242 хосомаки, ${имя}: обводка рисует нори на ${лишней} углах из 360, где по модели снаружи рис`);
+          ok(!!sheetShortText(m) === ждёмНехватку,
+             `#242 хосомаки, ${имя}: ${ждёмНехватку ? 'нехватка листа не сказана' : 'нехватка сказана, хотя лист сомкнулся'} (голых углов ${голых})`);
+          if (ждёмНехватку) ok(голых > 0, `#242 хосомаки, ${имя}: нехватка есть, а голой поверхности нет — проверка ничего не сверила`);
+        }
+      } finally {
+        S.base = было.base; S.wrap = было.wrap; S.hand = было.hand; S.lists.hoso = было.hoso; S.winding = было.winding;
+        S.shape = было.shape; modelCaches.clear(); touchModel();
+      }
+    }
     // ── 5б. МОДУЛИ INVERSE: каталог не разошёлся с игрой ──
     // Числа материалов продублированы в play/inverse/materials.js НАМЕРЕННО — модуль обязан
     // работать без страницы. Единственное, что защищает их от дрейфа, — эта сверка, и потому
