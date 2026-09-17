@@ -1038,7 +1038,1285 @@ function bandSourceColumns(v, g, list, coreRice) {
     area += c.height * (c.b - c.a); c.area1 = area;
   }
   return {columns, area, fillingArea, riceInput, riceRemaining, coreRice,
-    paints:list.filter(p => ING[p.kind].paint && !p.inCore)};
+    paints:list.filter(p => ING[p.kind].paint && !p.inCore), bodies};
+}
+
+// ─────────────────────────────────────────── ЖЁСТКИЙ ШТАМП (#134; task5 подход A 16.09, перенос 17.09)
+// ⚑ ТВЁРДЫЙ КУСОК В ЛЕНТЕ ДЕРЖИТ СЕЧЕНИЕ, А НЕ ЛОЖИТСЯ СЕКТОРОМ (решение владельца 16.09
+// «жёсткое держит форму»; 17.09 — толстый кусок в рисе кольца «как в реальности»).
+//
+// Перенос прототипа A на codex/rollery-next (17.09) — не накатом: к штампу добавлено то, чего
+// не хватало для приёмки task5 (ACCEPTANCE.md, пороги записаны до прототипов):
+//   · цель посадки и наклон — гладкие функции места (stampWindow), без минимума по размаху —
+//     критерий 7: шагов центроида > 2 мм было 20 (до 5,57 мм), стало см. журнал задачи;
+//   · трубка под первым витком уступает рис до жёсткого предела (stampCoreFloor): у кольца это
+//     куски ядра, рис коробки уходит к телу — критерий 10;
+//   · тело над телом нижнего витка — оба расходятся вдоль витков (shadow), лист над выступом и рис
+//     над нижним телом мягкие — критерий 9 (канон узумаки 22 % → круглый);
+//   · кольцо: кусок, поднятый ядром, съезжает по его грани (descend), набитая коробка отходит от
+//     куска (сдвиг ядра) — критерий 10;
+//   · тело не выходит на поверхность кольца (STAMP_COVER) — критерий 5.
+// Описание A ниже сохранено: место — перенесённый центроид, границы слоя, решатель площади.
+//
+// Что было. Перенос площади (bandSourceColumns → conservativeBand → conservativeBandMaterial)
+// отображал столбик листа в сектор слоя, и тело шло туда вместе с рисом: дуга W·H_c/t, толщина
+// H·t/H_c, боковые грани — лучи. Площадь сходилась, форма нет: лосось 10 × 10 мм в хосомаки-
+// спирали выходил 12,6 × 7,9, а на голой нори нулевые секторы резали тело надвое (task2-rigid).
+//
+// Что стало. Лента по-прежнему несёт РИС: столбики с телом заняты, бюджет площади прежний.
+// Само тело кладётся поверх неё ЖЁСТКИМ ШТАМПОМ — той же фигурой, что в столбиках листа
+// (cutSpan на высоте dims·T·kA, координаты (s, z) листа), только переставленной целиком:
+//   · место по ленте — перенесённый центроид тела (та же карта накопленной площади);
+//   · ось — касательная витка: у спирали наклонена на шаг спирали, у кольца — по окружности;
+//   · по радиусу — к своему листу: вершины грани листа на окружности кромки у места (минус
+//     постель — рис столбика под телом). Слою под штампом ставятся ДВЕ ГРАНИЦЫ: внутренняя
+// не выше самой глубокой точки тела, внешняя граница риса не ниже самой дальней. Внутренние
+// витки под телом отдают рис — тело в них проседает, — и этот рис уходит в слой тела вокруг
+// штампа; контур ролла не меняется. В отдающих и трубка под первым витком: у спирали это
+// сердечник (#154), у кольца — рис коробки ядра до её кусков; за убыль ядро платит ленте.
+// Отдать нечего (куски ядра, обёртки) — тело выдавливает лист наружу, и тогда рис отдают внешние
+// витки того же бина; не хватило и их — лента вспухает над телом. Лист над выступом идёт
+// касательной от крайней точки тела к кромке слоя (drape), зазор под ним — рис.
+// Площадь ленты после этого решается заново и равна, как была, рису плюс телам.
+//
+// Рис, который перенос положил бы под штамп, остаётся рисом вокруг штампа: точка штампа —
+// тело, всё прочее в ленте — рис или краска. Отсюда площадь риса = лента − штампы.
+//
+// Физика — erratum-022, п. 2 (Tokiwa 「具材がずれてしまいます」): твёрдый кусок хранит форму и
+// проскальзывает, нори несёт дугу, рис течёт и заполняет зазоры. Мягкие куски идут тем же
+// правилом: их мягкость уже выражена обжимом (#118, squashOf), как и в ядре.
+//
+// ⚠ СОСЕДИ РАЗВОДЯТСЯ, И ЭТО ДВА РАЗНЫХ СЛУЧАЯ.
+//   · Прижатые мягкие куски впритык перекрываются на листе: раскладка нейтральная, ширина
+//     сжатая (#118, overlap). На одном ярусе их раздвигает stampGroupsOf — как ядро кладёт их
+//     рядом.
+//   · Жёсткие штампы на изогнутом витке сталкиваются внутренними углами, хотя на листе лишь
+//     касались. Их раздвигает вдоль ленты цепочка (chain в stampBand: одно решение на все места,
+//     у спирали) или попарный сдвиг (separate, у кольца). Не хватило ленты — тела ложатся друг на
+//     друга по радиусу в том же витке (запасной ход stack).
+// Стопку (перекрытие по листу на разных ярусах) лента не хранит, как не хранит её и ядро
+// (укладка #152 кладёт куски рядом): каждое тело — свой штамп, наложенные разводит цепочка.
+// Башня из жёстких кусков выше и шире витка ни на какой радиус не садится.
+// ⚠ ЧИСЛА НИЖЕ — ЧИСЛА МЕТОДА, А НЕ ФИЗИКИ: запасы на хорды многоугольника и допуск посадки.
+const STAMP_ITER_MAX = 4;   // проходов «место → границы → слой» до посадки, не больше
+const STAMP_EPS = 1e-3;     // ед. (5 мкм): точность посадки по радиусу; запас STAMP_PAD её покрывает
+const STAMP_PAD = 0.004;    // ед. (0,02 мм): хорды профиля лежат внутри дуги на ~0,01 мм
+const STAMP_TOL = 0.002;    // ед. (0,01 мм): допуск проверки посадки
+const STAMP_N = 24;         // отрезков профиля у скруглённых форм (шаг по косинусу)
+const STAMP_COVER = 0.02;   // ед. (0,1 мм, толщина нори): рис над телом, где тело — внешний материал бина
+const STAMP_RMIN = 0.1;     // ед. (0,5 мм): тело не проходит через центр ролла — иначе размах
+                            // по углу вырождается в полуоборот и лучи вдоль грани уходят в бесконечность
+
+// Контур куска в координатах листа (s, z): низ слева направо, верх справа налево.
+function stampMemberPoly(m, L) {
+  const d = m.d, rg = m.rg;
+  const brick = cutProfile(d) === CUT_PROFILES['брусок'] && ARRIS === 0;
+  const xs = [];
+  if (brick) xs.push(m.a, m.b);
+  else {
+    for (let i = 0; i <= STAMP_N; i++) xs.push(m.a + (m.b - m.a) * (1 - Math.cos(Math.PI * i / STAMP_N)) / 2);
+    // излом сектора и середина — точными узлами
+    if (Math.abs(rg[5]) > 1e-12) for (const lu of [0, Math.cos(SECTOR_ANGLE) - .5]) {
+      const s = rg[2] * L + (lu * rg[3] - rg[7] * rg[6]) / rg[5];
+      if (s > m.a && s < m.b) xs.push(s);
+    }
+    xs.sort((x, y) => x - y);
+  }
+  const n = xs.length, P = new Float64Array(4 * n);
+  for (let k = 0; k < n; k++) {
+    const s = xs[k], lu = ((s - rg[2] * L) * rg[5] + rg[7] * rg[6]) / rg[3];
+    P[2 * k] = s; P[2 * k + 1] = m.z0 + m.h * cutLow(d, lu);
+    P[4 * n - 2 - 2 * k] = s; P[4 * n - 1 - 2 * k] = m.z0 + m.h * cutTop(d, lu);
+  }
+  return P;
+}
+function stampPolyAC(P) {
+  let A = 0, cx = 0, cy = 0;
+  for (let i = 0, n = P.length; i < n; i += 2) {
+    const j = (i + 2) % n, c = P[i] * P[j + 1] - P[j] * P[i + 1];
+    A += c; cx += (P[i] + P[j]) * c; cy += (P[i + 1] + P[j + 1]) * c;
+  }
+  A /= 2;
+  return A > 1e-15 ? { A, cx: cx / (6 * A), cy: cy / (6 * A) } : { A: 0, cx: P[0], cy: P[1] };
+}
+// Тела ленты → жёсткие группы. bodies — из bandSourceColumns (p, d, rg, h, z0T).
+function stampGroupsOf(bodies, g, columns) {
+  const L = g.L, ms = [];
+  for (const q of bodies) {
+    const a = Math.max(0, q.rg[0]), b = Math.min(L, q.rg[1]);
+    if (!(b > a) || !(q.h > 0)) continue;
+    const m = { p: q.p, d: q.d, rg: q.rg, h: q.h, z0: q.z0T, a, b, ds: 0 };
+    m.poly = stampMemberPoly(m, L);
+    const ac = stampPolyAC(m.poly); m.A = ac.A; m.cx = ac.cx; m.cy = ac.cy;
+    if (m.A > 1e-12) ms.push(m);
+  }
+  if (!ms.length) return null;
+  ms.sort((x, y) => (x.a + x.b) - (y.a + y.b));
+  // (1) Один ярус, перекрытие по листу — раздвинуть вплотную (#118: сжатая ширина шире раскладки).
+  // Сдвинутая связка сохраняет свой центр масс: раздаются обе стороны, а не одна.
+  const parent = ms.map((_, i) => i);
+  const find = i => { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+  let moved = false;
+  for (let j = 1; j < ms.length; j++) for (let i = 0; i < j; i++) {
+    const A = ms[i], Bm = ms[j];
+    if (Math.min(A.z0 + A.h, Bm.z0 + Bm.h) - Math.max(A.z0, Bm.z0) <= 1e-9) continue;   // разные ярусы
+    const over = (A.b + A.ds) - (Bm.a + Bm.ds);
+    if (over > 1e-7 && (Bm.b + Bm.ds) > (A.a + A.ds)) { Bm.ds += over; parent[find(j)] = find(i); moved = true; }
+  }
+  if (moved) {
+    const sa = new Map(), sd = new Map();
+    ms.forEach((m, i) => { const r = find(i); sa.set(r, (sa.get(r) || 0) + m.A); sd.set(r, (sd.get(r) || 0) + m.A * m.ds); });
+    ms.forEach((m, i) => { const r = find(i); m.ds -= sd.get(r) / sa.get(r); });
+  }
+  // (2) Каждое тело — своя группа (стопку ядро тоже не хранит).
+  const groups = ms.slice().sort((x, y) => (x.a + x.ds) - (y.a + y.ds)).map(m => ({ members: [m] }));
+  for (const G of groups) {
+    let A = 0, sx = 0, sz = 0;
+    for (const m of G.members) { A += m.A; sx += m.A * (m.cx + m.ds); sz += m.A * m.cy; }
+    G.A = A; G.s = sx / A; G.z = sz / A;
+    let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+    G.polys = G.members.map(m => {
+      const P = new Float64Array(m.poly.length);
+      for (let i = 0; i < P.length; i += 2) {
+        const x = m.poly[i] + m.ds - G.s, y = m.poly[i + 1] - G.z;
+        P[i] = x; P[i + 1] = y;
+        if (x < xmin) xmin = x; if (x > xmax) xmax = x; if (y < ymin) ymin = y; if (y > ymax) ymax = y;
+      }
+      return P;
+    });
+    G.xmin = xmin; G.xmax = xmax; G.ymin = ymin; G.ymax = ymax;
+    // Место в ленте — накопленная площадь столбиков до центроида; постель — рис под нижним
+    // телом в том же столбике (перенос кладёт его между листом и телом).
+    let lo = 0, hi = columns.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (columns[mid].b < G.s) lo = mid + 1; else hi = mid; }
+    const c = columns[lo];
+    G.T = c ? c.area0 + clamp(G.s - c.a, 0, c.b - c.a) * c.height : 0;
+    G.go = c && c.spans.length ? Math.max(0, Math.min(c.spans[0].start, c.spans[0].lo)) : 0;
+  }
+  return groups;
+}
+// Рабочие буферы штампа — общие на модуль: срезов за сборку полтора десятка, и массивы на
+// все секторы в каждом вызове давали шестую часть времени сборщику мусора. Вызов не
+// вложенный; границы после себя сбрасываются только в тронутых бинах.
+const STAMP_BUF = {
+  walk: new Int32Array(KMAX * NB), cum: new Float64Array(KMAX * NB + 1), baseOut: new Float64Array(KMAX * NB), baseTh: new Float64Array(KMAX * NB), pw: new Float64Array(KMAX * NB + 1), pwt: new Float64Array(KMAX * NB + 1),
+  reqLo: new Float64Array(KMAX * NB).fill(Infinity), reqHi: new Float64Array(KMAX * NB).fill(-Infinity),
+  bR: new Float64Array(KMAX * NB), bMin: new Float64Array(KMAX * NB), bAv: new Float64Array(KMAX * NB), bTag: new Float64Array(NB), bTagV: new Float64Array(NB), bVer: new Float64Array(NB), tag: 0,
+  mark: new Uint8Array(NB), floor: new Float64Array(NB), topNat: new Float64Array(NB), occ: new Float64Array(KMAX * NB).fill(-Infinity), T0: new Float64Array(KMAX), TP: new Float64Array(KMAX), RIN: new Float64Array(KMAX), ROUT: new Float64Array(KMAX),
+};
+// ⚑ ЯДРО КОЛЬЦА УСТУПАЕТ ТВЁРДОМУ КУСКУ СВОЙ РИС (решение владельца 17.09, #134).
+//
+// «Как в реальности»: циновку затягивают до круга, нори не тянется, рис уплотняется, твёрдый
+// кусок формы не меняет. Кусок в рисе кольца, который толще слоя, вдавливается глубже — рис
+// расступается, ролл остаётся круглым. Глубже слоя риса у кольца — коробка ядра, и в ней тоже
+// рис вокруг кусков ядра (coreRiceAreaAt). Этот рис и уступает: внутренняя граница кольца в
+// бинах тела опускается ниже контура коробки, но не глубже самих кусков ядра — они тоже твёрдые.
+// Предел по бину — самый дальний от центра радиус кусков ядра в клине бина (контур куска тем же
+// coreBodyColumn, что рисует ядро). Отданный ядром рис уходит в ленту: площадь считает stampBand
+// (tubeGive), бюджет ядра уменьшается на столько же — рис не создаётся и не пропадает.
+// Ядро с нехваткой риса (coreRiceLimit: пустоты вместо риса) не уступает — там отдавать нечего.
+// Замер до правки (A на a3cb1f8, матрица task7, кольцо с телом вне ядра на hoso/ura/chu/futo):
+// некруглость по 1440 лучам больше max(6 %, та же раскладка без тела + 1 п. п.) в 137 срезах из
+// 186, худшая 74 % (хосомаки, огурец, прижим 1,3).
+function stampCoreFloor(core, g, v, starts, out, noGive, dx = 0, dy = 0) {
+  if (noGive) { out.set(starts); return; }
+  out.fill(0);
+  const ox = core.Wc / 2 - dx, oy = core.Hc / 2 - dy, N = STAMP_N;
+  const X = new Float64Array(2 * N + 2), Y = new Float64Array(2 * N + 2);
+  const put = (b, r) => { b = ((b % NB) + NB) % NB; if (r > out[b]) out[b] = r; };
+  for (const it of core.items) {
+    if (it.paint || !(it.y1 > it.y0)) continue;
+    const rg = it.rg || patchSRange(it.p, v, g); if (!rg) continue;
+    // контур: низ столбика слева направо, верх справа налево (узлы по косинусу — концы точно)
+    let n = 0;
+    const x0 = it.cx - it.hw, x1 = it.cx + it.hw;
+    for (let k = 0; k <= N; k++) {
+      const x = x0 + (x1 - x0) * (1 - Math.cos(Math.PI * k / N)) / 2, c = coreBodyColumn(it, rg, x);
+      if (!c) continue;
+      X[n] = x - ox; Y[n] = c.lo - oy; X[2 * N + 1 - n] = x - ox; Y[2 * N + 1 - n] = c.hi - oy; n++;
+    }
+    let P;
+    if (n < 2) P = [[x0 - ox, it.y0 - oy], [x1 - ox, it.y0 - oy], [x1 - ox, it.y1 - oy], [x0 - ox, it.y1 - oy]];
+    else { P = []; for (let k = 0; k < n; k++) P.push([X[k], Y[k]]); for (let k = n - 1; k >= 0; k--) P.push([X[2 * N + 1 - k], Y[2 * N + 1 - k]]); }
+    // дальний радиус в клине бина: на отрезке радиус выпукл, максимум — на концах куска отрезка
+    for (let e = 0; e < P.length; e++) {
+      const [ax, ay] = P[e], [bx, by] = P[(e + 1) % P.length];
+      let a0 = Math.atan2(ay, ax), a1 = Math.atan2(by, bx);
+      if (a1 - a0 > Math.PI) a1 -= TAU; else if (a0 - a1 > Math.PI) a1 += TAU;
+      put(Math.floor(a0 / DPHI), Math.hypot(ax, ay));
+      const dx = bx - ax, dy = by - ay, dn = dx * ay - dy * ax;
+      for (let m = Math.ceil(Math.min(a0, a1) / DPHI), m1 = Math.floor(Math.max(a0, a1) / DPHI); m <= m1; m++) {
+        const ex = Math.cos(m * DPHI), ey = Math.sin(m * DPHI), den = dx * ey - dy * ex;
+        if (Math.abs(den) < 1e-15) continue;
+        const r = dn / den;
+        if (r > 0) { put(m, r); put(m - 1, r); }
+      }
+    }
+  }
+  for (let b = 0; b < NB; b++) out[b] = Math.min(starts[b], out[b] > 0 ? out[b] + STAMP_PAD : 0);
+}
+// Обход ленты: номера секторов подряд, в том порядке, в каком их копит карта площади.
+function stampWalk(wd) {
+  const size = wd.kmax * NB, ids = STAMP_BUF.walk;
+  let n = 0;
+  for (let i = 0; i < size; i++) {
+    if (wd.rin[i] < 0 || wd.rout[i] <= 0) continue;
+    if (wd.ringBand && wd.ringBand[i % NB] !== Math.floor(i / NB)) continue;
+    ids[n++] = i;
+  }
+  return ids.subarray(0, n);
+}
+function stampPos(S, n, j) {
+  const p = n + j;
+  if (S.cyclic) return ((p % S.N) + S.N) % S.N;
+  return p >= 0 && p < S.N ? p : -1;
+}
+const stampRiceOuter = (wd, g, i) => wd.rout[i] - (wd.ringBand ? 0 : Math.min(g.w, wd.rout[i] - wd.rin[i]));
+// ⚑ КАДР И ЦЕЛЬ ПОСАДКИ — ГЛАДКИЕ ФУНКЦИИ МЕСТА, А НЕ МИНИМУМ ПО РАЗМАХУ (17.09, #134, критерий 7 task5).
+//
+// Прежде (прототип A) наклон брался регрессией по целым бинам от центра, а радиус — условием «верх
+// тела не выше кромки ни в одном бине размаха». У кромки есть ступеньки: собственный размазанный
+// горб тела в исходной ленте, провал #153 над голой полосой, шов. Самый низкий бин размаха держал
+// тело за дальний угол, а размах сам зависит от глубины посадки — у тела было два устойчивых
+// положения, и оно перещёлкивалось. Замер (треки судьи, 6789 шагов по 0,5 мм, спираль): 20 шагов
+// центроида больше 2 мм, худший 5,57 мм (футомаки, огурец, прижим 1,3, u 77,4: rc 11,0 → 16,2 мм
+// за 0,125 мм сдвига — склон горба 16 → 21 мм на 25–35° под левым углом).
+// Теперь и наклон, и кромка — взвешенные по окну вокруг Θ: вес треугольный (ноль на краях окна,
+// поэтому бин входит в окно без скачка), у голых секторов вес мал (STAMP_BARE_W — тело лежит на
+// рисе, но на голой полосе целиком всё равно получает её кромку). Полуширина окна — половина
+// ширины тела на радиусе исходной кромки в Θ, от глубины посадки не зависит: обратной связи нет.
+// Выступающий над кромкой край тела поднимает лист (reqHi) — это и есть «лист ложится на кусок».
+const STAMP_BARE_W = 0.05;
+// Взвешенная кромка вокруг Θ: val(p) по позициям обхода; mean — среднее, slope — dr/dпозиция.
+// stride — шаг выборки по ГЛОБАЛЬНОЙ сетке позиций (кратные stride): вес точки по-прежнему
+// треугольный от Θ, поэтому среднее меняется непрерывно; окно тела в сотни позиций — 30 выборок.
+function stampWindow(S, Theta, H, val, out, stride = 1) {
+  const N = S.N, p0 = Math.ceil(Math.floor(Theta - H - 0.5) / stride) * stride, p1 = Math.ceil(Theta + H - 0.5);
+  let sw = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (let q = p0; q <= p1; q += stride) {
+    let p = q;
+    if (S.cyclic) p = ((p % N) + N) % N; else if (p < 0 || p >= N) continue;
+    const x = q + 0.5 - Theta, w0 = 1 - Math.abs(x) / H;
+    if (!(w0 > 0)) continue;
+    const y = val(p); if (!(y > -Infinity)) continue;
+    const w = w0 * (S.rice && !S.rice[p] ? STAMP_BARE_W : 1);
+    sw += w; sx += w * x; sy += w * y; sxx += w * x * x; sxy += w * x * y;
+  }
+  if (!(sw > 0)) { out.mean = -Infinity; out.slope = 0; return out; }
+  const mx = sx / sw, vx = sxx / sw - mx * mx;
+  out.mean = sy / sw;
+  out.slope = vx > 1e-12 ? (sxy / sw - mx * out.mean) / vx : 0;
+  return out;
+}
+// Исходная кромка в Θ — линейно между центрами бинов.
+function stampBaseAt(S, Theta) {
+  const N = S.N, t = Theta - 0.5;
+  let a = Math.floor(t), f = t - a, b = a + 1;
+  if (S.cyclic) { a = ((a % N) + N) % N; b = ((b % N) + N) % N; }
+  else { if (a < 0) { a = 0; f = 0; } if (b > N - 1) { b = N - 1; } if (a > N - 1) a = N - 1; }
+  return S.baseOut[a] + (S.baseOut[b] - S.baseOut[a]) * f;
+}
+const STAMP_WIN = { mean: 0, slope: 0 };
+// Кадр штампа на месте Θ (дробная позиция обхода): угол центра и наклон оси. Наклон — по
+// внешней кромке слоя ИСХОДНОЙ ленты (до пола), взвешенной регрессией по ширине куска: у спирали
+// это архимедов подъём листа, у кольца — кромка риса под нори.
+function stampFrame(S, G, Theta) {
+  const N = S.N;
+  let n, f;
+  if (S.cyclic) { const t = ((Theta % N) + N) % N; n = Math.min(N - 1, Math.floor(t)); f = t - n; }
+  else { const t = clamp(Theta, 0, N - 1e-9); n = Math.floor(t); f = t - n; }
+  const i = S.walk[n], ang = windSectorAngle(S.wd, i);
+  G.Theta = Theta; G.n = n; G.u = f * ang / DPHI; G.phi = (i % NB) * DPHI + f * ang;
+  const r0 = Math.max(1e-6, stampBaseAt(S, Theta));
+  G.H = clamp(0.5 * (G.xmax - G.xmin) / (r0 * DPHI), 2, NB >> 3);
+  // Наклон оси — шаг спирали: за оборот лист уходит наружу на толщину витка, dr/dφ = t/2π.
+  // Толщина — средняя по полуобороту вокруг Θ: регрессия по кромке ловила размазанный горб
+  // самого тела и клала лосося у начала листа с наклоном 34° (сторож 3в). У кольца наклона нет.
+  // Среднее — по окну ±N_B/4 позиций с дробными краями, через накопленные суммы (setup).
+  let psi = 0;
+  if (!S.cyclic) {
+    const H2 = NB >> 2, F = (P, x) => {
+      const t = clamp(x, 0, N), k = Math.min(N - 1, Math.floor(t));
+      return P[k] + (t - k) * (P[k + 1] - P[k]);
+    };
+    const a = Theta - H2, b = Theta + H2, sw = F(S.pw, b) - F(S.pw, a);
+    const mean = sw > 1e-12 ? (F(S.pwt, b) - F(S.pwt, a)) / sw : 0;
+    psi = mean > 0 ? Math.atan(mean / TAU / r0) : 0;
+  }
+  G.sp = Math.sin(psi); G.cp = Math.cos(psi);
+}
+// cos/sin границ бинов относительно центра штампа: (m − u)·DPHI, m ∈ [−NB, NB].
+const STAMP_COS = new Float64Array(2 * NB + 1), STAMP_SIN = new Float64Array(2 * NB + 1);
+for (let m = -NB; m <= NB; m++) { STAMP_COS[m + NB] = Math.cos(m * DPHI); STAMP_SIN[m + NB] = Math.sin(m * DPHI); }
+// Радиальный размах штампа по бинам при центре на радиусе rc. Система повёрнута на −φ центра:
+// центр (rc, 0), ось (sin ψ, cos ψ), нормаль внутрь (−cos ψ, sin ψ). Бин j покрывает углы
+// [(j − u)·DPHI, (j + 1 − u)·DPHI). Для выпуклых фигур точно: вершины, пересечения рёбер с
+// границами бинов и основания перпендикуляров из центра ролла.
+function stampExtents(G, rc, E, stride = 1) {
+  const sp = G.sp, cp = G.cp, u = G.u, cu = Math.cos(u * DPHI), su = Math.sin(u * DPHI);
+  let jlo = Infinity, jhi = -Infinity;
+  for (const P of G.polys) for (let i = 0; i < P.length; i += 2) {
+    const X = rc + P[i] * sp - P[i + 1] * cp, Y = P[i] * cp + P[i + 1] * sp;
+    const j = Math.floor(u + Math.atan2(Y, X) / DPHI);
+    if (j < jlo) jlo = j; if (j > jhi) jhi = j;
+  }
+  const w = jhi - jlo + 1;
+  if (!(w <= E.rmin.length)) { const cap = Math.max(w, 2 * E.rmin.length); E.rmin = new Float64Array(cap); E.rmax = new Float64Array(cap); }
+  const rmin = E.rmin, rmax = E.rmax;
+  rmin.fill(Infinity, 0, w); rmax.fill(-Infinity, 0, w);
+  for (const P of G.polys) {
+    const nP = P.length;
+    for (let i = 0; i < nP; i += 2) {
+      const k = (i + 2) % nP;
+      const x0 = rc + P[i] * sp - P[i + 1] * cp, y0 = P[i] * cp + P[i + 1] * sp;
+      const x1 = rc + P[k] * sp - P[k + 1] * cp, y1 = P[k] * cp + P[k + 1] * sp;
+      const a0 = Math.atan2(y0, x0), a1 = Math.atan2(y1, x1), r0 = Math.hypot(x0, y0);
+      let q = Math.floor(u + a0 / DPHI) - jlo;
+      if (r0 < rmin[q]) rmin[q] = r0; if (r0 > rmax[q]) rmax[q] = r0;
+      const dx = x1 - x0, dy = y1 - y0, dn = dx * y0 - dy * x0;   // луч e пересекает прямую ребра на r = dn / (D × e)
+      let m0 = Math.ceil(u + Math.min(a0, a1) / DPHI);
+      const m1 = Math.floor(u + Math.max(a0, a1) / DPHI);
+      if (stride > 1) m0 = Math.ceil(m0 / stride) * stride;
+      for (let mm = m0; mm <= m1; mm += stride) {
+        const ct = STAMP_COS[mm + NB], st = STAMP_SIN[mm + NB];
+        const ex = ct * cu + st * su, ey = st * cu - ct * su, den = dx * ey - dy * ex;
+        if (Math.abs(den) < 1e-15) continue;
+        const r = dn / den;
+        if (!(r > 0)) continue;
+        q = mm - jlo;
+        if (q < w) { if (r < rmin[q]) rmin[q] = r; if (r > rmax[q]) rmax[q] = r; }
+        q--;
+        if (q >= 0) { if (r < rmin[q]) rmin[q] = r; if (r > rmax[q]) rmax[q] = r; }
+      }
+      const dd = dx * dx + dy * dy;
+      if (dd > 1e-18) {
+        const t = -(x0 * dx + y0 * dy) / dd;
+        if (t > 0 && t < 1) {
+          const fx = x0 + t * dx, fy = y0 + t * dy, r = Math.hypot(fx, fy);
+          q = Math.floor(u + Math.atan2(fy, fx) / DPHI) - jlo;
+          if (q >= 0 && q < w && r < rmin[q]) rmin[q] = r;
+        }
+      }
+    }
+  }
+  E.jlo = jlo; E.w = w; E.rc = rc; E.stride = stride;
+}
+// Сталкиваются ли два штампа, если второй сдвинуть на shift позиций обхода.
+function stampCollide(S, G1, E1, G2, E2, shift) {
+  const N = S.N;
+  let q0 = 0, qN = E1.w;
+  if (!S.cyclic) {
+    // позиции первого: G1.n + jlo1 + q1; второго: G2.n + shift + jlo2 + q2
+    const a1 = G1.n + E1.jlo, a2 = G2.n + shift + E2.jlo;
+    q0 = Math.max(0, a2 - a1); qN = Math.min(E1.w, a2 + E2.w - a1);
+    if (qN <= q0) return false;
+  }
+  for (let q1 = q0; q1 < qN; q1++) {
+    if (!(E1.rmax[q1] > -Infinity)) continue;
+    const p = stampPos(S, G1.n, q1 + E1.jlo); if (p < 0) continue;
+    let d = p - (G2.n + shift);
+    if (S.cyclic) { d = ((d % N) + N) % N; if (d > N / 2) d -= N; }
+    const q2 = d - E2.jlo; if (q2 < 0 || q2 >= E2.w) continue;
+    if (!(E2.rmax[q2] > -Infinity)) continue;
+    if (Math.min(E1.rmax[q1], E2.rmax[q2]) + STAMP_PAD > Math.max(E1.rmin[q1], E2.rmin[q2])) return true;
+  }
+  return false;
+}
+// Накопленная площадь столбиков листа до точки s.
+function stampColumnArea(columns, s) {
+  let lo = 0, hi = columns.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (columns[mid].b < s) lo = mid + 1; else hi = mid; }
+  const c = columns[lo];
+  return c ? c.area0 + clamp(s - c.a, 0, c.b - c.a) * c.height : 0;
+}
+// Место тела на обходе — ПЕРЕНЕСЁННЫЙ ЦЕНТРОИД ЕГО СТОЛБИКОВ: среднее место по обходу, взвешенное
+// высотой тела вдоль листа (STAMP_TK отрезков на кусок). Образ одной точки (площадь до центроида)
+// не годится: на голой полосе у ленты плато — секторы без площади, площадь тела делится им надвое,
+// и площадь до центроида ложится ровно на уровень плато. Место перескакивало через всё плато
+// (до 90 бинов, 11 мм) при сдвиге куска на 0,1 мм; среднее идёт через плато плавно.
+const STAMP_TK = 32;
+function stampTransport(G, columns, cum, N, toBand, L) {
+  let sw = 0, sp = 0;
+  for (const m of G.members) {
+    const rg = m.rg;
+    for (let k = 0; k < STAMP_TK; k++) {
+      const s = m.a + (m.b - m.a) * (k + 0.5) / STAMP_TK;
+      const lu = ((s - rg[2] * L) * rg[5] + rg[7] * rg[6]) / rg[3];
+      const w = m.h * (cutTop(m.d, lu) - cutLow(m.d, lu));
+      if (!(w > 0)) continue;
+      sw += w; sp += w * stampForward(cum, N, stampColumnArea(columns, s + m.ds) * toBand);
+    }
+  }
+  return sw > 0 ? sp / sw : stampForward(cum, N, G.T * toBand);
+}
+// Прямая карта: накопленная площадь ленты → дробная позиция обхода.
+function stampForward(cum, N, alpha) {
+  if (!(cum[N] > 0)) return 0;
+  const a = clamp(alpha, 0, cum[N]);
+  let lo = 0, hi = N - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (cum[mid + 1] <= a) lo = mid + 1; else hi = mid; }
+  const da = cum[lo + 1] - cum[lo];
+  return lo + (da > 0 ? clamp((a - cum[lo]) / da, 0, 1) : 0);
+}
+// Точка (r, φ) в штампе? Возвращает материал куска или null. Та же проверка, что в столбиках
+// листа (bandSourceColumns): отрезок листа, профиль cutSpan на высоте тела.
+function stampHit(G, r, phi, g) {
+  const L = g.L;
+  const dx = r * Math.cos(phi) - G.cx, dy = r * Math.sin(phi) - G.cy;
+  const s = G.s + dx * G.tc + dy * G.ts, z = G.z - dx * G.ts + dy * G.tc;
+  for (const m of G.members) {
+    const s1 = s - m.ds; if (s1 < m.a || s1 > m.b) continue;
+    const rg = m.rg, du = s1 - rg[2] * L;
+    const lu = (du * rg[5] + rg[7] * rg[6]) / rg[3];
+    if (z < m.z0 + m.h * cutLow(m.d, lu) || z > m.z0 + m.h * cutTop(m.d, lu)) continue;
+    const lz = (z - m.z0) / m.h, lv = (-du * rg[6] + rg[7] * rg[5]) / rg[4];
+    if (m.p.noriWrap) {
+      const hN = WRAP_HU(), w0 = m.p.wU ?? m.d.wU, h0 = m.p.hU ?? m.d.hU;
+      const luIn = lu * (w0 + 2 * hN) / w0, lzIn = (lz - hN / (h0 + 2 * hN)) * (h0 + 2 * hN) / h0, sp = cutSpan(m.d, luIn);
+      if (Math.abs(luIn) > .5 || lzIn < sp[0] || lzIn > sp[1]) return { p: m.p, d: ING.nori, lu, lz, lv, оболочка: true };
+      return { p: m.p, d: m.d, lu: luIn, lz: lzIn, lv };
+    }
+    return { p: m.p, d: m.d, lu, lz, lv };
+  }
+  return null;
+}
+// Штампы на ленте: места, границы слоя, площадь. Зовётся из conservativeBand сразу после
+// обычного решения масштаба (apply(scale0) уже записал исходную ленту в wd). Возвращает группы
+// с посадкой и списком секторов, или null, если тел в ленте нет.
+function stampBand(wd, g, v, source, thick, wraps, starts, scale0, radiusOnly, A, B) {
+  const groups = stampGroupsOf(source.bodies, g, source.columns);
+  if (!groups || !groups.length) return null;
+  const walk = stampWalk(wd), N = walk.length;
+  if (!N) return null;
+  const BUF = STAMP_BUF;
+  // Трубка под первым витком отдаёт рис до своего жёсткого предела floorAt[b]: у спирали это
+  // центр (сердечник — рис, #154), у кольца — габарит кусков ядра в клине бина (stampCoreFloor).
+  const floorAt = BUF.floor;
+  let coreDX = 0, coreDY = 0;
+  // сдвиг ядра — только кольцу с коробкой без нехватки риса (см. ниже, после run)
+  const canShift = !!wd.ringBand && !!g.boundCore && g.coreRiceLimit === undefined;
+  let starts0 = null, thick0 = null, wrapSum = null;
+  if (canShift) {
+    starts0 = Float64Array.from(starts); thick0 = Float64Array.from(thick); wrapSum = new Float64Array(NB);
+    for (let b = 0; b < NB; b++) {
+      let w = 0; for (let k = 0; k < wd.kmax; k++) { const i = k * NB + b; if (wd.rin[i] < 0) break; w += wraps[i]; }
+      wrapSum[b] = w; BUF.topNat[b] = wd.top[b];
+    }
+  }
+  const setFloor = () => {
+    if (g.boundCore) stampCoreFloor(g.boundCore, g, v, starts, floorAt, g.coreRiceLimit !== undefined, coreDX, coreDY);
+    else floorAt.fill(0);
+  };
+  setFloor();
+  if (BUF.dirty) { BUF.reqLo.fill(Infinity); BUF.reqHi.fill(-Infinity); BUF.mark.fill(0); BUF.occ.fill(-Infinity); }   // прошлый вызов оборвался
+  BUF.dirty = true;
+  const S = { wd, g, walk, N, cyclic: !!wd.ringBand, baseOut: BUF.baseOut, baseTh: BUF.baseTh, pw: BUF.pw, pwt: BUF.pwt, capR: 2 * wd.Rout };
+  // Исходная лента: накопленная площадь (тем же порядком и порогом, что карта секторов) и
+  // внешняя кромка риса — по ней наклон оси.
+  const cum = BUF.cum; cum[0] = 0;
+  if (!BUF.rice || BUF.rice.length < KMAX * NB) BUF.rice = new Uint8Array(KMAX * NB);
+  S.rice = BUF.rice;
+  let nRice0 = 0, nRice1 = N - 2;
+  const setup = () => {
+  S.pw[0] = 0; S.pwt[0] = 0;
+  for (let n = 0; n < N; n++) {
+    const i = walk[n], a = bandSectorA(wd, i, g), ar = a > 0 ? windSectorAngle(wd, i) * a : 0;
+    cum[n + 1] = cum[n] + (ar > 1e-12 ? ar : 0);
+    S.baseOut[n] = stampRiceOuter(wd, g, i);
+    S.baseTh[n] = wd.rout[i] - wd.rin[i];
+    S.rice[n] = thick[i] > 1e-4 ? 1 : 0;
+    // накопленные вес (голый сектор — STAMP_BARE_W) и вес × толщина витка: наклон оси в stampFrame
+    const wr = S.rice[n] ? 1 : STAMP_BARE_W;
+    S.pw[n + 1] = S.pw[n] + wr; S.pwt[n + 1] = S.pwt[n] + wr * S.baseTh[n];
+  }
+  const toBand = cum[N] / Math.max(1e-12, source.area);
+  // Спираль: где на обходе кончается голая полоса у начала листа и начинается у конца —
+  // по самой ленте: голый сектор тот, где риса в естественной ленте нет (карта u0 у спирали
+  // пересчитывается уже после этого вызова). Размах тела, лежащего на рисе, и лист над выступом
+  // в голые секторы не заходят — там лист голый (#130); тело на голой полосе в них и живёт.
+  nRice0 = 0; nRice1 = N - 2;
+  const s0K = (g.spreadStart === undefined ? SPREAD_START : g.spreadStart), seK = g.spreadEnd;
+  if (!S.cyclic) {
+    // порог — не ноль: у голой нори радиусы Float32, и «рис» там 1e-8
+    while (nRice0 < N - 1 && !(thick[walk[nRice0]] > 1e-4)) nRice0++;
+    while (nRice1 > 0 && !(thick[walk[nRice1]] > 1e-4)) nRice1--;
+    nRice1 = Math.min(nRice1, N - 2);
+    if (nRice1 < nRice0) { nRice0 = 0; nRice1 = N - 2; }
+  }
+  if (!BUF.pool) BUF.pool = [];
+  groups.forEach((G, k) => {
+    G.Theta0 = stampTransport(G, source.columns, cum, N, toBand, g.L);
+    // Тело, заходящее на голую полосу, получает столько голых секторов, сколько листа оно на ней
+    // занимает (доля полосы → доля её секторов): разрешение растёт непрерывно, без скачка места.
+    let sa = Infinity, sb = -Infinity;
+    for (const m of G.members) { sa = Math.min(sa, m.a + m.ds); sb = Math.max(sb, m.b + m.ds); }
+    const bare0 = s0K * g.L, bare1 = (1 - seK) * g.L;
+    const in0 = bare0 > 1e-9 ? clamp((bare0 - sa) / bare0, 0, 1) : 0;
+    const in1 = bare1 > 1e-9 ? clamp((sb - seK * g.L) / bare1, 0, 1) : 0;
+    G.lim0 = nRice0 - in0 * nRice0;
+    G.lim1 = nRice1 + in1 * (N - 2 - nRice1);
+    // размах выпуклого тела вне центра ролла — меньше полуоборота; буфер с запасом на весь оборот
+    if (!BUF.pool[k]) BUF.pool[k] = { rmin: new Float64Array(2 * NB + 8), rmax: new Float64Array(2 * NB + 8) };
+    const P = BUF.pool[k];
+    G.E = radiusOnly ? P : { rmin: P.rmin, rmax: P.rmax };    // полному срезу размах нужен и после вызова
+    G.E.jlo = 0; G.E.w = 0; G.E.rc = NaN; G.E.u = NaN; G.E.n = -1;
+  });
+  groups.sort((a, b) => a.Theta0 - b.Theta0);            // внутренние витки раньше внешних
+  };
+  setup();
+  // ── границы слоя: reqLo — внутренняя граница не выше, reqHi — внешняя граница риса не ниже
+  const reqLo = BUF.reqLo, reqHi = BUF.reqHi, mark = BUF.mark, occ = BUF.occ;
+  let stack = false;          // запасной ход: тела садятся друг на друга в том же витке
+  let bins = [];
+  const T0 = BUF.T0, TP = BUF.TP, RIN = BUF.RIN, ROUT = BUF.ROUT;
+  // ⚑ ЛИСТ НАД ВЫСТУПОМ — МЯГКОЕ ТРЕБОВАНИЕ (17.09). Касательная листа от угла тела (addReqs) ставит
+  // слою только reqHi; жёсткий слой — тот, где лежит тело (reqLo). Прежде опорой для тела витком
+  // выше считался любой слой с границами: под касательной опора стояла на кромке, в соседнем бине
+  // без касательной — на трубке, и между ними была стена в толщину витка. Тело, переезжающее над
+  // нижним телом, перескакивало через неё (пара «лосось + тамаго» на тюмаки: подъём +4,6 мм за
+  // 0,5 мм сдвига). Теперь лист над выступом уступает рис телу сверху, как любой рис.
+  // Бин b при масштабе s: слои изнутри наружу. Слой с границами: если лежит выше reqLo —
+  // рис отдают витки между ним и прошлым слоем с границами (тело в них проседает), отданное
+  // уходит в этот слой; дальше слой растёт до reqHi. Контур вырос — рис отдают витки над
+  // последним слоем с границами; не хватило — бин вспухает. Нори переносится как есть (#130).
+  let tube = starts[0];
+  const binSolve = (b, s) => {
+    let n = 0;
+    for (let k = 0; k < wd.kmax; k++) { const i = k * NB + b; if (wd.rin[i] < 0) break; T0[k] = TP[k] = thick[i] * s; n = k + 1; }
+    tube = starts[b];
+    const fl = floorAt[b];
+    // minF — сколько риса слою с телом нужно, чтобы накрыть своё тело (reqHi); остальное его рис
+    // над телом мягкий и уходит так же, как рис витков между телами
+    let r = tube, lastF = -1, lastR = -1, minF = 0;
+    for (let k = 0; k < n; k++) {
+      const i = k * NB + b, lo = reqLo[i], hi = reqHi[i];
+      if (lo === Infinity && hi === -Infinity) { r += TP[k] + wraps[i]; continue; }
+      lastR = k;
+      let take = 0;
+      if (r > lo) {
+        const tb = lastF < 0 ? Math.max(0, tube - fl) : 0;       // сжимаемая часть трубки
+        const gF = lastF >= 0 ? Math.max(0, TP[lastF] - minF) : 0;
+        let avail = tb + gF; for (let j = lastF + 1; j < k; j++) avail += TP[j];
+        take = Math.min(r - lo, avail);
+        if (take > 0) {
+          const f = 1 - take / avail;
+          for (let j = lastF + 1; j < k; j++) TP[j] *= f;
+          if (tb > 0) tube = fl + tb * f;
+          if (gF > 0) TP[lastF] = minF + gF * f;
+          r -= take;
+        }
+      }
+      TP[k] = Math.max(T0[k] + take, hi - r);
+      if (lo < Infinity) { lastF = k; minF = Math.max(0, hi - r); }   // слой с телом; лист над выступом (только reqHi) — мягкий
+      r += TP[k] + wraps[i];
+    }
+    // контур вырос — рис отдают витки над последним слоем с границами (с телом или только с листом
+    // над выступом); у слоя с телом — ещё и рис над его телом
+    if (lastR >= 0) {
+      let nat = starts[b]; for (let k = 0; k < n; k++) nat += T0[k] + wraps[k * NB + b];
+      const excess = r - nat;
+      if (excess > 0) {
+        const gF = lastF === lastR ? Math.max(0, TP[lastF] - minF) : 0;
+        let avail = gF; for (let j = lastR + 1; j < n; j++) avail += TP[j];
+        const take = Math.min(excess, avail);
+        if (take > 0) { const f = 1 - take / avail; for (let j = lastR + 1; j < n; j++) TP[j] *= f; if (gF > 0) TP[lastF] = minF + gF * f; }
+      }
+    }
+    r = tube;
+    for (let k = 0; k < n; k++) { RIN[k] = r; r += TP[k] + wraps[k * NB + b]; ROUT[k] = r; }
+    return n;
+  };
+  // Границы, против которых садится очередной штамп (его собственные ещё не записаны):
+  // внешняя кромка риса его витка и самая низкая внутренняя, до какой витки под ним могут сжаться.
+  const bR = BUF.bR, bMin = BUF.bMin, bAv = BUF.bAv, bTag = BUF.bTag, bTagV = BUF.bTagV, bVer = BUF.bVer;
+  // Кэш границ по бину: общий номер (масштаб, сброс границ) и номер бина (его границы тронуты).
+  // Прежде любой addReqs сбрасывал кэш всех бинов: 16 тыс. пересчётов стопки на сборку хосомаки
+  // с семью кусками.
+  const bump = () => { BUF.tag += 1; };
+  const fresh = b => bTag[b] === BUF.tag && bTagV[b] === bVer[b];
+  bump();
+  // Для сектора i: bR — внешняя кромка риса витка, bMin — самая низкая внутренняя граница.
+  const bounds = i => {
+    const b = i % NB;
+    if (!mark[b]) {
+      // в бине нет границ: лента естественная, радиусы линейны по масштабу
+      if (fresh(b)) return;
+      bTag[b] = BUF.tag; bTagV[b] = bVer[b];
+      let r = starts[b], m = floorAt[b];
+      for (let k = 0; k < wd.kmax; k++) {
+        const ik = k * NB + b;
+        if (wd.rin[ik] < 0) { bR[ik] = -Infinity; bMin[ik] = Infinity; continue; }
+        bMin[ik] = m; m += wraps[ik];                  // витки ниже сжимаемы до своей нори
+        r += thick[ik] * curS; bR[ik] = r; r += wraps[ik];
+      }
+      // bAv — рис витков выше этого в том же бине: столько они могут отдать выступу
+      let av = 0;
+      for (let k = wd.kmax - 1; k >= 0; k--) { const ik = k * NB + b; if (wd.rin[ik] < 0) continue; bAv[ik] = av; av += thick[ik] * curS; }
+      return;
+    }
+    if (!fresh(b)) {
+      bTag[b] = BUF.tag; bTagV[b] = bVer[b];
+      const n = binSolve(b, curS);
+      let lf = -1;
+      for (let k = 0; k < wd.kmax; k++) {
+        const ik = k * NB + b;
+        if (k >= n) { bR[ik] = -Infinity; bMin[ik] = Infinity; continue; }
+        bR[ik] = RIN[k] + TP[k];
+        // опора — верх тела нижнего слоя (его рис над телом мягкий) плюс его обёртка
+        let m = lf >= 0 ? Math.max(RIN[lf], Math.min(RIN[lf] + TP[lf], reqHi[lf * NB + b])) + wraps[lf * NB + b] : floorAt[b];
+        for (let j = lf + 1; j < k; j++) m += wraps[j * NB + b];
+        bMin[ik] = m;
+        if (reqLo[ik] !== Infinity) lf = k;     // опора — слой с телом, лист над выступом уступает
+      }
+      let av = 0;
+      for (let k = n - 1; k >= 0; k--) { bAv[k * NB + b] = av; av += TP[k]; }
+    }
+  };
+  let curS = scale0;
+  // Посадка: лицом к своему листу — вершины грани листа на окружности взвешенной кромки у Θ
+  // (минус постель); не глубже, чем позволяют витки под телом.
+  // ⚑ ТЕЛО НЕ ВЫХОДИТ НА ПОВЕРХНОСТЬ (критерий 5 task5). У кольца слой риса бывает самым внешним:
+  // в разрыве нори хосомаки (#165) и у урамаки (рис снаружи). Тело «к листу» легло бы там кромкой на
+  // воздух — судья видел голые края в 2 срезах A, у контроля их 84. Над таким бином тело держится
+  // под слоем риса толщиной в нори (STAMP_COVER): цель ниже на столько же, лист (reqHi) выше.
+  const coverAt = i => (S.cyclic && !(i + NB < wd.kmax * NB && wd.rin[i + NB] >= 0)) ? STAMP_COVER : 0;
+  const edgeAt = p => { const i = walk[p]; if (!fresh(i % NB)) bounds(i); return bR[i] - coverAt(i); };
+  const place = (G, s) => {
+    const E = G.E;
+    G.lastIn = NaN;
+    if (s !== curS) { curS = s; bump(); }
+    // Центр ролла в системе тела — точка (−rc·sin ψ, rc·cos ψ); тело его не накрывает и держится
+    // от него не ближе STAMP_RMIN, если rc·cos ψ ≥ ymax + STAMP_RMIN.
+    const floorR = (G.ymax + STAMP_RMIN) / Math.max(0.2, G.cp);
+    // Цель: самая дальняя вершина — на окружности R0 (кромка у Θ минус постель). Кромка вдоль
+    // штампа — взвешенное среднее (stampWindow): ступенька под краем тела сдвигает цель плавно.
+    const W = stampWindow(S, G.Theta, G.H, edgeAt, STAMP_WIN, Math.max(1, Math.floor(G.H / 16)));
+    let rc = floorR;
+    if (W.mean > -Infinity) {
+      const R0 = W.mean - G.go - STAMP_PAD, sp = G.sp, cp = G.cp;
+      let best = Infinity;
+      for (const P of G.polys) for (let j = 0; j < P.length; j += 2) {
+        const x = P[j], y = P[j + 1], Y = x * cp + y * sp;
+        best = Math.min(best, Math.sqrt(Math.max(0, R0 * R0 - Y * Y)) - (x * sp - y * cp));
+      }
+      if (isFinite(best)) rc = Math.max(rc, best);
+    }
+    G.rcT = rc;
+    // Жёсткий предел: тело не глубже, чем могут сжаться витки под ним (need — на сколько поднять).
+    // Радиальный сдвиг на δ меняет радиус точки под углом α примерно на δ·cos α — отсюда деление
+    // на cos. need только слабеет с подъёмом: самый низкий допустимый радиус ищется вилкой.
+    const cyc = S.cyclic;
+    let mNeed = 0;
+    const measure = x => {
+      if (E.rc !== x || E.u !== G.u || E.n !== G.n || E.stride !== 1) { stampExtents(G, x, E, 1); E.u = G.u; E.n = G.n; }
+      // массивы — после пересчёта: размах тела у центра шире буфера, и stampExtents их заменяет
+      const rmn = E.rmin, rmx = E.rmax;
+      let need = -Infinity;
+      const jlo = E.jlo, n0 = G.n + jlo;
+      for (let q = 0; q < E.w; q++) {
+        if (!(rmx[q] > -Infinity)) continue;
+        let p = n0 + q;
+        if (cyc) p = ((p % N) + N) % N; else if (p < 0 || p >= N) continue;
+        const i = walk[p];
+        if (!fresh(i % NB)) bounds(i);
+        const bm = stack && occ[i] > bMin[i] ? occ[i] : bMin[i];
+        if (bm < Infinity) {
+          const j = q + jlo, c0 = STAMP_COS[(j < -NB ? -NB : j > NB ? NB : j) + NB], c = c0 > 0.25 ? c0 : 0.25;
+          const v = (bm + STAMP_PAD - rmn[q]) / c; if (v > need) need = v;
+        }
+      }
+      mNeed = need;
+    };
+    const capR = S.capR + (G.ymax - G.ymin);
+    measure(rc);
+    if (mNeed > STAMP_EPS) {
+      // вилка: lo — ещё ниже опоры, hi — уже нет; need почти линейна по радиусу — Иллинойс
+      const h = STAMP_EPS / 2;
+      let lo = rc, flo = mNeed - h, hi = Math.min(capR, rc + mNeed), fhi = 0;
+      for (let it = 0; it < 12; it++) {
+        measure(hi); fhi = mNeed - h;
+        if (!(fhi > 0) || hi >= capR) break;
+        lo = hi; flo = fhi; hi = Math.min(capR, hi + Math.max(mNeed, STAMP_EPS));
+      }
+      let side = 0;
+      for (let it = 0; it < 12 && hi - lo > STAMP_EPS && fhi <= 0; it++) {
+        let x = (lo * fhi - hi * flo) / (fhi - flo);
+        if (!(x > lo && x < hi)) x = (lo + hi) / 2;
+        measure(x);
+        const fx = mNeed - h;
+        if (fx > 0) { lo = x; flo = fx; if (side === -1) fhi /= 2; side = -1; }
+        else { hi = x; fhi = fx; if (side === 1) flo /= 2; side = 1; }
+      }
+      rc = hi;
+    }
+    if (E.rc !== rc || E.u !== G.u || E.n !== G.n || E.stride !== 1) { stampExtents(G, rc, E, 1); E.u = G.u; E.n = G.n; }
+    G.rc = rc;
+  };
+  const setHi = (p, v) => {
+    const i = walk[p], b = i % NB;
+    if (v > reqHi[i]) { reqHi[i] = v; bVer[b]++; }
+    if (!mark[b]) { mark[b] = 1; bins.push(b); bVer[b]++; }
+  };
+  const addReqs = G => {
+    const E = G.E;
+    // по краям размаха — кромка слоя ИСХОДНОЙ ленты: лист ложится на ту поверхность, что была до
+    // тел. Текущая кромка не годится — при нехватке риса масштаб падает к нулю, кромка садится на
+    // нори, касательные растут, и лента раздувается сама от себя.
+    const pl = stampPos(S, G.n, E.jlo - 1), pr = stampPos(S, G.n, E.jlo + E.w);
+    const Rl = pl >= 0 ? S.baseOut[pl] : -Infinity, Rr = pr >= 0 ? S.baseOut[pr] : -Infinity;
+    for (let q = 0; q < E.w; q++) {
+      if (!(E.rmax[q] > -Infinity)) continue;
+      const p = stampPos(S, G.n, q + E.jlo); if (p < 0) continue;
+      const i = walk[p];
+      if (E.rmin[q] - STAMP_PAD < reqLo[i]) { reqLo[i] = E.rmin[q] - STAMP_PAD; bVer[i % NB]++; }
+      setHi(p, E.rmax[q] + STAMP_PAD + coverAt(i));
+      if (E.rmax[q] > occ[i]) occ[i] = E.rmax[q];
+    }
+    // Лист над выступом: касательная от вершины тела к кромке слоя радиуса R. Прямая на
+    // расстоянии R от центра касается кромки на угле φ_T: r(φ) = R / cos(φ_T − φ). У касательных
+    // к одной окружности за телом главенствует та, чей φ_T дальше, — берём одну вершину на
+    // сторону. Бину — радиус на его границе, ближней к вершине (там прямая выше).
+    const sp = G.sp, cp = G.cp, rc = G.rc, u = G.u, lift = STAMP_PAD;
+    let bestR = -Infinity, bestRj = 0, bestL = Infinity, bestLj = 0;
+    for (const P of G.polys) for (let v = 0; v < P.length; v += 2) {
+      const X = rc + P[v] * sp - P[v + 1] * cp, Y = P[v] * cp + P[v + 1] * sp;
+      const rv = Math.hypot(X, Y) + lift, av = Math.atan2(Y, X);
+      if (Rr > 0 && rv > Rr) { const aT = av + Math.acos(Rr / rv); if (aT > bestR) { bestR = aT; bestRj = Math.floor(u + av / DPHI); } }
+      if (Rl > 0 && rv > Rl) { const aT = av - Math.acos(Rl / rv); if (aT < bestL) { bestL = aT; bestLj = Math.floor(u + av / DPHI); } }
+    }
+    if (bestR > -Infinity) {
+      const jT = Math.floor(u + bestR / DPHI);
+      for (let j = bestRj + 1; j <= jT; j++) {
+        const p = stampPos(S, G.n, j); if (p < 0 || (!S.cyclic && p > nRice1)) break;
+        if (!S.cyclic && p < nRice0) continue;
+        setHi(p, Rr / Math.cos(bestR - (j - u) * DPHI));
+      }
+    }
+    if (bestL < Infinity) {
+      const jT = Math.floor(u + bestL / DPHI);
+      for (let j = bestLj - 1; j >= jT; j--) {
+        const p = stampPos(S, G.n, j); if (p < 0 || (!S.cyclic && p < nRice0)) break;
+        if (!S.cyclic && p > nRice1) continue;
+        setHi(p, Rl / Math.cos((j + 1 - u) * DPHI - bestL));
+      }
+    }
+  };
+  const resetReqs = () => {
+    for (const b of bins) { mark[b] = 0; for (let k = 0; k < wd.kmax; k++) { const i = k * NB + b; reqLo[i] = Infinity; reqHi[i] = -Infinity; occ[i] = -Infinity; } }
+    bins = []; bump();
+  };
+  // ⚑ ТЕЛО НАД ТЕЛОМ НИЖНЕГО ВИТКА: ОБА РАСХОДЯТСЯ ВДОЛЬ СВОИХ ВИТКОВ (17.09, #134, критерий 9 task5).
+  //
+  // Выступ тела над кромкой своего слоя поднимает лист; снаружи его гасит рис витков выше (binSolve
+  // отдаёт его), но если сверху риса нет, а тело подняла жёсткая опора снизу — тело нижнего витка
+  // со своей обёрткой, — ролл вспухает. Замер до правки: канон узумаки — шиитакэ 4-го витка лёг в
+  // тень тамаго 3-го, радиальная стопка несжимаемого (три обёртки 1,5 мм + тамаго 10,8 + обёртка +
+  // шиитакэ 5,3 + две обёртки) = 25 мм при круге ≈ 22 мм, некруглость 22 % (сторож «круглая форма»,
+  // порог 10). Повар бугра не получает: куски при затяжке циновки расходятся (erratum-022: «кусок
+  // хранит форму и проскальзывает»).
+  // Правило — непрерывное, без поиска места: верхнее тело G и то нижнее G1, чей размах по углу
+  // сильнее всего перекрывает размах G (на m оборотов ниже: позиция p ↔ p − m·N_B), расходятся в
+  // разные стороны каждое на половину перекрытия, но не больше смещения их центров (SHADOW_K·|d|):
+  // точно над центром нижнего тела сдвига нет — там честный бугор, и при плавном движении куска
+  // над другим место не перещёлкивается. Сдвиг растёт с выступом от SLIDE_T до 2·SLIDE_T.
+  // Считается в первых SHADOW_ROUNDS проходах, каждый раз от нынешних мест (цепочка усредняет
+  // сдвиг нижнего тела с его соседями по витку); цепочка (chain) ставит тела к сдвинутым целям
+  // (ThetaT) вместе с соседями. Кусок первой пробы, дискретный поиск свободного места,
+  // давал скачки центроида до 21 мм на парах «лосось + тамаго через виток» — отвергнут.
+  const SLIDE_T = 0.05;       // ед. (0,25 мм): выступ без риса сверху, с которого тела расходятся
+  // Доля смещения центров |d₀|, дальше которой тела не расходятся. Внутри зоны, где развести не
+  // вышло, подъём растёт со скоростью ≈ (1 + 2K) от сближения, — меньше K, положе; но тогда не
+  // расходятся и тела, которым места хватает. Замер (треки пар судьи task5, шаг 0,5 мм, худший шаг
+  // центроида; сторож 3в — хосомаки, пять кусков, прижим 1,3, радиусы контура):
+  //   K 1 — 2,67 мм · 0,95 — 3,22 · 0,9 — 2,25 · 0,85 — 1,93 · 0,8 — 1,81 · 0,75 — 2,10;
+  //   K 0,6 и 0,5 — 3в в буграх (18,5–21,2 и 17,7–22,3 мм против 18,5–19,3).
+  // На плотном шаге 0,125 мм при 0,8 наибольший сдвиг на 0,5 мм — 2,16 мм (тюмаки, u ≈ 129,9):
+  // вход угла тамаго на боковую грань лосося нижнего витка крутой по построению.
+  const SHADOW_K = 0.8;
+  const SHADOW_GAP = 2;       // позиций: запас между размахами
+  const SHADOW_ROUNDS = 3;    // проходов расхождения: цепочка усредняет сдвиг с соседями по витку
+  const CORE_SHIFT_K = 1.2;       // запас к сумме выступов: грань коробки подходит к телу под углом
+  const CORE_SHIFT_RICE = 0.1;    // ед. (0,5 мм): столько риса кольца остаётся на другой стороне
+  const CORE_SHIFT_ROUNDS = 2;
+  const bumpOf = G => {
+    const E = G.E;
+    let worst = -Infinity;
+    for (let q = 0; q < E.w; q++) {
+      if (!(E.rmax[q] > -Infinity)) continue;
+      const p = stampPos(S, G.n, q + E.jlo); if (p < 0) continue;
+      const i = walk[p];
+      if (!fresh(i % NB)) bounds(i);
+      const v = E.rmax[q] + STAMP_PAD + coverAt(i) - bR[i] - bAv[i];
+      if (v > worst) worst = v;
+    }
+    return worst;
+  };
+  // Выступ считается только у тела, которое подняла жёсткая опора (rc выше цели rcT): острые углы
+  // жёсткой грани над размазанным горбом исходной ленты — не «места нет», их гасит лист (reqHi).
+  const liftBump = G => G.rc - G.rcT > SLIDE_T ? Math.max(0, bumpOf(G)) : 0;
+  let shadowing = false, forceChain = false;
+  const SH_E = BUF.shE || (BUF.shE = { rmin: new Float64Array(2 * NB + 8), rmax: new Float64Array(2 * NB + 8), jlo: 0, w: 0 });
+  const shadow = G => {
+    const b0 = liftBump(G), ramp = clamp((b0 - SLIDE_T) / SLIDE_T, 0, 1);
+    if (!(ramp > 0)) return;
+    // размах G — на целевом радиусе: поднятое тело уже, чем то, что должно лечь на место
+    stampExtents(G, G.rcT, SH_E, 1);
+    let pick = null, over = 0;
+    for (const G1 of groups) {
+      if (G1 === G || !(G1.Theta < G.Theta - NB / 2) || !(G1.E.w > 0)) continue;
+      const m = Math.round((G.Theta - G1.Theta) / NB);
+      const A2 = G.n + SH_E.jlo - m * NB, B2 = A2 + SH_E.w - 1, A1 = G1.n + G1.E.jlo, B1 = A1 + G1.E.w - 1;
+      const ov = Math.min(B1, B2) - Math.max(A1, A2) + 1;
+      if (ov > over) { over = ov; pick = { G1, A1, B1, A2, B2, d: G.Theta - m * NB - G1.Theta }; }
+    }
+    if (!pick) return;
+    const { G1, A1, B1, A2, B2, d } = pick;
+    const need = (d >= 0 ? B1 - A2 : B2 - A1) + 1 + SHADOW_GAP;
+    // сумма сдвигов за все проходы — не больше SHADOW_K·|d₀| (смещение центров на естественных
+    // местах): иначе проходы умножают сдвиг, и переход через центр нижнего тела становится скачком
+    if (G.d0 === undefined) G.d0 = Math.abs(d);
+    const cap = SHADOW_K * G.d0;
+    const want = Math.min(need / 2, SHADOW_K * Math.abs(d)) * ramp * (d >= 0 ? 1 : -1);
+    const tot = clamp(G.mv + want, -cap, cap), mv = tot - G.mv;
+    if (!mv) return;
+    G.mv = tot; G.ThetaT += mv; G1.ThetaT -= mv; forceChain = true;
+  };
+  // ⚑ КОЛЬЦО: КУСОК, ПОДНЯТЫЙ ЯДРОМ, СЪЕЗЖАЕТ ПО ЕГО ГРАНИ (17.09, решение владельца «как в
+  // реальности», критерий 10 task5). Если кусок в рисе лёг над углом куска ядра, ядро рис не отдаёт
+  // (stampCoreFloor), а коробку двигать некуда (её углы у контура), — кусок съезжает туда, где
+  // ядро ниже, как съезжает при затяжке циновки. Спуск по наклону подъёма: шаг Ньютона к нулю
+  // подъёма с регуляризацией (над самой вершиной наклон ноль — шага нет, стороны не выбираются),
+  // не длиннее RING_STEP позиций, сдвиг растёт с подъёмом от SLIDE_T (без скачка на пороге).
+  // Замер до (без спуска): хосомаки, огурец у ядра из пяти лососей, прижим 1,3 — некруглость 18,4 %.
+  const RING_STEPS = 10, RING_STEP = 12, RING_H = 3, RING_EPS = 2e-4;
+  let descending = false;
+  const descend = (G, s) => {
+    const liftAt = th => { stampFrame(S, G, th); place(G, s); return liftBump(G); };
+    let th = G.Theta;
+    for (let k = 0; k < RING_STEPS; k++) {
+      const L0 = liftAt(th), ramp = clamp((L0 - SLIDE_T) / SLIDE_T, 0, 1);
+      if (!(ramp > 0)) break;
+      const sl = (liftAt(th + RING_H) - liftAt(th - RING_H)) / (2 * RING_H);
+      const st = clamp(-L0 * sl / (sl * sl + RING_EPS * RING_EPS), -RING_STEP, RING_STEP) * ramp;
+      if (Math.abs(st) < 0.05) break;
+      th += st;
+    }
+    stampFrame(S, G, th); place(G, s);
+  };
+  // Спираль конечна: штамп садится и сразу сдвигается внутрь ленты, если размах вышел за
+  // начало или конец листа (последний сектор неполный). Сдвиг — часть посадки: размах тела у
+  // центра ролла широк (до полуоборота) и меняется вместе с глубиной посадки.
+  // Посадка тела зависит от его места, масштаба риса, режима стопки и границ тел раньше него.
+  // Если ничего из этого не менялось с прошлого прохода, посадка та же — она переиспользуется
+  // (границы выставляются заново). Любой вызов place вне прохода (separate, descend) и любое
+  // изменение места внутри прохода (конец листа, shadow) метку снимают. Результат тот же побитно;
+  // проходов цепочки у хосомаки с семью кусками — по пять на срез.
+  const placeAll = s => {
+    resetReqs();
+    let same = !shadowing && !descending;
+    for (const G of groups) {
+      const th = G.Theta;
+      same = same && G.lastIn === th && G.lastS === s && G.lastStack === stack;
+      if (same) { addReqs(G); continue; }
+      stampFrame(S, G, G.Theta); place(G, s);
+      if (!S.cyclic) for (let k = 0; k < 4; k++) {
+        const first = G.n + G.E.jlo, last = first + G.E.w - 1;
+        let d = 0;
+        if (first < G.lim0) d = G.lim0 - first + 0.5;
+        else if (last > G.lim1) d = G.lim1 - last - 0.5;
+        if (!d) break;
+        G.pin = d > 0 ? -1 : 1;
+        stampFrame(S, G, G.Theta + d); place(G, s);
+        // найденное место — граница для цепочки: у конца листа размах зависит от места (тело у
+        // трубки садится глубже и шире), и граница, посчитанная на другом месте, врёт
+        if (d > 0) G.minTheta = Math.max(G.minTheta, G.Theta); else G.maxTheta = Math.min(G.maxTheta, G.Theta);
+      }
+      if (shadowing && !S.cyclic) shadow(G);
+      if (descending && S.cyclic) descend(G, s);
+      if (canShift) G.bump = liftBump(G);
+      addReqs(G);
+      if (G.Theta === th) { G.lastIn = th; G.lastS = s; G.lastStack = stack; } else G.lastIn = NaN;
+    }
+  };
+  // Столкнувшиеся штампы раздвигаются вдоль ленты: минимальный целый сдвиг по бинам, делится
+  // по площадям (прижатый к концу листа не двигается).
+  const separate = s => {
+    let movedAny = false;
+    for (let x = 0; x < groups.length; x++) for (let y = x + 1; y < groups.length; y++) {
+      let G1 = groups[x], G2 = groups[y];
+      if (S.cyclic) { let d = (G2.Theta - G1.Theta) % N; if (d < 0) d += N; if (d > N / 2) { const t = G1; G1 = G2; G2 = t; } }
+      else if (G2.Theta < G1.Theta) { const t = G1; G1 = G2; G2 = t; }
+      for (let tries = 0; tries < 4; tries++) {
+        if (!stampCollide(S, G1, G1.E, G2, G2.E, 0)) break;
+        let lo = 0, hi = G1.E.w + G2.E.w + 2;
+        while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (stampCollide(S, G1, G1.E, G2, G2.E, mid)) lo = mid; else hi = mid; }
+        const D = hi + 0.5;
+        let k1 = G2.A / (G1.A + G2.A), k2 = G1.A / (G1.A + G2.A);
+        if (G1.pin === -1 && G2.pin !== 1) { k1 = 0; k2 = 1; }
+        else if (G2.pin === 1 && G1.pin !== -1) { k1 = 1; k2 = 0; }
+        if (k1) { stampFrame(S, G1, G1.Theta - D * k1); place(G1, s); }
+        if (k2) { stampFrame(S, G2, G2.Theta + D * k2); place(G2, s); }
+        movedAny = true;
+      }
+    }
+    return movedAny;
+  };
+  // Спираль: цепочка вдоль ленты. Для соседей по обходу — наименьший зазор (в бинах), при
+  // котором жёсткие размахи не пересекаются; места — ближайшие к перенесённым центроидам по
+  // площадям при этих зазорах и концах листа (изотоническая регрессия, PAV). Одно решение на
+  // всю цепочку вместо попарных пересадок.
+  // Возвращает наименьший сдвиг второго (в бинах, от нынешнего места) без столкновения:
+  // > 0 — сейчас сталкиваются; −∞ — не сталкиваются ни при каком сближении (разные витки).
+  const minShift = (G1, G2) => {
+    const g0 = Math.floor(G2.Theta - G1.Theta);
+    if (stampCollide(S, G1, G1.E, G2, G2.E, 0)) {
+      let lo = 0, hi = G1.E.w + G2.E.w + 2;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (stampCollide(S, G1, G1.E, G2, G2.E, mid)) lo = mid; else hi = mid; }
+      return hi;
+    }
+    if (!stampCollide(S, G1, G1.E, G2, G2.E, -g0)) return -Infinity;
+    let lo = -g0, hi = 0;                                   // lo — сталкиваются, hi — нет
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (stampCollide(S, G1, G1.E, G2, G2.E, mid)) lo = mid; else hi = mid; }
+    return hi;
+  };
+  const SEP_MARGIN = 1.5;   // бина: посадка после сдвига меняет размах на бин-другой
+  const chain = s => {
+    const n = groups.length, D = new Float64Array(n), c = new Float64Array(n);
+    let any = false;
+    for (let k = 0; k + 1 < n; k++) {
+      const h = minShift(groups[k], groups[k + 1]);
+      D[k] = h === -Infinity ? -Infinity : groups[k + 1].Theta - groups[k].Theta + h + SEP_MARGIN;
+      if (h > 0) any = true;
+    }
+    const Lo = new Float64Array(n), Up = new Float64Array(n);
+    // концы листа — границы мест (после посадки размах уже внутри, границы держат его там)
+    for (let k = 0; k < n; k++) {
+      const G = groups[k], first = G.n + G.E.jlo, last = first + G.E.w - 1;
+      Lo[k] = Math.max(G.Theta - first + G.lim0 + 0.5, G.minTheta);
+      Up[k] = Math.min(G.Theta + (G.lim1 - last) - 0.5, G.maxTheta);
+    }
+    // тела над телами разошлись (shadow) — цепочка нужна и без столкновений
+    if (forceChain) { any = true; forceChain = false; }
+    if (!any) return false;
+    let moved = 0;
+    // отрезки цепочки: D = −∞ рвёт связь
+    let k0 = 0;
+    while (k0 < n) {
+      let k1 = k0; c[k0] = 0;
+      while (k1 + 1 < n && D[k1] > -Infinity) { c[k1 + 1] = c[k1] + D[k1]; k1++; }
+      // PAV по y = x − c, цель — перенесённый центроид
+      const val = [], wt = [], len = [];
+      for (let k = k0; k <= k1; k++) {
+        let v = groups[k].ThetaT - c[k], w = groups[k].A, l = 1;
+        while (val.length && val[val.length - 1] > v) {
+          const pv = val.pop(), pw = wt.pop(), pl = len.pop();
+          v = (v * w + pv * pw) / (w + pw); w += pw; l += pl;
+        }
+        val.push(v); wt.push(w); len.push(l);
+      }
+      let k = k0, LB = -Infinity;
+      const y = new Float64Array(k1 - k0 + 1);
+      for (let bl = 0; bl < val.length; bl++) for (let r = 0; r < len[bl]; r++, k++) y[k - k0] = val[bl];
+      for (k = k0; k <= k1; k++) { LB = Math.max(LB, Lo[k] - c[k]); y[k - k0] = Math.max(y[k - k0], LB); }
+      let UB = Infinity;
+      for (k = k1; k >= k0; k--) { UB = Math.min(UB, Up[k] - c[k]); y[k - k0] = Math.min(y[k - k0], UB); }
+      for (k = k0; k <= k1; k++) {
+        const th = y[k - k0] + c[k];
+        if (Math.abs(th - groups[k].Theta) > moved) moved = Math.abs(th - groups[k].Theta);
+        if (th !== groups[k].Theta) stampFrame(S, groups[k], th);
+      }
+      k0 = k1 + 1;
+    }
+    // места не сдвинулись (столкновение осталось, но решить его цепочка не может) — новый проход
+    // посадки ничего не изменит: раунды кончаются
+    return moved > 1e-6;
+  };
+  // Площадь ленты A·s² + B·s — та же сумма, что в conservativeBand; бины с границами — точно.
+  let sA = 0, sB = 0;
+  const sumAB = list => {
+    let A = 0, B = 0;
+    const nb = list ? list.length : NB;
+    for (let x = 0; x < nb; x++) {
+      const b = list ? list[x] : x;
+      let base = starts[b], prefix = 0;
+      for (let k = 0; k < wd.kmax; k++) {
+        const i = k * NB + b; if (wd.rin[i] < 0) break;
+        const t = thick[i], angle = windSectorAngle(wd, i);
+        A += angle * (prefix * t + t * t / 2); B += angle * base * t;
+        prefix += t; base += wraps[i];
+      }
+    }
+    sA = A; sB = B;
+  };
+  // Бины с границами упакованы подряд: [n, start, floor, (thick, wrap, lo, hi, angle) × n] — площадь
+  // считается без индексов секторов (это самая частая операция решателя).
+  let pack = BUF.pack || (BUF.pack = new Float64Array(4096)), packLen = 0;
+  const packBins = () => {
+    let need = 0;
+    for (const b of bins) { let n = 0; while (n < wd.kmax && wd.rin[n * NB + b] >= 0) n++; need += 3 + 5 * n; }
+    if (pack.length < need) pack = BUF.pack = new Float64Array(2 * need);
+    let o = 0;
+    for (const b of bins) {
+      let n = 0; while (n < wd.kmax && wd.rin[n * NB + b] >= 0) n++;
+      pack[o++] = n; pack[o++] = starts[b]; pack[o++] = floorAt[b];
+      for (let k = 0; k < n; k++) { const i = k * NB + b; pack[o++] = thick[i]; pack[o++] = wraps[i]; pack[o++] = reqLo[i]; pack[o++] = reqHi[i]; pack[o++] = windSectorAngle(wd, i); }
+    }
+    packLen = o;
+  };
+  // Площадь и её производная по s (прямой проход дифференцирования по тем же формулам, что
+  // binSolve): решатель — Ньютон, два-три прохода вместо десятка.
+  const DT = new Float64Array(KMAX);
+  let dArea = 0;
+  const areaAt = (x, Af, Bf) => {
+    let a = (A - Af) * x * x + (B - Bf) * x, da = 2 * (A - Af) * x + (B - Bf);
+    for (let o = 0; o < packLen;) {
+      const n = pack[o], base = o + 3, tube0 = pack[o + 1], fl = pack[o + 2];
+      let tb = tube0, dtb = 0;
+      let r = tube0, dr = 0, lastF = -1, lastR = -1, nat = r, dnat = 0, minF = 0, dminF = 0;
+      for (let k = 0; k < n; k++) { const e = base + 5 * k; T0[k] = TP[k] = pack[e] * x; DT[k] = pack[e]; nat += TP[k] + pack[e + 1]; dnat += pack[e]; }
+      for (let k = 0; k < n; k++) {
+        const e = base + 5 * k, lo = pack[e + 2], hi = pack[e + 3];
+        if (lo === Infinity && hi === -Infinity) { r += TP[k] + pack[e + 1]; dr += DT[k]; continue; }
+        lastR = k;
+        let take = 0, dtake = 0;
+        if (r > lo) {
+          const useT = lastF < 0;
+          let avail = useT ? Math.max(0, tb - fl) : 0, dav = useT ? dtb : 0;
+          const gF = lastF >= 0 ? Math.max(0, TP[lastF] - minF) : 0, dgF = gF > 0 ? DT[lastF] - dminF : 0;
+          avail += gF; dav += dgF;
+          for (let j = lastF + 1; j < k; j++) { avail += TP[j]; dav += DT[j]; }
+          if (r - lo < avail) { take = r - lo; dtake = dr; } else { take = avail; dtake = dav; }
+          if (take > 0) {
+            const f = 1 - take / avail, df = -(dtake * avail - take * dav) / (avail * avail);
+            for (let j = lastF + 1; j < k; j++) { DT[j] = DT[j] * f + TP[j] * df; TP[j] *= f; }
+            if (useT && tb > fl) { dtb = dtb * f + (tb - fl) * df; tb = fl + (tb - fl) * f; }
+            if (gF > 0) { TP[lastF] = minF + gF * f; DT[lastF] = dminF + dgF * f + gF * df; }
+            r -= take; dr -= dtake;
+          }
+        }
+        if (pack[e] * x + take >= hi - r) { TP[k] = pack[e] * x + take; DT[k] = pack[e] + dtake; }
+        else { TP[k] = hi - r; DT[k] = -dr; }
+        if (lo < Infinity) { lastF = k; if (hi - r > 0) { minF = hi - r; dminF = -dr; } else { minF = 0; dminF = 0; } }
+        r += TP[k] + pack[e + 1]; dr += DT[k];
+      }
+      if (lastR >= 0 && r > nat) {
+        const gF = lastF === lastR ? Math.max(0, TP[lastF] - minF) : 0, dgF = gF > 0 ? DT[lastF] - dminF : 0;
+        let avail = gF, dav = dgF; for (let j = lastR + 1; j < n; j++) { avail += TP[j]; dav += DT[j]; }
+        let take, dtake;
+        if (r - nat < avail) { take = r - nat; dtake = dr - dnat; } else { take = avail; dtake = dav; }
+        if (take > 0) {
+          const f = 1 - take / avail, df = -(dtake * avail - take * dav) / (avail * avail);
+          for (let j = lastR + 1; j < n; j++) { DT[j] = DT[j] * f + TP[j] * df; TP[j] *= f; }
+          if (gF > 0) { TP[lastF] = minF + gF * f; DT[lastF] = dminF + dgF * f + gF * df; }
+        }
+      }
+      // трубка отдала рис ленте: цель площади растёт на столько же — вычитаем из площади
+      a -= DPHI * (tube0 * tube0 - tb * tb) / 2; da += DPHI * tb * dtb;
+      r = tb; dr = dtb;
+      for (let k = 0; k < n; k++) {
+        const e = base + 5 * k, tk = TP[k], dk = DT[k], ang = pack[e + 4];
+        a += ang * (r * tk + tk * tk / 2); da += ang * (dr * tk + r * dk + tk * dk);
+        r += tk + pack[e + 1]; dr += dk;
+      }
+      o = base + 5 * n;
+    }
+    dArea = da;
+    return a;
+  };
+  const applyAt = x => {
+    let R = 0;
+    for (let b = 0; b < NB; b++) {
+      let r = starts[b];
+      if (mark[b]) {
+        const n = binSolve(b, x);
+        for (let k = 0; k < n; k++) { const i = k * NB + b; wd.rin[i] = RIN[k]; wd.rout[i] = ROUT[k]; }
+        r = n ? ROUT[n - 1] : r;
+      } else for (let k = 0; k < wd.kmax; k++) {
+        const i = k * NB + b; if (wd.rin[i] < 0) break;
+        wd.rin[i] = r; r += thick[i] * x + wraps[i]; wd.rout[i] = r;
+      }
+      wd.top[b] = r; R = Math.max(R, r);
+    }
+    wd.Rout = R;
+  };
+  // Масштаб риса при заданных границах: площадь монотонна по s. Границы съели всю ленту —
+  // риса вне штампов нет (s = 0), лишнее учитывается как воздух (air).
+  const solve = s0 => {
+    sumAB(bins); packBins();
+    const Af = sA, Bf = sB, target = source.area, tol = 1e-10 * Math.max(1, target);
+    // Ньютон от прошлого масштаба (площадь монотонна и почти линейна у корня)
+    let x = Math.max(s0, 1e-9);
+    for (let k = 0; k < 8; k++) {
+      const f = areaAt(x, Af, Bf) - target;
+      if (Math.abs(f) <= tol) return { s: x, air: 0 };
+      if (!(dArea > 1e-12)) break;
+      const nx = x - f / dArea;
+      if (!(nx > 0)) break;
+      // шаг Ньютона меньше 1e-7 масштаба: следующая ошибка — квадрат этого, проверка не нужна
+      if (Math.abs(nx - x) <= 1e-7 * x) return { s: nx, air: 0 };
+      x = nx;
+    }
+    // запасной путь: ноль, потом скобка и Illinois
+    let lo = 0, flo = areaAt(0, Af, Bf) - target;
+    if (flo >= 0) return { s: 0, air: flo };
+    let hi = Math.max(s0, 1e-9), fhi = areaAt(hi, Af, Bf) - target, guard = 0;
+    while (fhi < 0 && guard++ < 60) { lo = hi; flo = fhi; hi *= 2; fhi = areaAt(hi, Af, Bf) - target; }
+    let side = 0;
+    x = hi;
+    for (let k = 0; k < 60; k++) {
+      x = (lo * fhi - hi * flo) / (fhi - flo);
+      const fx = areaAt(x, Af, Bf) - target;
+      if (Math.abs(fx) <= tol || hi - lo <= 1e-13 * hi) break;
+      if (fx < 0) { lo = x; flo = fx; if (side === -1) fhi /= 2; side = -1; }
+      else { hi = x; fhi = fx; if (side === 1) flo /= 2; side = 1; }
+    }
+    return { s: x, air: 0 };
+  };
+  let s = scale0, air = 0, bad = Infinity, it = 0;
+  const run = () => {
+  s = scale0; air = 0; bad = Infinity; it = 0;
+  for (const G of groups) { G.pin = 0; G.Theta = G.ThetaT = G.Theta0; G.rc = 0; G.minTheta = -Infinity; G.maxTheta = Infinity; G.bump = 0; G.d0 = undefined; G.mv = 0; G.lastIn = NaN; }
+  for (; it < STAMP_ITER_MAX; it++) {
+    shadowing = descending = it === 0;
+    placeAll(s);
+    descending = false;
+    stack = false;
+    for (let round = 0; round < (it === 0 ? 4 + SHADOW_ROUNDS : 4); round++) {
+      let m;
+      if (S.cyclic) { m = false; if (groups.length > 1) m = separate(s); }
+      else m = chain(s);
+      if (!m) break;
+      if (round + 1 >= SHADOW_ROUNDS) shadowing = false;
+      placeAll(s);                                   // границы — заново, по новым местам
+    }
+    shadowing = false;
+    // Цепочке не хватило ленты (кусков больше, чем помещается вдоль витка): оставшиеся
+    // столкновения решаются по радиусу — позже севшее тело ложится поверх раньше севшего.
+    let clash = false;
+    for (let x = 0; x < groups.length && !clash; x++) for (let y = x + 1; y < groups.length; y++)
+      if (stampCollide(S, groups[x], groups[x].E, groups[y], groups[y].E, 0)) { clash = true; break; }
+    if (clash) { stack = true; placeAll(s); }
+    const sol = solve(s); s = sol.s; air = sol.air;
+    applyAt(s);
+    // посадка на готовой ленте: тело внутри своего слоя (иначе — ещё проход с новым масштабом)
+    bad = 0;
+    for (const G of groups) {
+      const E = G.E;
+      for (let q = 0; q < E.w; q++) {
+        if (!(E.rmax[q] > -Infinity)) continue;
+        const p = stampPos(S, G.n, q + E.jlo);
+        if (p < 0) { bad = Math.max(bad, 1); continue; }
+        const i = walk[p];
+        bad = Math.max(bad, wd.rin[i] - E.rmin[q], E.rmax[q] - stampRiceOuter(wd, g, i));
+      }
+    }
+    // штампы не пересекаются (по бинам, с запасом)
+    for (let x = 0; x < groups.length; x++) for (let y = x + 1; y < groups.length; y++)
+      if (stampCollide(S, groups[x], groups[x].E, groups[y], groups[y].E, 0)) bad = Math.max(bad, 1);
+    if (bad <= STAMP_TOL) break;
+  }
+  };
+  run();
+  // ⚑ ЯДРО КОЛЬЦА ОТХОДИТ ОТ ТОЛСТОГО КУСКА ВНУТРИ КРУГА (решение владельца 17.09, #134).
+  //
+  // Уступить свой рис ядро может только там, где у коробки рис (stampCoreFloor). Когда коробка
+  // набита кусками до края (пять–шесть лососей), а кусок в рисе кольца толще слоя, после поиска
+  // места (slide) выступ остаётся. Циновка затягивается до круга — значит расступается всё, что
+  // внутри: коробка ядра целиком отходит от куска. Контур кольца при этом тот же (рис кольца
+  // перераспределяется: где коробка подошла ближе к краю, его меньше), площадь ленты решается
+  // заново, рис ядра не меняется — коробка та же, только на другом месте.
+  // Сдвиг — сумма выступов тел по их направлениям (с запасом CORE_SHIFT_K), не дальше, чем
+  // позволяет рис кольца на другой стороне (оставить CORE_SHIFT_RICE) и центр ролла внутри
+  // коробки. Не больше CORE_SHIFT_ROUNDS шагов; ядро отрисовывается со сдвигом (coreMaterial).
+  // Замер до правки — в шапке stampCoreFloor; этот шаг снимает раскладки, где коробка набита.
+  if (canShift) {
+    const topNat = BUF.topNat;
+    for (let round = 0; round < CORE_SHIFT_ROUNDS; round++) {
+      let ex = 0, ey = 0;
+      // сверх порога: сдвиг растёт с нуля, когда выступ появляется (без скачка на пороге)
+      for (const G of groups) if (G.bump > SLIDE_T) { ex -= (G.bump - SLIDE_T) * Math.cos(G.phi); ey -= (G.bump - SLIDE_T) * Math.sin(G.phi); }
+      if (!(Math.hypot(ex, ey) > 1e-6)) break;
+      const core = g.boundCore, hw = core.Wc / 2, hh = core.Hc / 2;
+      const boxR = (b, dx, dy) => {
+        const c = Math.cos(b * DPHI), sn = Math.sin(b * DPHI);
+        const rx = c > 1e-9 ? (hw + dx) / c : c < -1e-9 ? (hw - dx) / -c : Infinity;
+        const ry = sn > 1e-9 ? (hh + dy) / sn : sn < -1e-9 ? (hh - dy) / -sn : Infinity;
+        return Math.min(rx, ry);
+      };
+      // доля шага t ∈ (0, 1]: коробка не выходит за контур и центр внутри неё
+      const fits = t => {
+        const dx = coreDX + CORE_SHIFT_K * ex * t, dy = coreDY + CORE_SHIFT_K * ey * t;
+        if (Math.abs(dx) > 0.9 * hw || Math.abs(dy) > 0.9 * hh) return false;
+        for (let b = 0; b < NB; b++) {
+          const st = starts0[b] * boxR(b, dx, dy) / boxR(b, 0, 0);
+          if (st - starts0[b] > Math.max(0, topNat[b] - wrapSum[b] - starts0[b] - CORE_SHIFT_RICE)) return false;
+        }
+        return true;
+      };
+      let t = 1;
+      if (!fits(1)) { let lo = 0, hi = 1; for (let k = 0; k < 12; k++) { const mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; } t = lo; }
+      if (!(t > 1e-3)) break;
+      coreDX += CORE_SHIFT_K * ex * t; coreDY += CORE_SHIFT_K * ey * t;
+      // новый контур ядра; рис кольца — до прежнего контура ролла (при масштабе scale0)
+      for (let b = 0; b < NB; b++) {
+        const st = starts0[b] * boxR(b, coreDX, coreDY) / boxR(b, 0, 0);
+        const ib = wd.ringBand[b] * NB + b;
+        thick[ib] = Math.max(0, thick0[ib] + (starts0[b] - st) / Math.max(1e-9, scale0));
+        starts[b] = st;
+      }
+      sumAB(null); A = sA; B = sB;
+      scale0 = source.area > 0 ? 2 * source.area / Math.max(1e-12, B + Math.sqrt(B * B + 4 * A * source.area)) : 0;
+      for (let b = 0; b < NB; b++) {
+        let r = starts[b];
+        for (let k = 0; k < wd.kmax; k++) { const i = k * NB + b; if (wd.rin[i] < 0) break; wd.rin[i] = r; r += thick[i] * scale0 + wraps[i]; wd.rout[i] = r; }
+        wd.top[b] = r;
+      }
+      resetReqs(); setFloor(); setup(); run();
+    }
+  }
+  resetReqs(); BUF.dirty = false;
+  let tubeGive = 0;
+  for (let b = 0; b < NB; b++) if (wd.rin[b] < starts[b]) tubeGive += DPHI * (starts[b] * starts[b] - wd.rin[b] * wd.rin[b]) / 2;
+  const info = { iterations: Math.min(it + 1, STAMP_ITER_MAX), bad, air, scale: s, scale0, tubeGive,
+    coreShift: coreDX || coreDY ? { dx: coreDX, dy: coreDY } : null };
+  if (radiusOnly) return { groups, info };
+  for (const G of groups) {
+    const E = G.E, psi = Math.atan2(G.sp, G.cp), gam = G.phi + Math.PI / 2 - psi;
+    G.cx = G.rc * Math.cos(G.phi); G.cy = G.rc * Math.sin(G.phi);
+    G.tc = Math.cos(gam); G.ts = Math.sin(gam);
+    G.cells = [];
+    for (let q = -1; q <= E.w; q++) { const p = stampPos(S, G.n, q + E.jlo); if (p >= 0) G.cells.push(walk[p]); }
+  }
+  // ⚑ РИСА НЕ ХВАТИЛО НА ЗАЗОРЫ ВОКРУГ ТЕЛ — ЭТО ВОЗДУХ, А НЕ НОВЫЙ РИС (критерий 4 task5).
+  // Границы слоя съели всю ленту (s = 0): площадь ленты больше, чем риса и тел вместе. Лишнее
+  // кладётся в зазоры бинов с телом — сначала между телом и витком под ним (там жёсткая грань
+  // уходит от круглого витка), потом над телом. Ниже rmin бина тела нет по построению, поэтому
+  // площадь воздуха считается точно: доля a от кольца [rin, rmin] в координате r².
+  if (air > 0) {
+    const size = wd.kmax * NB, lo = new Float64Array(size).fill(Infinity), hi = new Float64Array(size).fill(-Infinity);
+    for (const G of groups) {
+      const E = G.E;
+      for (let q = 0; q < E.w; q++) {
+        if (!(E.rmax[q] > -Infinity)) continue;
+        const p = stampPos(S, G.n, q + E.jlo); if (p < 0) continue;
+        const i = walk[p]; lo[i] = Math.min(lo[i], E.rmin[q]); hi[i] = Math.max(hi[i], E.rmax[q]);
+      }
+    }
+    let gin = 0, gout = 0;
+    for (let i = 0; i < size; i++) {
+      if (lo[i] === Infinity) continue;
+      const ang = windSectorAngle(wd, i), ri = wd.rin[i], ro = stampRiceOuter(wd, g, i);
+      gin += ang * Math.max(0, lo[i] * lo[i] - ri * ri) / 2;
+      gout += ang * Math.max(0, ro * ro - hi[i] * hi[i]) / 2;
+    }
+    const aIn = gin > 0 ? Math.min(1, air / gin) : 0;
+    const aOut = gout > 0 ? Math.min(1, Math.max(0, air - aIn * gin) / gout) : 0;
+    info.airIn = aIn; info.airOut = aOut; info.airLeft = Math.max(0, air - aIn * gin - aOut * gout);
+    info.airLo = lo; info.airHi = hi;
+  }
+  // размах — из общего пула; срезу, который живёт дальше, — своя копия (для разбора)
+  for (const G of groups) { const E = G.E; G.E = { jlo: E.jlo, w: E.w, rc: E.rc, rmin: E.rmin.slice(0, E.w), rmax: E.rmax.slice(0, E.w) }; }
+  return { groups, info };
 }
 
 // Сетка конечных объёмов: sampleWind и innerAt используют одинаковые границы.
@@ -1152,6 +2430,9 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
   }
   const scale = source.area > 0 ? 2 * source.area / Math.max(1e-12, B + Math.sqrt(B * B + 4 * A * source.area)) : 0;
   apply(scale);
+  // Тела ленты — жёсткими штампами (task5, подход A): пол слоя под ними и новый масштаб риса.
+  // Радиус нужен и запросу радиуса: пол меняет контур.
+  const stamps = source.bodies.length ? stampBand(wd, g, v, source, thick, wraps, starts, scale, radiusOnly, A, B) : null;
   // Запросу радиуса (14 срезов из 15 при сборке модели) нужна только внешняя граница,
   // она уже в wd.Rout. Карта секторов нужна одному materialAt — отображаемому срезу.
   if (radiusOnly) return null;
@@ -1160,9 +2441,16 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
     const q = bandSector(wd, i, g); if (!q || q.area <= 1e-12) continue;
     q.area0 = area; area += q.area; sectors[i] = q;
   }
-  return {source, sectors, area, riceBudget:{input:source.riceInput,core:Math.min(source.coreRice,source.riceInput),requiredCore:source.coreRice,remaining:source.riceRemaining,deficit:Math.max(0,source.coreRice-source.riceInput)}};
+  let stampAt = null;
+  if (stamps) {
+    stampAt = new Array(size);
+    for (const G of stamps.groups) for (const i of G.cells) (stampAt[i] || (stampAt[i] = [])).push(G);
+  }
+  // трубка сердечника отдала рис телам: ядро платит меньше, лента несёт больше
+  const tg = stamps ? stamps.info.tubeGive : 0;
+  return {source, sectors, area, stamps: stamps ? stamps.groups : null, stampAt, stampInfo: stamps ? stamps.info : null, riceBudget:{input:source.riceInput,core:Math.min(source.coreRice,source.riceInput)-tg,requiredCore:source.coreRice-tg,remaining:source.riceRemaining+tg,deficit:Math.max(0,source.coreRice-source.riceInput)}};
 }
-function conservativeBandMaterial(m, wd, v, r, sm) {
+function conservativeBandMaterial(m, wd, v, r, sm, phi) {
   const map = wd.materialTransport, sector = map.sectors[sm.idx];
   if (!sector) return {cls:'wrap',sm};
   const g = m.g, outer = sm.rOut - (wd.ringBand ? 0 : g.w), inner = sm.rIn;
@@ -1175,7 +2463,18 @@ function conservativeBandMaterial(m, wd, v, r, sm) {
   const c = cs[lo], fraction = clamp((outer * outer - r * r) / Math.max(1e-12,outer * outer - inner * inner),0,1), z = fraction * c.height;
   const s = c.a + (target - c.area0) / Math.max(1e-12,c.height), u = clamp(s / g.L,0,1);
   sm.u = u;
-  for (const q of c.spans) if (z >= q.start && z <= q.end) {
+  // ⚑ ТЕЛО — ЖЁСТКИЙ ШТАМП (task5, подход A): точка проверяется в системе самого куска.
+  // Перенос ниже отвечает только за рис и краску: то, что он назвал бы телом вне штампа, — рис.
+  if (map.stampAt) {
+    const hits = map.stampAt[sm.idx];
+    if (hits) for (const G of hits) { const mt = stampHit(G, r, phi, g); if (mt) return {cls:'patch',mt,sm}; }
+    const ai = map.stampInfo.airLo;
+    if (ai && ai[sm.idx] !== Infinity) {
+      const info = map.stampInfo, lo = ai[sm.idx], hi = info.airHi[sm.idx];
+      if (r < lo && r * r < inner * inner + info.airIn * (lo * lo - inner * inner)) return {cls:'air',sm};
+      if (r > hi && r * r > outer * outer - info.airOut * (outer * outer - hi * hi)) return {cls:'air',sm};
+    }
+  } else for (const q of c.spans) if (z >= q.start && z <= q.end) {
     const sourceZ = q.lo + z - q.start, lz = (sourceZ - q.z0) / q.height, rg = q.rg;
     const du = s - rg[2] * g.L, lu = (du * rg[5] + rg[7] * rg[6]) / rg[3], lv = (-du * rg[6] + rg[7] * rg[5]) / rg[4];
     if (q.p.noriWrap) {
@@ -2132,6 +3431,9 @@ function wind(vSlice, sMax, g, list, routOnly) {
   const materialTransport = conservativeBand(transportState, vSlice, g, list, radiusOnly);
   Rout = transportState.Rout;
   if (radiusOnly) return Rout;
+  // коробку ядра отодвинул толстый кусок в рисе кольца — срез рисует её на новом месте
+  const сдвигЯдра = materialTransport && materialTransport.stampInfo && materialTransport.stampInfo.coreShift;
+  const ядроСреза = сдвигЯдра && sliceCore ? Object.assign({}, sliceCore, сдвигЯдра) : sliceCore;
   // ⚑ УСТРОЙСТВО НАМОТКИ ОТВЕЧАЕТ НА ВОПРОСЫ, А НЕ ОТДАЁТ СЫРЬЁ (#146, правка 01.09).
   //
   // Пять мест снаружи читали массивы напрямую, ЗНАЯ, что слой k = 1 — это обёртка поверх риса:
@@ -2202,7 +3504,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
     // Голый ли бин: рис до него не дошёл.
     голый: (b, r0) => top[b] <= r0 + 1e-6,
   };
-  return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax, turns, sClose, sEnd, sTurn1, обёртка, ringBand, materialTransport, riceBudget: materialTransport ? materialTransport.riceBudget : prof.riceBudget, core: sliceCore, coreRiceLimit: g.coreRiceLimit,
+  return { rin, rout, u0, u1, top, Rout, lastIdx, phiEnd, kmax, turns, sClose, sEnd, sTurn1, обёртка, ringBand, materialTransport, riceBudget: materialTransport ? materialTransport.riceBudget : prof.riceBudget, core: ядроСреза, coreRiceLimit: g.coreRiceLimit,
            хватило, нехватка: Math.max(0, периметр - L), периметр };   // φНори жил в ветке кольца, наружу не нужен   // #141: сколько нори НЕ хватило, в единицах листа
 }
 // ГРАНИ ПО ФОРМАМ — углы плоскостей, φ = 0 это шов (кладут вниз, на грань, а не на угол).
@@ -2852,7 +4154,8 @@ function coreMaterial(m, r, phi, vSlice, core = m.core, riceLimit = Infinity) {
   // ⚑ БЕЗ ОТОБРАЖЕНИЯ: точка берётся в коробке как есть (#152). Разбор — над `core.rAt`.
   // Смещение от центра коробки в её же единицах, начало отсчёта — левый нижний угол.
   const c = core;
-  const x = r * Math.cos(phi) + c.Wc / 2, y = r * Math.sin(phi) + c.Hc / 2;
+  // dx, dy — сдвиг коробки внутри кольца, если толстый кусок в рисе её отодвинул (stampBand, 17.09)
+  const x = r * Math.cos(phi) - (c.dx || 0) + c.Wc / 2, y = r * Math.sin(phi) - (c.dy || 0) + c.Hc / 2;
   // Прежние «жёсткие» координаты совпадают с обычными: искажать больше нечему, и смесь по
   // жёсткости (`stiff`) стала тождеством. Оставлена, чтобы не переписывать тело функции: как
   // только у ядра появится своя кривизна, ей опять будет что смешивать.
@@ -3227,7 +4530,7 @@ function materialAt(m, wd, vSlice, r, phi) {
   if (r < coreR) return m.core ? coreMaterial(m, r, phi, vSlice, wd.core || m.core, wd.coreRiceLimit) : { cls: 'spread', sm: null };
   const sm = sampleWind(wd, r, phi);
   if (!sm) return { cls: 'out' };
-  if (wd.materialTransport) return conservativeBandMaterial(m, wd, vSlice, r, sm);
+  if (wd.materialTransport) return conservativeBandMaterial(m, wd, vSlice, r, sm, phi);
   // ⚠ У УРАМАКИ ОБЁРТКА НА ВНУТРЕННЕМ КРАЮ ВИТКА, А НЕ НА ВНЕШНЕМ (#124, 01.09).
   // Так его и делают: рис намазан на нори, лист ПЕРЕВОРАЧИВАЮТ рисом на циновку, начинку
   // кладут на голую нори — и она заворачивает начинку первой, а рис остаётся снаружи.
