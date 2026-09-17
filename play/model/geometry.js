@@ -3403,7 +3403,7 @@ const RICE = {
 // пасты гладкий, зёрен на нём не видно.
 // ⚠ ОБА СЛАГАЕМЫХ ЗНАКОПЕРЕМЕННЫЕ И ВОКРУГ НУЛЯ — компенсация яркости (RICE.level у риса) здесь
 // не нужна, и сторож «яркость постели» меряет пасту тем же допуском ±3.
-const PASTE = { waveA: 8.0, waveF: 0.55, wave2F: 1.3, wave2A: 4.0, gritA: 5.0, gritF: 2.6, blueK: 0.78, greenK: 0.94 };
+const PASTE = { waveA: 13.0, waveF: 0.55, wave2F: 1.3, wave2A: 6.5, gritA: 9.0, gritF: 3.6, blueK: 0.78, greenK: 0.94 };
 function pasteNoise(x, y) {                                // гладкий двумерный шум на том же hash
   const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j;
   const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
@@ -3416,7 +3416,7 @@ function pasteColor(gx, gy, c, lod) {
   GRAIN_C[0] = 0; GRAIN_C[1] = 0; GRAIN_C[2] = 1;
   const w = PASTE.waveA * (pasteNoise(gx * PASTE.waveF, gy * PASTE.waveF) - 0.5)
           + PASTE.wave2A * (pasteNoise(gx * PASTE.wave2F + 31.7, gy * PASTE.wave2F + 11.3) - 0.5);
-  const grit = PASTE.gritA * (hash(Math.floor(gx * PASTE.gritF) + 401, Math.floor(gy * PASTE.gritF) + 137) - 0.5);
+  const grit = PASTE.gritA * (pasteNoise(gx * PASTE.gritF + 77.3, gy * PASTE.gritF + 19.1) - 0.5);
   const t = w + grit * k;
   return [c[0] + t, c[1] + t * PASTE.greenK, c[2] + t * PASTE.blueK];
 }
