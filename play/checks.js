@@ -274,7 +274,10 @@ function runChecks(detail) {
       const saved = keys.map(k => [k, Object.prototype.hasOwnProperty.call(S, k), S[k]]);
       const piece = extra => ({ kind: 'tamago', u: 0.30, v: 0.5, z0: 0, z1: 0, phase: 1, ...extra });
       const probes = [];
-      for (const base of ['hoso', 'futo', 'ura']) {
+      // ⚑ ФРУКТОВАЯ БАЗА ДОБАВЛЕНА 17.09 (#255). Её постель — не рис, а белая бобовая паста, и
+      // именно поэтому проверка нужна ей не меньше: закон сохранения у постели один, а вот код
+      // пути «паста» никто до сегодня не гонял — база не входила ни в один из этих зондов.
+      for (const base of ['hoso', 'futo', 'ura', 'fruit']) {
         probes.push({ base, name: 'empty', v: 0.5, list: [] });
         probes.push({ base, name: 'short/outside', v: 0.2, list: [piece({ dv: 0.35 })] });
       }
@@ -302,7 +305,7 @@ function runChecks(detail) {
           const error = input > 0 ? Math.abs(output - input) / input : Infinity;
           tested++; worst = Math.max(worst, error);
           if (ok(m.g.winding === 'ring' && error <= 0.005,
-            `рис ${q.base}/${q.name}, v=${q.v}: вход ${(input * U_MM * U_MM).toFixed(2)} мм², выход ${(output * U_MM * U_MM).toFixed(2)} мм², ошибка ${(100 * error).toFixed(3)} % (допуск 0,5 %)`)) passed++;
+            `${bedOf(b).short} ${q.base}/${q.name}, v=${q.v}: вход ${(input * U_MM * U_MM).toFixed(2)} мм², выход ${(output * U_MM * U_MM).toFixed(2)} мм², ошибка ${(100 * error).toFixed(3)} % (допуск 0,5 %)`)) passed++;
         }
         Object.assign(S, { base: 'hoso', wrap: null, turns: null, shape: 'round', hand: handOf(), winding: 'ring' });
         const shortModel = buildModel([piece({ dv: 20 / 190 })]);
@@ -329,7 +332,8 @@ function runChecks(detail) {
       } finally {
         for (const [k, existed, value] of saved) { if (existed) S[k] = value; else delete S[k]; }
       }
-      notes.push(`сохранение риса: ${passed}/${tested}, максимальная ошибка ${(100 * worst).toFixed(3)} %`);
+      // ⚑ «сохранение риса» → «сохранение постели» (#255, 17.09): в зондах теперь и рис, и паста.
+      notes.push(`сохранение постели: ${passed}/${tested}, максимальная ошибка ${(100 * worst).toFixed(3)} %`);
     }
     // Поворот бруска в плоскости листа меняет срез, но не его объём.
     // Вход задан миллиметрами и пересечением четырёх рёбер прямоугольника;
@@ -721,24 +725,29 @@ function runChecks(detail) {
       kn(mv <= 25, `пазл: зеркальная ${mv.toFixed(0)} %, потолок 25 — положение группы на листе не влияет на срез (issue #139)`);
     } catch (e) { fails.push('пазл: ' + e.message); }
 
-    // ── 5. ЯРКОСТЬ РИСА ──
+    // ── 5. ЯРКОСТЬ ПОСТЕЛИ ──
     // Рельеф и щели темнее намазки; без компенсации рис молча темнеет — это была бы
     // правка внешнего вида продукта, а не читаемости.
-    S.base = 'futo'; clean(); touchModel();
-    const b = B(), c = b.spreadRgb;
-    for (const cut of [false, true]) {
-      let s = [0, 0, 0], n = 0;
-      for (let i = 0; i < 150; i++) for (let j = 0; j < 150; j++) {
-        let p;
-        if (cut) { const gx = (i - 75) * 0.12, gy = (j - 75) * 0.12, rr = Math.hypot(gx, gy) || 1e-6;
-                   p = spreadColor(gx, gy, b, -gy / rr, gx / rr, 1); }
-        else p = spreadColor(i * 0.062, j * 0.062, b, undefined, undefined, 1);
-        s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; n++;
+    // ⚑ И РИС, И ПАСТА (#255, 17.09). У пасты своя ветка отрисовки (pasteColor), и ошибиться
+    // в ней так же легко: знакопеременный шум вокруг нуля — это НАМЕРЕНИЕ, а не гарантия.
+    for (const база of ['futo', 'fruit']) {
+      S.base = база; clean(); touchModel();
+      const b = B(), c = b.spreadRgb, имя = bedOf(b).short;
+      for (const cut of [false, true]) {
+        let s = [0, 0, 0], n = 0;
+        for (let i = 0; i < 150; i++) for (let j = 0; j < 150; j++) {
+          let p;
+          if (cut) { const gx = (i - 75) * 0.12, gy = (j - 75) * 0.12, rr = Math.hypot(gx, gy) || 1e-6;
+                     p = spreadColor(gx, gy, b, -gy / rr, gx / rr, 1); }
+          else p = spreadColor(i * 0.062, j * 0.062, b, undefined, undefined, 1);
+          s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; n++;
+        }
+        const d = s.map((x, i) => (x / n) - c[i]);
+        ok(d.every(x => Math.abs(x) <= TOL_LEVEL),
+           `яркость постели (${имя}) ${cut ? 'на срезе' : 'на листе'}: Δ ${d.map(x => x.toFixed(1)).join('/')}, допуск ±${TOL_LEVEL}`);
       }
-      const d = s.map((x, i) => (x / n) - c[i]);
-      ok(d.every(x => Math.abs(x) <= TOL_LEVEL),
-         `яркость риса ${cut ? 'на срезе' : 'на листе'}: Δ ${d.map(x => x.toFixed(1)).join('/')}, допуск ±${TOL_LEVEL}`);
     }
+    S.base = 'futo'; clean(); touchModel();   // база возвращается на место — дальше её меняют сами разделы
 
     // ── 3в. ХУДШИЙ СЛУЧАЙ РАСКЛАДКИ: начинки сгрудились у ближнего края ──
     // ПОЧЕМУ ОТДЕЛЬНО ОТ 3б. Там начинки разложены ПО ВСЕМУ листу, и подворот забирает немного.
@@ -2789,6 +2798,98 @@ function runChecks(detail) {
       } finally {
         S.base = было.base; S.wrap = было.wrap; S.hand = было.hand; S.lists.futo = было.futo; S.winding = было.winding;
         S.turns = было.turns; S.album = было.album; modelCaches.clear(); touchModel();
+      }
+    }
+
+    // ── С. СЛАДКИЙ РОЛЛ: ГЮХИ И БЕЛАЯ БОБОВАЯ ПАСТА (#255, решение владельца 17.09) ──
+    //
+    // Проверяется не «красиво ли», а четыре утверждения, каждое из которых было НЕВЕРНО до
+    // правки 17.09 и каждое видно игроку:
+    //   1. сладкое заворачивают в гюхи 求肥, а не в омлет;
+    //   2. внутри белая бобовая паста 白あん, и на срезе класс постели так и называется;
+    //   3. ни одна подпись этой базы не говорит «рис» — ни уровень пазла, ни нехватка листа;
+    //   4. у пасты нет зерна: она протёртая, и ни граница с начинкой, ни силуэт ролла зёрнами
+    //      не рвутся (GRAIN_C — тот самый выход отрисовки, которым зерно это делает).
+    // Плюс пятое, числовое: толщина слоя обязана остаться внутри вилки источников. Оно ловит
+    // не опечатку, а тихий возврат к суши-рису, если кто-то «поправит» базу по образцу соседней.
+    {
+      const было = { base: S.base, wrap: S.wrap, hand: S.hand, winding: S.winding, shape: S.shape, list: S.lists.fruit };
+      try {
+        S.base = 'fruit'; S.wrap = null; S.hand = handOf(); S.winding = null; S.shape = 'round';
+        S.lists.fruit = []; clean(); modelCaches.clear(); touchModel();
+        const b = B(), постель = bedOf(b);
+        ok(BASES.fruit.wrapKey === 'gyuhi' && b.wrapKey === 'gyuhi',
+           `#255: обёртка сладкой базы по умолчанию «${b.wrapKey}», а решение владельца 17.09 — гюхи 求肥`);
+        ok(b.wrapper === WRAPPERS.gyuhi.color && Math.abs(b.w * U_MM - WRAPPERS.gyuhi.mm) < 1e-9,
+           `#255: цвет и толщина листа сладкой базы разошлись с WRAPPERS.gyuhi (${b.wrapper} / ${(b.w * U_MM).toFixed(2)} мм)`);
+        ok(постель.key === 'paste' && постель.short === 'паста' && постель.grain === false,
+           `#255: постель сладкой базы описана как «${постель.short}» (${постель.key}), а должна быть протёртой пастой без зерна`);
+        // Вилка источников: намазка на ролл (cotta, 50 г на 10×14 см) 2,4…2,8 мм — низ;
+        // оболочка фруктового дайфуку (なごみや, いちご 20 г : 白あん 35 г) 5,4 мм — верх.
+        const мм = b.T * U_MM;
+        ok(мм >= 2.4 && мм <= 5.5,
+           `#255: слой пасты ${мм.toFixed(2)} мм вне вилки источников 2,4…5,5 мм — суши-рис сюда вернулся бы незаметно`);
+
+        // 2. НА СРЕЗЕ — ПАСТА, А НЕ РИС. Считается свёрткой домена, той же, которой меряют
+        // похожесть роллов: если класс 1 снова назовут рисом, упадёт здесь, а не в чужом отчёте.
+        S.lists.fruit = [{ kind: 'strawberry', u: 0.35, v: 0.5, z0: 0, z1: 0, phase: 1 },
+                         { kind: 'kiwi', u: 0.52, v: 0.5, z0: 0, z1: 0, phase: 2 }];
+        modelCaches.clear(); touchModel();
+        const m = getModel(), карта = rollMapDigest(materialMapOf(64, 0.5, m, m.Rmax));
+        ok(!('rice' in карта.counts) && (карта.counts.paste || 0) > 0,
+           `#255: на срезе сладкой базы классы ${Object.keys(карта.counts).join('/')} — постель обязана называться пастой`);
+        ok(карта.probe.indexOf('rice') < 0, '#255: проба луча по срезу сладкой базы всё ещё возвращает «rice»');
+
+        // 3. СЛОВА. Уровень с краской и строка нехватки листа — два места, где «рис» стоял
+        // прямо в тексте. Нехватку делаем настоящей: короткий лист даёт честную дыру (#242).
+        const подпись = levelTitle({ n: 3, turns: 3, pieces: 1, paint: 1 }, 12);
+        ok(/паста/.test(подпись) && !/рис/.test(подпись),
+           `#255: подпись уровня на сладкой базе — «${подпись}»`);
+        // Банан 60 × 60 мм в ядре — лист кончается на одном обороте, и нехватка настоящая.
+        // Проверяем ОБА условия: что она сказана вообще и что сказана про гюхи. Без первого
+        // сторож зеленел бы на пустой строке, ничего не сверив (та же ловушка, что в #242).
+        S.lists.fruit = [{ kind: 'banana', u: 0.5, v: 0.5, z0: 0, z1: 0, phase: 1, wU: 12, hU: 12 }];
+        S.winding = 'ring'; modelCaches.clear(); touchModel();
+        const нх = sheetShortText(getModel());
+        ok(!!нх, '#255: банан 60 мм на сладкой базе — лист обязан не сомкнуться, а нехватка не сказана (сверять нечего)');
+        ok(нх && !/рис/.test(нх) && /гюхи/.test(нх),
+           `#255: нехватка листа на гюхи сказана как «${нх}» — про нори и рис там неправда`);
+        S.winding = null;
+
+        // 4. ЗЕРНА НЕТ. spreadColor у пасты обязан обнулить смещение к центру зерна и отдать
+        // q = 1: первым отрисовка перестаёт грызть границу с начинкой, вторым — силуэт ролла.
+        S.lists.fruit = []; modelCaches.clear(); touchModel();
+        spreadColor(1.7, -0.9, B(), 0.6, 0.8, 1);
+        const пастаC = [GRAIN_C[0], GRAIN_C[1], GRAIN_C[2]];
+        S.base = 'futo'; clean(); modelCaches.clear(); touchModel();
+        spreadColor(1.7, -0.9, B(), 0.6, 0.8, 1);
+        const рисC = [GRAIN_C[0], GRAIN_C[1], GRAIN_C[2]];
+        ok(пастаC[0] === 0 && пастаC[1] === 0 && пастаC[2] === 1,
+           `#255: паста вернула зерно GRAIN_C ${пастаC.map(x => x.toFixed(3)).join('/')} — граница и силуэт станут зубчатыми`);
+        ok(рисC[0] !== 0 || рисC[1] !== 0,
+           '#255: у риса пропало смещение к центру зерна — проверка «у пасты его нет» перестала что-либо различать');
+        // И то же самое глазами: размах яркости на масштабе одной рисинки. У зерна он большой
+        // (купол, щель, блик), у протёртой пасты — мал. Порог 40 стоит между замерами 17.09:
+        // рис 142,6 · паста 6,1 (runs/continuation/task15-sweet/out/grain-span.json). Он не
+        // посередине намеренно: подправить мазок пасты вдвое — законная правка вида, вернуть
+        // ей зерно — нет.
+        const размах = (база) => {
+          S.base = база; clean(); modelCaches.clear(); touchModel();
+          const bb = B(); let lo = 255, hi = 0;
+          for (let i = 0; i < 40; i++) for (let j = 0; j < 40; j++) {
+            const gx = -2 + i * 0.05, gy = -2 + j * 0.05, rr = Math.hypot(gx, gy) || 1e-6;
+            const p = spreadColor(gx, gy, bb, -gy / rr, gx / rr, 1);
+            const l = 0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2];
+            if (l < lo) lo = l; if (l > hi) hi = l;
+          }
+          return hi - lo;
+        };
+        const рРис = размах('futo'), рПаста = размах('fruit');
+        ok(рПаста < 40 && рРис > 40,
+           `#255: размах яркости постели на масштабе зерна — рис ${рРис.toFixed(1)}, паста ${рПаста.toFixed(1)} (паста должна быть гладкой)`);
+      } finally {
+        S.base = было.base; S.wrap = было.wrap; S.hand = было.hand; S.winding = было.winding;
+        S.shape = было.shape; S.lists.fruit = было.list; modelCaches.clear(); touchModel();
       }
     }
 
