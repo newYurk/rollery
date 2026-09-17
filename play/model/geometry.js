@@ -2859,10 +2859,11 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
   // а слой на хвосте листа 0,1 мм), кусок уезжал осколком 1,6–2,9 мм² в соседний виток. Стопка выше
   // своего слоя геометрически неразрешима: 70 мм куска на её верху ложатся на радиус 11 мм — это
   // полный виток, а сам лист своей кромкой проходит там полвитка. Переносом площади срез хотя бы цел.
-  let stamps = null, stampFallback = false;
+  let stamps = null, stampFallback = false, stampBad = 0;
   if (source.bodies.length && !radiusOnly && !g.stampOff) {
     const thick0 = thick.slice(), starts0 = starts.slice();
     stamps = stampBand(wd, g, v, source, thick, wraps, starts, scale, radiusOnly, A, B);
+    if (stamps) stampBad = stamps.info.bad;   // виден и после отката — чтобы мерка называла причину
     if (stamps && !(stamps.info.bad <= STAMP_TOL)) {
       stamps = null; stampFallback = true;
       thick.set(thick0); starts.set(starts0); apply(scale);
@@ -2883,7 +2884,7 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
   }
   // трубка сердечника отдала рис телам: ядро платит меньше, лента несёт больше
   const tg = stamps ? stamps.info.tubeGive : 0;
-  return {source, sectors, area, stamps: stamps ? stamps.groups : null, stampAt, stampInfo: stamps ? stamps.info : null, stampFallback, riceBudget:{input:source.riceInput,core:Math.min(source.coreRice,source.riceInput)-tg,requiredCore:source.coreRice-tg,remaining:source.riceRemaining+tg,deficit:Math.max(0,source.coreRice-source.riceInput)}};
+  return {source, sectors, area, stamps: stamps ? stamps.groups : null, stampAt, stampInfo: stamps ? stamps.info : null, stampFallback, stampBad, riceBudget:{input:source.riceInput,core:Math.min(source.coreRice,source.riceInput)-tg,requiredCore:source.coreRice-tg,remaining:source.riceRemaining+tg,deficit:Math.max(0,source.coreRice-source.riceInput)}};
 }
 function conservativeBandMaterial(m, wd, v, r, sm, phi) {
   const map = wd.materialTransport, sector = map.sectors[sm.idx];
