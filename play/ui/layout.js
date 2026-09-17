@@ -391,9 +391,15 @@ function layout() {
       const bx = u0left ? gx0 + handleH + 12 : gx0;
       { const f = sheetFit(sw, boxFit, 'x');
         L.sheet = { x: bx + (sw - f.sw) / 2, y: L.top + 26 + band + (boxFit - f.sh) / 2, w: f.sw, h: f.sh, uAxis: 'x', lenU: f.sw, lenV: f.sh }; }
-      L.handle = u0left ? { x: bx - 12 - handleH, y: L.sheet.y - 18, w: handleH, h: sh + 36 }
-                        : { x: bx + sw + 12, y: L.sheet.y - 18, w: handleH, h: sh + 36 };
-      L.layBtn = { x: bx - 18, y: L.sheet.y + sh + 12, w: sw + 36, h: btnH, max: 3 };
+      // ⚑ ЦИНОВКА И СТЕК ВИСЯТ НА ЛИСТЕ, А НЕ НА РАМКЕ (17.09) — та же правка, что сделана для
+      // телефона 02.09 в #157 и тогда же НЕ доведена до планшета. Здесь стояла высота рамки `sh`,
+      // а лист держит честную пропорцию и потому её ниже: при этом он ещё и ЦЕНТРИРУЕТСЯ в рамке,
+      // так что стек уезжал вниз на половину разницы. Замер 17.09 (headless, шрифт-заглушка):
+      // низ ленты 1588 при экране 1366 (1024×1366, хосомаки), 915 при 900 (1440×900, узумаки) —
+      // палитра просто лежала за краем экрана. Считаем от того, что нарисовано: L.sheet.h.
+      L.handle = u0left ? { x: bx - 12 - handleH, y: L.sheet.y - 18, w: handleH, h: L.sheet.h + 36 }
+                        : { x: bx + sw + 12, y: L.sheet.y - 18, w: handleH, h: L.sheet.h + 36 };
+      L.layBtn = { x: bx - 18, y: L.sheet.y + L.sheet.h + 12, w: sw + 36, h: btnH, max: 3 };
       L.chips = { x: ox + 12, y: L.layBtn.y + btnH + 12, w: cw - 24, size: chipSize, rows, labels: true, perRow, pad };
       L.chipScroll = perRow * (chipSize + 8) - 8 > Math.max(chipSize, cw - 24 - 2 * pad);
     } else {
@@ -401,7 +407,8 @@ function layout() {
     const bx = Math.max(ox + 22, ox + (cw - groupW) / 2);
     { const f = sheetFit(sw, boxFit, 'y');
       L.sheet = { x: bx + (sw - f.sw) / 2, y: L.top + 26 + band + (boxFit - f.sh) / 2, w: f.sw, h: f.sh, uAxis: 'y', lenU: f.sh, lenV: f.sw }; }
-    L.handle = { x: bx - 18, y: L.sheet.y + sh + 8, w: sw + 36, h: handleH };
+    // Циновка под ЛИСТОМ, а не под рамкой — см. разбор в повёрнутой ветке выше.
+    L.handle = { x: bx - 18, y: L.sheet.y + L.sheet.h + 8, w: sw + 36, h: handleH };
     L.layBtn = { x: bx - 18, y: L.handle.y + handleH + 12, w: sw + 36, h: btnH, max: 3 };
     L.chips = { x: bx - 18, y: L.layBtn.y + btnH + 12, w: sw + 36, size: chipSize, rows, labels: true, perRow, pad };
     // Страховка от молчаливого обреза: если полоса уже ряда — включаем прокрутку.
