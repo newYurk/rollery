@@ -2299,6 +2299,43 @@ function runChecks(detail) {
       S.wrap = null; S.lists.futo = [];
     }
 
+    // ── 7в. РЕЦЕПТ ПЕРЕЖИВАЕТ ССЫЛКУ И АЛЬБОМ БЕЗ ОКРУГЛЕНИЯ (#236, 16.09).
+    //
+    // Ссылка-пазл писала u с 4 знаками, v и фазу с 3, руку с 2–3; альбом округлял руку. Друг по
+    // ссылке и сам игрок после перезагрузки получали ДРУГОЙ ролл: у порога режима — даже другой
+    // режим (футомаки, тамаго на 149,13 мм: спираль → после ссылки кольцо). Сверяется не формат, а
+    // итог: модель из прошедшего через ссылку или альбом рецепта — та же, что из исходного, при
+    // сброшенном кэше (иначе его ключ склеил бы входы и спрятал разницу).
+    if (typeof encodePuzzle === 'function' && typeof rollMapDigest === 'function') {
+      const было = { base: S.base, wrap: S.wrap, hand: S.hand, futo: S.lists.futo, winding: S.winding, turns: S.turns, album: S.album.slice() };
+      const отпечаток = () => { modelCaches.clear(); const m = getModel();
+        return JSON.stringify([m.g.winding, m.Rmax, rollMapDigest(materialMapOf(64, 0.5, m, m.Rmax))]); };
+      try {
+        S.base = 'futo'; S.wrap = null; S.winding = null; S.turns = null; clean();
+        S.hand = handOf({ air: 0.0577463249, wobble: 0.0010778825, phase: 5.3209397258, press: 0.8581234567 });
+        const исход = [{ kind: 'cucumber', u: 0.25, v: 0.5, z0: 0, z1: 0, phase: 1.23456789 },
+                       { kind: 'tamago', u: 149.13 / 210, v: 0.4876543, z0: 0, z1: 0, phase: 0.98765432, dv: 0.63 }];
+        S.lists.futo = JSON.parse(JSON.stringify(исход)); touchModel();
+        const было_ = отпечаток(), рука = S.hand;
+        // ссылка
+        const got = decodePuzzle(encodePuzzle(S.lists.futo, null));
+        S.lists.futo = got.list; if (got.hand) S.hand = got.hand; touchModel();
+        const поСсылке = отпечаток();
+        ok(поСсылке === было_, `#236: ролл по ссылке не тот же, что отправили: ${поСсылке.slice(0, 60)} против ${было_.slice(0, 60)}`);
+        // альбом: сохранить, перечитать из «хранилища» (JSON), открыть
+        S.hand = рука; S.lists.futo = JSON.parse(JSON.stringify(исход)); touchModel();
+        albumSave();
+        const запись = JSON.parse(JSON.stringify(S.album[0]));
+        S.hand = handOf(); S.lists.futo = [];
+        const изАльбома = withRecipe(запись, m => { modelCaches.clear(); const mm = buildModel(JSON.parse(JSON.stringify(запись.list)));
+          return JSON.stringify([mm.g.winding, mm.Rmax, rollMapDigest(materialMapOf(64, 0.5, mm, mm.Rmax))]); });
+        ok(изАльбома === было_, `#236: ролл из альбома не тот же, что сохраняли: ${изАльбома.slice(0, 60)} против ${было_.slice(0, 60)}`);
+      } finally {
+        S.base = было.base; S.wrap = было.wrap; S.hand = было.hand; S.lists.futo = было.futo; S.winding = было.winding;
+        S.turns = было.turns; S.album = было.album; modelCaches.clear(); touchModel();
+      }
+    }
+
     // ── 8. МИГРАЦИЯ ГЕОМЕТРИИ (issue #72): legacy baseline и facade ──
     // ТОЧКА ПОДКЛЮЧЕНИЯ, А НЕ САМИ ПРОВЕРКИ. Логика живёт в play/test/**: сюда она не
     // переезжает намеренно — checks.js и без того длинный, а слепок и facade-сравнение
