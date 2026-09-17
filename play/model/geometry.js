@@ -2841,9 +2841,21 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
   // на 14 срезах из 15, которые сборке нужны только ради Rmax, — и сборка спирали с семью кусками
   // шла ×8,4 (хосомаки, канон-7: 7,5 → 62,9 мс, парный замер round2/perf/pre-head-5.json).
   // Ролл круглый по решению владельца 17.09: штамп утапливает кусок, рис уступает, контур ленты
-  // тот же, что у переноса площади, — поэтому радиус среза берётся по переносу. Где штамп всё же
-  // двигает контур (бугор, когда места нет), Rmax его не видит; расхождение измерено по матрице
-  // round2 и названо в отчёте (масштаб кадра, ⌀ в подписи, масштаб карты пазла).
+  // тот же, что у переноса площади, — поэтому радиус среза берётся по переносу.
+  //
+  // ⚠ ШТАМП РАЗДУВАЕТ ТЕСНЫЙ РОЛЛ — НЕ ЗАКРЫТО (17.09, третий круг, критерий 11 task5; stampGrow).
+  // Замер по выборке (813 раскладок, 1275 срезов, против origin/codex/rollery-next): контур не
+  // двигается на 1221 срезе, на 14 растёт меньше нори (0,001…0,19 мм) и на 40 — больше, до 5,3 мм
+  // (хосомаки, спираль, канон-7, камабоко: 21,1 → 26,4 мм, ×1,25). Там, где кускам тесно, лента не
+  // расступается под куском, а вспухает вместе с ним: это и есть 15 провалов критерия 11 из 512
+  // (некруглость 7…165 % при пороге 6) и 6 срезов пазла, где кусочек стал хуже базы.
+  // Видно это и глазами: срез рисуется больше своей рамки (Rmax по переносу), ⌀ в подписи и масштаб
+  // карты пазла считаются по 21,1 мм. Картинка — runs/continuation/task7-rigid-port/round3/img/bump.png.
+  // Пробовано 17.09 и отвергнуто: не пускать штамп, когда контур растёт больше нори. Тогда на откат
+  // уходят сами показательные раскладки — спираль с каноном-7 на хосо и тю, пять кусков на фруктовом,
+  // кольцо с огурцом у набитого ядра: сторожа этой ветки становятся красными (9 провалов), то есть
+  // правило лечит симптом, выключая саму правку. Рису надо уступать место, а не ленте расти.
+  // stampGrow остаётся мерой: сколько эта посадка прибавила к контуру переноса.
   //
   // ⚑ УЗУМАКИ ИДЁТ МИМО ШТАМПА ДО РЕШЕНИЯ ВЛАДЕЛЬЦА (17.09, #134; g.stampOff — паспорт в buildModel).
   // Лист-носитель узумаки — омлет 1,5 мм при рисе 1,5 мм: на луче через кусок 10 мм лежат несжимаемые
@@ -2859,11 +2871,12 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
   // а слой на хвосте листа 0,1 мм), кусок уезжал осколком 1,6–2,9 мм² в соседний виток. Стопка выше
   // своего слоя геометрически неразрешима: 70 мм куска на её верху ложатся на радиус 11 мм — это
   // полный виток, а сам лист своей кромкой проходит там полвитка. Переносом площади срез хотя бы цел.
-  let stamps = null, stampFallback = false, stampBad = 0;
+  let stamps = null, stampFallback = false, stampBad = 0, stampGrow = 0;
   if (source.bodies.length && !radiusOnly && !g.stampOff) {
-    const thick0 = thick.slice(), starts0 = starts.slice();
+    const thick0 = thick.slice(), starts0 = starts.slice(), Rout0 = wd.Rout;
     stamps = stampBand(wd, g, v, source, thick, wraps, starts, scale, radiusOnly, A, B);
-    if (stamps) stampBad = stamps.info.bad;   // виден и после отката — чтобы мерка называла причину
+    // видны и после отката — чтобы мерка называла причину, а не только сам факт
+    if (stamps) { stampBad = stamps.info.bad; stampGrow = wd.Rout - Rout0; }
     if (stamps && !(stamps.info.bad <= STAMP_TOL)) {
       stamps = null; stampFallback = true;
       thick.set(thick0); starts.set(starts0); apply(scale);
@@ -2884,7 +2897,7 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
   }
   // трубка сердечника отдала рис телам: ядро платит меньше, лента несёт больше
   const tg = stamps ? stamps.info.tubeGive : 0;
-  return {source, sectors, area, stamps: stamps ? stamps.groups : null, stampAt, stampInfo: stamps ? stamps.info : null, stampFallback, stampBad, riceBudget:{input:source.riceInput,core:Math.min(source.coreRice,source.riceInput)-tg,requiredCore:source.coreRice-tg,remaining:source.riceRemaining+tg,deficit:Math.max(0,source.coreRice-source.riceInput)}};
+  return {source, sectors, area, stamps: stamps ? stamps.groups : null, stampAt, stampInfo: stamps ? stamps.info : null, stampFallback, stampBad, stampGrow, riceBudget:{input:source.riceInput,core:Math.min(source.coreRice,source.riceInput)-tg,requiredCore:source.coreRice-tg,remaining:source.riceRemaining+tg,deficit:Math.max(0,source.coreRice-source.riceInput)}};
 }
 function conservativeBandMaterial(m, wd, v, r, sm, phi) {
   const map = wd.materialTransport, sector = map.sectors[sm.idx];
