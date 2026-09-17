@@ -43,7 +43,7 @@ const S = {
   winding: null,
   turns: null,                 // число витков (пазл задаёт длину листа); null — по базе
   shape: 'round',              // форма прессовки: round | square | triangle
-  puzzle: null,                // режим «Пазл»: { level, seed, target, vs, result }
+  puzzle: null,                // режим «Пазл»: { level, seed, target, target0, vs, result }; target0 — цель как сгенерирована (#253)
   album: [],                   // сохранённые роллы: рецепт + почерк, картинки пересчитываются
   albumOpen: -1,               // раскрытая запись альбома
   albumScroll: 0,
@@ -347,18 +347,41 @@ function withSheetOf(st, fn) {
   try { return fn(); }
   finally { S.base = keep.base; S.wrap = keep.wrap; S.turns = keep.turns; }
 }
-// Лист сменился под лежащей раскладкой (обёртка при заданных витках меняет длину листа, а с ней
-// долю куска): раскладку и цель пазла возвращаем на рис. Смена базы зовёт layOnRice сама — у
-// каждой базы своя раскладка, а пазл при смене базы начинается заново.
+// ⚑ КРУГ ОБЁРТОК ВОЗВРАЩАЕТ РАСКЛАДКУ И ЦЕЛЬ ДО БИТА (#253, 17.09, замечание проверки). При
+// заданных витках обёртка меняет длину листа, и кусок у кромки встаёт на рис (layRefit). Прежде
+// сдвиг копился: игрок перебирал обёртки, возвращался к исходной, а куски у кромок стояли не там,
+// где он их положил, — 7680 раскладок из 9600 (два тамаго у кромок; 6 баз × 16 уровней × 5
+// обёрток × 20 зёрен), до 4,9 мм; цель пазла менялась в 700 из 9600, до 8,76 мм, и игрок,
+// собравший её до круга, сравнивался уже с другой.
+//   · Кусок раскладки помнит u, с которым его положили (`layAnchor`), и на каждом листе встаёт
+//     по правилу от этого u, а не от уже сдвинутого. На исходном листе это прежнее место до бита:
+//     layU идемпотентен. Память слабая (WeakMap) — в сохранение, историю и ссылку не попадает; кусок,
+//     который игрок сдвинул сам (u уже не тот, что поставила подгонка), запоминается заново.
+//     Снимок истории — новые объекты без памяти: после отмены место считается от u снимка.
+//   · Цель пазла игрок не двигает, поэтому она выводится заново из сгенерированной (`target0`)
+//     на каждом листе.
+// Смена базы зовёт layOnRice сама: у каждой базы своя раскладка, а пазл начинается заново.
+const layAnchor = new WeakMap();
+function layRefitList(list) {
+  for (const p of list) {
+    if (!ING[p.kind]) continue;
+    const a = layAnchor.get(p), u0 = a && a.at === p.u ? a.u : p.u;
+    p.u = layU(p, u0);
+    layAnchor.set(p, { u: u0, at: p.u });
+  }
+}
 function layRefit() {
-  layOnRice(patches());
-  if (S.puzzle && S.puzzle.target) layOnRice(S.puzzle.target);
+  layRefitList(patches());
+  const pz = S.puzzle;
+  if (pz && pz.target0) { const t = pz.target0.map(p => Object.assign({}, p)); layOnRice(t); pz.target = t; }
+  else if (pz && pz.target) layOnRice(pz.target);
 }
 // Ляжет ли то, что уже есть (раскладка и цель пазла), на рис листа с обёрткой `wrap`.
 function sheetTakes(wrap) {
   const fits = p => !ING[p.kind] || layFits(p);
+  const цель = S.puzzle && (S.puzzle.target0 || S.puzzle.target);
   return withSheetOf({ base: S.base, wrap, turns: S.turns },
-    () => patches().every(fits) && !(S.puzzle && S.puzzle.target && !S.puzzle.target.every(fits)));
+    () => patches().every(fits) && !(цель && !цель.every(fits)));
 }
 
 function load() {

@@ -162,6 +162,9 @@ function puzzleStart(level, seed) {
   selOnRice();   // лист уровня короче — выбранная фишка могла стать тусклой (#253)
   S.puzzle = { level, seed, lv, target: null, vs: puzzleSlices(lv.pieces), result: null };
   S.puzzle.target = genTarget(lv, seed * 7919 + level * 131);
+  // Сгенерированная цель хранится отдельно: при смене обёртки цель выводится из неё заново, и
+  // круг обёрток возвращает её до бита (#253, 17.09, layRefit в state.js).
+  S.puzzle.target0 = S.puzzle.target.map(p => Object.assign({}, p));
   // СРЕЗЫ ОБЯЗАНЫ ПРОХОДИТЬ ЧЕРЕЗ КАЖДУЮ НАЧИНКУ. Иначе часть цели невидима, и её можно
   // класть куда угодно: замерено на уровне 5 — клубника занимала v 0,331…0,456, а резы
   // стояли на 0,167 / 0,5 / 0,833, и сдвиг её на 10 мм давал ЧЕСТНЫЕ 100 %. Лосось и огурец
@@ -241,7 +244,7 @@ function puzzleFromLink(pz) {
   if (pz.hand) S.hand = pz.hand;
   const local = pz.list.some(p => (p.dv ?? ING[p.kind].dv) < 1), n = pz.list.filter(p => p.kind !== 'nori').length;
   const lv = { n, turns: S.turns || B().turns, pieces: local ? 3 : 1, custom: true };
-  S.puzzle = { level: -1, seed: 0, lv, target: pz.list, vs: puzzleSlices(lv.pieces), result: null };
+  S.puzzle = { level: -1, seed: 0, lv, target: pz.list, target0: pz.list.map(p => Object.assign({}, p)), vs: puzzleSlices(lv.pieces), result: null };
   S.lists[S.base] = []; histReset(); touchModel(); layout();   // #150 if (S.mode !== 'lay') action('back'); dirty = true; requestFrame();
 }
 let shareNote = 0;

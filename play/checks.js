@@ -2235,7 +2235,8 @@ function runChecks(detail) {
           S.base = 'futo'; S.wrap = 'gyuhi'; clean(); S.mode = 'lay';
           puzzleStart(2, 3);
           S.sel = 'tamago'; placeAt(1, 0.5); placeAt(0, 0.5);
-          S.puzzle.target.push(Object.assign({}, patches()[0]), Object.assign({}, patches()[1]));
+          // цель выводится из сгенерированной (target0) на каждом листе — куски у кромок кладём в обе
+          for (const t of [S.puzzle.target, S.puzzle.target0]) if (t) t.push(Object.assign({}, patches()[0]), Object.assign({}, patches()[1]));
           action('sheet');   // гюхи → нори: лист короче, доля куска больше
           if (S.wrap !== 'nori') плохо.push(`обёртка после перебора ${S.wrap}`);
           patches().forEach(p => { if (голых(p)) плохо.push(`раскладка/${p.kind}: на голом крае после смены обёртки`); });
@@ -2305,6 +2306,42 @@ function runChecks(detail) {
           patches().forEach(p => { if (голых(p)) плохо.push(`отмена на нори вернула ${p.kind} на голое`); });
           puzzleStop();
           ok(!плохо.length && видели.length > 0, `#253 обёртка, на которой куску места нет (перебор ${видели.join('→')}): ${плохо.join(' · ')}`);
+        }
+        // 3г. КРУГ ОБЁРТОК НЕ МЕНЯЕТ НИ ЦЕЛЬ ПАЗЛА, НИ РАСКЛАДКУ (замечание проверки 17.09). Игрок
+        // перебирает обёртки и возвращается к исходной: цель и куски у кромок — те же до бита. До правки
+        // цель менялась в 700 кругах из 9600 (до 8,76 мм), раскладка — в 7680 (до 4,9 мм). Все базы ×
+        // все уровни × каждая стартовая обёртка × 3 зерна; путь настоящий: касания и действие 'sheet'.
+        // По дороге цель или раскладка обязаны хоть где-то сдвинуться (`по дороге`), иначе круг
+        // ничего не проверил бы.
+        {
+          const плохо = []; let кругов = 0, поДороге = 0;
+          const ОБЁРТКИ = Object.keys(WRAPPERS);
+          for (const база of БАЗЫ) {
+            if (BASES[база].wrapFixed) continue;
+            for (let lv = 0; lv < LEVELS.length; lv++) for (const старт of ОБЁРТКИ) for (const seed of [1, 2, 3]) {
+              S.base = база; S.wrap = старт; S.hand = handOf(); S.mode = 'lay'; S.rollP = 0; anim = null;
+              puzzleStart(lv, seed); layout(); buttons.length = 0; icons.length = 0;
+              const s = SB(), тег = `${база} ур.${lv + 1} зерно ${seed} с ${старт}`;
+              const тап = (kind, u, v) => { S.sel = kind; const sc = toScreen(s.x + s.w * v, s.y + (1 - u) * s.h); onDown(sc.x, sc.y, 81); onUp(sc.x, sc.y, 81); };
+              тап('tamago', 0.999, 0.3); тап('tamago', 0.001, 0.7);
+              if (patches().length !== 2) плохо.push(`${тег}: положено ${patches().length} из 2`);
+              const цель = JSON.stringify(S.puzzle.target), раскладка = JSON.stringify(patches()), путь = [старт];
+              let сдвиг = false;
+              for (let k = 0; k < ОБЁРТКИ.length && (k === 0 || S.wrap !== старт); k++) {
+                action('sheet'); путь.push(S.wrap);
+                if (S.wrap !== старт && (JSON.stringify(S.puzzle.target) !== цель || JSON.stringify(patches()) !== раскладка)) сдвиг = true;
+              }
+              кругов++; if (сдвиг) поДороге++;
+              if (S.wrap !== старт) плохо.push(`${тег}: круг ${путь.join('→')} не вернулся`);
+              else {
+                if (JSON.stringify(S.puzzle.target) !== цель) плохо.push(`${тег}: цель после круга ${путь.join('→')} другая`);
+                if (JSON.stringify(patches()) !== раскладка) плохо.push(`${тег}: раскладка после круга ${путь.join('→')} другая`);
+              }
+              puzzleStop();
+            }
+          }
+          ok(!плохо.length && кругов > 0 && поДороге > 0,
+             `#253 круг обёрток: ${плохо.length} нарушений в ${кругов} кругах (сдвигалось по дороге ${поДороге}) — ${плохо.slice(0, 3).join(' · ')}`);
         }
         // 4. ПРЕЖНИЕ РАСКЛАДКИ КАНОНА ЛЕЖАТ НА РИСЕ — правило их не двигает.
         {
