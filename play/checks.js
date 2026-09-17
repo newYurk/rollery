@@ -2569,6 +2569,226 @@ function runChecks(detail) {
       }
     }
 
+    // ── Ж. ТВЁРДЫЙ КУСОК В ВИТКЕ ДЕРЖИТ ФОРМУ (#134; решения владельца 16.09 и 17.09).
+    //
+    // «Жёсткое держит форму»: кусок в витке спирали и в рисе кольца — то же сечение, что в
+    // ядре (каталог, обжим #118), рис и нори его обтекают; толстый кусок в рисе кольца циновка
+    // вдавливает, ролл остаётся круглым. Критерии и пороги — task5 ACCEPTANCE.md (записаны до
+    // прототипов), мерки — по образцу судьи task5 (judge/lib/jm.js, jcore.js), но короче.
+    //
+    // Эталон сечения — СВОЙ, из каталога, не из модели: ширина wU/sq, высота hU·sq, где
+    // sq = min(1, max(0,65, 1 − 0,35·(прижим − 1)/0,3·(1 − жёсткость))) — правило #118 выписано
+    // заново, а не взято у squashOf. Мерка — по materialAt на сетке 0,1 мм вокруг куска.
+    //
+    // Все пять мерок на a3cb1f8 (перенос площади) КРАСНЫЕ: кусок там размазан сектором
+    // (12,6 × 7,9 мм вместо 10 × 10), на голой нори рвётся, у урамаки-кольца лежит на поверхности.
+    // Мерки 3 и 5 составные — «цел И не прыгает», «цел И ролл круглый»: кусок-сектор контроля
+    // не прыгает и не выпирает, а прототип A (штамп без правок 17.09) цел, но прыгал на 5,6 мм и
+    // выпирал на 55 %. Мерка 4 — замок: ядро кольца, где все куски в ядре, штамп трогать не должен.
+    {
+      const MMU = U_MM;
+      const Pn = (kind, uMm, base, vid) => ({ kind, u: uMm / (BASES[base].sheetCm * 10), v: 0.5, z0: 0, z1: 0, phase: 1, vid });
+      const собрать = (база, режим, прижим, куски) => {
+        S.base = база; S.shape = 'round'; S.wrap = null; S.winding = режим;
+        S.hand = handOf({ press: прижим });
+        S.lists[база] = куски.map((q, i) => Pn(q[0], q[1], база, i)); clean();
+        S.hand = handOf({ press: прижим }); touchModel();
+        const mm = getModel(), ww = windFor(mm, 0.5);
+        return { mm, ww };
+      };
+      // эталон: многоугольник сечения по каталогу
+      const эталон = (kind, прижим) => {
+        const d = ING[kind], ж = d.stiff == null ? 1 : d.stiff;
+        const sq = Math.min(1, Math.max(0.65, 1 - 0.35 * Math.max(0, прижим - 1) / 0.3 * (1 - ж)));
+        const W = d.wU / sq * MMU, H = d.hU * sq * MMU, P = [];
+        if (d.cut === 'сектор') { P.push([0, 0]); for (let i = 0; i <= 200; i++) { const t = Math.PI / 4 * i / 200; P.push([W * Math.cos(t), H / (W * Math.sin(Math.PI / 4)) * W * Math.sin(t)]); } }
+        else if (d.cut === 'полукруг') for (let i = 0; i <= 200; i++) { const t = Math.PI * i / 200; P.push([W / 2 + W / 2 * Math.cos(t), H * Math.sin(t)]); }
+        else P.push([0, 0], [W, 0], [W, H], [0, H]);
+        let A = 0, cx = 0, cy = 0, ixx = 0, iyy = 0, ixy = 0;
+        for (let i = 0; i < P.length; i++) {
+          const [x0, y0] = P[i], [x1, y1] = P[(i + 1) % P.length], c = x0 * y1 - x1 * y0;
+          A += c; cx += (x0 + x1) * c; cy += (y0 + y1) * c;
+          ixx += (x0 * x0 + x0 * x1 + x1 * x1) * c; iyy += (y0 * y0 + y0 * y1 + y1 * y1) * c;
+          ixy += (x0 * y1 + 2 * x0 * y0 + 2 * x1 * y1 + x1 * y0) * c;
+        }
+        A /= 2; cx /= 6 * A; cy /= 6 * A;
+        const sxx = ixx / 12 / A - cx * cx, syy = iyy / 12 / A - cy * cy, sxy = ixy / 24 / A - cx * cy;
+        const tr = (sxx + syy) / 2, dd = Math.sqrt(((sxx - syy) / 2) ** 2 + sxy * sxy);
+        return { A: Math.abs(A), L: Math.sqrt(12 * (tr + dd)), Wd: Math.sqrt(12 * Math.max(0, tr - dd)) };
+      };
+      // кусок vid на срезе: грубый поиск (1 мм), потом сетка h мм по его габариту ± 1,5 мм
+      const кусок = (mm, ww, vid, h = 0.1) => {
+        // −1 — снаружи ролла (не ниже контура), −2 — пустота внутри контура: голым край делает
+        // только первое (как у судьи: «снаружи», связное с краем сетки)
+        const R = Math.max(mm.Rmax, ww.Rout) * MMU * 1.03, мат = (x, y) => {
+          let ф = Math.atan2(y, x); if (ф < 0) ф += TAU;
+          const r = Math.hypot(x, y) / MMU, q = materialAt(mm, ww, 0.5, r, ф);
+          if (!q || q.cls === 'out') return r >= topAt(ww, ф) - h / MMU ? -1 : -2;
+          return q.cls === 'patch' && q.mt && q.mt.p && !ING[q.mt.p.kind].paint && !q.mt.оболочка && q.mt.p.vid === vid ? 1 : 0;
+        };
+        let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+        for (let x = -R; x <= R; x += 1) for (let y = -R; y <= R; y += 1) if (мат(x, y) === 1) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+        if (!(x1 >= x0)) return null;
+        x0 -= 1.5; x1 += 1.5; y0 -= 1.5; y1 += 1.5;
+        const nx = Math.ceil((x1 - x0) / h), ny = Math.ceil((y1 - y0) / h), lab = new Int8Array(nx * ny);
+        let n = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, голо = 0;
+        for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) lab[i * ny + j] = мат(x0 + (i + 0.5) * h, y0 + (j + 0.5) * h);
+        const колонки = [];
+        for (let i = 0; i < nx; i++) {
+          let a = -1, b = -1;
+          for (let j = 0; j < ny; j++) {
+            const k = i * ny + j; if (lab[k] !== 1) continue;
+            const x = x0 + (i + 0.5) * h, y = y0 + (j + 0.5) * h;
+            n++; sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
+            if (a < 0) a = j; b = j;
+            if ((i > 0 && lab[k - ny] === -1) || (i < nx - 1 && lab[k + ny] === -1) || (j > 0 && lab[k - 1] === -1) || (j < ny - 1 && lab[k + 1] === -1)) голо++;
+          }
+          if (a >= 0) { колонки.push([x0 + (i + 0.5) * h, y0 + (a + 0.5) * h]); if (b !== a) колонки.push([x0 + (i + 0.5) * h, y0 + (b + 0.5) * h]); }
+        }
+        const A = n * h * h, cx = sx / n, cy = sy / n;
+        const vxx = sxx / n - cx * cx + h * h / 12, vyy = syy / n - cy * cy + h * h / 12, vxy = sxy / n - cx * cy;
+        const tr = (vxx + vyy) / 2, dd = Math.sqrt(((vxx - vyy) / 2) ** 2 + vxy * vxy);
+        // куски (8-связность): площадь каждого
+        const куски = [], видел = new Uint8Array(nx * ny), оч = new Int32Array(nx * ny);
+        for (let k0 = 0; k0 < nx * ny; k0++) {
+          if (lab[k0] !== 1 || видел[k0]) continue;
+          let rd = 0, wr = 0, c = 0; оч[wr++] = k0; видел[k0] = 1;
+          while (rd < wr) {
+            const k = оч[rd++], i = (k / ny) | 0, j = k % ny; c++;
+            for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+              const a = i + di, b = j + dj; if (a < 0 || b < 0 || a >= nx || b >= ny) continue;
+              const kk = a * ny + b; if (lab[kk] === 1 && !видел[kk]) { видел[kk] = 1; оч[wr++] = kk; }
+            }
+          }
+          куски.push(c * h * h);
+        }
+        куски.sort((a, b) => b - a);
+        // выпуклость: площадь / (оболочка центров ⊕ клетка)
+        const P = колонки.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+        const кр = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+        const lo = [], up = [];
+        for (const p of P) { while (lo.length >= 2 && кр(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+        for (let k = P.length - 1; k >= 0; k--) { const p = P[k]; while (up.length >= 2 && кр(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+        lo.pop(); up.pop();
+        const об = lo.concat(up);
+        let ha = 0, ax0 = Infinity, ax1 = -Infinity, ay0 = Infinity, ay1 = -Infinity;
+        for (let k = 0; k < об.length; k++) { const a = об[k], b = об[(k + 1) % об.length]; ha += a[0] * b[1] - b[0] * a[1]; ax0 = Math.min(ax0, a[0]); ax1 = Math.max(ax1, a[0]); ay0 = Math.min(ay0, a[1]); ay1 = Math.max(ay1, a[1]); }
+        const оболочка = Math.abs(ha) / 2 + h * ((ax1 - ax0) + (ay1 - ay0)) + h * h;
+        return { A, cx, cy, L: Math.sqrt(12 * (tr + dd)), Wd: Math.sqrt(12 * Math.max(0, tr - dd)), выпукл: A / оболочка, куски, голоМм: голо * h };
+      };
+      // форма цела по критериям 1–3 task5; возвращает текст провала или ''. Без выпуклости — для
+      // сетки 0,2 мм (трек): там клетка сравнима с хвостом скругления, и мерка шумит.
+      const цел = (м, э, безВыпуклости) => {
+        if (!м) return 'куска нет на срезе';
+        const пр = [];
+        if (Math.abs(м.A / э.A - 1) > 0.01) пр.push(`площадь ${м.A.toFixed(1)} при ${э.A.toFixed(1)} мм²`);
+        if (Math.abs(м.L - э.L) > Math.max(0.05 * э.L, 0.3) || Math.abs(м.Wd - э.Wd) > Math.max(0.05 * э.Wd, 0.3))
+          пр.push(`габарит ${м.L.toFixed(1)} × ${м.Wd.toFixed(1)} при ${э.L.toFixed(1)} × ${э.Wd.toFixed(1)} мм`);
+        if (Math.abs((м.L / м.Wd) / (э.L / э.Wd) - 1) > 0.05) пр.push(`пропорция ${(м.L / м.Wd).toFixed(2)} при ${(э.L / э.Wd).toFixed(2)}`);
+        if (м.выпукл < 0.97 && !безВыпуклости) пр.push(`выпуклость ${м.выпукл.toFixed(3)}`);
+        if (м.куски.slice(1).some(a => a >= 0.01 * э.A)) пр.push(`рвётся на ${м.куски.length} куска`);
+        return пр.join(', ');
+      };
+      const некругл = ww => { let a = Infinity, b = 0; for (let i = 0; i < 1440; i++) { const r = topAt(ww, (i + 0.5) / 1440 * TAU); a = Math.min(a, r); b = Math.max(b, r); } return b / a - 1; };
+
+      // 1–2. Форма тела в ленте и тело под обёрткой: спираль, голая нори, кольцо вне ядра.
+      const формы = [
+        ['хосомаки, спираль, тамаго', 'hoso', 'spiral', 1, [['tamago', 52.87]]],
+        ['футомаки, спираль, огурец, прижим 1,3 (провал #153)', 'futo', 'spiral', 1.3, [['cucumber', 77.4]]],
+        ['урамаки, спираль, авокадо', 'ura', 'spiral', 1, [['avocado', 33.97]]],
+        ['футомаки, тамаго целиком на голой нори', 'futo', 'spiral', 1, [['tamago', 198.45]]],
+        ['хосомаки, авокадо наполовину на голой нори', 'hoso', 'spiral', 1, [['avocado', 92.4]]],
+        ['тюмаки, кольцо, огурец вне ядра', 'chu', 'ring', 1, [['salmon', 5.5], ['salmon', 15.5], ['salmon', 25.5], ['cucumber', 118.77]]],
+        ['урамаки, кольцо, тамаго вне ядра', 'ura', 'ring', 1, [['salmon', 99.5], ['salmon', 89.5], ['salmon', 79.5], ['tamago', 6.3]]],
+      ];
+      for (const [имя, база, режим, прижим, куски] of формы) {
+        const { mm, ww } = собрать(база, режим, прижим, куски);
+        const vid = куски.length - 1, p = mm.list.find(x => x.vid === vid);
+        if (!ok(p && !p.inCore, `#134 форма: «${имя}» — кусок ушёл в ядро, мерка не про ленту`)) continue;
+        const м = кусок(mm, ww, vid), э = эталон(куски[vid][0], прижим), брак = цел(м, э);
+        ok(!брак, `#134 форма: «${имя}» — кусок в витке не держит сечение: ${брак}`);
+        if (м) ok(м.голоМм <= 0.3, `#134 обёртка: «${имя}» — край куска на поверхности ролла ${м.голоМм.toFixed(2)} мм (рис или нори должны его накрыть)`);
+      }
+
+      // 3. Первые витки: сдвиг куска на 0,25 мм не переставляет его место (шаг центроида ≤ 2 мм),
+      // и кусок на всём пути цел. Отрезки — там, где прототип A прощёлкивал (судья task5).
+      const треки = [
+        ['тюмаки, тамаго', 'chu', 'tamago', 1, 48.5, 51.0],
+        ['футомаки, огурец, прижим 1,3', 'futo', 'cucumber', 1.3, 76.75, 78.25],
+        ['хосомаки, тамаго', 'hoso', 'tamago', 1, 15.25, 16.5],
+        ['урамаки, огурец', 'ura', 'cucumber', 1, 27.5, 29.0],
+      ];
+      for (const [имя, база, kind, прижим, u0, u1] of треки) {
+        let пред = null, шаг = 0, где = 0, брак = '';
+        for (let u = u0; u <= u1 + 1e-9; u += 0.25) {
+          const { mm, ww } = собрать(база, 'spiral', прижим, [[kind, u]]);
+          const м = кусок(mm, ww, 0, 0.2);
+          if (!брак) { const б = цел(м, эталон(kind, прижим), true); if (б) брак = `u ${u.toFixed(2)}: ${б}`; }
+          if (м && пред) { const d = Math.hypot(м.cx - пред.cx, м.cy - пред.cy); if (d > шаг) { шаг = d; где = u; } }
+          пред = м;
+        }
+        ok(шаг <= 2, `#134 место: «${имя}» — сдвиг куска на 0,25 мм переставил его на ${шаг.toFixed(2)} мм (u ${где.toFixed(2)})`);
+        ok(!брак, `#134 место: «${имя}» — на первых витках кусок не держит сечение (${брак})`);
+      }
+
+      // 4. Замок: ядро кольца, где все куски в ядре, штамп не трогает. Числа сняты на a3cb1f8
+      // (до штампа): внешний радиус среза 0,5 и счёт классов на полярной сетке 180 × 40.
+      // Допуск — на округление движка (Safari), а не на изменение: сдвиг любой границы на
+      // бин меняет счёт на десятки точек.
+      const ЯДРО = {
+        'hoso|канон': [16.941, 5551, 1313, 75], 'futo|канон': [23.176, 2754, 4208, 50], 'futo|канон-7': [25.213, 4917, 2030, 22],
+        'chu|тамаго 0,3': [18.738, 2284, 4682, 37], 'ura|тамаго+лосось': [17.833, 3114, 3751, 36], 'fruit|банан 0,3': [30.533, 3600, 2995, 411],
+      };
+      const ядро = (ключ) => {
+        const [база, что] = ключ.split('|');
+        S.base = база; S.shape = 'round'; S.wrap = null; S.winding = 'ring'; S.hand = handOf();
+        const L = BASES[база].sheetCm * 10;
+        S.lists[база] = что === 'канон' ? canonLayout() : что === 'канон-7' ? canonLayout7()
+          : что === 'тамаго 0,3' ? [Pn('tamago', 0.3 * L, база)] : что === 'банан 0,3' ? [Pn('banana', 0.3 * L, база)]
+          : [Pn('tamago', 40, база), Pn('salmon', 60, база)];
+        clean(); touchModel();
+        const mm = getModel(), ww = windFor(mm, 0.5), R = Math.max(mm.Rmax, ww.Rout) * 1.02;
+        let тел = 0, рис = 0, обёрт = 0;
+        for (let a = 0; a < 180; a++) for (let r = 0; r < 40; r++) {
+          const q = materialAt(mm, ww, 0.5, (r + 0.5) / 40 * R, (a + 0.25) / 180 * TAU);
+          if (!q) continue;
+          if (q.cls === 'patch') тел++; else if (q.cls === 'wrap') обёрт++; else if (q.cls === 'spread' || q.cls === 'core') рис++;
+        }
+        const всеВЯдре = mm.list.every(p => p.inCore || ING[p.kind].paint);
+        return [+(ww.Rout * MMU).toFixed(3), тел, рис, обёрт, всеВЯдре, !!ww.materialTransport];
+      };
+      for (const ключ of Object.keys(ЯДРО)) {
+        const [R, тел, рис, обёрт, всеВЯдре, перенос] = ядро(ключ), э = ЯДРО[ключ];
+        if (!ok(всеВЯдре, `#134 ядро: «${ключ}» — не все куски в ядре, замок не про то`)) continue;
+        if (!ok(!перенос, `#134 ядро: «${ключ}» — кольцо «всё в ядре» пошло через перенос ленты (штамп трогает ядро)`)) continue;
+        ok(Math.abs(R - э[0]) <= 0.002 && Math.abs(тел - э[1]) <= 3 && Math.abs(рис - э[2]) <= 3 && Math.abs(обёрт - э[3]) <= 3,
+           `#134 ядро: «${ключ}» — кольцо «всё в ядре» изменилось: R ${R} мм, точки ${тел}/${рис}/${обёрт} при ${э.join('/')}`);
+      }
+
+      // 5. Толстый кусок в рисе кольца (решение владельца 17.09): ролл круглый — некруглость не
+      // больше max(6 %, та же раскладка без куска + 1 п. п.) — и кусок цел.
+      const кольца = [
+        ['хосомаки, тамаго', 'hoso', 1, [['salmon', 99.5], ['salmon', 89.5], ['salmon', 79.5]], [['tamago', 6.3]]],
+        ['урамаки, тамаго', 'ura', 1, [['salmon', 99.5], ['salmon', 89.5], ['salmon', 79.5]], [['tamago', 6.3]]],
+        ['тюмаки, огурец', 'chu', 1, [['salmon', 5.5], ['salmon', 15.5], ['salmon', 25.5]], [['cucumber', 118.77]]],
+        ['футомаки, авокадо', 'futo', 1, [['salmon', 5.5], ['salmon', 15.5], ['salmon', 25.5]], [['avocado', 143.17]]],
+        ['тюмаки, два лосося рядом с набитым ядром', 'chu', 1, [5.5, 15.5, 25.5, 35.5, 45.5].map(u => ['salmon', u]), [['salmon', 115.2], ['salmon', 125.2]]],
+        ['хосомаки, огурец у набитого ядра, прижим 1,3', 'hoso', 1.3, [99.5, 89.5, 79.5, 69.5, 59.5].map(u => ['salmon', u]), [['cucumber', 7.425], ['salmon', 30.202]]],
+      ];
+      for (const [имя, база, прижим, якоря, тела] of кольца) {
+        const без = некругл(собрать(база, 'ring', прижим, якоря).ww);
+        const { mm, ww } = собрать(база, 'ring', прижим, якоря.concat(тела));
+        const vid = якоря.length, p = mm.list.find(x => x.vid === vid);
+        if (!ok(p && !p.inCore, `#134 кольцо: «${имя}» — кусок ушёл в ядро, мерка не про рис кольца`)) continue;
+        const нк = некругл(ww), порог = Math.max(0.06, без + 0.01);
+        ok(нк <= порог, `#134 кольцо: «${имя}» — толстый кусок в рисе выпирает: некруглость ${(100 * нк).toFixed(1)} % при пороге ${(100 * порог).toFixed(1)} (без куска ${(100 * без).toFixed(1)})`);
+        const брак = цел(кусок(mm, ww, vid), эталон(тела[0][0], прижим));
+        ok(!брак, `#134 кольцо: «${имя}» — кусок в рисе кольца не держит сечение: ${брак}`);
+      }
+      S.winding = null; S.lists.hoso = []; S.lists.futo = []; S.lists.chu = []; S.lists.ura = []; S.lists.fruit = [];
+      clean(); touchModel();
+    }
+
     // ⚑ СВЕРКА ЖЕСТА МЕЖДУ ЭКРАНАМИ (#6). Одинаковая протяжка — одинаковый почерк.
     if (жест.length >= 2) {
       const vs = жест.map(x => x.v), ps = жест.map(x => x.rollP);
