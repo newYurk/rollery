@@ -72,7 +72,12 @@ function drawChips(скрытьПоследний) {
   ings.forEach((kind, i) => {
     const row = Math.floor(i / perRow), col = i % perRow, x = x0 + col * (size + gap), y = c.y + row * rowH, d = ING[kind], selected = kind === S.sel;
     if (row >= видимыхРядов) return;
-    chips.push({ kind, x, y, w: size, h: rowH });
+    // ТУСКЛАЯ ФИШКА (#253, 17.09): кусок не помещается на рис этого листа вовсе (узумаки в пазле на
+    // двух витках — омлет-лист, киви, манго, банан, дэмбу). Остаётся на месте, чтобы ряд не прыгал,
+    // но рисуется на треть яркости и касанием не выбирается (onDown/onUp смотрят `dead`).
+    const dead = !chipFits(kind);
+    chips.push({ kind, x, y, w: size, h: rowH, dead });
+    ctx.save(); if (dead) ctx.globalAlpha = 0.3;
     rr(x, y, size, size, 12); ctx.fillStyle = '#26261f'; ctx.fill();
     if (selected) { ctx.strokeStyle = '#f3e7ca'; ctx.lineWidth = 2.5; ctx.stroke(); }
     ctx.save(); rr(x + 4, y + 4, size - 8, size - 8, 9); ctx.clip();
@@ -90,6 +95,7 @@ function drawChips(скрытьПоследний) {
     }
     ctx.restore();
     if (c.labels) { ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(chipLabel(kind, size + gap), x + size / 2, y + size + 3); }
+    ctx.restore();
   });
   ctx.restore();
   if (L.chipScroll) {   // край прокрутки: гасим и ставим шеврон — и только с той стороны, где чипы ЕСТЬ
@@ -161,13 +167,14 @@ function drawTopBar(hint) {
   // если игрок пришёл по ссылке ?puzzle — тогда FULL_UI и так включён).
   const items = [...(uiBases().length > 1 ? [['base', B().emoji]] : []), ['shape', SHAPES[S.shape].glyph],
                  ...(FULL_UI ? [['album', '★'], ['puzzle', '🧩']] : []),
-                 ['preview', '👁'], ['lines', '📐'],
-                 // ⚑ РЕЖИМ НАМОТКИ ВИДЕН И ПЕРЕКЛЮЧАЕТСЯ (правка 02.09, просьба владельца).
-                 // Три положения: авто (модель решает по охвату начинок) · кольцо · спираль.
-                 // Глиф показывает ТЕКУЩЕЕ состояние, а не следующее: ◎ авто, ○ кольцо, ◍ спираль.
-                 ['winding', S.winding === 'ring' ? '○' : S.winding === 'spiral' ? '◍' : '◎'],
-                 ...(S.mode === 'lay' ? [['clear', '🗑']] : []),
-                 ['mute', S.mute ? '🔇' : '🔊']];
+                 ['preview', '👁'], ['lines', '📐']];
+  // ⚑ ПАНЕЛЬ УРЕЗАНА (решение владельца 17.09: «избыточно сверху значков»).
+  //  · ЗВУК — без кнопки: «звуком пускай управляет сам человек» — громкостью и беззвучным
+  //    режимом телефона (audioSession 'ambient' в audio.js). Звук включён всегда.
+  //  · РЕЖИМ НАМОТКИ — без кнопки: «будет всегда авто», кольцо или спираль решает модель по
+  //    раскладке и листу (02.09, #247). Название режима остаётся в подписи живого среза.
+  //  · «ОЧИСТИТЬ» уехала вниз, на циновку (screens.js, drawLay) — с тем же подтверждением
+  //    в два касания; подсказка «Ещё раз — очистить» по-прежнему здесь, в шапке.
   // ⚠ КНОПКА, А НЕ ТОЛЬКО КЛАВИША. Контуры сделаны 31.08 с переключателем на клавише L —
   // и это была ошибка: владелец смотрит игру с телефона, где клавиатуры нет вовсе. Режим
   // существовал, работал и был невидим для того единственного человека, ради кого сделан.
