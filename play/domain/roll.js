@@ -295,9 +295,12 @@ function serializeRecipe(recipe) {
 }
 
 // Восстановление рецепта. Здесь же — единственное место, где разбираются старые форматы:
-// запись альбома без wrap и без версии читается как совместимый рецепт.
+// запись альбома без wrap и без версии читается как совместимый рецепт. Витки — как у альбома
+// в игре (acceptTurns, решение владельца 17.09): сохранённого листа короче 2 витков не бывает,
+// старая запись читается с 2. Здесь стояло `payload.turns || null` — ноль витков молча
+// становился листом базы (#36); теперь ноль, как и всё меньше двух, становится 2.
 function deserializeRecipe(payload) {
   if (!payload || typeof payload !== 'object') return createRecipe(null);
-  return createRecipe({ base: payload.base, wrap: payload.wrap || null, turns: payload.turns || null,
+  return createRecipe({ base: payload.base, wrap: payload.wrap || null, turns: acceptTurns(payload.turns),
                         shape: payload.shape, hand: payload.hand, list: payload.list });
 }

@@ -3027,6 +3027,90 @@ function runChecks(detail) {
       }
     }
 
+    // ── 7г. ЛИСТ ИЗ ССЫЛКИ И АЛЬБОМА — НЕ КОРОЧЕ 2 ВИТКОВ (решение владельца 17.09, как голый край #253).
+    //
+    // Ссылка-пазл несла любые витки, и лист в 0,5–1,5 витка выходил короче начинки: кусок торчал
+    // из ролла клином, некруглость до 266 % (замер 17.09, task10 round2; #134, #242). Владелец:
+    // такие листы игра не принимает, старая ссылка открывается с наименьшим допустимым листом.
+    // Сверяется итог, а не только формат: витки в S после открытия и длина листа модели. Старая
+    // ссылка кодируется здесь же, мимо encodePuzzle: новый писатель витки уже поднимает, и через
+    // него чтение старых ссылок не проверить. Порог 2 здесь числом, а не константой кода: это
+    // решение владельца, и правка константы должна краснеть здесь.
+    // Уровни пазла правило не трогает: витки у всех не меньше 2, уровень и ссылка на него
+    // открываются с теми же витками и тем же листом.
+    if (typeof decodePuzzle === 'function' && typeof albumLoad === 'function' && typeof withRecipe === 'function') {
+      const МИН = 2;
+      const было = { base: S.base, wrap: S.wrap, hand: S.hand, winding: S.winding, turns: S.turns, shape: S.shape,
+                     lists: JSON.parse(JSON.stringify(S.lists)), album: S.album, albumOpen: S.albumOpen, mode: S.mode,
+                     sel: S.sel, selPatch: S.selPatch, puzzle: S.puzzle };
+      // Своя копия формулы листа пазла (sheetLen): эталон не из той функции, которую проверяем.
+      const листПри = (база, витки) => { if (витки === null) return BASES[база].L;
+        const b = BASES[база], P0 = b.T + b.w, th = TAU * витки; return R0 * th + P0 * th * th / (2 * TAU); };
+      const поЛисту = (m, L) => Math.abs(m.g.L - L) <= 1e-9 * L;
+      try {
+        S.base = 'hoso'; S.wrap = null; S.winding = null; S.puzzle = null; clean();
+        const исход = [{ kind: 'tamago', u: 0.4, v: 0.5, z0: 0, z1: 0, phase: 0.3 }];
+        const b64 = o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const стараяСсылка = витки => '#p=' + b64({ b: 'hoso', w: null, t: витки, s: 'round', h: null,
+          l: исход.map(p => [p.kind, p.u, p.v, null, null, null, p.phase, null]) });
+        const поляСсылки = url => JSON.parse(decodeURIComponent(escape(atob(url.slice(url.indexOf('#p=') + 3).replace(/-/g, '+').replace(/_/g, '/')))));
+        for (const дано of [0, 0.5, 1, 1.5, 1.99, 2, 2.5, 3, 4, null]) {
+          const ждём = дано === null ? null : Math.max(МИН, дано), L = листПри('hoso', ждём);
+          // новая ссылка витков меньше порога не пишет
+          const t = поляСсылки(encodePuzzle(исход, дано)).t;
+          ok(t === ждём, `ссылка записала ${t} вит. вместо ${ждём} (дано ${дано}; 17.09, #253)`);
+          // старая ссылка читается с поднятыми витками и открывается с тем же листом
+          const got = decodePuzzle(стараяСсылка(дано));
+          ok(!!got && got.turns === ждём, `старая ссылка: ${дано} вит. прочитаны как ${got && got.turns}, ждали ${ждём} (17.09, #253)`);
+          if (got) {
+            puzzleFromLink(got);
+            const m = getModel();
+            ok(S.turns === ждём && поЛисту(m, L), `ссылка с ${дано} вит. открылась с ${S.turns} вит. и листом ${(m.g.L * U_MM).toFixed(1)} мм, ` +
+               `ждали ${ждём} вит. и ${(L * U_MM).toFixed(1)} мм (17.09, #253)`);
+            puzzleStop();
+          }
+          // альбом: старая запись с тем же листом — миниатюра и «На лист» дают один лист
+          S.album = [{ id: 'check-7g', base: 'hoso', wrap: null, turns: дано, shape: 'round', hand: handOf(),
+                       list: JSON.parse(JSON.stringify(исход)), at: 0, level: null, sim: null }];
+          const Lмин = withRecipe(S.album[0], mm => mm.g.L);
+          albumLoad(0);
+          const m2 = getModel();
+          ok(S.turns === ждём && поЛисту(m2, L) && Math.abs(Lмин - L) <= 1e-9 * L,
+             `альбом с ${дано} вит.: открылся с ${S.turns} вит. и листом ${(m2.g.L * U_MM).toFixed(1)} мм, миниатюра — ${(Lмин * U_MM).toFixed(1)} мм, ` +
+             `ждали ${ждём} вит. и ${(L * U_MM).toFixed(1)} мм (17.09, #253)`);
+          // сохранённый рецепт (фасад): та же запись читается с тем же листом
+          if (typeof deserializeRecipe === 'function') {
+            const r = deserializeRecipe({ base: 'hoso', wrap: null, turns: дано, shape: 'round', list: [] });
+            ok(r.turns === ждём, `сохранённый рецепт с ${дано} вит. прочитан как ${r.turns}, ждали ${ждём} (17.09, #253)`);
+          }
+        }
+        // Уровни: наименьший — ровно порог, и ни один уровень правило не меняет.
+        const витУровней = LEVELS.map(l => l.turns);
+        ok(Math.min(...витУровней) === МИН, `наименьший уровень пазла — ${Math.min(...витУровней)} вит., а ссылка и альбом поднимают до ${МИН}: правила разошлись`);
+        S.base = 'futo'; clean();
+        for (let lv = 0; lv < LEVELS.length; lv++) {
+          puzzleStart(lv, 5);
+          const L = листПри('futo', LEVELS[lv].turns), m = getModel();
+          ok(S.turns === LEVELS[lv].turns && поЛисту(m, L), `пазл ур.${lv}: витков ${S.turns}, лист ${(m.g.L * U_MM).toFixed(1)} мм — ждали ${LEVELS[lv].turns} и ${(L * U_MM).toFixed(1)} мм`);
+          const адрес = encodePuzzle(S.puzzle.target, S.turns), got = decodePuzzle(адрес);
+          ok(!!got && got.turns === LEVELS[lv].turns, `ссылка на уровень ${lv}: витков ${got && got.turns}, у уровня ${LEVELS[lv].turns}`);
+          puzzleStop();
+          if (got) {
+            puzzleFromLink(got);
+            const mm = getModel();
+            ok(S.turns === LEVELS[lv].turns && поЛисту(mm, L) && encodePuzzle(S.puzzle.target, S.turns) === адрес,
+               `ссылка на уровень ${lv} открылась другим пазлом: витков ${S.turns}, лист ${(mm.g.L * U_MM).toFixed(1)} мм`);
+            puzzleStop();
+          }
+        }
+      } finally {
+        Object.assign(S, { base: было.base, wrap: было.wrap, hand: было.hand, winding: было.winding, turns: было.turns,
+                           shape: было.shape, lists: было.lists, album: было.album, albumOpen: было.albumOpen, mode: было.mode,
+                           sel: было.sel, selPatch: было.selPatch, puzzle: было.puzzle });
+        modelCaches.clear(); touchModel();
+      }
+    }
+
     // ── 8. МИГРАЦИЯ ГЕОМЕТРИИ (issue #72): legacy baseline и facade ──
     // ТОЧКА ПОДКЛЮЧЕНИЯ, А НЕ САМИ ПРОВЕРКИ. Логика живёт в play/test/**: сюда она не
     // переезжает намеренно — checks.js и без того длинный, а слепок и facade-сравнение

@@ -127,7 +127,9 @@ function encodePuzzle(list, turns) {
   // (2–3) у руки: друг открывал ДРУГОЙ ролл, а у порога режима — даже другой режим (футомаки, тамаго
   // на 149,13 мм: спираль → после ссылки кольцо). JSON и так пишет число кратчайшей точной записью.
   // Старые ссылки с округлёнными числами читаются как раньше.
-  const h = S.hand || {}; const data = { b: S.base, w: B().wrapKey || null, t: turns || null, s: S.shape, h: (h.air || h.wobble || (h.press !== 1)) ? [h.air, h.wobble, h.phase, h.press] : null, l: list.map(p => [p.kind, p.u, p.v, p.wU ?? null, p.hU ?? null, p.dv ?? null, p.phase, p.rot || null]) };
+  // t — витки листа, не меньше 2 (решение владельца 17.09, acceptTurns). Здесь стояло `turns || null`:
+  // ноль витков уходил в ссылку как «лист базы» (#36); теперь ноль, как и всё меньше двух, пишется 2.
+  const h = S.hand || {}; const data = { b: S.base, w: B().wrapKey || null, t: acceptTurns(turns), s: S.shape, h: (h.air || h.wobble || (h.press !== 1)) ? [h.air, h.wobble, h.phase, h.press] : null, l: list.map(p => [p.kind, p.u, p.v, p.wU ?? null, p.hU ?? null, p.dv ?? null, p.phase, p.rot || null]) };
   return location.origin + location.pathname + '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(data)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 function decodePuzzle(hash) {
@@ -141,12 +143,14 @@ function decodePuzzle(hash) {
     // Ссылки БЕЗ поля w (созданные до 30.08) читаются как обёртка базы по умолчанию —
     // формат расширен совместимо, старые ссылки продолжают открываться.
     const wrap = (data.w && WRAPPERS[data.w]) ? data.w : null;
-    return { base: data.b, wrap, turns: data.t, shape: SHAPES[data.s] ? data.s : 'round', hand: hh, list };
+    // Витки меньше 2 (и ноль) поднимаются до 2: лист короче начинки игра не принимает
+    // (решение владельца 17.09, как с голым краем #253; разбор — у acceptTurns в model/util.js).
+    return { base: data.b, wrap, turns: acceptTurns(data.t), shape: SHAPES[data.s] ? data.s : 'round', hand: hh, list };
   } catch (e) { return null; }
 }
 function puzzleFromLink(pz) {
   S.base = pz.base; S.wrap = pz.wrap || null; S.sel = uiIngredients()[0] || B().ingredients[0];
-  S.turns = turnsOf(pz.turns); S.selPatch = null; S.shape = pz.shape || 'round';
+  S.turns = acceptTurns(pz.turns); S.selPatch = null; S.shape = pz.shape || 'round';
   if (pz.hand) S.hand = pz.hand;
   const local = pz.list.some(p => (p.dv ?? ING[p.kind].dv) < 1), n = pz.list.filter(p => p.kind !== 'nori').length;
   const lv = { n, turns: S.turns || B().turns, pieces: local ? 3 : 1, custom: true };

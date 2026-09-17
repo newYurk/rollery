@@ -16,8 +16,9 @@ function albumSave() {
   // F03). Без неё запись с блином открывалась как нори, молча и без ошибки (issue #86).
   // Пишем разрешённую обёртку базы, а не сырое S.wrap: у баз с wrapFixed (рулет) своя, и
   // S.wrap там не участвует — иначе в записи оказалось бы то, чего в модели не было.
+  // Витки — по тому же правилу, что при чтении (acceptTurns, 17.09): записи короче 2 витков не бывает.
   const e = { id: 'a' + Date.now().toString(36), base: S.base, wrap: B().wrapKey || null,
-              turns: turnsOf(S.turns), shape: S.shape,
+              turns: acceptTurns(S.turns), shape: S.shape,
               // Почерк — без округления (#236): запись обязана открываться тем же роллом, что сохранили.
               hand: { air: h.air || 0, wobble: h.wobble || 0, phase: h.phase || 0, press: h.press || 1 },
               list: JSON.parse(JSON.stringify(list)), at: Date.now(),
@@ -38,7 +39,8 @@ function withRecipe(e, fn) {
   // а он уже на блине (issue #86).
   const keep = { base: S.base, wrap: S.wrap, turns: S.turns, shape: S.shape, hand: S.hand, list: S.lists[e.base] };
   S.base = e.base; S.wrap = (e.wrap && WRAPPERS[e.wrap]) ? e.wrap : null;
-  S.turns = turnsOf(e.turns); S.shape = SHAPES[e.shape] ? e.shape : 'round';
+  // Миниатюра обязана показывать тот ролл, что откроется «На лист»: витки меньше 2 → 2 (17.09).
+  S.turns = acceptTurns(e.turns); S.shape = SHAPES[e.shape] ? e.shape : 'round';
   S.hand = Object.assign(handOf(), e.hand || {});
   let out;
   try { out = fn(buildModel(JSON.parse(JSON.stringify(e.list)))); }
@@ -62,7 +64,9 @@ function albumLoad(i) {
   const e = S.album[i]; if (!e) return;
   if (S.puzzle) puzzleStop();
   S.base = e.base; S.wrap = (e.wrap && WRAPPERS[e.wrap]) ? e.wrap : null;   // старые записи без поля → обёртка базы (issue #86)
-  S.turns = turnsOf(e.turns); S.shape = SHAPES[e.shape] ? e.shape : 'round';
+  // ⚑ Старая запись с листом короче 2 витков открывается с 2 (решение владельца 17.09, как голый
+  // край #253): лист короче начинки игра не принимает. Разбор — у acceptTurns в model/util.js.
+  S.turns = acceptTurns(e.turns); S.shape = SHAPES[e.shape] ? e.shape : 'round';
   S.hand = Object.assign(handOf(), e.hand || {});
   S.sel = uiIngredients()[0] || B().ingredients[0]; S.selPatch = null;
   // ⚠ ФИЛЬТР ПО KIND, КАК ПРИ ЗАГРУЗКЕ СОХРАНЁННОГО (#150). Альбом хранит рецепты и открывает
