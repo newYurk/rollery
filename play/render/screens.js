@@ -23,6 +23,10 @@ function drawParticles(dt) {
 // экране раскладки нет намеренно (02.09). Одно название режима на все экраны.
 const windingName = m => (m.g.winding === 'spiral' ? 'спираль' : 'кольцо');
 const liveTurnsText = (m, v = 0.5) => `${windingName(m)}, ${windFor(m, v).turns.toFixed(1).replace('.', ',')} витка`;
+// ⚑ НЕХВАТКА ЛИСТА СКАЗАНА СЛОВАМИ (#242, решение владельца 16.09: «честная дыра»). Модель давно
+// знала, что нори не сомкнулась (`хватило`), но этого поля не читал никто — ни экран, ни сторож.
+// Экрана поражения нет (любой результат — узор), есть строка там же, где витки.
+const sheetShortText = (m, v = 0.5) => (windFor(m, v).хватило === false ? 'листа не хватило — нори не сомкнулась' : '');
 const hints = {
   // ⚑ ПОСТОЯННАЯ ПОДСКАЗКА НА ЛИСТЕ СНЯТА 02.09 по просьбе владельца («можно подсказку про
   // скручивание и раскладку убрать пока»). Пустая строка, а не удалённый ключ: подсказку
@@ -48,7 +52,7 @@ function drawPreviewArea(p) {
   if (pm === 'band') {
     const cx = L.ox + L.cw / 2, y = L.previewY;
     if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs); }
-    else { drawSlab([{ x: cx - 30, y, size: 116 }], 1, B(), 8); drawFaceImg(face(0.5, 116), cx - 30, y, 116); label(cx + 30 + 14, y - 8, ['живой срез', turnsTxt()], 'left'); }
+    else { drawSlab([{ x: cx - 30, y, size: 116 }], 1, B(), 8); drawFaceImg(face(0.5, 116), cx - 30, y, 116); { const m0 = getModel(), нх = sheetShortText(m0); label(cx + 30 + 14, y - (нх ? 16 : 8), ['живой срез', turnsTxt()].concat(нх ? ['листа не хватило'] : []), 'left'); } }
   } else if (pm === 'overlay') {
     const s = L.sheet, o = overlayGeom();
     if (pz) {
@@ -83,7 +87,7 @@ function drawPreviewArea(p) {
       else { const cell = L.targetCell, per = Math.min(k, 3), rows = Math.ceil(k / per), x0 = cx - ((per - 1) * (cell + 8)) / 2; const pos = i => ({ x: x0 + (i % per) * (cell + 8), y: y + cell / 2 + Math.floor(i / per) * (cell + 8), size: cell }); drawSlab(Array.from({ length: k }, (_, i) => pos(i)), 1, B(), 6); for (let i = 0; i < k; i++) { const q = pos(i); drawFaceImg(face(pz.vs[i], cell, tm), q.x, q.y, cell); } y += rows * (cell + 8) + 8; }
       if (L.mode !== 'L') { ctx.fillStyle = '#e0b25a'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const t = levelTitle(pz.lv, pz.level); ctx.fillText(t.length > 34 ? t.slice(0, 33) + '…' : t, cx, y + 8); label(cx, y + 28, ['повтори срез: разложи, скрути, разрежь']); }
     } else {
-      const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 6); drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); label(cx, y + fs + 18, ['живой срез · ' + turnsTxt()]);
+      const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 6); drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); { const нх = sheetShortText(getModel()); label(cx, y + fs + 18, ['живой срез · ' + turnsTxt()].concat(нх ? [нх] : [])); }
     }
   }
 }
@@ -204,6 +208,14 @@ function drawLay() {
   // гаснет: членство в ядре от неё не зависит, и в движении она только сбивала бы.
   if (p === 0) {
     const mm = getModel();
+    // Нехватку листа видно до скрутки тем же приёмом: на листе, где спиральная надпись (#242).
+    if (mm.g.winding !== 'spiral' && sheetShortText(mm)) {
+      unrot(s.x + s.w - 6, spiralNoteY(), () => {
+        ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
+        ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+        ctx.fillText('начинки не обхватить — нори не сомкнётся', 0, 0);
+      });
+    }
     if (mm.g.winding === 'spiral') {
       unrot(s.x + s.w - 6, spiralNoteY(), () => {
         ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
@@ -378,8 +390,10 @@ function drawRollPreview(R) {
   if (v2ok) {
     ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy);
   } else {
-    ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy - 8);
-    ctx.fillText(liveTurnsText(getModel()), g.cx + g.fs / 2 - 16, g.cy + 8);
+    const m = getModel(), нх = sheetShortText(m), dy = нх ? 8 : 0;
+    ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy - 8 - dy);
+    ctx.fillText(liveTurnsText(m), g.cx + g.fs / 2 - 16, g.cy + 8 - dy);
+    if (нх) ctx.fillText('листа не хватило', g.cx + g.fs / 2 - 16, g.cy + 24 - dy);
   }
 }
 // ── ПАСПОРТ РОЛЛА ПОД ДОСКОЙ (#193) ─────────────────────────────────────────
@@ -556,6 +570,8 @@ function drawRevealed() {
                  cx, L.faceY + L.faceSize / 2 + 14);
   }
   const hl = handLabel(); if (hl) { ctx.fillStyle = '#6f6754'; ctx.font = font(12); ctx.fillText(hl, cx, L.faceY + L.faceSize / 2 + 32); }
+  { const нх = sheetShortText(getModel(), c.v);
+    if (нх) { ctx.fillStyle = '#c98a5a'; ctx.font = font(12, 600); ctx.fillText(нх, cx, L.faceY + L.faceSize / 2 + (hl ? 50 : 32)); } }
   buttons = []; buttonRow([['slice', `Нарезать на ${npieces()}`, true], ['albumsave', S.saved > performance.now() ? '✓ В альбоме' : '★ В альбом'], ['back', 'Ещё начинки']]);
   if (S.saved > performance.now()) dirty = true;
   drawButtons(); drawTopBar(hints.revealed);

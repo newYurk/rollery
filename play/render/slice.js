@@ -177,6 +177,11 @@ function strokeWrapperTurns(c, m, wd, si, scale, half, LW, alpha) {
 function замыкатьВиток(нарисовано, бинов, шовПикселей, ширинаЛинии) {
   return нарисовано === бинов && шовПикселей <= Math.max(2, ширинаЛинии);
 }
+// Есть ли под внешней обводкой нори в этом бине. Вывернутому обводится внутренняя кромка, и
+// нехватку листа у него это правило пока не различает (#242, урамаки меряет обхват кругом).
+function rimHasWrap(wd, b, внутр) {
+  return внутр || !wd.обёртка || wd.обёртка.есть(b);
+}
 function strokeWrapperRim(c, m, wd, si, scale, half) {
   const b = B();
   // ⚑ У ВЫВЕРНУТОГО ОБВОДИТСЯ ВНУТРЕННЯЯ КРОМКА (#124, заведено 02.09 — то самое «предстоит»,
@@ -201,9 +206,14 @@ function strokeWrapperRim(c, m, wd, si, scale, half) {
   const LW = Math.max(MIN, wPx);
   const step = Math.max(1, Math.round(NB / (TAU * m.Rmax * scale / 2)));   // шаг бинов ≈ 2 device-px по дуге
   const p = new Path2D();
-  let first = true;
+  let first = true, начат = false, разрыв = false;
   for (let i = 0; i <= NB; i += step) {
     const bb = i % NB, phi = bb * DPHI;
+    // ⚑ ГДЕ НОРИ НЕТ, ЛИНИИ НЕТ (#242, решение владельца 16.09: нехватка листа — честная дыра).
+    // Обводка шла по всем бинам с контуром, и дыра, которую модель честно оставляла при нехватке
+    // листа, закрывалась нарисованной нори: хосомаки с бруском 30 мм — по модели снаружи рис на
+    // 257°…360°, на экране кольцо замкнуто. Путь рвётся и продолжается со следующей нори.
+    if (!rimHasWrap(wd, bb, внутр)) { if (начат) разрыв = true; first = true; continue; }
     const rOut = внутр ? innerAt(wd, phi) : topAt(wd, phi);
     if (rOut <= 1e-6 || (!внутр && rOut <= m.g.r0)) continue;
     // половина ширины вычитается в ЭКРАННЫХ px, а не в единицах модели: на плоских гранях квадрата и
@@ -211,10 +221,10 @@ function strokeWrapperRim(c, m, wd, si, scale, half) {
     // У вывернутого штрих ложится НАРУЖУ от внутренней кромки — там и лежит сама лента.
     const rpx = rOut / shapeK(phi, si) * scale + (внутр ? LW / 2 : -LW / 2);
     const x = half + Math.cos(phi) * rpx, y = half + Math.sin(phi) * rpx;
-    if (first) { p.moveTo(x, y); first = false; } else p.lineTo(x, y);
+    if (first) { p.moveTo(x, y); first = false; начат = true; } else p.lineTo(x, y);
   }
-  if (first) return;
-  p.closePath();
+  if (!начат) return;
+  if (!разрыв) p.closePath();
   c.save();
   c.globalCompositeOperation = 'source-atop';   // не красить за силуэтом, который посчитала модель
   // Пиксельный режим: скругления и контактная тень снимаются — оба дают полупрозрачные
