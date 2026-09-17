@@ -1022,6 +1022,8 @@ function bandSourceColumns(v, g, list, coreRice) {
   let weight = 0;
   for (const c of columns) {
     c.riceWeight = Math.max(0, (g.bandCapacityAt ? g.bandCapacityAt((c.a + c.b) / 2) : c.rice + c.body) - c.body);
+    // голая нори бывшей щели кольца (#249) риса не держит: её угол занимают соседи
+    if (g.щели && !(c.rice > 0) && !(c.body > 0) && вЩели(g.щели, (c.a + c.b) / 2)) c.riceWeight = 0;
     weight += c.riceWeight * (c.b - c.a);
   }
   if (weight < 1e-12) { weight = riceInput; for (const c of columns) c.riceWeight = c.rice; }
@@ -1106,7 +1108,7 @@ function conservativeBand(wd, v, g, list, radiusOnly) {
     if (lo >= capN) return 0;
     const c = at(lo); return s >= capA[c] && s <= capB[c] ? capH[c] : 0;
   };
-  const source = bandSourceColumns(v, {...g,bandCapacityAt}, list, coreRice);
+  const source = bandSourceColumns(v, {...g,bandCapacityAt,щели:wd.щели}, list, coreRice);
   let coreScale = 1;
   if (!g.coreRiceAt && source.coreRice > source.riceInput) {
     // The seed radius is a bending heuristic. It cannot demand rice that was
@@ -1344,8 +1346,36 @@ function thicknessProfile(vSlice, g, list) {
     if (i0 >= 0) for (let i = i0; i <= i1; i++)
       if (((i - i0) <= R || (i1 - i) <= R) && a[i] > доРазмытия[i]) a[i] = доРазмытия[i];
   }
+  for (let i = 0; i < M; i++) a[i] *= маска[i];
+  // ⚑ ВНУТРИ КОЛЬЦА ГОЛОЙ ПОЛОСЫ НЕТ: ЩЕЛЬ ЗАНИМАЕТ РИС СОСЕДЕЙ (#249, правка 17.09).
+  //
+  // Кольцо строится по отрезку от первого до последнего заполненного отсчёта (resampleRingProfile),
+  // и всё, что между ними, ложится в кольцо пропорцией длины. Маска выше оставляла там нули, если
+  // внутри отрезка был голый лист: кусок на голом ближнем крае (фруктовый пазл 11, канпё при
+  // u = 0,026, намазка с 0,048), кусок на голом дальнем крае, ложбинка, снявшая постель до нори.
+  // Нулевой отсчёт — нулевой бин кольца, а обжим поднимает к цели только бины, где рис есть:
+  // эти оставались на ядре, и срез резался щелью от края до ядра. До #244 её закрашивал ложный
+  // слой обёртки (шум Float32), после — она стала видна белой.
+  //
+  // В замкнутом кольце такой щели не бывает: циновка затягивает ролл до круга, рис мягкий и
+  // затекает (решение владельца 17.09 про толстый кусок — «как в реальности», ролл круглый).
+  // Поэтому внутренние нули заполняются линейно от соседних отсчётов, а масса возвращается
+  // нормировкой строкой ниже — риса не прибавляется. Края отрезка не трогаются: голые поля до
+  // первого и после последнего заполненного — это нахлёст («кольцо как повар», 16.09). Куда
+  // ложится сам кусок с голого края, правка не меняет: он остаётся в начале или в конце кольца.
+  // Материал по бывшей щели разносит перенос (conservativeBand): голой нори там риса не даётся
+  // (`вЩели`), её угол занимают соседние столбики.
+  //
+  // Замер до/после (materialAt, провал — выпуклая оболочка контура минус контур):
+  //   фруктовые, пазл 11, сид 11, шесть срезов — щель 15…20 бинов, провал 26…33 мм, площадь
+  //     49…77 мм² → 0,04 мм (шаг растра 0,05) и 1,1 мм²; R по лучам 5,6…43,3 → 41,7…42,8 мм;
+  //     рис среза к постели 1,0000 ± 0,0002 до и после, начинки те же ±1 % растра;
+  //   перебор 3552 срезов (6 баз × цели пазла сиды 1–8, раскладки × обёртки × формы, кусок на
+  //     голом крае): замкнутых колец с нулевыми бинами ленты 96 → 0, у всех 96 был провал 7…34 мм.
+  // Кольца без внутренних нулей не меняются побитно: заполнять нечего, `щели` пусто.
+  const щели = ring ? заполнитьЩелиКольца(a, g.L, Math.max(0, g.sStart || 0)) : null;
   let массаПосле = 0;
-  for (let i = 0; i < M; i++) { a[i] *= маска[i]; массаПосле += a[i] * cellWidth(i); }
+  for (let i = 0; i < M; i++) массаПосле += a[i] * cellWidth(i);
   if (массаПосле > 1e-9 && массаДо > 1e-9) {
     const k = массаДо / массаПосле;
     for (let i = 0; i < M; i++) a[i] *= k;
@@ -1360,12 +1390,36 @@ function thicknessProfile(vSlice, g, list) {
     }
   }
   a.riceBudget = riceBudget;
+  if (щели && щели.length) a.щели = щели;
   return a;
 }
 // Profile samples represent nearest-node cells, clipped to the physical sheet.
 // Use the same widths for thicknessProfile's mass/debit normalization.
 function profileCellWidth(i, L) {
   return Math.max(0, Math.min(L, (i + 0.5) * PROF_DS) - Math.max(0, (i - 0.5) * PROF_DS));
+}
+// Пустые отсчёты МЕЖДУ первым и последним заполненным — по тем же условиям, по которым
+// resampleRingProfile выбирает опору кольца, — заполняются линейно от соседей слева и справа.
+// Края (голые поля до первого и после последнего заполненного) не трогаются: они нахлёст.
+function заполнитьЩелиКольца(a, L, start) {
+  const годен = i => profileCellWidth(i, L) > 0 && Math.min(L, (i + 0.5) * PROF_DS) > start;
+  let first = -1, last = -1;
+  for (let i = 0; i < a.length; i++) if (a[i] > 0 && годен(i)) { if (first < 0) first = i; last = i; }
+  const щели = [];
+  if (first < 0) return щели;
+  for (let i = first + 1; i < last; i++) {
+    if (a[i] > 0) continue;
+    let j = i; while (j < last && !(a[j] > 0)) j++;          // [i, j) — щель, a[j] > 0
+    const лев = a[i - 1], прав = a[j], n = j - i + 1;
+    for (let q = i; q < j; q++) a[q] = лев + (прав - лев) * (q - i + 1) / n;
+    щели.push([i, j - 1]); i = j;
+  }
+  return щели;
+}
+// Лежит ли точка листа s в ячейках бывшей щели (отсчёты [i0, i1] и по полшага вокруг).
+function вЩели(щели, s) {
+  for (const [i0, i1] of щели) if (s >= (i0 - 0.5) * PROF_DS && s <= (i1 + 0.5) * PROF_DS) return true;
+  return false;
 }
 
 function resampleRingProfile(prof, g) {
@@ -1837,6 +1891,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
   // ядре плюс лист: у того же пазла это провал к ядру шириной 3,75° вместо жёлтой полосы.
   // Это честный вид другой беды — в кольцевой профиль попала голая полоса листа между
   // начинкой, положенной на голый край (канпё при u = 0,026), и началом намазки, — а не шум.
+  // ⚑ 17.09: щель закрыта в профиле (#249) — «ВНУТРИ КОЛЬЦА ГОЛОЙ ПОЛОСЫ НЕТ» в thicknessProfile.
   const F32_ШАГОВ_ШУМА = 4 * 2 ** -23;
   const рисСлоя = (t2, ro) => t2 - gW > F32_ШАГОВ_ШУМА * ro ? t2 - gW : 0;
 
@@ -2128,7 +2183,7 @@ function wind(vSlice, sMax, g, list, routOnly) {
       top[b] = r; Rout = Math.max(Rout, r);
     }
   }
-  const transportState = {rin, rout, u0, u1, top, Rout, kmax, lastIdx, phiEnd, ringBand};
+  const transportState = {rin, rout, u0, u1, top, Rout, kmax, lastIdx, phiEnd, ringBand, щели: prof.щели};
   const materialTransport = conservativeBand(transportState, vSlice, g, list, radiusOnly);
   Rout = transportState.Rout;
   if (radiusOnly) return Rout;
