@@ -220,21 +220,26 @@ function similarityOf(mA, mB, vs) {
 // ПОРЯДКА КАТАЛОГА: стоило 31.08 завести канон футомаки, как слепок упал с «класс 11: 194 ≠ 0 ·
 // класс 16: 0 ≠ 194» — те же точки того же розового риса, просто индекс уехал на пять. Сторож,
 // падающий от переучёта каталога, приучает пересниматься не глядя.
-// Класс 1 — 'rice', а не 'spread': карта сливает в него и постель, и ядро подворота.
-const rollMapClassName = (c) => c === 0 ? 'out' : c === 1 ? 'rice' : c === 2 ? 'wrap'
-                                               : (ROLL_KIND_IDS[c - 3] || ('kind' + (c - 3)));
+// Класс 1 — постель, а не 'spread': карта сливает в него и постель, и ядро подворота.
+// ⚑ ИМЯ ПОСТЕЛИ БЕРЁТСЯ У БАЗЫ (#255, 17.09). Стояло жёсткое 'rice' — и на срезе сладкого
+// ролла, где внутри белая бобовая паста, свёртка называла её рисом. Имя приходит параметром,
+// а не спрашивается у B() внутри: свёртку зовут и из проб, и из сравнения двух моделей, и
+// неявная связь с глобальным состоянием там уже один раз разъезжалась.
+const rollMapClassName = (c, bedKey) => c === 0 ? 'out' : c === 1 ? (bedKey || 'rice') : c === 2 ? 'wrap'
+                                                        : (ROLL_KIND_IDS[c - 3] || ('kind' + (c - 3)));
 // СВЁРТКА КАРТЫ В СРАВНИМЫЙ ВИД — ОДНО ОПРЕДЕЛЕНИЕ НА ВСЕХ.
 // Раньше эта же логика жила ДВАЖДЫ: здесь и в play/test/probe.js (mapSignature). Копии
 // разошлись при первой же правке — домен считал классы числами, проба именами, и регрессия
 // «facade ≠ legacy» дала 75 расхождений на пустом месте. Теперь обе зовут это.
 // ⚠ Шаг пробы 313 — по модулю СТОРОНЫ карты (313 mod 56 = 33), а не по длине массива:
 // при шаге 337 (337 mod 56 = 1) точки шли по диагонали и попадали в углы, где всегда пусто.
-function rollMapDigest(map) {
+function rollMapDigest(map, bedKey) {
+  const key = bedKey || bedOf(B()).key;   // #255: чем намазана база, тем и назван класс 1
   const counts = {}, probe = [];
   for (let i = 0; i < map.length; i++) counts[map[i]] = (counts[map[i]] || 0) + 1;
-  for (let i = 0; i < map.length; i += 313) probe.push(rollMapClassName(map[i]));
+  for (let i = 0; i < map.length; i += 313) probe.push(rollMapClassName(map[i], key));
   const out = { counts: {}, probe: probe.join(',') };
-  for (const k of Object.keys(counts).sort((a, b) => a - b)) out.counts[rollMapClassName(+k)] = counts[k];
+  for (const k of Object.keys(counts).sort((a, b) => a - b)) out.counts[rollMapClassName(+k, key)] = counts[k];
   return out;
 }
 function sliceMaterialMap(roll, position, options) {
