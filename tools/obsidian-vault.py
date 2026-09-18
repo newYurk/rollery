@@ -91,6 +91,117 @@ def задачи():
         return []
 
 сторож_места()
+
+
+# ⚑ РАСКРАСКА ГРАФА — УСТАНОВКОЙ, А НЕ ИЗ GIT (17.09). Файл `.obsidian/graph.json` Obsidian переписывает
+# сам от каждого движения колёсика, поэтому в git он не лежит (см. .gitignore). Здесь — исходная
+# раскраска: по группе цвета на семью, места в игре бирюзовые, силы ослаблены под сотню заметок.
+# Пишется ТОЛЬКО если файла ещё нет: то, что владелец подкрутила у себя, генератор не трогает.
+ГРАФ_OBSIDIAN = {
+ "collapse-filter": True,
+ "search": "",
+ "showTags": False,
+ "showAttachments": False,
+ "hideUnresolved": False,
+ "showOrphans": True,
+ "collapse-color-groups": False,
+ "colorGroups": [
+  {
+   "query": "path:\"09_Где в игре\"",
+   "color": {
+    "a": 1,
+    "rgb": 3980990
+   }
+  },
+  {
+   "query": "path:\"01_Роллы\"",
+   "color": {
+    "a": 1,
+    "rgb": 14839396
+   }
+  },
+  {
+   "query": "path:\"02_Приёмы\"",
+   "color": {
+    "a": 1,
+    "rgb": 7908070
+   }
+  },
+  {
+   "query": "path:\"03_Каноны\"",
+   "color": {
+    "a": 1,
+    "rgb": 15448390
+   }
+  },
+  {
+   "query": "path:\"04_Начинки\"",
+   "color": {
+    "a": 1,
+    "rgb": 8898675
+   }
+  },
+  {
+   "query": "path:\"05_Нарезки\"",
+   "color": {
+    "a": 1,
+    "rgb": 11832545
+   }
+  },
+  {
+   "query": "path:\"06_Обёртки\"",
+   "color": {
+    "a": 1,
+    "rgb": 14135155
+   }
+  },
+  {
+   "query": "path:\"07_Решения\"",
+   "color": {
+    "a": 1,
+    "rgb": 15767110
+   }
+  },
+  {
+   "query": "path:\"08_Источники\"",
+   "color": {
+    "a": 1,
+    "rgb": 10526880
+   }
+  },
+  {
+   "query": "path:\"10_Пазл\"",
+   "color": {
+    "a": 1,
+    "rgb": 9877985
+   }
+  }
+ ],
+ "collapse-display": False,
+ "showArrow": False,
+ "textFadeMultiplier": 0,
+ "nodeSizeMultiplier": 1.15,
+ "lineSizeMultiplier": 0.8,
+ "collapse-forces": False,
+ "centerStrength": 0.42,
+ "repelStrength": 13,
+ "linkStrength": 0.7,
+ "linkDistance": 320,
+ "scale": 0.75,
+ "close": False
+}
+
+
+def поставить_раскраску():
+    p = os.path.join(OUT, '.obsidian', 'graph.json')
+    if os.path.exists(p):
+        return
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    open(p, 'w', encoding='utf-8').write(json.dumps(ГРАФ_OBSIDIAN, ensure_ascii=False, indent=2) + '\n')
+    print('раскраска графа поставлена:', p)
+
+
+поставить_раскраску()
 CAT = каталог()
 CANON = CAT['canon']
 PUZ = CAT['puzzle']
@@ -561,6 +672,15 @@ note('', '00_Карта игры', f"""# 🍣 Ролльня — карта бл
 
 ---
 Пересобрать заметки: `python3 tools/obsidian-vault.py`. Нарисовать граф: `python3 tools/obsidian-graph.py`.
+Цвета семей в графе Obsidian ставит генератор в `.obsidian/graph.json`, если файла ещё нет: каждая папка —
+своя группа, места в игре бирюзовые. Свои настройки графа можно крутить — генератор их не перезапишет.
+
+## Рисунки
+Папка **Рисунки** — владельца: наброски механик от руки и правки поверх скриншотов (Excalidraw).
+Генератор её не трогает; заметки 01–10 и эта карта, наоборот, **перезаписываются** при пересборке —
+своё в них не дописывать. Рисовать поверх скриншота: вставить картинку в заметку в папке Рисунки,
+поставить курсор на неё, ⌘P → «Excalidraw: Annotate image in Excalidraw». Рядом с рисунком сам
+появляется `*.excalidraw.png` — его и читает агент.
 Числа и списки берутся прогоном самой игры (каталог и канон), поэтому не расходятся с тем, что она считает.
 Свои заметки клади в отдельную папку — генератор трогает только свои.""")
 print('нарезки, обёртки, решения, источники и карта готовы')
