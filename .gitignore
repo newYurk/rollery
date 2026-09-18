@@ -89,7 +89,12 @@ Rollery-Obsidian/.obsidian/
 # по имени, а не `git add -A` по хранилищу. Картинки в хранилище (скриншоты, автоэкспорт рисунка
 # `*.excalidraw.png`) по умолчанию в git НЕ идут: коммитится только лёгкая и та, на которую
 # ссылаются, — тогда `git add -f <файл>` (правило Home/CLAUDE.md про картинки в git).
+# `data.json` плагинов вне git вместе со всем `.obsidian/`: ИИ-режим Excalidraw хранит там ключи
+# API, а репозиторий публичный (общий стандарт трёх хранилищ, 17.09).
 Rollery-Obsidian/**/*.png
 Rollery-Obsidian/**/*.svg
+Rollery-Obsidian/**/*.jpg
+Rollery-Obsidian/**/*.jpeg
+Rollery-Obsidian/**/*.webp
 # Скрипты Excalidraw скачиваются из его магазина — это чужой код, не исходник.
 Rollery-Obsidian/Excalidraw/Scripts/
