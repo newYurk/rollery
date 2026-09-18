@@ -78,13 +78,17 @@ function bandFacts(m) {
   out.push({ id: 'shape', r: 'note', уступ: 5, t: 'форма: ' + SHAPES[S.shape].name });
   return out;
 }
-// Текст на дереве — тёмный: светлый #b8ad95 прежней подписи читался на тёмном фоне, на циновке
-// (#c9a96c) его не видно. Заголовок — цветом стрелки на ручке циновки: одна рамка, один голос.
+// ПАНЕЛЬ — ЭЛЕМЕНТ ИНТЕРФЕЙСА, И ГОВОРИТ ЕГО ЦВЕТАМИ (18.09). 17.09 текст стоял на дереве и был тёмным;
+// панель теперь тёмная, как подложки кнопок верхней панели и фишек палитры (`#26261f`, ui/controls.js),
+// и текст — светлыми цветами той же шапки: главное — цветом заголовка «Ролльня», заметки — цветом
+// подсказки, заголовок колонки — цветом подписи фишки, нехватка листа — тем же `#c98a5a`, каким её
+// пишет экран среза. Мелкий текст держит AA 4,5:1 на подложке: 5,7 / 6,9 / 5,3 (сторож «Ш» считает).
+const BAND_BG = '#26261f';
 const BAND_TEXT = {
-  title: { size: 11, weight: 600, color: 'rgba(40,30,20,0.55)', lh: 14 },
-  main:  { size: 15, weight: 700, color: '#2b2115', lh: 19 },
-  note:  { size: 12, weight: 500, color: 'rgba(40,30,20,0.82)', lh: 15 },
-  warn:  { size: 12, weight: 700, color: '#8a2e0e', lh: 15 },
+  title: { size: 11, weight: 600, color: '#a79d86', lh: 14 },
+  main:  { size: 15, weight: 700, color: '#f3e7ca', lh: 19 },
+  note:  { size: 12, weight: 500, color: '#b8ad95', lh: 15 },
+  warn:  { size: 12, weight: 700, color: '#c98a5a', lh: 15 },
 };
 const BAND_GAP = 3;   // между фактами, px
 // Раскладка текста в колонке. Возвращает строки с их местом и шириной и набор id уместившихся
@@ -130,16 +134,25 @@ const bandColumn = m => bandLines(L.band && L.band.col, bandFacts(m));
 // Цель пазла / живой предпросмотр: полосой над листом, накладкой на листе или в боковой колонке.
 // колонка — уже разложенный текст полосы (drawLay считает его один раз на кадр: по нему же он решает,
 // какие надписи НЕ рисовать на листе); без него считается здесь.
+// ⚑ Во время протяжки прячется всё, что лежит НА ЛИСТЕ (окошко: по нему катится ролл), но не панель
+// над циновкой (18.09): она стоит отдельно, ролл её не задевает, и пустая тёмная подложка на время
+// тяги читалась бы заглушкой. Срез в ней за тягу не меняется — почерк считается на отпускании.
 function drawPreviewArea(p, колонка) {
-  const pm = L.previewMode; if (pm === 'none' || p > 0) return;
+  const pm = L.previewMode, панель = pm === 'band' && L.band && S.mode === 'lay';
+  if (pm === 'none' || (p > 0 && !панель)) return;
   const pz = S.puzzle, k = pz ? pz.vs.length : 1, tm = pz ? targetModel() : null;
   const label = (x, y, lines, align = 'center') => { ctx.fillStyle = '#b8ad95'; ctx.font = font(12); ctx.textAlign = align; ctx.textBaseline = 'middle'; lines.forEach((t, i) => ctx.fillText(t, x, y + i * 16)); };
   const turnsTxt = () => liveTurnsText(getModel());
-  if (pm === 'band' && L.band && S.mode === 'lay') {
-    // ПОЛОСА — ВЕРХ ЦИНОВКИ (17.09): дерево под ней рисует drawLay той же заливкой, что под листом.
-    // Срез прижат к правому краю нори, колонка текста — к левому (геометрия — bandGeom в layout.js).
-    const b = L.band;
+  if (панель) {
+    // ПАНЕЛЬ НАД ЦИНОВКОЙ (18.09): подложку рисует drawLay — она стоит и во время протяжки. Здесь
+    // доска со срезом у правого края и колонка текста у левого (геометрия — bandGeom в layout.js).
+    // Тень среза падает на доску и обрезается по ней: тень принадлежит доске, как у окошка на листе
+    // (31.08), и с неё не свисает ни на панель, ни тем более на лист (замечание владельца 18.09).
+    const b = L.band, д = b.доска;
+    drawSlab(b.cells, 1, B(), ДОСКА);
+    ctx.save(); rr(д.x, д.y, д.w, д.h, д.r); ctx.clip();
     b.cells.forEach((c, i) => drawFaceImg(pz ? face(pz.vs[i], c.size, tm) : face(0.5, c.size), c.x, c.y, c.size));
+    ctx.restore();
     const кол = колонка || bandColumn(getModel());
     for (const л of кол.lines) {
       ctx.fillStyle = л.color; ctx.font = font(л.size, л.weight); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
@@ -236,15 +249,15 @@ function drawLay() {
     const x0 = Math.min(hd.x, L.sheet.x - 8), x1 = Math.max(hd.x + hd.w, L.sheet.x + L.sheet.w + 8);
     drawMat(x0, L.sheet.y - 18, x1 - x0, L.sheet.h + 36, 14, B(), true);
   } else {
-    // Полоса живого среза — верх той же циновки (17.09): одна заливка от верха полосы до ручки,
-    // прутья идут сквозь, поэтому она не читается отдельной табличкой.
-    const верх = L.band ? L.band.y : L.sheet.y - РАМКА;
-    drawMat(hd.x, верх, hd.w, hd.y + hd.h + 8 - верх);
+    // ⚑ ЦИНОВКА — ОТ РАМКИ НАД ЛИСТОМ, А НЕ ОТ ВЕРХА ПОЛОСЫ (18.09). 17.09 здесь стояло `L.band.y`:
+    // полоса живого среза была той же циновкой, продолженной вверх, и владелец сказала, что так «не
+    // отдельно — фон как бы другой». Теперь это отдельная панель со своей подложкой через ШАГ.
+    drawMat(hd.x, L.sheet.y - РАМКА, hd.w, hd.y + hd.h + 8 - (L.sheet.y - РАМКА));
   }
-  // Текст полосы раскладывается один раз на кадр и до листа: по тому, что в колонку влезло, ниже
-  // решается, какие надписи на лист больше не ставить. Во время протяжки полоса пуста (срез и
-  // текст не рисуются — drawPreviewArea, как и прежде), но раскладка колонки считается и тогда:
-  // иначе «лишний лист обрезан» на время протяжки выскакивал бы обратно на лист.
+  if (L.band) { const b = L.band; rr(b.x, b.y, b.w, b.h, ПАНЕЛЬ_R); ctx.fillStyle = BAND_BG; ctx.fill(); }
+  // Текст панели раскладывается один раз на кадр и до листа: по тому, что в колонку влезло, ниже
+  // решается, какие надписи на лист больше не ставить. Во время протяжки панель рисуется как есть
+  // (drawPreviewArea), и «лишний лист обрезан» не выскакивает на лист.
   const колонка = L.band ? bandColumn(getModel()) : null;
   const вКолонке = id => !!(колонка && колонка.placed.has(id));
   sheetPush();
@@ -386,7 +399,18 @@ function drawLay() {
   drawPreviewArea(p, колонка);
   buttons = [];
   const area = L.layBtn;
-  if (sel && p === 0) {
+  // «Убрать» на ручке циновки (портрет телефона, selBtnGeom в layout.js): не в ряду под палитрой,
+  // поэтому ряд палитры при выбранном куске не прячется. Касание — через icons, как у корзины.
+  if (sel && p === 0 && L.selBtn) {
+    const sb = L.selBtn;
+    rr(sb.x, sb.y, sb.w, sb.h, 10); ctx.fillStyle = '#2a2a25'; ctx.fill();
+    ctx.strokeStyle = '#4d4838'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#efe4cd'; ctx.font = font(15, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(sb.label, sb.x + sb.w / 2, sb.y + sb.h / 2 + 1);
+    icons.push({ id: 'remove', ...sb.hit });
+  }
+  const другиеДействия = WRAP_PIECE_ON || (ROTATE_PIECE_ON && sel && !ING[sel.kind].wave);
+  if (sel && p === 0 && (!L.selBtn || другиеДействия)) {
     // ⚠ ОБЁРТЫВАНИЕ КУСКА В НОРИ УБРАНО ИЗ ИНТЕРФЕЙСА 31.08.2026 по решению владельца:
     // «мы ещё не знаем, как именно внутри будем оборачивать… можно пока просто не оборачивать
     // то, что внутри — давай обычный оттестируем до идеального состояния хотя бы».
@@ -400,7 +424,7 @@ function drawLay() {
     const rotSpan = cutSymmetric(ING[sel.kind]) ? 180 : 360;
     const rotLabel = `⟳ ${Math.round(((sel.rot || 0) * 180 / Math.PI + 45) % rotSpan)}°`;
     buttonRow([...(canWrap ? [['wrap', 'Кусок в нори', true, 1.2]] : []), ...(canRot ? [['rotate', rotLabel, false, 1.05]] : []),
-               ['remove', 'Убрать', false, 1]], { ...area, max: 3 });
+               ...(L.selBtn ? [] : [['remove', 'Убрать', false, 1]])], { ...area, max: 3 });
   } else {
     // ↶ и ↷ — история действий, а не «снять последний кусок» (issue #84). Тусклая стрелка
     // означает, что возвращать нечего: кнопка не прыгает, но и не врёт, что что-то сделает.
