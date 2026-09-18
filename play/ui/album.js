@@ -16,8 +16,9 @@ function albumSave() {
   // F03). Без неё запись с блином открывалась как нори, молча и без ошибки (issue #86).
   // Пишем разрешённую обёртку базы, а не сырое S.wrap: у баз с wrapFixed (рулет) своя, и
   // S.wrap там не участвует — иначе в записи оказалось бы то, чего в модели не было.
+  // Витки — по тому же правилу, что при чтении (acceptTurns, 17.09): записи короче 2 витков не бывает.
   const e = { id: 'a' + Date.now().toString(36), base: S.base, wrap: B().wrapKey || null,
-              turns: turnsOf(S.turns), shape: S.shape,
+              turns: acceptTurns(S.turns), shape: S.shape,
               // Почерк — без округления (#236): запись обязана открываться тем же роллом, что сохранили.
               hand: { air: h.air || 0, wobble: h.wobble || 0, phase: h.phase || 0, press: h.press || 1 },
               list: JSON.parse(JSON.stringify(list)), at: Date.now(),
@@ -39,7 +40,10 @@ function withRecipe(e, fn) {
   const keep = { base: S.base, wrap: S.wrap, turns: S.turns, shape: S.shape, hand: S.hand, list: S.lists[e.base] };
   S.base = e.base; S.wrap = (e.wrap && WRAPPERS[e.wrap]) ? e.wrap : null;
   // Витки записи — по тому же правилу, что у ссылки (#253, решение владельца 17.09): лист не
-  // короче 2 витков и такой, чтобы на рис лёг каждый кусок.
+  // короче 2 витков и такой, чтобы на рис лёг каждый кусок. recipeTurns СИЛЬНЕЕ прежнего
+  // acceptTurns и включает его: он тоже поднимает витки до 2 (RECIPE_TURNS_MIN), а потом
+  // добавляет по целому витку, пока каждый кусок не ляжет на рис. Миниатюра и «На лист»
+  // считают лист одной дорогой — иначе миниатюра обещала бы не тот ролл, что откроется.
   S.turns = recipeTurns(e, e.list); S.shape = SHAPES[e.shape] ? e.shape : 'round';
   S.hand = Object.assign(handOf(), e.hand || {});
   let out;
@@ -66,7 +70,10 @@ function albumLoad(i) {
   const e = S.album[i]; if (!e) return;
   if (S.puzzle) puzzleStop();
   S.base = e.base; S.wrap = (e.wrap && WRAPPERS[e.wrap]) ? e.wrap : null;   // старые записи без поля → обёртка базы (issue #86)
-  S.turns = recipeTurns(e, e.list); S.shape = SHAPES[e.shape] ? e.shape : 'round';   // #253: как у ссылки
+  // ⚑ Старая запись с листом короче 2 витков открывается с 2, и с бóльшим листом, если на
+  // 2 витках не ложится каждый кусок (решение владельца 17.09, #253): лист короче начинки игра
+  // не принимает. Разбор — у recipeTurns в state.js (он включает прежний порог acceptTurns).
+  S.turns = recipeTurns(e, e.list); S.shape = SHAPES[e.shape] ? e.shape : 'round';
   S.hand = Object.assign(handOf(), e.hand || {});
   // Выбор начинки переживает возврат из альбома: palSync() меняет его только если у базы
   // записи такой начинки нет (17.09, прежде сбрасывался всегда).
