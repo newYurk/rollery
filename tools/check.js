@@ -86,6 +86,76 @@ const ctx = {
   Path2D: class { constructor() {} addPath() {} moveTo() {} lineTo() {} closePath() {} arc() {} rect() {} },
 };
 ctx.window = ctx; ctx.globalThis = ctx; ctx.self = ctx;
+
+// ── ЗАГЛУШКА_КАРТИНОК: Image, который ЧЕСТНО читает PNG с диска (#256, 17.09) ─
+//
+// Остальные заглушки выше — пустышки, и это правильно: проверки меряют модель, а не пиксели.
+// Здесь пустышка не годится. Шкура вида сверху (play/render/sheet.js) — это ПИКСЕЛИ PNG, и
+// сторож на неё («средний цвет куска не поехал», «повтор без зеркала», «нет файла — рисуем
+// вычислением») либо читает те же байты, что браузер, либо не проверяет ничего. Вариант
+// «проверять только руками в браузере» уже пробовали на раскладке (#167), и он означает
+// «не проверять».
+//
+// Поэтому: свой распаковщик PNG на zlib. Он умеет ровно то, что лежит в play/assets —
+// 8 бит на канал, тип цвета 6 (RGBA) и 2 (RGB), без интерлейса. Всё прочее — отказ, а не
+// догадка: молчаливо угаданная картинка хуже отсутствующей.
+const zlib = require('node:zlib');
+function разжатьPNG(buf) {
+  if (buf.length < 8 || buf.readUInt32BE(0) !== 0x89504e47) throw new Error('не PNG');
+  let i = 8, ihdr = null; const idat = [];
+  while (i + 8 <= buf.length) {
+    const len = buf.readUInt32BE(i), тип = buf.toString('latin1', i + 4, i + 8);
+    const тело = buf.subarray(i + 8, i + 8 + len);
+    if (тип === 'IHDR') ihdr = { w: тело.readUInt32BE(0), h: тело.readUInt32BE(4), бит: тело[8], цвет: тело[9], интер: тело[12] };
+    else if (тип === 'IDAT') idat.push(тело);
+    else if (тип === 'IEND') break;
+    i += 12 + len;
+  }
+  if (!ihdr) throw new Error('нет IHDR');
+  if (ihdr.бит !== 8 || ihdr.интер !== 0 || (ihdr.цвет !== 6 && ihdr.цвет !== 2))
+    throw new Error(`не умею PNG: бит ${ihdr.бит}, цвет ${ihdr.цвет}, интерлейс ${ihdr.интер}`);
+  const кан = ihdr.цвет === 6 ? 4 : 3, { w, h } = ihdr;
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const шаг = w * кан, out = new Uint8ClampedArray(w * h * 4);
+  const стр = Buffer.alloc(шаг), пред = Buffer.alloc(шаг);
+  for (let y = 0; y < h; y++) {
+    const ф = raw[y * (шаг + 1)]; raw.copy(стр, 0, y * (шаг + 1) + 1, y * (шаг + 1) + 1 + шаг);
+    for (let x = 0; x < шаг; x++) {
+      const a = x >= кан ? стр[x - кан] : 0, b = пред[x], c = x >= кан ? пред[x - кан] : 0;
+      if (ф === 1) стр[x] = (стр[x] + a) & 255;
+      else if (ф === 2) стр[x] = (стр[x] + b) & 255;
+      else if (ф === 3) стр[x] = (стр[x] + ((a + b) >> 1)) & 255;
+      else if (ф === 4) {                                    // Paeth
+        const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+        стр[x] = (стр[x] + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 255;
+      } else if (ф !== 0) throw new Error('неизвестный фильтр PNG ' + ф);
+    }
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4, s = x * кан;
+      out[o] = стр[s]; out[o + 1] = стр[s + 1]; out[o + 2] = стр[s + 2];
+      out[o + 3] = кан === 4 ? стр[s + 3] : 255;
+    }
+    стр.copy(пред);
+  }
+  return { w, h, data: out };
+}
+ctx.Image = class {
+  constructor() { this.complete = false; this.naturalWidth = 0; this.naturalHeight = 0; this.пиксели = null; }
+  // Загрузка СИНХРОННАЯ: в песочнице нет ни сети, ни цикла событий проверок, а игра смотрит
+  // на im.complete. Адрес — относительный, от play/, как в браузере.
+  set src(v) {
+    try {
+      const p = path.join(PLAY, String(v).split('?')[0]);
+      this.пиксели = разжатьPNG(fs.readFileSync(p));
+      this.naturalWidth = this.пиксели.w; this.naturalHeight = this.пиксели.h; this.complete = true;
+      if (typeof this.onload === 'function') this.onload();
+    } catch (e) {
+      this.complete = false; this.naturalWidth = 0;
+      if (typeof this.onerror === 'function') this.onerror(e);
+    }
+  }
+};
+
 ctx.document = {
   createElement: узел, createElementNS: (_, t) => узел(t),
   getElementById: () => узел('canvas'), querySelector: () => узел('canvas'),
@@ -168,7 +238,18 @@ if (_e >= 0) {
   try { vm.runInContext(код, ctx, { filename: 'eval.js' }); }
   catch (e) { console.error('НЕ ВЫПОЛНИЛОСЬ:', e && e.message); process.exit(2); }
   const out = ctx.ВЫХОД;
-  console.log(typeof out === 'string' ? out : JSON.stringify(out));
+  // ⚠ ВЫХОД В ТРУБУ ОБРЕЗАЛСЯ, И ЭТО ЛОВИЛОСЬ ТОЛЬКО НА БОЛЬШОМ ОТВЕТЕ (17.09, #256).
+  // `console.log(...); process.exit(0)` не ждёт записи: в трубу уходит первый кусок (у меня
+  // 455 знаков из 570 КБ растра листа), остальное теряется вместе с процессом. С растром
+  // это видно сразу — «Unterminated string», — а с ответом в несколько килобайт обрезалось бы
+  // молча. Выходим ПОСЛЕ того, как запись подтверждена.
+  // Запись СИНХРОННАЯ и до конца: асинхронная (console.log / stdout.write с обратным вызовом)
+  // либо теряет хвост при выходе, либо пропускает управление дальше — в прогон сторожа.
+  const буф = Buffer.from((typeof out === 'string' ? out : JSON.stringify(out)) + '\n');
+  for (let сдвиг = 0; сдвиг < буф.length;) {
+    try { сдвиг += fs.writeSync(1, буф, сдвиг, буф.length - сдвиг); }
+    catch (e) { if (e.code !== 'EAGAIN') throw e; }      // труба полна — подождать и дописать
+  }
   process.exit(0);
 }
 

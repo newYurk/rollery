@@ -57,9 +57,30 @@ function action(id) {
       const ks = Object.keys(WRAPPERS), cur = B().wrapKey || 'nori', i0 = ks.indexOf(cur);
       // Обёртку, на которой лежащий кусок не поместился бы на рис вовсе, перебор пропускает (#253,
       // 17.09): узумаки в пазле на двух витках — банан, положенный на омлете, на нори не ложится.
+      // ⚠ ВОПРОС, КОТОРЫЙ ЗДЕСЬ ВОЗНИКАЕТ И ЗАКРЫТ ЗАМЕРОМ (слияние 17.09). sheetTakes спрашивает
+      // про лист при НЫНЕШНИХ витках, а у уровня витки под новой обёрткой другие (строка ниже их
+      // пересчитывает) — то есть теоретически перебор мог бы пропустить обёртку, которую лист
+      // уровня принял бы. Спросили прямо: 1440 сцен (6 баз × 16 уровней × 3 зерна × 5 стартовых
+      // обёрток), для каждой обёртки ответ sheetTakes при нынешних витках против ответа при витках
+      // уровня на этой обёртке — расхождений 0, пропущенных обёрток 0. Причина: у уровня длина
+      // листа от обёртки не зависит (sheets · b.L), а там, где она упирается в пол «не короче
+      // 2 витков», лист на всех обёртках длиннее, чем нужно нынешним кускам. Поэтому усложнять
+      // sheetTakes незачем; если уровни или каталог изменятся, замер надо повторить —
+      // runs/continuation/task10-spiral-nori/round5/tools/probe-sheettakes.js.
       let next = cur;
       for (let d = 1; d < ks.length; d++) { const k = ks[(i0 + d) % ks.length]; if (sheetTakes(k)) { next = k; break; } }
       S.wrap = next;
+      // ⚑ ЛИСТ УРОВНЯ ПЕРЕСЧИТЫВАЕТСЯ ПОД НОВУЮ ОБЁРТКУ (17.09, #134/#242). Лист уровня — СКОЛЬКО
+      // ЛИСТОВ БАЗЫ (поле sheets), то есть ДЛИНА; витки — производная от неё и от шага витка (T + w).
+      // Обёртка шаг меняет, и при тех же витках лист на циновке становится другой длины: замер
+      // 17.09 — футомаки ур.1, подпись 334 мм, на циновке 349 (−4,4 %), то же у тюмаки, хосомаки
+      // и урамаки. Без этой строки новое правило действовало до первого нажатия «●».
+      // Перезапускать уровень, как при смене базы, не нужно: b.L от обёртки не зависит, длина
+      // сохраняется, и цель уровня вместе с раскладкой игрока остаются в силе.
+      // Пазл ПО ССЫЛКЕ (custom) не трогаем: там лист задан витками явно (у него нет sheets), а null — «лист базы».
+      // Стоит ПОСЛЕ выбора обёртки и ДО layRefit: подгонка кусков к рису считает лист по S.turns,
+      // и с непересчитанными витками она подгоняла бы к листу, которого на циновке не будет.
+      if (S.puzzle && S.puzzle.lv && S.puzzle.lv.sheets != null) S.turns = levelTurns(S.puzzle.lv);
       layRefit();   // при заданных витках обёртка меняет длину листа, кусок у кромки съехал бы на голое (#253)
       selOnRice();  // и выбранная фишка могла перестать помещаться
       wrapNote = WRAPPERS[S.wrap].name + ' · ' + WRAPPERS[S.wrap].mm + ' мм';
@@ -73,20 +94,40 @@ function action(id) {
     case 'lvprev': if (S.puzzle && S.puzzle.level > 0) puzzleStart(S.puzzle.level - 1, S.puzzle.seed); else if (S.puzzle && S.puzzle.level < 0) puzzleStart(0, 1); break;
     case 'lvnext': if (S.puzzle && S.puzzle.level + 1 < LEVELS.length && S.puzzle.level + 1 <= puzzleMax()) puzzleStart(S.puzzle.level + 1, S.puzzle.seed); break;
     // Кнопка звука снята 17.09 (решение владельца): громкостью управляет телефон.
-    case 'base': { const keys = uiBases(); S.base = keys[(keys.indexOf(S.base) + 1) % keys.length]; S.sel = uiIngredients()[0] || B().ingredients[0]; S.selPatch = null; layOnRice(patches()); wrapNote = BASES[S.base].name; wrapNoteT = performance.now(); touchModel(); layout(); if (S.puzzle) puzzleStart(S.puzzle.level, S.puzzle.seed); else if (S.mode !== 'lay') action('back'); break; }
+    // ⚑ ВЫБОР НАЧИНКИ ПРИ СМЕНЕ БАЗЫ НЕ СБРАСЫВАЕТСЯ (17.09). Здесь стояло безусловное «первая
+    // начинка новой базы»: выбрал лосося, переключил базу — выбран огурец, и почему, игрок не
+    // узнавал. palSync() оставляет начинку, если она есть и у новой базы, и открывает её
+    // страницу палитры, если прежняя группа у новой базы отсутствует.
+    // ⚠ И ТО, И ДРУГОЕ (слияние 17.09): layOnRice переносит куски новой базы на её рис (#253),
+    // selOnRice уводит выбор с фишки, которая на новом листе не помещается, а второй palSync
+    // подтягивает страницу палитры к начинке, которую selOnRice мог сменить.
+    case 'base': { const keys = uiBases(); S.base = keys[(keys.indexOf(S.base) + 1) % keys.length]; palSync(); S.selPatch = null; layOnRice(patches()); selOnRice(); palSync(); wrapNote = BASES[S.base].name; wrapNoteT = performance.now(); touchModel(); layout(); if (S.puzzle) puzzleStart(S.puzzle.level, S.puzzle.seed); else if (S.mode !== 'lay') action('back'); break; }
   }
   requestFrame();
 }
 
 function chipsRect() { const c = L.chips; return { x: c.x - 4, y: c.y - 4, w: c.w + 8, h: c.rows * (c.size + (c.labels ? 18 : 6)) + 8 }; }
+// ЛИСТАНИЕ СТРАНИЦ ПАЛИТРЫ: порог в пикселях, а не в долях ленты (17.09).
+// Палец проходит одно и то же расстояние на любом экране — той же мыслью считается и протяжка
+// циновки (ROLL_REACH, #6). 40 px — больше порога «сдвинулся» (6) и меньше половины фишки.
+const PAL_SWIPE = 40;
 function onDown(x, y, id) {
   sfx.ensure();
   for (const ic of icons) if (inRect(x, y, ic)) { action(ic.id); return; }
   for (const b of buttons) if (inRect(x, y, b)) { action(b.id); return; }
   if (S.mode === 'lay') {
     if (anim) return;
+    // Вкладка группы — как кнопка: открывает страницу и НЕ меняет выбранную начинку.
+    for (const t of palTabs) if (inRect(x, y, t)) { if (palSet(t.key)) { palDX = 0; layout(); dirty = true; requestFrame(); } return; }
     if (inRect(x, y, chipsRect())) {
-      if (L.chipScroll) { drag.id = id; drag.kind = 'chips'; drag.x0 = x; drag.s0 = chipScrollX; drag.moved = false; return; }
+      // ⚑ ОДНА ТЯГА — ДВА СМЫСЛА, И РЕШАЕТ ЕГО ЛЕНТА, А НЕ ДОГАДКА. Пока ряд не влезает в
+      // полосу (L.chipScroll), тяга ПРОКРУЧИВАЕТ его, как и раньше: иначе жест отнял бы у
+      // игрока единственный способ добраться до спрятанных фишек. Когда группа показана целиком
+      // и групп больше одной — прокручивать нечего, и та же тяга ЛИСТАЕТ страницы.
+      const листаем = !L.chipScroll && uiGroups().length > 1;
+      if (L.chipScroll || листаем) {
+        drag.id = id; drag.kind = 'chips'; drag.x0 = x; drag.s0 = chipScrollX; drag.moved = false; drag.page = листаем; return;
+      }
       // тусклая фишка (кусок не помещается на рис этого листа, #253) не выбирается
       for (const c of chips) if (inRect(x, y, c)) { if (!c.dead) S.sel = c.kind; dirty = true; requestFrame(); return; }
       return;
@@ -126,7 +167,10 @@ function onMove(x, y, id) {
   if (drag.id !== id || !drag.kind) return;
   if (drag.kind === 'chips') {
     drag.moved = drag.moved || Math.abs(x - drag.x0) > 6;
-    chipScrollX = drag.s0 - (x - drag.x0);
+    // Страница идёт за пальцем, но не дальше полуторного порога: это ответ на жест, а не
+    // прокрутка, и уезжать ленте некуда — соседняя группа появится сразу целиком.
+    if (drag.page) palDX = clamp(x - drag.x0, -1.5 * PAL_SWIPE, 1.5 * PAL_SWIPE);
+    else chipScrollX = drag.s0 - (x - drag.x0);
   } else if (drag.kind === 'albumscroll') {
     drag.moved = drag.moved || Math.abs(y - drag.y0) > 6;
     S.albumScroll = drag.s0 - (y - drag.y0);
@@ -213,7 +257,12 @@ function onUp(x, y, id) {
   if (drag.id !== id) return;
   const kind = drag.kind; drag.id = null; drag.kind = null;
   if (kind === 'chips') {
-    if (!drag.moved) for (const c of chips) if (inRect(x, y, c)) { if (!c.dead) S.sel = c.kind; break; }
+    // Тап (не сдвинулся) — выбор начинки; протяжка на полный порог — соседняя группа.
+    // Порог не взят — страница возвращается на место, выбор при этом не меняется НИ В ОДНОМ
+    // из двух случаев: листание показывает другие начинки, а не выбирает их.
+    if (!drag.moved) { for (const c of chips) if (inRect(x, y, c)) { if (!c.dead) S.sel = c.kind; break; } }
+    else if (drag.page && Math.abs(x - drag.x0) >= PAL_SWIPE) { if (palStep(x - drag.x0 < 0 ? 1 : -1)) layout(); }
+    palDX = 0; drag.page = false;
   } else if (kind === 'roll') {
     sfx.rustleStop();
     measureHand();
