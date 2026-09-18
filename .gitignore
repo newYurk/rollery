@@ -76,3 +76,8 @@ runs/
 # в git первым же `git add -A Rollery-Obsidian`. Причина написана, запрета нет: проверять
 # надо `git check-ignore -v <файл>`, а не перечитывать комментарий.
 Rollery-Obsidian/граф.png
+# Из настроек Obsidian в git идёт ТОЛЬКО раскраска графа: она сделана руками и должна
+# возвращаться на любой копии. Остальное приложение пишет само и под каждого своё —
+# `workspace.json` вообще хранит открытые вкладки владельца, ему в общей истории не место.
+Rollery-Obsidian/.obsidian/*
+!Rollery-Obsidian/.obsidian/graph.json
