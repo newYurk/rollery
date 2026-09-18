@@ -1,0 +1,63 @@
+{
+  "collapse-filter": true,
+  "search": "",
+  "showTags": false,
+  "showAttachments": false,
+  "hideUnresolved": false,
+  "showOrphans": true,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    {
+      "query": "path:\"09_Где в игре\"",
+      "color": { "a": 1, "rgb": 3980990 }
+    },
+    {
+      "query": "path:\"01_Роллы\"",
+      "color": { "a": 1, "rgb": 14839396 }
+    },
+    {
+      "query": "path:\"02_Приёмы\"",
+      "color": { "a": 1, "rgb": 7908070 }
+    },
+    {
+      "query": "path:\"03_Каноны\"",
+      "color": { "a": 1, "rgb": 15448390 }
+    },
+    {
+      "query": "path:\"04_Начинки\"",
+      "color": { "a": 1, "rgb": 8898675 }
+    },
+    {
+      "query": "path:\"05_Нарезки\"",
+      "color": { "a": 1, "rgb": 11832545 }
+    },
+    {
+      "query": "path:\"06_Обёртки\"",
+      "color": { "a": 1, "rgb": 14135155 }
+    },
+    {
+      "query": "path:\"07_Решения\"",
+      "color": { "a": 1, "rgb": 15767110 }
+    },
+    {
+      "query": "path:\"08_Источники\"",
+      "color": { "a": 1, "rgb": 10526880 }
+    },
+    {
+      "query": "path:\"10_Пазл\"",
+      "color": { "a": 1, "rgb": 9877985 }
+    }
+  ],
+  "collapse-display": false,
+  "showArrow": false,
+  "textFadeMultiplier": 0,
+  "nodeSizeMultiplier": 1.15,
+  "lineSizeMultiplier": 0.8,
+  "collapse-forces": false,
+  "centerStrength": 0.42,
+  "repelStrength": 13,
+  "linkStrength": 0.7,
+  "linkDistance": 320,
+  "scale": 0.75,
+  "close": false
+}
