@@ -2262,7 +2262,9 @@ function runChecks(detail) {
         S.base = было.base; S.hand = было.hand; S.lists.futo = было.futo; S.winding = было.winding; S.mode = было.mode;
         S.preview = было.preview; modelCaches.clear(); touchModel(); layout();
       }
-      ok(тексты.some(t => t.includes('свернётся спиралью')),
+      // С 17.09 на телефоне надпись стоит в колонке полосы и переносится по словам — ищем фразу во
+      // всём тексте кадра, а не в одной строке (неразрывный пробел перед тире — от переноса).
+      ok(тексты.join(' ').replace(/\u00a0/g, ' ').includes('свернётся спиралью'),
          'надпись «свернётся спиралью» пропадает, пока тащишь кусок (#240): в кадре её нет');
     }
     // И надпись «свернётся спиралью» на листе (просьба владельца 02.09) не прячется под окошком
@@ -2272,7 +2274,9 @@ function runChecks(detail) {
       let сверено = 0;
       try {
         S.puzzle = null;
-        for (const [w, h] of SIZES) for (const база of ['hoso', 'futo']) {
+        // 375 × 667 и узумаки — там окошко остаётся и после 17.09 (полосе негде встать); на прочих
+        // портретах теперь полоса, и без них сверять стало бы нечего.
+        for (const [w, h] of SIZES.concat([[393, 852], [375, 667]])) for (const база of ['hoso', 'futo', 'uzumaki']) {
           W = w; H = h; DPR = 2; S.base = база; S.preview = true; layout();
           if (L.previewMode !== 'overlay') continue;
           сверено++;
@@ -2283,6 +2287,112 @@ function runChecks(detail) {
         W = было.W; H = было.H; DPR = было.DPR; S.base = было.base; S.preview = было.preview; S.puzzle = было.puzzle; layout();
       }
       if (!globalThis.БЕЗ_БРАУЗЕРА) ok(сверено > 0, 'надпись «свернётся спиралью»: ни одного экрана с окошком на листе — сверять было нечего');
+    }
+
+    // ── Ш. ЖИВОЙ СРЕЗ — ПОЛОСОЙ НАД ЛИСТОМ, А НЕ ОКОШКОМ НА НЁМ (17.09, снимок владельца с iPhone 15 Pro).
+    //
+    // Владелец: срез «очень неудачно закрывает очень большой кусок листа», а пустого места на
+    // экране ~235 px. Причин было две, и обе здесь стерегутся порознь:
+    //   · полоса не предлагалась ниже ch = 800 (`bandFull`), а у приложения «на экране Домой»
+    //     ch = 852 − 59 − 34 = 759 — окошко без выбора;
+    //   · окошко стоило раскладчику 102 × 102 px, а рисовалось 236 × 236 (футомаки, 393 × 852).
+    // Три обещания портрета телефона, и каждое меряется не той арифметикой, которой исполнено:
+    //   1) окошко не выбрано, если полоса помещается: есть кандидат-полоса не хуже выбранного по
+    //      старшим ступеням отбора (пол пальца, видимость страницы, ровность рядов), и лист при ней
+    //      больше, чем окошко оставляет ОТКРЫТЫМ. Цена окошка — у функции, по которой оно РИСУЕТСЯ
+    //      (overlayBox, её зовёт overlayGeom), а не у числа, опубликованного отбором;
+    //   2) срез стоит у правого края циновки: полоса шириной с циновку, правый край среза — край нори;
+    //   3) текст колонки не наезжает на срез и не выходит за циновку — на живых раскладках и на
+    //      самом длинном наборе фактов сразу.
+    // Где полосе встать негде (375 × 667 — палитре нужен третий ряд; узумаки — лист упёрся в
+    // высоту), окошко остаётся, и сторож проверяет, что это честный проигрыш по площади.
+    if (!globalThis.БЕЗ_БРАУЗЕРА && typeof bandLines === 'function' && typeof overlayBox === 'function') {
+      // safe-area — как у приложения, открытого с экрана «Домой»: статус-бар и полоска «домой».
+      const ПОРТРЕТЫ = [[393, 852, 59, 34], [390, 844, 47, 34], [430, 932, 59, 34], [375, 667, 20, 0]];
+      const УРОВНИ = [null, 0, 5, 7];   // без пазла и цели из 1, 3, 6 срезов (LEVELS[].pieces)
+      const было = { W, H, DPR, base: S.base, wrap: S.wrap, preview: S.preview, puzzle: S.puzzle, turns: S.turns, shape: S.shape,
+                     mode: S.mode, safe: Object.assign({}, SAFE), lists: JSON.parse(JSON.stringify(S.lists)) };
+      // Самый длинный набор, какой колонка может получить: все факты разом, в длинной редакции
+      // (обёртка «бумага», десять витков, самая длинная форма). Это вход для bandLines, а не
+      // эталон текста: сверяется только то, где строки встали.
+      const худшие = [
+        { id: 'title', r: 'title', уступ: 3, t: 'живой срез' },
+        { id: 'turns', r: 'main', уступ: 0, t: 'спираль, 10,0 витка' },
+        { id: 'spiral', r: 'note', уступ: 2, t: 'начинка по всему листу — свернётся спиралью' },
+        { id: 'short', r: 'warn', уступ: 1, t: 'листа не хватило — бумага не сомкнулась' },
+        { id: 'trim', r: 'note', уступ: 4, t: 'лишний лист обрезан — ролл замкнулся раньше' },
+        { id: 'shape', r: 'note', уступ: 5, t: 'форма: треугольник' }];
+      let полос = 0, строк = 0;
+      try {
+        for (const [w, h, st, sb] of ПОРТРЕТЫ) for (const safe of [false, true]) for (const база of MIN_BASES) for (const ур of УРОВНИ) {
+          W = w; H = h; DPR = 2; SAFE.top = safe ? st : 0; SAFE.bottom = safe ? sb : 0; SAFE.left = SAFE.right = 0;
+          S.base = база; S.wrap = null; S.shape = 'round'; S.preview = true; S.puzzle = null; S.turns = null; S.mode = 'lay';
+          if (ур !== null) {
+            const lv = LEVELS[ур];
+            S.turns = levelTurns(lv);
+            S.puzzle = { level: ур, seed: 1, lv, target: [], vs: puzzleSlices(lv.pieces), result: null };
+          }
+          // Лист не пустой: четыре куска палитры поперёк листа — у хосомаки и тюмаки это уже
+          // спираль с нехваткой листа, то есть колонка получает три-четыре факта, а не два.
+          const куски = B().ingredients.filter(k => ING[k] && !ING[k].paint && ING[k].cut !== 'паста').slice(0, 4);
+          // Кладутся тем же правилом, что пальцем: на рис, не на голый край (#253, layU).
+          S.lists[база] = куски.map((k, i) => { const p = { kind: k, u: 0, v: 0.5, z0: 0, z1: 0, phase: 1 };
+                                                 p.u = layU(p, [0.30, 0.45, 0.60, 0.75][i]); return p; });
+          touchModel(); layout();
+          const tag = `${w}×${h}${safe ? ` safe ${st}/${sb}` : ''} ${база}${S.puzzle ? ` пазл ×${S.puzzle.vs.length}` : ''}`;
+          const от = L.отбор;
+          if (!ok(!!от, `${tag}: раскладка портрета не опубликовала отбор (L.отбор)`)) continue;
+          const pick = от.pick, n = uiPalMax();
+          ok((L.previewMode === 'band') === !!pick.band, `${tag}: режим ${L.previewMode} разошёлся с отбором (полоса ${pick.band})`);
+          ok(от.cands.some(c => c.band > 0), `${tag}: полоса не предлагалась вовсе — окошко без выбора (было ниже ch 800)`);
+          // 1) окошко — только честным проигрышем по площади
+          if (!pick.band) {
+            const открыто = pick.sw * pick.alongU - overlayBox(pick.sw, pick.alongU, S.puzzle).закрыто;
+            const ровный = c => c.rows > 1 && n % (c.rows - 1) === 0 && c.vis >= n && c.alongU >= от.floor;
+            const годные = pick.alongU < от.floor ? [] : от.cands.filter(c => c.band > 0 && c.alongU >= от.floor &&
+              c.vis >= pick.vis && (!ровный(pick) || ровный(c)));
+            const лучшая = годные.reduce((a, c) => (!a || c.area > a.area ? c : a), null);
+            ok(!лучшая || лучшая.area <= открыто + 0.5,
+               `${tag}: окошко на листе, хотя полоса помещается — с полосой ${Math.round(лучшая && лучшая.band)} px лист ` +
+               `${Math.round(лучшая && лучшая.sw)}×${Math.round(лучшая && лучшая.alongU)} (${Math.round(лучшая && лучшая.area)} px²), ` +
+               `а окошко оставляет открытыми ${Math.round(открыто)} из ${Math.round(pick.sw * pick.alongU)} px²`);
+            continue;
+          }
+          // 2) полоса — верх циновки, срез у её правого края
+          полос++;
+          const b = L.band, hd = L.handle, cells = b.cells, last = cells[cells.length - 1];
+          const нориЛ = hd.x + ПОЛЕ, нориП = hd.x + hd.w - ПОЛЕ, низПолосы = L.sheet.y - РАМКА;
+          ok(Math.abs(b.x - hd.x) < 0.01 && Math.abs(b.w - hd.w) < 0.01,
+             `${tag}: полоса не по ширине циновки — ${b.x.toFixed(1)}…${(b.x + b.w).toFixed(1)} против ${hd.x.toFixed(1)}…${(hd.x + hd.w).toFixed(1)}`);
+          ok(Math.abs(last.x + last.size / 2 - нориП) <= 0.5,
+             `${tag}: срез не у правого края циновки — правый край ${(last.x + last.size / 2).toFixed(1)}, край нори ${нориП.toFixed(1)}`);
+          ok(b.y >= L.top - 0.5, `${tag}: полоса ушла под верхнюю панель (${b.y.toFixed(0)} < ${L.top})`);
+          for (const c of cells)
+            ok(c.y - c.size / 2 >= b.y + ПОЛЕ - 0.5 && c.y + c.size / 2 <= низПолосы + 0.5 && c.x - c.size / 2 >= нориЛ - 0.5,
+               `${tag}: срез ${c.size.toFixed(0)} px вышел из полосы (${(c.y - c.size / 2).toFixed(0)}…${(c.y + c.size / 2).toFixed(0)} при ${(b.y + ПОЛЕ).toFixed(0)}…${низПолосы.toFixed(0)})`);
+          // 3) колонка: живая раскладка и самый длинный набор
+          if (!b.col) continue;
+          const живая = bandColumn(getModel()), длинная = bandLines(b.col, худшие);
+          if (!S.puzzle) {
+            ok(живая.placed.has('turns'), `${tag}: в колонке не поместилась даже намотка (колонка ${b.col.w.toFixed(0)} × ${b.col.h.toFixed(0)})`);
+            ok(длинная.placed.has('turns'), `${tag}: при всех фактах разом намотка уступила место (колонка ${b.col.w.toFixed(0)} × ${b.col.h.toFixed(0)})`);
+          }
+          for (const [имя, кол] of [['живая', живая], ['все факты', длинная]]) for (const л of кол.lines) {
+            строк++;
+            ok(л.x >= нориЛ - 0.5 && л.x + л.w <= cells[0].x - cells[0].size / 2 - ПОЛЕ + 0.5,
+               `${tag} (${имя}): строка «${л.t}» ${л.x.toFixed(0)}…${(л.x + л.w).toFixed(0)} — наезжает на срез или выходит за циновку ` +
+               `(место ${нориЛ.toFixed(0)}…${(cells[0].x - cells[0].size / 2 - ПОЛЕ).toFixed(0)})`);
+            ok(л.y - л.lh / 2 >= b.y + ПОЛЕ - 0.5 && л.y + л.lh / 2 <= низПолосы + 0.5,
+               `${tag} (${имя}): строка «${л.t}» по высоте вне полосы (${(л.y - л.lh / 2).toFixed(0)}…${(л.y + л.lh / 2).toFixed(0)})`);
+          }
+        }
+      } finally {
+        W = было.W; H = было.H; DPR = было.DPR; Object.assign(SAFE, было.safe);
+        S.base = было.base; S.wrap = было.wrap; S.preview = было.preview; S.puzzle = было.puzzle; S.turns = было.turns;
+        S.shape = было.shape; S.mode = было.mode; S.lists = было.lists; touchModel(); layout();
+      }
+      // Сторож, который ни разу не увидел полосы, ничего не проверил: портрет 393 × 852 — главный вид.
+      ok(полос > 0 && строк > 0, `полоса живого среза: ни одного экрана с полосой (${полос}) или строки в колонке (${строк}) — сверять было нечего`);
     }
 
     // ── Р. ПАЗЛ НЕ ТРЕБУЕТ ТОГО, ЧЕГО ИГРОК СДЕЛАТЬ НЕ МОЖЕТ (#159, 02.09).

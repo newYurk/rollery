@@ -47,13 +47,107 @@ const hints = {
   revealed: 'Вот что ты положил. Хочется ещё?',
   plate: 'Шесть кусочков — тапни, чтобы рассмотреть',
 };
+// ── КОЛОНКА ПОЛОСЫ: ЧТО ИГРА ЗНАЕТ О РОЛЛЕ (17.09) ────────────────────────────────────────
+//
+// Владелец: «подписывать что-то как раз текстом можно». Сюда уехали надписи, которые висели
+// ПОВЕРХ ЛИСТА и закрывали его там же, где кладут начинку: «начинка по всему листу — свернётся
+// спиралью», «начинки не обхватить — нори не сомкнётся», «лишний нори — обрезан». Рядом с ними —
+// то, что полоса говорила и раньше (намотка и витки, нехватка листа #242), и форма ролла.
+//
+// ⚠ ТОЛЬКО СОСТОЯНИЕ, НИКАКИХ УКАЗАНИЙ. «Подсказки на экране раскладки нет намеренно» — решение
+// владельца 02.09, и колонка его не отменяет: каждая строка здесь — то, что модель уже посчитала
+// о ЭТОМ ролле (что будет), а не то, что игроку сделать. Новую строку добавлять тем же правилом.
+//
+// У пазла колонка говорит только «цель»: срезы в полосе — чужой ролл, и строки о своём под этим
+// словом читались бы как описание цели. Свои надписи игрока в пазле остаются на листе.
+//
+// `уступ` — кто уходит первым, когда колонка узкая или низкая: форма, обрезок, заголовок, причина
+// спирали, нехватка листа; намотка с витками не уходит (без неё колонке незачем быть).
+const windingSelf = () => B().winding === 'spiral';   // спираль по самой базе (узумаки), а не по раскладке
+function bandFacts(m) {
+  const out = [{ id: 'title', r: 'title', уступ: 3, t: S.puzzle ? 'цель' : 'живой срез' }];
+  if (S.puzzle) return out;
+  out.push({ id: 'turns', r: 'main', уступ: 0, t: liveTurnsText(m) });
+  // Причина спирали — только когда спираль выбрала РАСКЛАДКА. У узумаки она от базы, и «начинка
+  // по всему листу» там неправда; режим и так назван строкой выше.
+  if (m.g.winding === 'spiral' && !windingSelf()) out.push({ id: 'spiral', r: 'note', уступ: 2, t: 'начинка по всему листу — свернётся спиралью' });
+  const нх = sheetShortText(m);
+  if (нх) out.push({ id: 'short', r: 'warn', уступ: 1, t: нх });
+  // «Лист», а не «нори», как было на листе: у сладкой базы лист — гюхи (#255).
+  if (windFor(m, 0.5).sEnd < m.g.L) out.push({ id: 'trim', r: 'note', уступ: 4, t: 'лишний лист обрезан — ролл замкнулся раньше' });
+  out.push({ id: 'shape', r: 'note', уступ: 5, t: 'форма: ' + SHAPES[S.shape].name });
+  return out;
+}
+// Текст на дереве — тёмный: светлый #b8ad95 прежней подписи читался на тёмном фоне, на циновке
+// (#c9a96c) его не видно. Заголовок — цветом стрелки на ручке циновки: одна рамка, один голос.
+const BAND_TEXT = {
+  title: { size: 11, weight: 600, color: 'rgba(40,30,20,0.55)', lh: 14 },
+  main:  { size: 15, weight: 700, color: '#2b2115', lh: 19 },
+  note:  { size: 12, weight: 500, color: 'rgba(40,30,20,0.82)', lh: 15 },
+  warn:  { size: 12, weight: 700, color: '#8a2e0e', lh: 15 },
+};
+const BAND_GAP = 3;   // между фактами, px
+// Раскладка текста в колонке. Возвращает строки с их местом и шириной и набор id уместившихся
+// фактов: по нему drawLay решает, какие надписи всё-таки рисовать на листе (не влезло — не пропало).
+// ⚠ ВЫЙТИ ЗА КОЛОНКУ НЕЛЬЗЯ ПО ПОСТРОЕНИЮ: слово шире колонки не рвётся и не обрезается — факт
+// уступает целиком; не влезло по высоте — уходит факт с бо́льшим `уступ`. Сторож проверяет итог.
+function bandLines(col, facts) {
+  const lines = [], placed = new Set();
+  if (!col || !facts.length) return { lines, placed };
+  const строкиФакта = f => {
+    const st = BAND_TEXT[f.r]; ctx.font = font(st.size, st.weight);
+    // Тире держится за предыдущее слово: строка, начатая с «—», читается как реплика.
+    const слова = f.t.replace(/ — /g, '\u00a0— ').split(' ');
+    const out = []; let cur = '';
+    for (const w of слова) {
+      const t = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(t).width <= col.w) { cur = t; continue; }
+      if (!cur || ctx.measureText(w).width > col.w) return null;
+      out.push(cur); cur = w;
+    }
+    if (cur) out.push(cur);
+    return out;
+  };
+  let блоки = facts.map(f => ({ f, rows: строкиФакта(f) })).filter(b => b.rows);
+  const высота = бл => бл.reduce((a, b) => a + b.rows.length * BAND_TEXT[b.f.r].lh, 0) + Math.max(0, бл.length - 1) * BAND_GAP;
+  while (блоки.length && высота(блоки) > col.h) {
+    const худший = блоки.reduce((a, b) => (b.f.уступ > a.f.уступ ? b : a));
+    блоки = блоки.filter(b => b !== худший);
+  }
+  let y = col.y + (col.h - высота(блоки)) / 2;
+  for (const b of блоки) {
+    const st = BAND_TEXT[b.f.r]; ctx.font = font(st.size, st.weight);
+    for (const t of b.rows) {
+      lines.push({ t, x: col.x, y: y + st.lh / 2, w: ctx.measureText(t).width, size: st.size, weight: st.weight, color: st.color, lh: st.lh, id: b.f.id });
+      y += st.lh;
+    }
+    y += BAND_GAP;
+    placed.add(b.f.id);
+  }
+  return { lines, placed };
+}
+const bandColumn = m => bandLines(L.band && L.band.col, bandFacts(m));
 // Цель пазла / живой предпросмотр: полосой над листом, накладкой на листе или в боковой колонке.
-function drawPreviewArea(p) {
+// колонка — уже разложенный текст полосы (drawLay считает его один раз на кадр: по нему же он решает,
+// какие надписи НЕ рисовать на листе); без него считается здесь.
+function drawPreviewArea(p, колонка) {
   const pm = L.previewMode; if (pm === 'none' || p > 0) return;
   const pz = S.puzzle, k = pz ? pz.vs.length : 1, tm = pz ? targetModel() : null;
   const label = (x, y, lines, align = 'center') => { ctx.fillStyle = '#b8ad95'; ctx.font = font(12); ctx.textAlign = align; ctx.textBaseline = 'middle'; lines.forEach((t, i) => ctx.fillText(t, x, y + i * 16)); };
   const turnsTxt = () => liveTurnsText(getModel());
-  if (pm === 'band') {
+  if (pm === 'band' && L.band && S.mode === 'lay') {
+    // ПОЛОСА — ВЕРХ ЦИНОВКИ (17.09): дерево под ней рисует drawLay той же заливкой, что под листом.
+    // Срез прижат к правому краю нори, колонка текста — к левому (геометрия — bandGeom в layout.js).
+    const b = L.band;
+    b.cells.forEach((c, i) => drawFaceImg(pz ? face(pz.vs[i], c.size, tm) : face(0.5, c.size), c.x, c.y, c.size));
+    const кол = колонка || bandColumn(getModel());
+    for (const л of кол.lines) {
+      ctx.fillStyle = л.color; ctx.font = font(л.size, л.weight); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(л.t, л.x, л.y);
+    }
+  } else if (pm === 'band') {
+    // Прежняя полоса — у планшета и десктопа (bandGeom там не считается) и у целей пазла на
+    // экране ролла: там циновки нет, и ряд стоит по центру на своей подложке.
     const cx = L.ox + L.cw / 2, y = L.previewY;
     if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs); }
     else { drawSlab([{ x: cx - 30, y, size: 116 }], 1, B(), 8); drawFaceImg(face(0.5, 116), cx - 30, y, 116); { const m0 = getModel(), нх = sheetShortText(m0); label(cx + 30 + 14, y - (нх ? 16 : 8), ['живой срез', turnsTxt()].concat(нх ? ['листа не хватило'] : []), 'left'); } }
@@ -100,14 +194,12 @@ function drawPreviewArea(p) {
 // окошко закрывало целиком (16.09: футомаки на телефоне — надпись в правом верхнем углу листа,
 // окошко там же). Режим overlay бывает только у неповёрнутого листа (layout.js), поэтому
 // координаты листа здесь совпадают с экранными.
+// ⚑ Размеры окошка считает overlayBox (ui/layout.js) — та же функция, по которой раскладчик решает,
+// брать ли окошко вообще (17.09). Здесь только перенос от угла листа в экранные координаты.
 function overlayGeom() {
-  const s = L.sheet, pz = S.puzzle;
-  if (pz) {
-    const k = pz.vs.length, fs = Math.min(56, (s.w - 16 - 6 * (k - 1)) / k);
-    return { fs, x0: s.x + s.w / 2 - ((k - 1) * (fs + 6)) / 2, y: s.y + fs / 2 + 8, низ: s.y + 4 + fs + 8 };
-  }
-  const fs = Math.round(Math.min(s.w, s.h) * 0.62), поле = 6, дШир = fs + 2 * поле, поля = 10;
-  return { fs, дШир, x: s.x + s.w - дШир / 2 - поля, y: s.y + дШир / 2 + поля, низ: s.y + дШир + поля };
+  const s = L.sheet, o = overlayBox(s.w, s.h, S.puzzle);
+  return Object.assign({}, o, { y: s.y + o.y, низ: s.y + o.низ },
+    S.puzzle ? { x0: s.x + o.x0 } : { x: s.x + o.x });
 }
 // Где встаёт надпись «свернётся спиралью»: у верхнего края листа — или под окошком, если оно там.
 function spiralNoteY() {
@@ -143,12 +235,23 @@ function drawLay() {
   if (L.sheet.uAxis === 'x') {   // циновка-фон: от ручки сбоку через весь лист, прутья поперёк скрутки
     const x0 = Math.min(hd.x, L.sheet.x - 8), x1 = Math.max(hd.x + hd.w, L.sheet.x + L.sheet.w + 8);
     drawMat(x0, L.sheet.y - 18, x1 - x0, L.sheet.h + 36, 14, B(), true);
-  } else drawMat(hd.x, L.sheet.y - 18, hd.w, hd.y + hd.h + 8 - (L.sheet.y - 18));
+  } else {
+    // Полоса живого среза — верх той же циновки (17.09): одна заливка от верха полосы до ручки,
+    // прутья идут сквозь, поэтому она не читается отдельной табличкой.
+    const верх = L.band ? L.band.y : L.sheet.y - РАМКА;
+    drawMat(hd.x, верх, hd.w, hd.y + hd.h + 8 - верх);
+  }
+  // Текст полосы раскладывается один раз на кадр и до листа: по тому, что в колонку влезло, ниже
+  // решается, какие надписи на лист больше не ставить. Во время протяжки полоса пуста (срез и
+  // текст не рисуются — drawPreviewArea, как и прежде), но раскладка колонки считается и тогда:
+  // иначе «лишний лист обрезан» на время протяжки выскакивал бы обратно на лист.
+  const колонка = L.band ? bandColumn(getModel()) : null;
+  const вКолонке = id => !!(колонка && колонка.placed.has(id));
   sheetPush();
   const yb = s.y + s.h * (1 - p);
   // лист: остаток, ещё не скрученный
   ctx.save(); ctx.beginPath(); ctx.rect(s.x - 8, s.y - 8, s.w + 16, Math.max(0, yb - s.y + 8)); ctx.clip();
-  rr(s.x - 5, s.y - 5, s.w + 10, s.h + 10, 6); ctx.fillStyle = B().wrapper; ctx.fill();
+  rr(s.x - КРАЙ_НОРИ, s.y - КРАЙ_НОРИ, s.w + 2 * КРАЙ_НОРИ, s.h + 2 * КРАЙ_НОРИ, 6); ctx.fillStyle = B().wrapper; ctx.fill();
   const mdl = getModel(), wd0 = windFor(mdl, 0.5), Lm = mdl.g.L;
   // ⚑ У СПИРАЛИ РИС КОНЧАЕТСЯ НА spreadEnd, А НЕ У КРАЯ ЛИСТА (#253, 17.09). `sClose` у спирали —
   // конец листа (она замыкается им), и лист узумаки рисовался рисом до самого верха, хотя в модели
@@ -189,7 +292,7 @@ function drawLay() {
   if (uEnd < 1) {   // лишний лист обрезан: ролл замкнулся раньше; что выше линии — не попадёт в ролл
     const yEnd = s.y + (1 - uEnd) * s.h; ctx.fillStyle = 'rgba(23,23,19,0.35)'; ctx.fillRect(s.x - 5, s.y - 5, s.w + 10, yEnd - s.y + 5);
     ctx.setLineDash([6, 4]); ctx.strokeStyle = 'rgba(243,231,202,0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x, yEnd); ctx.lineTo(s.x + s.w, yEnd); ctx.stroke(); ctx.setLineDash([]);
-    unrot(s.x + s.w / 2, s.y + 6, () => { ctx.fillStyle = 'rgba(243,231,202,0.7)'; ctx.font = font(10); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('лишний нори — обрезан, ролл замкнулся раньше', 0, 0); });
+    if (!вКолонке('trim')) unrot(s.x + s.w / 2, s.y + 6, () => { ctx.fillStyle = 'rgba(243,231,202,0.7)'; ctx.font = font(10); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('лишний нори — обрезан, ролл замкнулся раньше', 0, 0); });
   }
   if (drag.patch) drawPatchTop(drag.patch, 0.85, zOf(drag.patch));
   const sel = S.selPatch && patches().includes(S.selPatch) ? S.selPatch : (S.selPatch = null);
@@ -219,14 +322,21 @@ function drawLay() {
   if (p === 0) {
     const mm = getModel();
     // Нехватку листа видно до скрутки тем же приёмом: на листе, где спиральная надпись (#242).
-    if (mm.g.winding !== 'spiral' && sheetShortText(mm)) {
+    // В полосе эти надписи стоят в колонке (bandFacts) — на лист они выходят, только если колонки
+    // нет (окошко, выключенный 👁, планшет) или факт в неё не влез. Спираль названа в колонке и
+    // строкой намотки: причина могла уступить место, а сам режим — нет.
+    // ⚠ У УЗУМАКИ НАДПИСИ О СПИРАЛИ НЕТ И НА ЛИСТЕ (17.09): спираль там от базы, «начинка по всему
+    // листу» — неправда даже на пустом листе, а на узком листе фраза ещё и обрезалась слева (242 px
+    // листа против ~270 px строки). Переход кольцо → спираль, ради которого надпись просили 02.09,
+    // у этой базы не случается.
+    if (mm.g.winding !== 'spiral' && sheetShortText(mm) && !вКолонке('short')) {
       unrot(s.x + s.w - 6, spiralNoteY(), () => {
         ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
         ctx.textAlign = 'right'; ctx.textBaseline = 'top';
         ctx.fillText('начинки не обхватить — нори не сомкнётся', 0, 0);
       });
     }
-    if (mm.g.winding === 'spiral') {
+    if (mm.g.winding === 'spiral' && !windingSelf() && !вКолонке('spiral') && !вКолонке('turns')) {
       unrot(s.x + s.w - 6, spiralNoteY(), () => {
         ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
         ctx.textAlign = 'right'; ctx.textBaseline = 'top';
@@ -273,7 +383,7 @@ function drawLay() {
     ctx.fillText('🗑', cb.x + cb.w / 2, cb.y + cb.h / 2 + 1);
     icons.push({ id: 'clear', ...cb });
   }
-  drawPreviewArea(p);
+  drawPreviewArea(p, колонка);
   buttons = [];
   const area = L.layBtn;
   if (sel && p === 0) {
