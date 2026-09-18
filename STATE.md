@@ -94,7 +94,7 @@ node tools/page-markers.mjs                  # маркеры кэша стра�
 
 - `play/model/` — геометрия без браузера (`geometry.js`, `catalog.js`, `canon.js`);
   `play/render/`, `play/ui/`, `play/modes/`, `state.js`, `checks.js`; `play/core-v2/` — ядро V2.
-- `docs/design-core.md` — замысел; `docs/domain-contract.md` — архитектура;
-  `docs/decisions/` — ADR ядра V2; `docs/glossary.md`; `docs/papers.md`.
-- `sim/` — офлайн-референс, запуск только `sim/lab/lab.sh`. `HYPOTHESIS.md`, `RESULT.md` —
-  гипотеза и решения 25.08.
+- `docs/design-core.md` — замысел; `docs/domain-contract.md` — архитектура; `docs/decisions/` — ADR ядра V2.
+- `sim/` — офлайн-референс (`sim/lab/lab.sh`). `HYPOTHESIS.md`, `RESULT.md` — гипотеза и решения 25.08.
+- `Rollery-Obsidian/` — граф блюда (99 заметок, у каждой строка «где это в игре»); пересборка
+  `tools/obsidian-vault.py`, картинка `obsidian-graph.py`.
