@@ -96,5 +96,6 @@ Rollery-Obsidian/**/*.svg
 Rollery-Obsidian/**/*.jpg
 Rollery-Obsidian/**/*.jpeg
 Rollery-Obsidian/**/*.webp
-# Скрипты Excalidraw скачиваются из его магазина — это чужой код, не исходник.
-Rollery-Obsidian/Excalidraw/Scripts/
+# Служебная папка Excalidraw целиком: скрипты из магазина (чужой код), библиотеки, шаблон рисунка
+# и шрифты CJK (мегабайты). Исходник здесь один — рисунки владельца, и они живут в `Рисунки/`.
+Rollery-Obsidian/Excalidraw/
