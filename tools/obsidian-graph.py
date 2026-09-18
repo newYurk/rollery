@@ -22,8 +22,9 @@ for root, _, fs in os.walk(V):
         src = f[:-3]
         for l in re.findall(r'\[\[([^\]]+)\]\]', open(os.path.join(root, f), encoding='utf-8').read()):
             if l in nodes and l != src: edges.add(tuple(sorted((src, l))))
-COL = {'01_Решения': (214, 158, 46), '02_Материалы': (110, 168, 92), '03_Механизмы': (92, 140, 196),
-       '04_Дефекты': (198, 92, 84), '05_Сторожа': (150, 110, 190), '06_Источники': (120, 120, 120), 'карта': (30, 30, 30)}
+COL = {'01_Роллы': (198, 92, 84), '02_Приёмы': (92, 140, 196), '03_Каноны': (214, 158, 46),
+       '04_Начинки': (110, 168, 92), '05_Нарезки': (150, 110, 190), '06_Обёртки': (196, 150, 90),
+       '07_Решения': (214, 120, 40), '08_Источники': (120, 120, 120), 'карта': (30, 30, 30)}
 rnd = random.Random(7)
 pos = {n: [rnd.uniform(-1, 1), rnd.uniform(-1, 1)] for n in nodes}
 deg = {n: 1 for n in nodes}
@@ -56,10 +57,10 @@ for n, (x, y) in P.items():
     r = 3 + min(9, deg[n])
     c = COL.get(folder[n], (90, 90, 90))
     d.ellipse([x - r, y - r, x + r, y + r], fill=c)
-    if deg[n] >= 5 or folder[n] in ('03_Механизмы', 'карта') or n.startswith('Веха'):
+    if deg[n] >= 3 or folder[n] in ('01_Роллы', '02_Приёмы', '03_Каноны', 'карта'):
         t = n.split(': ')[-1]
         d.text((x + r + 3, y - 6), t[:34], fill=(40, 40, 40), font=F)
-d.text((20, 16), 'Ролльня — граф знаний: %d заметок, %d связей' % (len(nodes), len(edges)), fill=(20, 20, 20), font=FB)
+d.text((20, 16), 'Ролльня — граф блюда: %d заметок, %d связей' % (len(nodes), len(edges)), fill=(20, 20, 20), font=FB)
 lx = 20
 for k, c in COL.items():
     if k == 'карта': continue
