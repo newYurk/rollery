@@ -272,7 +272,7 @@ function onUp(x, y, id) {
   } else if (kind === 'move') {
     const p = drag.patch; drag.patch = null;
     if (!drag.moved) { S.selPatch = S.selPatch === p ? null : p; }
-    else { if (drag.outside) { const l = patches(); l.splice(l.indexOf(p), 1); S.selPatch = null; } touchModel(); }
+    else { if (drag.outside) { const l = patches(); l.splice(l.indexOf(p), 1); S.selPatch = null; } touchModel(); if (!drag.outside) tubePeekRoll(); }
     drag.outside = false;
   } else if (kind === 'place') {
     // Кусок шире всей грядки не ложится (#253). Через палитру такой выбор не попадает: фишка
@@ -280,7 +280,7 @@ function onUp(x, y, id) {
     // в обход (код, консоль), касание не молчит: выбор уходит на доступную фишку, и кладётся она.
     if (!drag.moved) {
       selOnRice();
-      if (chipFits(S.sel)) { const uv = sheetUV(x, y); pushHistory(); placeAt(uv.u, uv.v); }
+      if (chipFits(S.sel)) { const uv = sheetUV(x, y); pushHistory(); placeAt(uv.u, uv.v); tubePeekRoll(); }
     }
   }
   dirty = true; requestFrame();

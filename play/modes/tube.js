@@ -1,7 +1,7 @@
 'use strict';
 // Режим ?tube — пять авторских раскладок из tube-levels.js. 19.09.2026.
 //
-// Живёт РЯДОм с ?puzzle. LEVELS и genTarget не зовёт.
+// Живёт РЯДОМ с ?puzzle. LEVELS и genTarget не зовёт.
 // Перехват действий ставит tubeInstall() из точки входа — после actions.js.
 //
 // Намотка в трубке — спираль, не кольцо. У хосомаки один огурец иначе уезжает в ядро
@@ -45,6 +45,17 @@ function tubeStart(level) {
 function tubeStop() { S.winding = null; puzzleStop(); }
 function tubeTitle(pz) { return (pz.level + 1) + ' / ' + TUBE_LEVELS.length; }
 function tubeDone() { return S.puzzle && S.puzzle.tube && S.puzzle.level + 1 >= TUBE_LEVELS.length; }
+
+// Первая кладка на уровне: ручка сама подворачивает ближний край и отпускает.
+// Скрутка уже жила в протяжке — здесь только показываем её, без экрана «скручено».
+function tubePeekRoll() {
+  if (!(S.puzzle && S.puzzle.tube) || S.puzzle.peeked || anim || S.rollP > 0) return;
+  if (!patches().length) return;
+  S.puzzle.peeked = true;
+  tween(0, 0.42, 520, v => { S.rollP = v; }, () => {
+    tween(S.rollP, 0, 420, v => { S.rollP = v; });
+  });
+}
 
 function tubeUOff() {
   const pz = S.puzzle, pm = getModel();

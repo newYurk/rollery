@@ -68,7 +68,7 @@ function bandFacts(m) {
   const out = [{ id: 'title', r: 'title', уступ: 3, t: S.puzzle ? 'цель' : 'живой срез' }];
   if (S.puzzle) {
     if (S.puzzle.tube) {
-      out.push({ id: 'hint', r: 'main', уступ: 0, t: patches().length ? 'розовое — твой срез' : 'положи на пунктир' });
+      out.push({ id: 'hint', r: 'main', уступ: 0, t: patches().length ? 'розовая точка — куда сядет' : 'положи на пунктир' });
       return out;
     }
     if (patches().length) out.push({ id: 'ghost', r: 'note', уступ: 2, t: 'розовое — куда встанет' });
@@ -140,9 +140,43 @@ function bandLines(col, facts) {
 const bandColumn = m => bandLines(L.band && L.band.col, bandFacts(m));
 function drawPuzzleFace(v, size, x, y, tm) {
   drawFaceImg(face(v, size, tm), x, y, size);
-  if (!patches().length) return;
-  const pm = getModel();
-  drawFaceImg(ghostMaskImg(v, size, pm, Math.max(tm.Rmax, pm.Rmax)), x, y, size, 1, 0.9, true);
+  if (patches().length) {
+    const pm = getModel();
+    drawFaceImg(ghostMaskImg(v, size, pm, Math.max(tm.Rmax, pm.Rmax)), x, y, size, 1, 0.9, true);
+  }
+  if (S.puzzle && S.puzzle.tube) drawTubeBeads(v, size, x, y, tm);
+}
+function mapCentroid(map, N, lo, hi) {
+  const half = N / 2, den = half - 1;
+  let sx = 0, sy = 0, n = 0;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const c = map[y * N + x];
+    if (c < lo || c > hi) continue;
+    sx += x + 0.5 - half; sy += y + 0.5 - half; n++;
+  }
+  return n ? { x: sx / n / den, y: sy / n / den } : null;
+}
+// Точка на срезе — то самое «вверх / вниз». Одна ось на листе везёт её по витку.
+function drawTubeBeads(v, size, x, y, tm) {
+  const N = ROLL_MAP_SIZE, pm = patches().length ? getModel() : null;
+  const Rref = Math.max(tm.Rmax, pm ? pm.Rmax : tm.Rmax);
+  const tMap = materialMapOf(N, v, tm, Rref);
+  const R = size / 2, rad = PIX ? Math.max(PIX * 2, 4) : 5;
+  ctx.save(); ctx.translate(x, y);
+  const dot = (pt, fill) => {
+    if (!pt) return;
+    ctx.beginPath(); ctx.arc(pt.x * R, pt.y * R, rad, 0, TAU);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = PIX ? PIX : 1.2; ctx.strokeStyle = 'rgba(23,23,19,0.65)'; ctx.stroke();
+  };
+  for (const t of S.puzzle.target) {
+    if (!ING[t.kind] || t.kind === 'nori') continue;
+    const code = 3 + ROLL_KIND_IDS.indexOf(t.kind);
+    if (code < 3) continue;
+    dot(mapCentroid(tMap, N, code, code), ING[t.kind].color);
+  }
+  if (pm) dot(mapCentroid(materialMapOf(N, v, pm, Rref), N, 3, 99), 'rgb(224,118,138)');
+  ctx.restore();
 }
 // Слот цели — ПРИЗРАК КУСКА, не пятно и не теория витков. Первый жест: накрой пунктир.
 function drawTubeZones(s, mdl) {
