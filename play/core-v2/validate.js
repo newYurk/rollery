@@ -3,6 +3,7 @@
 
 import {
   EPS_LENGTH_MM,
+  EPS_TOUCH_MM,
   HOSOMAKI_DIAMETER_MM,
   WINDING,
   baseOf,
@@ -167,7 +168,20 @@ export function validateRecipe(recipe) {
       if ((b.placement ?? 'embedded') !== 'embedded') continue;
       const [a0, a1] = patchFootprint(a);
       const [b0, b1] = patchFootprint(b);
-      if (a0 < b1 && b0 < a1) {
+      // ── ВСТЫК — НЕ ПЕРЕКРЫТИЕ; ГРАНИЦЫ СРАВНИВАЮТСЯ С ЗАПАСОМ НА ОКРУГЛЕНИЕ (#246, 16.09) ──
+      // Контракт — erratum-007, «Резолюция перекрытия»: отказ при «пересекающемся footprint»
+      // `[uMm − widthMm/2, uMm + widthMm/2]`, и смысл отказа там же — два патча одного вещества,
+      // «занимающие одну и ту же точку листа». Отдельного определения касания контракт не даёт;
+      // скобки в формуле закрытые, но общая граница площади не занимает, и строгое `<` здесь
+      // стояло с первой реализации F07. Ломалось оно только на округлении u·L.
+      //
+      // Замер 16.09 (task4-nori, развёртка count): футомаки, 3–6 брусков лосося 10 мм встык —
+      // след пары 1–2 заходит на 7,1e-15 мм, до правки 4 раскладки из 4 шли в отказ, после — 0.
+      // Сдвиг бруска на 1e-6 мм внутрь и два бруска в одной точке — отказ, как и был.
+      //
+      // Запас вычитается из КАЖДОЙ из двух разностей, а не из длины пересечения: так прощается
+      // только почти-касание границ, а узкий кусок целиком внутри другого остаётся перекрытием.
+      if (a1 - b0 > EPS_TOUCH_MM && b1 - a0 > EPS_TOUCH_MM) {
         diagnostics.push(diagnostic('patch_material_overlap', 'same-material embedded footprints overlap', {
           patchIds: [String(a.id), String(b.id)],
           materialId: String(a.materialId),

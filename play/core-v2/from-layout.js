@@ -113,7 +113,8 @@ export function recipeFromLayout(input) {
       });
     }
     if (d.paint) {
-      return refuse('unsupported', 'patch_is_paint', 'краска риса — не начинка ядра', {
+      // ⚑ «риса» → «постели» (#255, 17.09): у сладкой базы постель — бобовая паста.
+      return refuse('unsupported', 'patch_is_paint', 'краска постели — не начинка ядра', {
         requestedFeature: String(p.kind),
       });
     }

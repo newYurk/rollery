@@ -16,6 +16,21 @@ function drawParticles(dt) {
   for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; ctx.globalAlpha = 1 - p.t / p.life; ctx.fillStyle = rgbCss(p.c); ctx.fillRect(p.x, p.y, p.s, p.s); }
   ctx.globalAlpha = 1;
 }
+// ⚑ РЕЖИМ НАМОТКИ ПОДПИСАН ТАМ ЖЕ, ГДЕ ВИТКИ (решение владельца 16.09). Автомат переключает
+// кольцо в спираль скачком — так решено 02.09 (#141), и 16.09 владелец это подтвердила: «скачок
+// честный». Честный скачок должен быть виден словом: без подписи узор на границе просто
+// перескакивает, и не понять почему. Подпись — в строке живого среза, не на листе: подсказок на
+// экране раскладки нет намеренно (02.09). Одно название режима на все экраны.
+const windingName = m => (m.g.winding === 'spiral' ? 'спираль' : 'кольцо');
+const liveTurnsText = (m, v = 0.5) => `${windingName(m)}, ${windFor(m, v).turns.toFixed(1).replace('.', ',')} витка`;
+// ⚑ НЕХВАТКА ЛИСТА СКАЗАНА СЛОВАМИ (#242, решение владельца 16.09: «честная дыра»). Модель давно
+// знала, что нори не сомкнулась (`хватило`), но этого поля не читал никто — ни экран, ни сторож.
+// Экрана поражения нет (любой результат — узор), есть строка там же, где витки.
+// ⚑ ВТОРАЯ ПОЛОВИНА ПОДПИСИ ЗАВИСИТ ОТ ОБЁРТКИ (#255, 17.09): у сладкой базы лист — гюхи, и
+// «нори не сомкнулась» там неправда. Фраза берётся из WRAPPERS (`notClosed`), потому что род
+// у названий разный; запасной вариант — для обёртки, которой ещё не дописали слово.
+const sheetShortText = (m, v = 0.5) => (windFor(m, v).хватило === false
+  ? 'листа не хватило — ' + (((WRAPPERS[B().wrapKey] || WRAPPERS.nori).notClosed) || 'лист не сомкнулся') : '');
 const hints = {
   // ⚑ ПОСТОЯННАЯ ПОДСКАЗКА НА ЛИСТЕ СНЯТА 02.09 по просьбе владельца («можно подсказку про
   // скручивание и раскладку убрать пока»). Пустая строка, а не удалённый ключ: подсказку
@@ -24,28 +39,149 @@ const hints = {
   layMove: 'Тащи · вытащи за лист — убрать',
   // ⚑ «В НОРИ» УБРАНО ИЗ ПОДСКАЗКИ (02.09). Кнопки «Кусок в нори» нет с 31.08 (canWrap = false
   // ниже), а подсказка продолжала обещать приём, которого игрок сделать не может.
-  laySel: 'Поворот меняет рисунок в кусочках',
+  // ⚑ Про поворот подсказка говорит, только пока он есть (#168, ROTATE_PIECE_ON в state.js);
+  // без него у выделенного куска остаются сдвиг и «Убрать» — о них и строка.
+  laySel: ROTATE_PIECE_ON ? 'Поворот меняет рисунок в кусочках' : 'Тащи · вытащи за лист — убрать',
   puzzle: 'Повтори срез: разложи, скрути, разрежь',
   rolled: 'Тапни по роллу там, где резать',
   revealed: 'Вот что ты положил. Хочется ещё?',
   plate: 'Шесть кусочков — тапни, чтобы рассмотреть',
 };
+// ── КОЛОНКА ПОЛОСЫ: ЧТО ИГРА ЗНАЕТ О РОЛЛЕ (17.09) ────────────────────────────────────────
+//
+// Владелец: «подписывать что-то как раз текстом можно». Сюда уехали надписи, которые висели
+// ПОВЕРХ ЛИСТА и закрывали его там же, где кладут начинку: «начинка по всему листу — свернётся
+// спиралью», «начинки не обхватить — нори не сомкнётся», «лишний нори — обрезан». Рядом с ними —
+// то, что полоса говорила и раньше (намотка и витки, нехватка листа #242), и форма ролла.
+//
+// ⚠ ТОЛЬКО СОСТОЯНИЕ, НИКАКИХ УКАЗАНИЙ. «Подсказки на экране раскладки нет намеренно» — решение
+// владельца 02.09, и колонка его не отменяет: каждая строка здесь — то, что модель уже посчитала
+// о ЭТОМ ролле (что будет), а не то, что игроку сделать. Новую строку добавлять тем же правилом.
+//
+// У пазла колонка говорит только «цель»: срезы в полосе — чужой ролл, и строки о своём под этим
+// словом читались бы как описание цели. Свои надписи игрока в пазле остаются на листе.
+//
+// `уступ` — кто уходит первым, когда колонка узкая или низкая: форма, обрезок, заголовок, причина
+// спирали, нехватка листа; намотка с витками не уходит (без неё колонке незачем быть).
+const windingSelf = () => B().winding === 'spiral';   // спираль по самой базе (узумаки), а не по раскладке
+function bandFacts(m) {
+  const out = [{ id: 'title', r: 'title', уступ: 3, t: S.puzzle ? 'цель' : 'живой срез' }];
+  if (S.puzzle) {
+    if (patches().length) out.push({ id: 'ghost', r: 'note', уступ: 2, t: 'розовое — куда встанет' });
+    return out;
+  }
+  out.push({ id: 'turns', r: 'main', уступ: 0, t: liveTurnsText(m) });
+  // Причина спирали — только когда спираль выбрала РАСКЛАДКА. У узумаки она от базы, и «начинка
+  // по всему листу» там неправда; режим и так назван строкой выше.
+  if (m.g.winding === 'spiral' && !windingSelf()) out.push({ id: 'spiral', r: 'note', уступ: 2, t: 'начинка по всему листу — свернётся спиралью' });
+  const нх = sheetShortText(m);
+  if (нх) out.push({ id: 'short', r: 'warn', уступ: 1, t: нх });
+  // «Лист», а не «нори», как было на листе: у сладкой базы лист — гюхи (#255).
+  if (windFor(m, 0.5).sEnd < m.g.L) out.push({ id: 'trim', r: 'note', уступ: 4, t: 'лишний лист обрезан — ролл замкнулся раньше' });
+  out.push({ id: 'shape', r: 'note', уступ: 5, t: 'форма: ' + SHAPES[S.shape].name });
+  return out;
+}
+// ПАНЕЛЬ — ЭЛЕМЕНТ ИНТЕРФЕЙСА, И ГОВОРИТ ЕГО ЦВЕТАМИ (18.09). 17.09 текст стоял на дереве и был тёмным;
+// панель теперь тёмная, как подложки кнопок верхней панели и фишек палитры (`#26261f`, ui/controls.js),
+// и текст — светлыми цветами той же шапки: главное — цветом заголовка «Ролльня», заметки — цветом
+// подсказки, заголовок колонки — цветом подписи фишки, нехватка листа — тем же `#c98a5a`, каким её
+// пишет экран среза. Мелкий текст держит AA 4,5:1 на подложке: 5,7 / 6,9 / 5,3 (сторож «Ш» считает).
+const BAND_BG = '#26261f';
+const BAND_TEXT = {
+  title: { size: 11, weight: 600, color: '#a79d86', lh: 14 },
+  main:  { size: 15, weight: 700, color: '#f3e7ca', lh: 19 },
+  note:  { size: 12, weight: 500, color: '#b8ad95', lh: 15 },
+  warn:  { size: 12, weight: 700, color: '#c98a5a', lh: 15 },
+};
+const BAND_GAP = 3;   // между фактами, px
+// Раскладка текста в колонке. Возвращает строки с их местом и шириной и набор id уместившихся
+// фактов: по нему drawLay решает, какие надписи всё-таки рисовать на листе (не влезло — не пропало).
+// ⚠ ВЫЙТИ ЗА КОЛОНКУ НЕЛЬЗЯ ПО ПОСТРОЕНИЮ: слово шире колонки не рвётся и не обрезается — факт
+// уступает целиком; не влезло по высоте — уходит факт с бо́льшим `уступ`. Сторож проверяет итог.
+function bandLines(col, facts) {
+  const lines = [], placed = new Set();
+  if (!col || !facts.length) return { lines, placed };
+  const строкиФакта = f => {
+    const st = BAND_TEXT[f.r]; ctx.font = font(st.size, st.weight);
+    // Тире держится за предыдущее слово: строка, начатая с «—», читается как реплика.
+    const слова = f.t.replace(/ — /g, '\u00a0— ').split(' ');
+    const out = []; let cur = '';
+    for (const w of слова) {
+      const t = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(t).width <= col.w) { cur = t; continue; }
+      if (!cur || ctx.measureText(w).width > col.w) return null;
+      out.push(cur); cur = w;
+    }
+    if (cur) out.push(cur);
+    return out;
+  };
+  let блоки = facts.map(f => ({ f, rows: строкиФакта(f) })).filter(b => b.rows);
+  const высота = бл => бл.reduce((a, b) => a + b.rows.length * BAND_TEXT[b.f.r].lh, 0) + Math.max(0, бл.length - 1) * BAND_GAP;
+  while (блоки.length && высота(блоки) > col.h) {
+    const худший = блоки.reduce((a, b) => (b.f.уступ > a.f.уступ ? b : a));
+    блоки = блоки.filter(b => b !== худший);
+  }
+  let y = col.y + (col.h - высота(блоки)) / 2;
+  for (const b of блоки) {
+    const st = BAND_TEXT[b.f.r]; ctx.font = font(st.size, st.weight);
+    for (const t of b.rows) {
+      lines.push({ t, x: col.x, y: y + st.lh / 2, w: ctx.measureText(t).width, size: st.size, weight: st.weight, color: st.color, lh: st.lh, id: b.f.id });
+      y += st.lh;
+    }
+    y += BAND_GAP;
+    placed.add(b.f.id);
+  }
+  return { lines, placed };
+}
+const bandColumn = m => bandLines(L.band && L.band.col, bandFacts(m));
+function drawPuzzleFace(v, size, x, y, tm) {
+  drawFaceImg(face(v, size, tm), x, y, size);
+  if (!patches().length) return;
+  const pm = getModel();
+  drawFaceImg(ghostMaskImg(v, size, pm, Math.max(tm.Rmax, pm.Rmax)), x, y, size, 1, 0.9, true);
+}
 // Цель пазла / живой предпросмотр: полосой над листом, накладкой на листе или в боковой колонке.
-function drawPreviewArea(p) {
-  const pm = L.previewMode; if (pm === 'none' || p > 0) return;
+// колонка — уже разложенный текст полосы (drawLay считает его один раз на кадр: по нему же он решает,
+// какие надписи НЕ рисовать на листе); без него считается здесь.
+// ⚑ Во время протяжки прячется всё, что лежит НА ЛИСТЕ (окошко: по нему катится ролл), но не панель
+// над циновкой (18.09): она стоит отдельно, ролл её не задевает, и пустая тёмная подложка на время
+// тяги читалась бы заглушкой. Цель в панели не меняется; розовая маска — живой срез игрока, её
+// двигает перетаскивание начинки (touchModel на кадре жеста).
+function drawPreviewArea(p, колонка) {
+  const pm = L.previewMode, панель = pm === 'band' && L.band && S.mode === 'lay';
+  if (pm === 'none' || (p > 0 && !панель)) return;
   const pz = S.puzzle, k = pz ? pz.vs.length : 1, tm = pz ? targetModel() : null;
   const label = (x, y, lines, align = 'center') => { ctx.fillStyle = '#b8ad95'; ctx.font = font(12); ctx.textAlign = align; ctx.textBaseline = 'middle'; lines.forEach((t, i) => ctx.fillText(t, x, y + i * 16)); };
-  const turnsTxt = () => `${windFor(getModel(), 0.5).turns.toFixed(1).replace('.', ',')} витка`;
-  if (pm === 'band') {
+  const turnsTxt = () => liveTurnsText(getModel());
+  if (панель) {
+    // ПАНЕЛЬ НАД ЦИНОВКОЙ (18.09): подложку рисует drawLay — она стоит и во время протяжки. Здесь
+    // доска со срезом у правого края и колонка текста у левого (геометрия — bandGeom в layout.js).
+    // Тень среза падает на доску и обрезается по ней: тень принадлежит доске, как у окошка на листе
+    // (31.08), и с неё не свисает ни на панель, ни тем более на лист (замечание владельца 18.09).
+    const b = L.band, д = b.доска;
+    drawSlab(b.cells, 1, B(), ДОСКА);
+    ctx.save(); rr(д.x, д.y, д.w, д.h, д.r); ctx.clip();
+    b.cells.forEach((c, i) => {
+      if (pz) drawPuzzleFace(pz.vs[i], c.size, c.x, c.y, tm);
+      else drawFaceImg(face(0.5, c.size), c.x, c.y, c.size);
+    });
+    ctx.restore();
+    const кол = колонка || bandColumn(getModel());
+    for (const л of кол.lines) {
+      ctx.fillStyle = л.color; ctx.font = font(л.size, л.weight); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(л.t, л.x, л.y);
+    }
+  } else if (pm === 'band') {
+    // Прежняя полоса — у планшета и десктопа (bandGeom там не считается) и у целей пазла на
+    // экране ролла: там циновки нет, и ряд стоит по центру на своей подложке.
     const cx = L.ox + L.cw / 2, y = L.previewY;
-    if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs); }
-    else { drawSlab([{ x: cx - 30, y, size: 116 }], 1, B(), 8); drawFaceImg(face(0.5, 116), cx - 30, y, 116); label(cx + 30 + 14, y - 8, ['живой срез', turnsTxt()], 'left'); }
+    if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawPuzzleFace(pz.vs[i], fs, x0 + i * (fs + 8), y, tm); }
+    else { drawSlab([{ x: cx - 30, y, size: 116 }], 1, B(), 8); drawFaceImg(face(0.5, 116), cx - 30, y, 116); { const m0 = getModel(), нх = sheetShortText(m0); label(cx + 30 + 14, y - (нх ? 16 : 8), ['живой срез', turnsTxt()].concat(нх ? ['листа не хватило'] : []), 'left'); } }
   } else if (pm === 'overlay') {
-    const s = L.sheet;
+    const s = L.sheet, o = overlayGeom();
     if (pz) {
-      const fs = Math.min(56, (s.w - 16 - 6 * (k - 1)) / k), x0 = s.x + s.w / 2 - ((k - 1) * (fs + 6)) / 2, y = s.y + fs / 2 + 8;
-      drawMat(s.x + 4, s.y + 4, s.w - 8, fs + 8, 10);
-      for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 6), y, fs);
+      drawMat(s.x + 4, s.y + 4, s.w - 8, o.fs + 8, 10);
+      for (let i = 0; i < k; i++) drawPuzzleFace(pz.vs[i], o.fs, o.x0 + i * (o.fs + 6), o.y, tm);
     } else {
       // ОКОШКО «ЧТО ВНУТРИ» — КРУГЛАЯ ВРЕЗКА В УГЛУ ЛИСТА.
       //
@@ -65,22 +201,36 @@ function drawPreviewArea(p) {
       //   • ТЕНИ НЕТ. Она съедала поле, которое нужнее под сам рисунок, и нигде больше в этом
       //     окне не работает: тонкое кольцо циновки и так отделяет срез от риса;
       //   • включается и выключается кнопкой-глазом; когда сверка станет не нужна — снять целиком.
-      const fs = Math.round(Math.min(s.w, s.h) * 0.62);
-      const поле = 6, дШир = fs + 2 * поле, поля = 10;
-      const x = s.x + s.w - дШир / 2 - поля, y = s.y + дШир / 2 + поля;
-      drawMat(x - дШир / 2, y - дШир / 2, дШир, дШир, дШир / 2);
-      drawFaceImg(face(0.5, fs), x, y, fs, 1, 1, true);
+      drawMat(o.x - o.дШир / 2, o.y - o.дШир / 2, o.дШир, o.дШир, o.дШир / 2);
+      drawFaceImg(face(0.5, o.fs), o.x, o.y, o.fs, 1, 1, true);
     }
   } else if (pm === 'side') {
     const sd = L.side, cx = sd.x + sd.w / 2; let y = sd.y;
     if (pz) {
-      if (k === 1) { const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 7); drawFaceImg(face(pz.vs[0], fs, tm), cx, y + fs / 2, fs); y += fs + 16; }
-      else { const cell = L.targetCell, per = Math.min(k, 3), rows = Math.ceil(k / per), x0 = cx - ((per - 1) * (cell + 8)) / 2; const pos = i => ({ x: x0 + (i % per) * (cell + 8), y: y + cell / 2 + Math.floor(i / per) * (cell + 8), size: cell }); drawSlab(Array.from({ length: k }, (_, i) => pos(i)), 1, B(), 6); for (let i = 0; i < k; i++) { const q = pos(i); drawFaceImg(face(pz.vs[i], cell, tm), q.x, q.y, cell); } y += rows * (cell + 8) + 8; }
+      if (k === 1) { const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 7); drawPuzzleFace(pz.vs[0], fs, cx, y + fs / 2, tm); y += fs + 16; }
+      else { const cell = L.targetCell, per = Math.min(k, 3), rows = Math.ceil(k / per), x0 = cx - ((per - 1) * (cell + 8)) / 2; const pos = i => ({ x: x0 + (i % per) * (cell + 8), y: y + cell / 2 + Math.floor(i / per) * (cell + 8), size: cell }); drawSlab(Array.from({ length: k }, (_, i) => pos(i)), 1, B(), 6); for (let i = 0; i < k; i++) { const q = pos(i); drawPuzzleFace(pz.vs[i], cell, q.x, q.y, tm); } y += rows * (cell + 8) + 8; }
       if (L.mode !== 'L') { ctx.fillStyle = '#e0b25a'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const t = levelTitle(pz.lv, pz.level); ctx.fillText(t.length > 34 ? t.slice(0, 33) + '…' : t, cx, y + 8); label(cx, y + 28, ['повтори срез: разложи, скрути, разрежь']); }
     } else {
-      const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 6); drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); label(cx, y + fs + 18, ['живой срез · ' + turnsTxt()]);
+      const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 6); drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); { const нх = sheetShortText(getModel()); label(cx, y + fs + 18, ['живой срез · ' + turnsTxt()].concat(нх ? [нх] : [])); }
     }
   }
+}
+// Что окошко живого среза (или полоса целей пазла) кладёт ПОВЕРХ листа в режиме overlay. Одно
+// место, где считаются размеры: их читают и рисование выше, и надпись «свернётся спиралью», которую
+// окошко закрывало целиком (16.09: футомаки на телефоне — надпись в правом верхнем углу листа,
+// окошко там же). Режим overlay бывает только у неповёрнутого листа (layout.js), поэтому
+// координаты листа здесь совпадают с экранными.
+// ⚑ Размеры окошка считает overlayBox (ui/layout.js) — та же функция, по которой раскладчик решает,
+// брать ли окошко вообще (17.09). Здесь только перенос от угла листа в экранные координаты.
+function overlayGeom() {
+  const s = L.sheet, o = overlayBox(s.w, s.h, S.puzzle);
+  return Object.assign({}, o, { y: s.y + o.y, низ: s.y + o.низ },
+    S.puzzle ? { x0: s.x + o.x0 } : { x: s.x + o.x });
+}
+// Где встаёт надпись «свернётся спиралью»: у верхнего края листа — или под окошком, если оно там.
+function spiralNoteY() {
+  const s = L.sheet;
+  return L.previewMode === 'overlay' ? overlayGeom().низ + 6 : s.y + 14;
 }
 // РАДИУС РОЛЛА ПО ХОДУ ПРОТЯЖКИ — ПО ПЛОЩАДИ НАМОТАННОГО, А НЕ ПО МАКСИМУМУ ВИТКА.
 //
@@ -111,14 +261,31 @@ function drawLay() {
   if (L.sheet.uAxis === 'x') {   // циновка-фон: от ручки сбоку через весь лист, прутья поперёк скрутки
     const x0 = Math.min(hd.x, L.sheet.x - 8), x1 = Math.max(hd.x + hd.w, L.sheet.x + L.sheet.w + 8);
     drawMat(x0, L.sheet.y - 18, x1 - x0, L.sheet.h + 36, 14, B(), true);
-  } else drawMat(hd.x, L.sheet.y - 18, hd.w, hd.y + hd.h + 8 - (L.sheet.y - 18));
+  } else {
+    // ⚑ ЦИНОВКА — ОТ РАМКИ НАД ЛИСТОМ, А НЕ ОТ ВЕРХА ПОЛОСЫ (18.09). 17.09 здесь стояло `L.band.y`:
+    // полоса живого среза была той же циновкой, продолженной вверх, и владелец сказала, что так «не
+    // отдельно — фон как бы другой». Теперь это отдельная панель со своей подложкой через ШАГ.
+    drawMat(hd.x, L.sheet.y - РАМКА, hd.w, hd.y + hd.h + 8 - (L.sheet.y - РАМКА));
+  }
+  if (L.band) { const b = L.band; rr(b.x, b.y, b.w, b.h, ПАНЕЛЬ_R); ctx.fillStyle = BAND_BG; ctx.fill(); }
+  // Текст панели раскладывается один раз на кадр и до листа: по тому, что в колонку влезло, ниже
+  // решается, какие надписи на лист больше не ставить. Во время протяжки панель рисуется как есть
+  // (drawPreviewArea), и «лишний лист обрезан» не выскакивает на лист.
+  const колонка = L.band ? bandColumn(getModel()) : null;
+  const вКолонке = id => !!(колонка && колонка.placed.has(id));
   sheetPush();
   const yb = s.y + s.h * (1 - p);
   // лист: остаток, ещё не скрученный
   ctx.save(); ctx.beginPath(); ctx.rect(s.x - 8, s.y - 8, s.w + 16, Math.max(0, yb - s.y + 8)); ctx.clip();
-  rr(s.x - 5, s.y - 5, s.w + 10, s.h + 10, 6); ctx.fillStyle = B().wrapper; ctx.fill();
+  rr(s.x - КРАЙ_НОРИ, s.y - КРАЙ_НОРИ, s.w + 2 * КРАЙ_НОРИ, s.h + 2 * КРАЙ_НОРИ, 6); ctx.fillStyle = B().wrapper; ctx.fill();
   const mdl = getModel(), wd0 = windFor(mdl, 0.5), Lm = mdl.g.L;
-  const uClose = wd0.sClose >= 0 ? wd0.sClose / Lm : B().spreadEnd, uEnd = wd0.sEnd < Lm ? wd0.sEnd / Lm : 1;
+  // ⚑ У СПИРАЛИ РИС КОНЧАЕТСЯ НА spreadEnd, А НЕ У КРАЯ ЛИСТА (#253, 17.09). `sClose` у спирали —
+  // конец листа (она замыкается им), и лист узумаки рисовался рисом до самого верха, хотя в модели
+  // там 21 мм голой нори. Пока класть можно было куда угодно, это было неточностью картинки; с
+  // запретом голого края кусок упирался бы посреди нарисованного риса. У кольца `sClose` — конец
+  // риса на среднем срезе, как и было.
+  const uClose = mdl.g.winding === 'spiral' ? B().spreadEnd : wd0.sClose >= 0 ? wd0.sClose / Lm : B().spreadEnd;
+  const uEnd = wd0.sEnd < Lm ? wd0.sEnd / Lm : 1;
   const bare = (1 - uClose) * s.h, rimPx = B().spreadEnd < 1 ? RIM_W * s.h : 0;
   // ⚑ БЛИЖНЯЯ ГОЛАЯ ПОЛОСА. Рис начинается не от кромки, а отступив: 「手前2cm位」.
   // Раньше он доходил до самого низа, и лист читался как «полоска нори сверху плюс
@@ -151,7 +318,7 @@ function drawLay() {
   if (uEnd < 1) {   // лишний лист обрезан: ролл замкнулся раньше; что выше линии — не попадёт в ролл
     const yEnd = s.y + (1 - uEnd) * s.h; ctx.fillStyle = 'rgba(23,23,19,0.35)'; ctx.fillRect(s.x - 5, s.y - 5, s.w + 10, yEnd - s.y + 5);
     ctx.setLineDash([6, 4]); ctx.strokeStyle = 'rgba(243,231,202,0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x, yEnd); ctx.lineTo(s.x + s.w, yEnd); ctx.stroke(); ctx.setLineDash([]);
-    unrot(s.x + s.w / 2, s.y + 6, () => { ctx.fillStyle = 'rgba(243,231,202,0.7)'; ctx.font = font(10); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('лишний нори — обрезан, ролл замкнулся раньше', 0, 0); });
+    if (!вКолонке('trim')) unrot(s.x + s.w / 2, s.y + 6, () => { ctx.fillStyle = 'rgba(243,231,202,0.7)'; ctx.font = font(10); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('лишний нори — обрезан, ролл замкнулся раньше', 0, 0); });
   }
   if (drag.patch) drawPatchTop(drag.patch, 0.85, zOf(drag.patch));
   const sel = S.selPatch && patches().includes(S.selPatch) ? S.selPatch : (S.selPatch = null);
@@ -174,10 +341,29 @@ function drawLay() {
   //
   // ⚠ Подпись только у спирали. У кольца молчим: «кольцо» — это обычное дело, а надпись на
   // каждом ролле превращается в шум и перестаёт читаться тогда, когда она важна.
-  if (p === 0 && !drag.patch) {
+  // ⚑ И ВО ВРЕМЯ ПЕРЕТАСКИВАНИЯ ТОЖЕ (#240, 16.09). Стояло `&& !drag.patch`, и надпись гасла ровно
+  // тогда, когда игрок ищет границу охвата, — двигая кусок. Модель в этот момент всё равно строится:
+  // её рисует живой срез, так что показ ничего не стоит. Линия «подворот — ядро» выше по-прежнему
+  // гаснет: членство в ядре от неё не зависит, и в движении она только сбивала бы.
+  if (p === 0) {
     const mm = getModel();
-    if (mm.g.winding === 'spiral') {
-      unrot(s.x + s.w - 6, s.y + 14, () => {
+    // Нехватку листа видно до скрутки тем же приёмом: на листе, где спиральная надпись (#242).
+    // В полосе эти надписи стоят в колонке (bandFacts) — на лист они выходят, только если колонки
+    // нет (окошко, выключенный 👁, планшет) или факт в неё не влез. Спираль названа в колонке и
+    // строкой намотки: причина могла уступить место, а сам режим — нет.
+    // ⚠ У УЗУМАКИ НАДПИСИ О СПИРАЛИ НЕТ И НА ЛИСТЕ (17.09): спираль там от базы, «начинка по всему
+    // листу» — неправда даже на пустом листе, а на узком листе фраза ещё и обрезалась слева (242 px
+    // листа против ~270 px строки). Переход кольцо → спираль, ради которого надпись просили 02.09,
+    // у этой базы не случается.
+    if (mm.g.winding !== 'spiral' && sheetShortText(mm) && !вКолонке('short')) {
+      unrot(s.x + s.w - 6, spiralNoteY(), () => {
+        ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
+        ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+        ctx.fillText('начинки не обхватить — нори не сомкнётся', 0, 0);
+      });
+    }
+    if (mm.g.winding === 'spiral' && !windingSelf() && !вКолонке('spiral') && !вКолонке('turns')) {
+      unrot(s.x + s.w - 6, spiralNoteY(), () => {
         ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
         ctx.textAlign = 'right'; ctx.textBaseline = 'top';
         ctx.fillText('начинка по всему листу — свернётся спиралью', 0, 0);
@@ -208,10 +394,36 @@ function drawLay() {
     let ht = p > 0 ? 'ещё… ↑' : '↑';
     ctx.fillText(ht, hd.x + hd.w / 2, hd.y + hd.h / 2);
   }
-  drawPreviewArea(p);
+  // ⚑ «ОЧИСТИТЬ» — ВНИЗУ, НА ЦИНОВКЕ (решение владельца 17.09: «очистить куда-то вниз надо
+  // перенести»). Шапку разгрузили, а отдельный ряд под кнопку стоил бы места листу (#157),
+  // поэтому она сидит в углу циновки-ручки: там нечего задеть, кроме самой тяги, а касание
+  // по иконке проверяется раньше тяги (onDown смотрит icons первыми). Подтверждение — прежнее,
+  // в два касания (clearArm), подсказка «Ещё раз — очистить» — в шапке.
+  if (p === 0 && patches().length) {
+    const sz = 32, вдоль = L.sheet.uAxis === 'x';
+    const cb = вдоль ? { x: hd.x + (hd.w - sz) / 2, y: hd.y + 8, w: sz, h: sz }
+                     : { x: hd.x + 10, y: hd.y + (hd.h - sz) / 2, w: sz, h: sz };
+    rr(cb.x, cb.y, cb.w, cb.h, 8);
+    ctx.fillStyle = clearArm > performance.now() ? '#4a4331' : 'rgba(38,38,31,0.82)'; ctx.fill();
+    ctx.font = '17px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#f3e7ca';
+    ctx.fillText('🗑', cb.x + cb.w / 2, cb.y + cb.h / 2 + 1);
+    icons.push({ id: 'clear', ...cb });
+  }
+  drawPreviewArea(p, колонка);
   buttons = [];
   const area = L.layBtn;
-  if (sel && p === 0) {
+  // «Убрать» на ручке циновки (портрет телефона, selBtnGeom в layout.js): не в ряду под палитрой,
+  // поэтому ряд палитры при выбранном куске не прячется. Касание — через icons, как у корзины.
+  if (sel && p === 0 && L.selBtn) {
+    const sb = L.selBtn;
+    rr(sb.x, sb.y, sb.w, sb.h, 10); ctx.fillStyle = '#2a2a25'; ctx.fill();
+    ctx.strokeStyle = '#4d4838'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#efe4cd'; ctx.font = font(15, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(sb.label, sb.x + sb.w / 2, sb.y + sb.h / 2 + 1);
+    icons.push({ id: 'remove', ...sb.hit });
+  }
+  const другиеДействия = WRAP_PIECE_ON || (ROTATE_PIECE_ON && sel && !ING[sel.kind].wave);
+  if (sel && p === 0 && (!L.selBtn || другиеДействия)) {
     // ⚠ ОБЁРТЫВАНИЕ КУСКА В НОРИ УБРАНО ИЗ ИНТЕРФЕЙСА 31.08.2026 по решению владельца:
     // «мы ещё не знаем, как именно внутри будем оборачивать… можно пока просто не оборачивать
     // то, что внутри — давай обычный оттестируем до идеального состояния хотя бы».
@@ -220,12 +432,12 @@ function drawLay() {
     // кнопку дешевле, чем каждый раз объяснять, почему на срезе щели.
     // Код механики жив (wrapInNoriList в play/index.html) — вернуть одна правка здесь.
     const canWrap = WRAP_PIECE_ON;   // один выключатель на кнопку и на генератор пазла (#159)
-    const canRot = !ING[sel.kind].wave;
+    const canRot = ROTATE_PIECE_ON && !ING[sel.kind].wave;
     // Подпись показывает, КУДА повернётся, и по тому же диапазону, что и само действие.
     const rotSpan = cutSymmetric(ING[sel.kind]) ? 180 : 360;
     const rotLabel = `⟳ ${Math.round(((sel.rot || 0) * 180 / Math.PI + 45) % rotSpan)}°`;
     buttonRow([...(canWrap ? [['wrap', 'Кусок в нори', true, 1.2]] : []), ...(canRot ? [['rotate', rotLabel, false, 1.05]] : []),
-               ['remove', 'Убрать', false, 1]], { ...area, max: 3 });
+               ...(L.selBtn ? [] : [['remove', 'Убрать', false, 1]])], { ...area, max: 3 });
   } else {
     // ↶ и ↷ — история действий, а не «снять последний кусок» (issue #84). Тусклая стрелка
     // означает, что возвращать нечего: кнопка не прыгает, но и не врёт, что что-то сделает.
@@ -350,9 +562,10 @@ function drawRollPreview(R) {
   if (v2ok) {
     ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy);
   } else {
-    const wd = windFor(getModel(), 0.5);
-    ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy - 8);
-    ctx.fillText(`${wd.turns.toFixed(1).replace('.', ',')} витка`, g.cx + g.fs / 2 - 16, g.cy + 8);
+    const m = getModel(), нх = sheetShortText(m), dy = нх ? 8 : 0;
+    ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy - 8 - dy);
+    ctx.fillText(liveTurnsText(m), g.cx + g.fs / 2 - 16, g.cy + 8 - dy);
+    if (нх) ctx.fillText('листа не хватило', g.cx + g.fs / 2 - 16, g.cy + 24 - dy);
   }
 }
 // ── ПАСПОРТ РОЛЛА ПОД ДОСКОЙ (#193) ─────────────────────────────────────────
@@ -523,12 +736,14 @@ function drawRevealed() {
   {
     const mm = getModel(), wd = windFor(mm, c.v);
     const вит = +wd.turns;
-    const режим = mm.g.winding === 'spiral' ? 'спираль' : 'кольцо';
+    const режим = windingName(mm);
     const хвост = вит < 3 && mm.g.winding === 'spiral' ? ' — мало для узора' : '';
     ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины · ${режим}, ${вит.toFixed(1).replace('.', ',')} витка${хвост}`,
                  cx, L.faceY + L.faceSize / 2 + 14);
   }
   const hl = handLabel(); if (hl) { ctx.fillStyle = '#6f6754'; ctx.font = font(12); ctx.fillText(hl, cx, L.faceY + L.faceSize / 2 + 32); }
+  { const нх = sheetShortText(getModel(), c.v);
+    if (нх) { ctx.fillStyle = '#c98a5a'; ctx.font = font(12, 600); ctx.fillText(нх, cx, L.faceY + L.faceSize / 2 + (hl ? 50 : 32)); } }
   buttons = []; buttonRow([['slice', `Нарезать на ${npieces()}`, true], ['albumsave', S.saved > performance.now() ? '✓ В альбоме' : '★ В альбом'], ['back', 'Ещё начинки']]);
   if (S.saved > performance.now()) dirty = true;
   drawButtons(); drawTopBar(hints.revealed);

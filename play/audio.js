@@ -10,6 +10,9 @@ const sfx = {
   ensure() {
     if (this.ac) { if (this.ac.state === 'suspended') this.ac.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    // ⚑ ТЕЛЕФОН РЕШАЕТ, ЗВУЧАТЬ ЛИ (17.09): кнопки звука нет, поэтому просим «фоновую» сессию —
+    // Safari 16.4+ тогда слушается переключателя беззвучного режима и не глушит чужую музыку.
+    try { if (navigator.audioSession) navigator.audioSession.type = 'ambient'; } catch (e) {}
     this.ac = new AC(); this.master = this.ac.createGain(); this.master.gain.value = S.mute ? 0 : 1; this.master.connect(this.ac.destination);
     const n = this.ac.sampleRate; const buf = this.ac.createBuffer(1, n, n); const ch = buf.getChannelData(0);
     for (let i = 0; i < n; i++) ch[i] = Math.random() * 2 - 1;

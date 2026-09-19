@@ -23,7 +23,10 @@
 // Здесь остались только имена и глифы для переключателя; k/p/drop — параметры снятого
 // суперэллипса — убраны, чтобы никто не решил, что форма всё ещё живёт здесь.
 // kamaboko — низ и бока зажаты, верх свободен: по 銀座渡利 это и есть футомаки повара.
-const SHAPES = { round: { glyph: '⭕' }, kamaboko: { glyph: '⌓' }, square: { glyph: '◻' }, triangle: { glyph: '△' } };
+// name — для колонки живого среза на экране раскладки (17.09): до неё форма показывалась только
+// значком в панели. Существительным, а не прилагательным: «форма: круг», без согласования рода.
+const SHAPES = { round: { glyph: '⭕', name: 'круг' }, kamaboko: { glyph: '⌓', name: 'камабоко' },
+                 square: { glyph: '◻', name: 'квадрат' }, triangle: { glyph: '△', name: 'треугольник' } };
 // Угол не может быть острее зерна: сколько ни дави, кромка скругляется на его размер — «углы нельзя
 // добрать нажимом, зёрна давятся» (docs/shapes.md). Отсюда скругление берётся не на глаз, а из зерна.
 // Варёное зерно косихикари — 7,7 x 3,5 мм (Matsui T., Hokuriku Crop Science 36:21-23, 2001: сырое
@@ -177,6 +180,11 @@ function strokeWrapperTurns(c, m, wd, si, scale, half, LW, alpha) {
 function замыкатьВиток(нарисовано, бинов, шовПикселей, ширинаЛинии) {
   return нарисовано === бинов && шовПикселей <= Math.max(2, ширинаЛинии);
 }
+// Есть ли под внешней обводкой нори в этом бине. Вывернутому обводится внутренняя кромка, и
+// нехватку листа у него это правило пока не различает (#242, урамаки меряет обхват кругом).
+function rimHasWrap(wd, b, внутр) {
+  return внутр || !wd.обёртка || wd.обёртка.есть(b);
+}
 function strokeWrapperRim(c, m, wd, si, scale, half) {
   const b = B();
   // ⚑ У ВЫВЕРНУТОГО ОБВОДИТСЯ ВНУТРЕННЯЯ КРОМКА (#124, заведено 02.09 — то самое «предстоит»,
@@ -201,9 +209,14 @@ function strokeWrapperRim(c, m, wd, si, scale, half) {
   const LW = Math.max(MIN, wPx);
   const step = Math.max(1, Math.round(NB / (TAU * m.Rmax * scale / 2)));   // шаг бинов ≈ 2 device-px по дуге
   const p = new Path2D();
-  let first = true;
+  let first = true, начат = false, разрыв = false;
   for (let i = 0; i <= NB; i += step) {
     const bb = i % NB, phi = bb * DPHI;
+    // ⚑ ГДЕ НОРИ НЕТ, ЛИНИИ НЕТ (#242, решение владельца 16.09: нехватка листа — честная дыра).
+    // Обводка шла по всем бинам с контуром, и дыра, которую модель честно оставляла при нехватке
+    // листа, закрывалась нарисованной нори: хосомаки с бруском 30 мм — по модели снаружи рис на
+    // 257°…360°, на экране кольцо замкнуто. Путь рвётся и продолжается со следующей нори.
+    if (!rimHasWrap(wd, bb, внутр)) { if (начат) разрыв = true; first = true; continue; }
     const rOut = внутр ? innerAt(wd, phi) : topAt(wd, phi);
     if (rOut <= 1e-6 || (!внутр && rOut <= m.g.r0)) continue;
     // половина ширины вычитается в ЭКРАННЫХ px, а не в единицах модели: на плоских гранях квадрата и
@@ -211,10 +224,10 @@ function strokeWrapperRim(c, m, wd, si, scale, half) {
     // У вывернутого штрих ложится НАРУЖУ от внутренней кромки — там и лежит сама лента.
     const rpx = rOut / shapeK(phi, si) * scale + (внутр ? LW / 2 : -LW / 2);
     const x = half + Math.cos(phi) * rpx, y = half + Math.sin(phi) * rpx;
-    if (first) { p.moveTo(x, y); first = false; } else p.lineTo(x, y);
+    if (first) { p.moveTo(x, y); first = false; начат = true; } else p.lineTo(x, y);
   }
-  if (first) return;
-  p.closePath();
+  if (!начат) return;
+  if (!разрыв) p.closePath();
   c.save();
   c.globalCompositeOperation = 'source-atop';   // не красить за силуэтом, который посчитала модель
   // Пиксельный режим: скругления и контактная тень снимаются — оба дают полупрозрачные
@@ -282,13 +295,19 @@ function pixPalette() {
   _pal = out; return out;
 }
 // Ближайший цвет палитры. Перебор по сотне записей на пиксель дорог, поэтому результат
-// запоминается по огрублённому ключу: соседние оттенки всё равно сойдутся в одну ступень.
+// запоминается по огрублённому ключу (5 бит на канал).
+// ⚠ ОТВЕТ СЧИТАЕТСЯ ДЛЯ СЕРЕДИНЫ КОРЗИНЫ, А НЕ ДЛЯ ПЕРВОГО ПРИШЕДШЕГО ОТТЕНКА (16.09). Прежде здесь
+// стоял точный цвет первого пикселя корзины, а комментарий обещал, что «соседние оттенки всё равно
+// сойдутся в одну ступень». Не сходились: ответ зависел от того, какой оттенок пришёл первым, то
+// есть от того, что рисовали ДО этого — другой срез, вид листа, прошлый кадр. Замер на v228: один и
+// тот же срез после другой отрисовки отличался в 1721 пикселе из 67 600. Теперь ключ определяет ответ.
 const _palCache = new Map();
 function pixSnap(r, g, b) {
   const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
   const hit = _palCache.get(key); if (hit) return hit;
+  const rq = ((r >> 3) << 3) + 4, gq = ((g >> 3) << 3) + 4, bq = ((b >> 3) << 3) + 4;
   const pal = pixPalette(); let best = pal[0], bd = 1e9;
-  for (const c of pal) { const d = (c[0] - r) ** 2 + (c[1] - g) ** 2 + (c[2] - b) ** 2;
+  for (const c of pal) { const d = (c[0] - rq) ** 2 + (c[1] - gq) ** 2 + (c[2] - bq) ** 2;
     if (d < bd) { bd = d; best = c; } }
   if (_palCache.size > 4096) _palCache.clear();
   _palCache.set(key, best); return best;
@@ -640,6 +659,34 @@ function face(vSlice, cssSize, m, Rref) {
   // отладочного режима. Линии считаются лениво и живут на том же кеше, что и картинка.
   img._m = m; img._v = vSlice;
   return img;
+}
+// Живая маска «куда встанет» — только начинка игрока, розовым, поверх цели пазла.
+// Считается той же картой, что и оценка, чтобы палец и срез не врали друг другу.
+function ghostMaskImg(vSlice, cssSize, m, Rref) {
+  const size = Math.round(cssSize * DPR);
+  const key = 'g|' + m.key + '|' + vSlice.toFixed(3) + '|' + size + '|' + (Rref ? Rref.toFixed(3) : '');
+  let img = faceCache.get(key);
+  if (img) return img;
+  if (faceCache.size > 60) faceCache.clear();
+  const N = ROLL_MAP_SIZE;
+  const map = materialMapOf(N, vSlice, m, Rref);
+  const src = document.createElement('canvas');
+  src.width = src.height = N;
+  const sx = src.getContext('2d');
+  const data = sx.createImageData(N, N);
+  for (let i = 0; i < map.length; i++) {
+    if (map[i] < 3) continue;
+    const o = i * 4;
+    data.data[o] = 224; data.data[o + 1] = 118; data.data[o + 2] = 138; data.data[o + 3] = 220;
+  }
+  sx.putImageData(data, 0, 0);
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const cx = cv.getContext('2d');
+  cx.imageSmoothingEnabled = false;
+  cx.drawImage(src, 0, 0, N, N, 0, 0, size, size);
+  faceCache.set(key, cv);
+  return cv;
 }
 // ⚑ ЧИСЛО КУСКОВ ПРИХОДИТ АРГУМЕНТОМ, А НЕ ИЗ ГЛОБАЛЬНОЙ КОНСТАНТЫ (правка 01.09).
 //
