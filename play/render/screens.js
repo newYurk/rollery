@@ -68,7 +68,7 @@ function bandFacts(m) {
   const out = [{ id: 'title', r: 'title', уступ: 3, t: S.puzzle ? 'цель' : 'живой срез' }];
   if (S.puzzle) {
     if (S.puzzle.tube) {
-      out.push({ id: 'hint', r: 'main', уступ: 0, t: patches().length ? 'розовая точка — куда сядет' : 'положи на пунктир' });
+      out.push({ id: 'hint', r: 'main', уступ: 0, t: 'слева — в ядре · справа — на витке' });
       return out;
     }
     if (patches().length) out.push({ id: 'ghost', r: 'note', уступ: 2, t: 'розовое — куда встанет' });
@@ -202,6 +202,36 @@ function drawTubeZones(s, mdl) {
 // над циновкой (18.09): она стоит отдельно, ролл её не задевает, и пустая тёмная подложка на время
 // тяги читалась бы заглушкой. Цель в панели не меняется; розовая маска — живой срез игрока, её
 // двигает перетаскивание начинки (touchModel на кадре жеста).
+function tubeCompareList() {
+  if (patches().length) return patches();
+  const t = S.puzzle && S.puzzle.target;
+  return t ? t.map(p => Object.assign({ phase: 0 }, p)) : [];
+}
+function modelWithWinding(winding, list) {
+  const keep = S.winding;
+  try { S.winding = winding; return buildModel(list); }
+  finally { S.winding = keep; }
+}
+// Одна кладка, две намотки: кольцо сажает начинку в ядро, спираль везёт её по витку.
+function drawTubeCompare(cells) {
+  if (!cells || !cells.length) return;
+  const list = tubeCompareList();
+  const ring = modelWithWinding('ring', list);
+  const spiral = modelWithWinding('spiral', list);
+  const Rref = Math.max(ring.Rmax, spiral.Rmax);
+  const pair = [{ m: ring, t: 'в ядре' }, { m: spiral, t: 'на витке' }];
+  drawSlab(cells, 1, B(), ДОСКА);
+  pair.forEach((q, i) => {
+    const c = cells[i]; if (!c) return;
+    drawFaceImg(face(0.5, c.size, q.m, Rref), c.x, c.y, c.size);
+  });
+  pair.forEach((q, i) => {
+    const c = cells[i]; if (!c) return;
+    ctx.fillStyle = '#b8ad95'; ctx.font = font(11, 600);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(q.t, c.x, c.y + c.size / 2 + 5);
+  });
+}
 function drawPreviewArea(p, колонка) {
   const pm = L.previewMode, панель = pm === 'band' && L.band && S.mode === 'lay';
   if (pm === 'none' || (p > 0 && !панель)) return;
@@ -214,13 +244,17 @@ function drawPreviewArea(p, колонка) {
     // Тень среза падает на доску и обрезается по ней: тень принадлежит доске, как у окошка на листе
     // (31.08), и с неё не свисает ни на панель, ни тем более на лист (замечание владельца 18.09).
     const b = L.band, д = b.доска;
-    drawSlab(b.cells, 1, B(), ДОСКА);
-    ctx.save(); rr(д.x, д.y, д.w, д.h, д.r); ctx.clip();
-    b.cells.forEach((c, i) => {
-      if (pz) drawPuzzleFace(pz.vs[i], c.size, c.x, c.y, tm);
-      else drawFaceImg(face(0.5, c.size), c.x, c.y, c.size);
-    });
-    ctx.restore();
+    if (pz && pz.tube) {
+      drawTubeCompare(b.cells);
+    } else {
+      drawSlab(b.cells, 1, B(), ДОСКА);
+      ctx.save(); rr(д.x, д.y, д.w, д.h, д.r); ctx.clip();
+      b.cells.forEach((c, i) => {
+        if (pz) drawPuzzleFace(pz.vs[i], c.size, c.x, c.y, tm);
+        else drawFaceImg(face(0.5, c.size), c.x, c.y, c.size);
+      });
+      ctx.restore();
+    }
     const кол = колонка || bandColumn(getModel());
     for (const л of кол.lines) {
       ctx.fillStyle = л.color; ctx.font = font(л.size, л.weight); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
