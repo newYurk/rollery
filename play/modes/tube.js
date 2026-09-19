@@ -86,6 +86,16 @@ function tubeInstall() {
       }
       if (id === 'lvprev') { if (S.puzzle.level > 0) tubeStart(S.puzzle.level - 1); requestFrame(); return; }
       if (id === 'lvnext') { if (S.puzzle.level + 1 < TUBE_LEVELS.length) tubeStart(S.puzzle.level + 1); requestFrame(); return; }
+      if (id === 'rollnow') {
+        if (S.mode === 'lay' && !anim && patches().length) {
+          tween(S.rollP, 1, 500, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; dirty = true; });
+        }
+        requestFrame(); return;
+      }
+      if (id === 'cutnow') {
+        if (S.mode === 'rolled') startCut(0.5);
+        requestFrame(); return;
+      }
       if (id === 'newpuzzle') { tubeStart(S.puzzle.level); requestFrame(); return; }
       if (id === 'base') { requestFrame(); return; }
     }

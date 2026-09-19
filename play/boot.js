@@ -77,6 +77,10 @@ load(); resize(); touchModel(); sfx.armStart();
 tubeInstall();
 if (S.v2 && S.v2Scenario !== 'layout') { S.mode = 'rolled'; S.base = 'hoso'; }
 const linked = decodePuzzle(location.hash);
-if (linked) puzzleFromLink(linked); else if (location.search.includes('puzzle')) action('puzzle'); else action('tube');
+S.tubeLab = /[?&]lab(?:[=&]|$)/.test(location.search);
+if (linked) puzzleFromLink(linked);
+else if (location.search.includes('puzzle')) action('puzzle');
+else if (S.tubeLab) action('tube');
+else tubeStart(0);
 window.addEventListener('hashchange', () => { const pz = decodePuzzle(location.hash); if (pz) puzzleFromLink(pz); });
 requestFrame();

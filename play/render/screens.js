@@ -144,7 +144,7 @@ function drawPuzzleFace(v, size, x, y, tm) {
     const pm = getModel();
     drawFaceImg(ghostMaskImg(v, size, pm, Math.max(tm.Rmax, pm.Rmax)), x, y, size, 1, 0.9, true);
   }
-  if (S.puzzle && S.puzzle.tube) drawTubeBeads(v, size, x, y, tm);
+  if (S.puzzle && S.puzzle.tube && S.tubeLab) drawTubeBeads(v, size, x, y, tm);
 }
 function mapCentroid(map, N, lo, hi) {
   const half = N / 2, den = half - 1;
@@ -481,7 +481,7 @@ function drawLay() {
   } else {
     // Надпись на циновке снята вместе с подсказкой (02.09, просьба владельца). Стрелка
     // осталась: без неё циновка — просто полоса, и потянуть её никто не догадается.
-    let ht = p > 0 ? 'ещё… ↑' : '↑';
+    let ht = p > 0 ? 'ещё… ↑' : (tubePlay() ? '↑ скрутить' : '↑');
     ctx.fillText(ht, hd.x + hd.w / 2, hd.y + hd.h / 2);
   }
   // ⚑ «ОЧИСТИТЬ» — ВНИЗУ, НА ЦИНОВКЕ (решение владельца 17.09: «очистить куда-то вниз надо
@@ -541,7 +541,8 @@ function drawLay() {
     // ширину — разрушительное и редкое действие размером с главное, — и держала под собой
     // ряд в 56 px, который оплатил теперь третий ряд палитры. Наверху у неё подтверждение в
     // два касания и возврат плашкой: на телефоне отмены не было вовсе (см. `clearArm`).
-    if (S.puzzle) buttonRow([['newpuzzle', '⟳ Другой', false, 1]], { ...area, max: 1 });
+    if (tubePlay() && patches().length) buttonRow([['rollnow', 'Скрутить', true]], { ...area, max: 1 });
+    else if (S.puzzle) buttonRow([['newpuzzle', '⟳ Другой', false, 1]], { ...area, max: 1 });
   }
   // Кнопки и палитра делят один слот — последний ряд чипов. Если в слоте кто-то стоит,
   // ряд палитры прячется; лист и остальные ряды при этом не двигаются.
@@ -614,9 +615,8 @@ function drawRolled() {
     drawRollFacts(R);
   }
   buttons = [];
-  // В режиме своей раскладки возврат к начинкам обязателен: именно правкой
-  // раскладки игрок и снимает отказ. У фикстур править нечего — там кнопки нет.
-  if (!S.v2 || S.v2Scenario === 'layout') buttonRow([['back', '← Ещё начинки']]);
+  if (tubePlay()) buttonRow([['cutnow', 'Разрезать', true]]);
+  else if (!S.v2 || S.v2Scenario === 'layout') buttonRow([['back', '← Ещё начинки']]);
   drawButtons(); drawTopBar(refusal ? refusal.text : hints.rolled);
 }
 
@@ -804,9 +804,14 @@ function drawCompare() {
   ctx.fillStyle = '#b8ad95'; ctx.font = font(13);
   res.hints.forEach((h, i) => ctx.fillText(h, cx, yv + 26 + i * 18));
   let ye = yv + 26 + res.hints.length * 18;
-  if (res.pass) { ctx.fillText(pz.level + 1 < LEVELS.length ? 'Дальше — следующий уровень' : 'Это был последний уровень', cx, ye); ye += 18; }
+  if (res.pass) {
+    const last = (pz.tube ? TUBE_LEVELS.length : LEVELS.length);
+    ctx.fillText(pz.level + 1 < last ? 'Дальше — следующий уровень' : 'Это был последний уровень', cx, ye); ye += 18;
+  }
   const area = L.rowBtn.y - ye > 120 ? { x: L.rowBtn.x, y: ye + 20, w: L.rowBtn.w, h: L.btnH, max: 3 } : L.rowBtn;
-  buttons = []; buttonRow(res.pass ? [['next', 'Дальше →', true], ['back', 'Ещё раз'], ['newpuzzle', '⟳ Другой']] : [['back', 'Ещё раз', true], ['newpuzzle', '⟳ Другой'], ['slice', 'Кусочки']], area);
+  buttons = [];
+  if (tubePlay()) buttonRow(res.pass ? [['next', 'Дальше →', true], ['back', 'Ещё раз']] : [['back', 'Ещё раз', true]], area);
+  else buttonRow(res.pass ? [['next', 'Дальше →', true], ['back', 'Ещё раз'], ['newpuzzle', '⟳ Другой']] : [['back', 'Ещё раз', true], ['newpuzzle', '⟳ Другой'], ['slice', 'Кусочки']], area);
   drawButtons(); drawTopBar(levelTitle(pz.lv, pz.level));
 }
 function drawRevealed() {
