@@ -192,6 +192,324 @@ def задачи():
 }
 
 
+# Сохранённые виды графа — той же логикой, что и раскраска: ставятся, только если файла нет.
+# Закладка Obsidian хранит ПОЛНЫЙ снимок настроек графа, поэтому переключение вида — это один
+# клик в панели закладок, без плагинов.
+ЗАКЛАДКИ_OBSIDIAN = json.loads(r"""{
+ "items": [
+  {
+   "type": "group",
+   "ctime": 1789774569527,
+   "title": "Виды графа",
+   "items": [
+    {
+     "type": "graph",
+     "ctime": 1789774569527,
+     "title": "Зависимости блюда",
+     "options": {
+      "collapse-filter": false,
+      "search": "-path:\"09_Где в игре\" -path:\"10_Пазл\" -path:\"08_Источники\"",
+      "showTags": false,
+      "showAttachments": false,
+      "hideUnresolved": true,
+      "showOrphans": true,
+      "collapse-color-groups": false,
+      "colorGroups": [
+       {
+        "query": "path:\"09_Где в игре\"",
+        "color": {
+         "a": 1,
+         "rgb": 3980990
+        }
+       },
+       {
+        "query": "path:\"01_Роллы\"",
+        "color": {
+         "a": 1,
+         "rgb": 14839396
+        }
+       },
+       {
+        "query": "path:\"02_Приёмы\"",
+        "color": {
+         "a": 1,
+         "rgb": 7908070
+        }
+       },
+       {
+        "query": "path:\"03_Каноны\"",
+        "color": {
+         "a": 1,
+         "rgb": 15448390
+        }
+       },
+       {
+        "query": "path:\"04_Начинки\"",
+        "color": {
+         "a": 1,
+         "rgb": 8898675
+        }
+       },
+       {
+        "query": "path:\"05_Нарезки\"",
+        "color": {
+         "a": 1,
+         "rgb": 11832545
+        }
+       },
+       {
+        "query": "path:\"06_Обёртки\"",
+        "color": {
+         "a": 1,
+         "rgb": 14135155
+        }
+       },
+       {
+        "query": "path:\"07_Решения\"",
+        "color": {
+         "a": 1,
+         "rgb": 15767110
+        }
+       },
+       {
+        "query": "path:\"08_Источники\"",
+        "color": {
+         "a": 1,
+         "rgb": 10526880
+        }
+       },
+       {
+        "query": "path:\"10_Пазл\"",
+        "color": {
+         "a": 1,
+         "rgb": 9877985
+        }
+       }
+      ],
+      "collapse-display": false,
+      "showArrow": true,
+      "textFadeMultiplier": -3,
+      "nodeSizeMultiplier": 1.2,
+      "lineSizeMultiplier": 0.7,
+      "collapse-forces": false,
+      "centerStrength": 0.15,
+      "repelStrength": 15,
+      "linkStrength": 0.4,
+      "linkDistance": 420,
+      "scale": 0.7022035349374155,
+      "close": false
+     }
+    },
+    {
+     "type": "graph",
+     "ctime": 1789774569528,
+     "title": "Из чего собран ролл",
+     "options": {
+      "collapse-filter": false,
+      "search": "path:\"01_Роллы\" OR path:\"04_Начинки\" OR path:\"06_Обёртки\" OR path:\"02_Приёмы\"",
+      "showTags": false,
+      "showAttachments": false,
+      "hideUnresolved": true,
+      "showOrphans": true,
+      "collapse-color-groups": false,
+      "colorGroups": [
+       {
+        "query": "path:\"09_Где в игре\"",
+        "color": {
+         "a": 1,
+         "rgb": 3980990
+        }
+       },
+       {
+        "query": "path:\"01_Роллы\"",
+        "color": {
+         "a": 1,
+         "rgb": 14839396
+        }
+       },
+       {
+        "query": "path:\"02_Приёмы\"",
+        "color": {
+         "a": 1,
+         "rgb": 7908070
+        }
+       },
+       {
+        "query": "path:\"03_Каноны\"",
+        "color": {
+         "a": 1,
+         "rgb": 15448390
+        }
+       },
+       {
+        "query": "path:\"04_Начинки\"",
+        "color": {
+         "a": 1,
+         "rgb": 8898675
+        }
+       },
+       {
+        "query": "path:\"05_Нарезки\"",
+        "color": {
+         "a": 1,
+         "rgb": 11832545
+        }
+       },
+       {
+        "query": "path:\"06_Обёртки\"",
+        "color": {
+         "a": 1,
+         "rgb": 14135155
+        }
+       },
+       {
+        "query": "path:\"07_Решения\"",
+        "color": {
+         "a": 1,
+         "rgb": 15767110
+        }
+       },
+       {
+        "query": "path:\"08_Источники\"",
+        "color": {
+         "a": 1,
+         "rgb": 10526880
+        }
+       },
+       {
+        "query": "path:\"10_Пазл\"",
+        "color": {
+         "a": 1,
+         "rgb": 9877985
+        }
+       }
+      ],
+      "collapse-display": false,
+      "showArrow": true,
+      "textFadeMultiplier": -3,
+      "nodeSizeMultiplier": 1.2,
+      "lineSizeMultiplier": 0.7,
+      "collapse-forces": false,
+      "centerStrength": 0.15,
+      "repelStrength": 15,
+      "linkStrength": 0.4,
+      "linkDistance": 420,
+      "scale": 0.7022035349374155,
+      "close": false
+     }
+    },
+    {
+     "type": "graph",
+     "ctime": 1789774569529,
+     "title": "Всё как было",
+     "options": {
+      "collapse-filter": false,
+      "search": "",
+      "showTags": false,
+      "showAttachments": false,
+      "hideUnresolved": true,
+      "showOrphans": true,
+      "collapse-color-groups": false,
+      "colorGroups": [
+       {
+        "query": "path:\"09_Где в игре\"",
+        "color": {
+         "a": 1,
+         "rgb": 3980990
+        }
+       },
+       {
+        "query": "path:\"01_Роллы\"",
+        "color": {
+         "a": 1,
+         "rgb": 14839396
+        }
+       },
+       {
+        "query": "path:\"02_Приёмы\"",
+        "color": {
+         "a": 1,
+         "rgb": 7908070
+        }
+       },
+       {
+        "query": "path:\"03_Каноны\"",
+        "color": {
+         "a": 1,
+         "rgb": 15448390
+        }
+       },
+       {
+        "query": "path:\"04_Начинки\"",
+        "color": {
+         "a": 1,
+         "rgb": 8898675
+        }
+       },
+       {
+        "query": "path:\"05_Нарезки\"",
+        "color": {
+         "a": 1,
+         "rgb": 11832545
+        }
+       },
+       {
+        "query": "path:\"06_Обёртки\"",
+        "color": {
+         "a": 1,
+         "rgb": 14135155
+        }
+       },
+       {
+        "query": "path:\"07_Решения\"",
+        "color": {
+         "a": 1,
+         "rgb": 15767110
+        }
+       },
+       {
+        "query": "path:\"08_Источники\"",
+        "color": {
+         "a": 1,
+         "rgb": 10526880
+        }
+       },
+       {
+        "query": "path:\"10_Пазл\"",
+        "color": {
+         "a": 1,
+         "rgb": 9877985
+        }
+       }
+      ],
+      "collapse-display": false,
+      "showArrow": true,
+      "textFadeMultiplier": -3,
+      "nodeSizeMultiplier": 1.2,
+      "lineSizeMultiplier": 0.7,
+      "collapse-forces": false,
+      "centerStrength": 0.15,
+      "repelStrength": 15,
+      "linkStrength": 0.4,
+      "linkDistance": 420,
+      "scale": 0.7022035349374155,
+      "close": false
+     }
+    }
+   ]
+  }
+ ]
+}""")
+
+
+def поставить_закладки():
+    p = os.path.join(OUT, '.obsidian', 'bookmarks.json')
+    if os.path.exists(p):
+        return
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    open(p, 'w', encoding='utf-8').write(json.dumps(ЗАКЛАДКИ_OBSIDIAN, ensure_ascii=False, indent=2) + '\n')
+
+
 def поставить_раскраску():
     p = os.path.join(OUT, '.obsidian', 'graph.json')
     if os.path.exists(p):
@@ -202,6 +520,9 @@ def поставить_раскраску():
 
 
 поставить_раскраску()
+
+
+поставить_закладки()
 CAT = каталог()
 CANON = CAT['canon']
 PUZ = CAT['puzzle']
