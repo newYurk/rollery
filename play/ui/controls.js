@@ -109,29 +109,36 @@ function drawPalTabs() {
 // теперь `uiPalGroup().ings`, а вкладки и жест меняют страницу. Место под ленту раскладка
 // считает по САМОЙ БОЛЬШОЙ группе, поэтому страница меньше просто не заполняет ряд до конца —
 // и ничего не сдвигает.
+const CAB_IMG = {};
+function loadCab(id) {
+  if (!CAB_IMG[id]) {
+    const im = new Image();
+    im.onload = () => { dirty = true; if (typeof requestFrame === 'function') requestFrame(); };
+    im.src = '/play/assets/cab/' + id + '.png';
+    CAB_IMG[id] = im;
+  }
+  const im = CAB_IMG[id];
+  return im && im.complete && im.naturalWidth ? im : null;
+}
+loadCab('cucumber'); loadCab('pin');
 function drawCabChip() {
   chips = []; palTabs = [];
   const ings = uiPalGroup().ings, kind = ings[0] || S.sel, c = L.chips, size = c.size;
   const placed = patches().length > 0;
-  const x = placed ? L.ox + L.cw / 2 - size - 18 : L.ox + (L.cw - size) / 2;
-  const y = c.y, d = ING[kind];
+  const x = placed ? L.ox + L.cw / 2 - size - 8 : L.ox + (L.cw - size) / 2;
+  const y = c.y;
   chips.push({ kind, x, y, w: size, h: size, dead: false });
   const cx = x + size / 2, cy = y + size / 2, R = size / 2;
-  ctx.beginPath(); ctx.arc(cx, cy, R + 6, 0, TAU); ctx.fillStyle = '#c45c4a'; ctx.fill();
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fillStyle = '#1c201e'; ctx.fill();
-  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R - 4, 0, TAU); ctx.clip();
-  const sprite = iconImg(kind);
-  if (sprite) {
+  ctx.beginPath(); ctx.arc(cx, cy, R + 7, 0, TAU); ctx.fillStyle = '#e8e0d0'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, R + 4, 0, TAU); ctx.fillStyle = '#c45c4a'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, R - 3, 0, TAU); ctx.fillStyle = '#1a1210'; ctx.fill();
+  const spr = loadCab('cucumber') || iconImg(kind);
+  if (spr) {
     ctx.imageSmoothingEnabled = false;
-    const k = Math.max(1, Math.floor((size - 16) / sprite.width)), sz = sprite.width * k;
-    ctx.drawImage(sprite, Math.round(cx - sz / 2), Math.round(cy - sz / 2), sz, sz);
-  } else {
-    ctx.translate(cx, cy);
-    ctx.fillStyle = d.color;
-    const gw = size * 0.55, gh = size * 0.22;
-    rr(-gw / 2, -gh / 2, gw, gh, 6); ctx.fill();
+    const s = size + 8;
+    ctx.drawImage(spr, cx - s / 2, cy - s / 2 + 2, s, s);
+    ctx.imageSmoothingEnabled = true;
   }
-  ctx.restore();
 }
 function drawChips(скрытьПоследний) {
   if (tubePlay()) { drawCabChip(); return; }

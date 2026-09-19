@@ -353,25 +353,105 @@ function rollRadiusAtPull(p, m) {
 }
 function drawCabChrome() {
   const cab = L.cab; if (!cab) return;
-  const b = cab.body, dY = cab.deckY, cream = '#e4dccb', body = '#2f3532', coral = '#c45c4a', crt = '#121614', deck = '#4d6a48';
-  rr(b.x, b.y, b.w, b.h, 28); ctx.fillStyle = cream; ctx.fill();
-  rr(b.x + 8, b.y + 8, b.w - 16, b.h - 16, 22); ctx.fillStyle = body; ctx.fill();
-  const bolt = (x, y) => { ctx.beginPath(); ctx.arc(x, y, 7, 0, TAU); ctx.fillStyle = coral; ctx.fill(); ctx.beginPath(); ctx.arc(x, y, 3, 0, TAU); ctx.fillStyle = cream; ctx.fill(); };
-  bolt(b.x + 22, b.y + 22); bolt(b.x + b.w - 22, b.y + 22);
-  bolt(b.x + 22, b.y + b.h - 22); bolt(b.x + b.w - 22, b.y + b.h - 22);
-  rr(b.x + 14, b.y + 12, b.w - 28, cab.marqueeH, 12); ctx.fillStyle = '#1c201e'; ctx.fill();
-  ctx.fillStyle = cream; ctx.font = font(18, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText('まきポン', b.x + 28, b.y + 12 + cab.marqueeH / 2);
-  const lv = (S.puzzle.level + 1) + '/' + TUBE_LEVELS.length;
-  ctx.fillStyle = coral; ctx.font = font(13, 700); ctx.textAlign = 'right';
-  ctx.fillText(lv, b.x + b.w - 28, b.y + 12 + cab.marqueeH / 2);
-  const g = cab.goal;
-  ctx.beginPath(); ctx.arc(g.x, g.y, g.size / 2 + 10, 0, TAU); ctx.fillStyle = cream; ctx.fill();
-  ctx.beginPath(); ctx.arc(g.x, g.y, g.size / 2 + 4, 0, TAU); ctx.fillStyle = crt; ctx.fill();
+  const b = cab.body, cream = '#e8e0d0', creamDk = '#cfc4b0', body = '#2a312e', coral = '#c45c4a', crt = '#0e1210', deck = '#4a6b46', deckHi = '#5a7d55';
+  // outer plastic
+  rr(b.x, b.y, b.w, b.h, 26); ctx.fillStyle = cream; ctx.fill();
+  ctx.save(); rr(b.x, b.y, b.w, b.h, 26); ctx.clip();
+  ctx.fillStyle = creamDk; ctx.fillRect(b.x, b.y + b.h - 18, b.w, 18);
+  ctx.restore();
+  rr(b.x + 7, b.y + 7, b.w - 14, b.h - 14, 20); ctx.fillStyle = body; ctx.fill();
+  // coral corner guards
+  const guard = (x, y, sx, sy) => {
+    ctx.save(); ctx.translate(x, y); ctx.scale(sx, sy);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(28, 0); ctx.lineTo(28, 8); ctx.lineTo(8, 8); ctx.lineTo(8, 28); ctx.lineTo(0, 28); ctx.closePath();
+    ctx.fillStyle = coral; ctx.fill();
+    ctx.restore();
+  };
+  guard(b.x + 10, b.y + 10, 1, 1);
+  guard(b.x + b.w - 10, b.y + 10, -1, 1);
+  guard(b.x + 10, b.y + b.h - 10, 1, -1);
+  guard(b.x + b.w - 10, b.y + b.h - 10, -1, -1);
+  // marquee
+  rr(b.x + 16, b.y + 12, b.w - 32, cab.marqueeH, 11); ctx.fillStyle = '#151918'; ctx.fill();
+  ctx.fillStyle = cream; ctx.font = font(20, 800); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('まきポン', b.x + 30, b.y + 12 + cab.marqueeH / 2 - 1);
+  ctx.fillStyle = '#8a928c'; ctx.font = font(10, 600);
+  ctx.fillText('MAKI PON', b.x + 30 + 86, b.y + 12 + cab.marqueeH / 2 + 1);
+  const badgeW = 46, bx = b.x + b.w - 28 - badgeW, by = b.y + 12 + (cab.marqueeH - 22) / 2;
+  rr(bx, by, badgeW, 22, 11); ctx.fillStyle = coral; ctx.fill();
+  ctx.fillStyle = '#fff6ee'; ctx.font = font(12, 800); ctx.textAlign = 'center';
+  ctx.fillText((S.puzzle.level + 1) + '/' + TUBE_LEVELS.length, bx + badgeW / 2, by + 12);
+  // CRT well
   const c = cab.crt;
-  rr(c.x, c.y, c.w, c.h, 16); ctx.fillStyle = cream; ctx.fill();
-  rr(c.x + 5, c.y + 5, c.w - 10, c.h - 10, 12); ctx.fillStyle = crt; ctx.fill();
-  rr(L.ox + 10, dY, L.cw - 20, cab.deckH - 8, 18); ctx.fillStyle = deck; ctx.fill();
+  rr(c.x - 3, c.y - 3, c.w + 6, c.h + 6, 18); ctx.fillStyle = cream; ctx.fill();
+  rr(c.x, c.y, c.w, c.h, 15); ctx.fillStyle = crt; ctx.fill();
+  ctx.save(); rr(c.x, c.y, c.w, c.h, 15); ctx.clip();
+  const gCRT = ctx.createLinearGradient(c.x, c.y, c.x, c.y + 40);
+  gCRT.addColorStop(0, 'rgba(255,255,255,0.05)'); gCRT.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gCRT; ctx.fillRect(c.x, c.y, c.w, 40);
+  ctx.restore();
+  // circular goal glass
+  const g = cab.goal, R = g.size / 2;
+  ctx.beginPath(); ctx.arc(g.x, g.y, R + 11, 0, TAU); ctx.fillStyle = cream; ctx.fill();
+  ctx.beginPath(); ctx.arc(g.x, g.y, R + 6, 0, TAU); ctx.fillStyle = '#3a3530'; ctx.fill();
+  ctx.beginPath(); ctx.arc(g.x, g.y, R + 3, 0, TAU); ctx.fillStyle = '#0a0c0b'; ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.arc(g.x, g.y, R + 3, 0, TAU); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(g.x - 8, g.y - 10, R * 0.9, -Math.PI * 0.9, -Math.PI * 0.15); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = 'rgba(232,224,208,0.9)'; ctx.font = font(10, 700); ctx.textAlign = 'center';
+  ctx.fillText('GOAL', g.x, g.y + R + 18);
+  // green deck
+  const dY = cab.deckY;
+  rr(b.x + 12, dY, b.w - 24, cab.deckH - 6, 16);
+  ctx.fillStyle = deck; ctx.fill();
+  ctx.save(); rr(b.x + 12, dY, b.w - 24, cab.deckH - 6, 16); ctx.clip();
+  ctx.fillStyle = deckHi; ctx.fillRect(b.x + 12, dY, b.w - 24, 8);
+  ctx.restore();
+  // prize ticket
+  const t = { x: b.x + 16, y: dY + 32, w: 50, h: cab.deckH - 58 };
+  rr(t.x, t.y, t.w, t.h, 6); ctx.fillStyle = '#efe6d4'; ctx.fill();
+  ctx.strokeStyle = coral; ctx.lineWidth = 2; ctx.setLineDash([3, 2]);
+  rr(t.x + 4, t.y + 4, t.w - 8, t.h - 8, 4); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = coral; ctx.font = font(8, 800); ctx.textAlign = 'center';
+  ctx.fillText('PRIZE', t.x + t.w / 2, t.y + 16);
+  ctx.fillStyle = '#3a3530'; ctx.font = font(11, 800);
+  ctx.fillText('Lv ' + (S.puzzle.level + 1), t.x + t.w / 2, t.y + 34);
+  ctx.fillStyle = '#8a847c'; ctx.font = font(8, 600);
+  ctx.fillText('No. 032', t.x + t.w / 2, t.y + t.h - 14);
+  for (let i = 0; i < 7; i++) {
+    ctx.fillStyle = i % 2 ? '#3a3530' : '#efe6d4';
+    ctx.fillRect(t.x + 10 + i * 7, t.y + t.h - 28, 5, 8);
+  }
+  // enamel pin
+  const pin = (typeof loadCab === 'function' ? loadCab('pin') : cabImg('pin'));
+  const px = b.x + b.w - 38, py = dY + cab.deckH / 2;
+  ctx.beginPath(); ctx.arc(px, py, 18, 0, TAU); ctx.fillStyle = '#d8cfc0'; ctx.fill();
+  ctx.beginPath(); ctx.arc(px, py, 15, 0, TAU); ctx.fillStyle = '#1c201e'; ctx.fill();
+  if (pin) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(pin, px - 13, py - 13, 26, 26);
+    ctx.imageSmoothingEnabled = true;
+  }
+  // credit
+  const cy = b.y + b.h - cab.creditH + 4;
+  ctx.fillStyle = cream; ctx.font = font(10, 800); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('CREDIT  00', b.x + 24, cy);
+  ctx.textAlign = 'right';
+  ctx.fillText('INSERT COIN', b.x + b.w - 24, cy);
+}
+function cabImg(id) {
+  if (!drawCabChrome._img) drawCabChrome._img = {};
+  const cache = drawCabChrome._img;
+  if (!cache[id]) {
+    const im = new Image();
+    im.onload = () => { dirty = true; if (typeof requestFrame === 'function') requestFrame(); };
+    im.src = '/play/assets/cab/' + id + '.png';
+    cache[id] = im;
+  }
+  const im = cache[id];
+  return im.complete && im.naturalWidth ? im : null;
 }
 function drawLay() {
   // s — ЛОГИЧЕСКАЯ рамка листа (SB): x вправо = v, y вниз = −u. Весь лист рисуется внутри
