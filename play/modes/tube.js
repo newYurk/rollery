@@ -44,12 +44,12 @@ function tubeStart(level) {
 
 function tubeStop() { S.winding = null; puzzleStop(); }
 function tubeTitle(pz) { return (pz.level + 1) + ' / ' + TUBE_LEVELS.length; }
-function tubeDone() { return S.puzzle && S.puzzle.tube && S.puzzle.level + 1 >= TUBE_LEVELS.length; }
+function tubePlay() { return !!(S.puzzle && S.puzzle.tube && !S.tubeLab); }
 
 // Первая кладка на уровне: ручка сама подворачивает ближний край и отпускает.
 // Скрутка уже жила в протяжке — здесь только показываем её, без экрана «скручено».
 function tubePeekRoll() {
-  if (!(S.puzzle && S.puzzle.tube) || S.puzzle.peeked || anim || S.rollP > 0) return;
+  if (!(S.puzzle && S.puzzle.tube) || S.puzzle.peeked || anim || S.rollP > 0 || tubePlay()) return;
   if (!patches().length) return;
   S.puzzle.peeked = true;
   tween(0, 0.42, 520, v => { S.rollP = v; }, () => {

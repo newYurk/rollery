@@ -58,7 +58,7 @@ function iconImg(kind) {
     im = new Image();
     im.onload = () => { dirty = true; requestFrame(); };
     im.onerror = () => { ICONS[kind] = null; };          // нет файла — молча рисуем по-старому
-    im.src = 'assets/icons/' + kind + '.png';
+    im.src = (location.pathname.indexOf('/play') >= 0 ? '' : '/play/') + 'assets/icons/' + kind + '.png';
     ICONS[kind] = im;
   }
   return im && im.complete && im.naturalWidth ? im : null;
@@ -215,6 +215,14 @@ function рисоватьОбразецБазы(cx, cy, ключ) {
 }
 function drawTopBar(hint) {
   const T0 = SAFE.top, ox = L.ox, cw = L.cw, narrow = cw < 480;
+  if (tubePlay()) {
+    ctx.fillStyle = '#ece8e1'; ctx.font = font(17, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('まきポン', ox + 16, 24 + T0);
+    ctx.fillStyle = '#c45c4a'; ctx.font = font(13, 700); ctx.textAlign = 'right';
+    const lv = S.puzzle ? (S.puzzle.level + 1) + ' / ' + TUBE_LEVELS.length : '1 / 5';
+    ctx.fillText(lv, ox + cw - 16, 24 + T0);
+    return;
+  }
   ctx.font = font(17, 700);
   const заголовокW = 16 + ctx.measureText('Ролльня').width + 12;   // с зазором до первой иконки
   // Обёртка — кнопка-образец: глиф не эмодзи, а кружок цвета самой обёртки, так видно выбор

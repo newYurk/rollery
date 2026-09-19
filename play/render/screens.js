@@ -68,7 +68,7 @@ function bandFacts(m) {
   const out = [{ id: 'title', r: 'title', уступ: 3, t: S.puzzle ? 'цель' : 'живой срез' }];
   if (S.puzzle) {
     if (S.puzzle.tube) {
-      out.push({ id: 'hint', r: 'main', уступ: 0, t: 'слева — в ядре · справа — на витке' });
+      out.push({ id: 'hint', r: 'main', уступ: 0, t: tubePlay() ? 'ゴール' : 'слева — в ядре · справа — на витке' });
       return out;
     }
     if (patches().length) out.push({ id: 'ghost', r: 'note', уступ: 2, t: 'розовое — куда встанет' });
@@ -244,7 +244,7 @@ function drawPreviewArea(p, колонка) {
     // Тень среза падает на доску и обрезается по ней: тень принадлежит доске, как у окошка на листе
     // (31.08), и с неё не свисает ни на панель, ни тем более на лист (замечание владельца 18.09).
     const b = L.band, д = b.доска;
-    if (pz && pz.tube) {
+    if (pz && pz.tube && S.tubeLab) {
       drawTubeCompare(b.cells);
     } else {
       drawSlab(b.cells, 1, B(), ДОСКА);
