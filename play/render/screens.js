@@ -141,10 +141,6 @@ function drawPuzzleFace(v, size, x, y, tm) {
   const pm = getModel();
   drawFaceImg(ghostMaskImg(v, size, pm, Math.max(tm.Rmax, pm.Rmax)), x, y, size, 1, 0.9, true);
 }
-function hexRgb(hex) {
-  const n = parseInt(String(hex || '#888').replace('#', ''), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
 // Ось скрутки на листе + полоса цели. Низ (ручка) едет в центр среза, верх — к нори.
 // Без этого «куда свернётся» не из чего угадать: срез — диск, лист — лента.
 function drawTubeZones(s, mdl) {
