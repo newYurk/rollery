@@ -576,8 +576,12 @@ function drawLay() {
     // ширину — разрушительное и редкое действие размером с главное, — и держала под собой
     // ряд в 56 px, который оплатил теперь третий ряд палитры. Наверху у неё подтверждение в
     // два касания и возврат плашкой: на телефоне отмены не было вовсе (см. `clearArm`).
-    if (tubePlay() && patches().length) buttonRow([['rollnow', 'Скрутить', true]], { ...area, max: 1 });
-    else if (S.puzzle) buttonRow([['newpuzzle', '⟳ Другой', false, 1]], { ...area, max: 1 });
+    if (tubePlay()) {
+      if (patches().length) {
+        const bx = L.ox + L.cw / 2 + 10, by = (L.cab && L.cab.deckY || L.chips.y) + 28;
+        buttonRow([['rollnow', 'Скрутить', true]], { x: bx, y: by, w: Math.min(148, L.cw / 2 - 26), h: 52, max: 1 });
+      }
+    } else if (S.puzzle) buttonRow([['newpuzzle', '⟳ Другой', false, 1]], { ...area, max: 1 });
   }
   // Кнопки и палитра делят один слот — последний ряд чипов. Если в слоте кто-то стоит,
   // ряд палитры прячется; лист и остальные ряды при этом не двигаются.

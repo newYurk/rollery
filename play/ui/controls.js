@@ -112,7 +112,9 @@ function drawPalTabs() {
 function drawCabChip() {
   chips = []; palTabs = [];
   const ings = uiPalGroup().ings, kind = ings[0] || S.sel, c = L.chips, size = c.size;
-  const x = c.x, y = c.y, d = ING[kind];
+  const placed = patches().length > 0;
+  const x = placed ? L.ox + L.cw / 2 - size - 18 : L.ox + (L.cw - size) / 2;
+  const y = c.y, d = ING[kind];
   chips.push({ kind, x, y, w: size, h: size, dead: false });
   const cx = x + size / 2, cy = y + size / 2, R = size / 2;
   ctx.beginPath(); ctx.arc(cx, cy, R + 6, 0, TAU); ctx.fillStyle = '#c45c4a'; ctx.fill();
