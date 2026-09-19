@@ -99,10 +99,10 @@ def задачи():
 # Пишется ТОЛЬКО если файла ещё нет: то, что владелец подкрутила у себя, генератор не трогает.
 ГРАФ_OBSIDIAN = {
  "collapse-filter": True,
- "search": "",
+ "search": "-path:\"09_Где в игре\" -path:\"10_Пазл\" -path:\"08_Источники\"",
  "showTags": False,
  "showAttachments": False,
- "hideUnresolved": False,
+ "hideUnresolved": True,
  "showOrphans": True,
  "collapse-color-groups": False,
  "colorGroups": [
@@ -178,15 +178,15 @@ def задачи():
   }
  ],
  "collapse-display": False,
- "showArrow": False,
- "textFadeMultiplier": 0,
- "nodeSizeMultiplier": 1.15,
- "lineSizeMultiplier": 0.8,
+ "showArrow": True,
+ "textFadeMultiplier": -3,
+ "nodeSizeMultiplier": 1.2,
+ "lineSizeMultiplier": 0.7,
  "collapse-forces": False,
- "centerStrength": 0.42,
- "repelStrength": 13,
- "linkStrength": 0.7,
- "linkDistance": 320,
+ "centerStrength": 0.15,
+ "repelStrength": 15,
+ "linkStrength": 0.4,
+ "linkDistance": 420,
  "scale": 0.75,
  "close": False
 }
