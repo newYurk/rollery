@@ -96,5 +96,7 @@ node tools/page-markers.mjs                  # маркеры кэша стра�
   `play/render/`, `play/ui/`, `play/modes/`, `state.js`, `checks.js`; `play/core-v2/` — ядро V2.
 - `docs/design-core.md` — замысел; `docs/domain-contract.md` — архитектура; `docs/decisions/` — ADR ядра V2.
 - `sim/` — офлайн-референс (`sim/lab/lab.sh`). `HYPOTHESIS.md`, `RESULT.md` — гипотеза и решения 25.08.
-- `Rollery-Obsidian/` — граф блюда (99 заметок, у каждой «где это в игре»); `tools/obsidian-vault.py`
-  перезаписывает папки 01–10 и карту, `Рисунки/` не трогает. Картинка — `obsidian-graph.py`.
+- `Rollery-Obsidian/` — вид на код в два этажа: восемь МЕХАНИК (`09_Механики`) и каталог блюда
+  внутри них. Вход — `00_Карта игры`: стадия числами, схема механик прямо в теле заметки (mermaid,
+  узлы кликабельны), что осталось. `tools/obsidian-vault.py` перезаписывает папки 01–10 и карту,
+  `Рисунки/` не трогает. Отдельной картинки графа больше нет: PNG и `obsidian-graph.py` убраны 19.09.
