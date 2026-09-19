@@ -68,6 +68,7 @@ function bandFacts(m) {
   const out = [{ id: 'title', r: 'title', уступ: 3, t: S.puzzle ? 'цель' : 'живой срез' }];
   if (S.puzzle) {
     if (patches().length) out.push({ id: 'ghost', r: 'note', уступ: 2, t: 'розовое — куда встанет' });
+    if (S.puzzle.tube) out.push({ id: 'axis', r: 'note', уступ: 1, t: 'низ листа — центр среза' });
     return out;
   }
   out.push({ id: 'turns', r: 'main', уступ: 0, t: liveTurnsText(m) });
@@ -139,6 +140,35 @@ function drawPuzzleFace(v, size, x, y, tm) {
   if (!patches().length) return;
   const pm = getModel();
   drawFaceImg(ghostMaskImg(v, size, pm, Math.max(tm.Rmax, pm.Rmax)), x, y, size, 1, 0.9, true);
+}
+function hexRgb(hex) {
+  const n = parseInt(String(hex || '#888').replace('#', ''), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+// Ось скрутки на листе + полоса цели. Низ (ручка) едет в центр среза, верх — к нори.
+// Без этого «куда свернётся» не из чего угадать: срез — диск, лист — лента.
+function drawTubeZones(s, mdl) {
+  if (!(S.puzzle && S.puzzle.tube) || S.rollP > 0) return;
+  const rice = riceSpanU(mdl.g);
+  const yOf = u => s.y + (1 - u) * s.h;
+  for (const t of S.puzzle.target) {
+    if (!ING[t.kind] || t.kind === 'nori') continue;
+    const bb = bounds(t, mdl.g, true);
+    const y0 = yOf(bb.u1), h = yOf(bb.u0) - y0;
+    if (h <= 1) continue;
+    ctx.fillStyle = rgbCss(hexRgb(ING[t.kind].color), 0.28);
+    ctx.fillRect(s.x, y0, s.w, h);
+    ctx.fillStyle = rgbCss(hexRgb(ING[t.kind].color), 0.7);
+    ctx.fillRect(s.x, yOf(t.u) - 1, s.w, 2);
+  }
+  unrot(s.x + 8, yOf(rice.u0) - 3, () => {
+    ctx.fillStyle = 'rgba(243,231,202,0.82)'; ctx.font = font(11, 700);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText('центр', 0, 0);
+  });
+  unrot(s.x + 8, yOf(rice.u1) + 3, () => {
+    ctx.fillStyle = 'rgba(243,231,202,0.82)'; ctx.font = font(11, 700);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText('край', 0, 0);
+  });
 }
 // Цель пазла / живой предпросмотр: полосой над листом, накладкой на листе или в боковой колонке.
 // колонка — уже разложенный текст полосы (drawLay считает его один раз на кадр: по нему же он решает,
@@ -313,6 +343,7 @@ function drawLay() {
     ctx.fillStyle = gn; ctx.fillRect(s.x, yn - fade, s.w, fade);
   }
   ctx.restore();
+  drawTubeZones(s, mdl);
   const zOf = pt => { const i = patches().indexOf(pt), q = i >= 0 ? mdl.list[i] : null; return q ? q.z0 : 0; };   // стопка — из модели, порядок клона тот же
   for (const pt of patches()) if (pt !== drag.patch) drawPatchTop(pt, uEnd < 1 && pt.u > uEnd ? 0.35 : 1, zOf(pt));
   if (uEnd < 1) {   // лишний лист обрезан: ролл замкнулся раньше; что выше линии — не попадёт в ролл
