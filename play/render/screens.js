@@ -246,6 +246,13 @@ function drawPreviewArea(p, колонка) {
     const b = L.band, д = b.доска;
     if (pz && pz.tube && S.tubeLab) {
       drawTubeCompare(b.cells);
+    } else if (tubePlay()) {
+      const c0 = b.cells[0], tm = pz ? targetModel() : null;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(c0.x, c0.y, c0.size / 2, 0, TAU); ctx.clip();
+      if (pz) drawPuzzleFace(pz.vs[0], c0.size, c0.x, c0.y, tm);
+      else drawFaceImg(face(0.5, c0.size), c0.x, c0.y, c0.size);
+      ctx.restore();
     } else {
       drawSlab(b.cells, 1, B(), ДОСКА);
       ctx.save(); rr(д.x, д.y, д.w, д.h, д.r); ctx.clip();
@@ -255,10 +262,12 @@ function drawPreviewArea(p, колонка) {
       });
       ctx.restore();
     }
-    const кол = колонка || bandColumn(getModel());
-    for (const л of кол.lines) {
-      ctx.fillStyle = л.color; ctx.font = font(л.size, л.weight); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText(л.t, л.x, л.y);
+    if (!tubePlay()) {
+      const кол = колонка || bandColumn(getModel());
+      for (const л of кол.lines) {
+        ctx.fillStyle = л.color; ctx.font = font(л.size, л.weight); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(л.t, л.x, л.y);
+      }
     }
   } else if (pm === 'band') {
     // Прежняя полоса — у планшета и десктопа (bandGeom там не считается) и у целей пазла на
@@ -342,11 +351,36 @@ function rollRadiusAtPull(p, m) {
   for (let i = 0; i < prof.length; i++) { const s = i * ds; if (s >= s0 && s <= sMax) A += prof[i] * ds; }
   return Math.sqrt(A / Math.PI);
 }
+function drawCabChrome() {
+  const cab = L.cab; if (!cab) return;
+  const b = cab.body, dY = cab.deckY, cream = '#e4dccb', body = '#2f3532', coral = '#c45c4a', crt = '#121614', deck = '#4d6a48';
+  rr(b.x, b.y, b.w, b.h, 28); ctx.fillStyle = cream; ctx.fill();
+  rr(b.x + 8, b.y + 8, b.w - 16, b.h - 16, 22); ctx.fillStyle = body; ctx.fill();
+  const bolt = (x, y) => { ctx.beginPath(); ctx.arc(x, y, 7, 0, TAU); ctx.fillStyle = coral; ctx.fill(); ctx.beginPath(); ctx.arc(x, y, 3, 0, TAU); ctx.fillStyle = cream; ctx.fill(); };
+  bolt(b.x + 22, b.y + 22); bolt(b.x + b.w - 22, b.y + 22);
+  bolt(b.x + 22, b.y + b.h - 22); bolt(b.x + b.w - 22, b.y + b.h - 22);
+  rr(b.x + 14, b.y + 12, b.w - 28, cab.marqueeH, 12); ctx.fillStyle = '#1c201e'; ctx.fill();
+  ctx.fillStyle = cream; ctx.font = font(18, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('まきポン', b.x + 28, b.y + 12 + cab.marqueeH / 2);
+  const lv = (S.puzzle.level + 1) + '/' + TUBE_LEVELS.length;
+  ctx.fillStyle = coral; ctx.font = font(13, 700); ctx.textAlign = 'right';
+  ctx.fillText(lv, b.x + b.w - 28, b.y + 12 + cab.marqueeH / 2);
+  const g = cab.goal;
+  ctx.beginPath(); ctx.arc(g.x, g.y, g.size / 2 + 10, 0, TAU); ctx.fillStyle = cream; ctx.fill();
+  ctx.beginPath(); ctx.arc(g.x, g.y, g.size / 2 + 4, 0, TAU); ctx.fillStyle = crt; ctx.fill();
+  const c = cab.crt;
+  rr(c.x, c.y, c.w, c.h, 16); ctx.fillStyle = cream; ctx.fill();
+  rr(c.x + 5, c.y + 5, c.w - 10, c.h - 10, 12); ctx.fillStyle = crt; ctx.fill();
+  rr(L.ox + 10, dY, L.cw - 20, cab.deckH - 8, 18); ctx.fillStyle = deck; ctx.fill();
+}
 function drawLay() {
   // s — ЛОГИЧЕСКАЯ рамка листа (SB): x вправо = v, y вниз = −u. Весь лист рисуется внутри
   // sheetPush()/sheetPop() — при повёрнутом листе (#23) это один общий поворот на ±90°.
   // Экранные элементы (циновка-фон, ручка, полосы предпросмотра, кнопки) остаются снаружи.
   const s = SB(), p = S.rollP, hd = L.handle;
+  const cab = tubePlay();
+  if (cab) drawCabChrome();
+  if (!cab) {
   if (L.sheet.uAxis === 'x') {   // циновка-фон: от ручки сбоку через весь лист, прутья поперёк скрутки
     const x0 = Math.min(hd.x, L.sheet.x - 8), x1 = Math.max(hd.x + hd.w, L.sheet.x + L.sheet.w + 8);
     drawMat(x0, L.sheet.y - 18, x1 - x0, L.sheet.h + 36, 14, B(), true);
@@ -357,10 +391,11 @@ function drawLay() {
     drawMat(hd.x, L.sheet.y - РАМКА, hd.w, hd.y + hd.h + 8 - (L.sheet.y - РАМКА));
   }
   if (L.band) { const b = L.band; rr(b.x, b.y, b.w, b.h, ПАНЕЛЬ_R); ctx.fillStyle = BAND_BG; ctx.fill(); }
+  }
   // Текст панели раскладывается один раз на кадр и до листа: по тому, что в колонку влезло, ниже
   // решается, какие надписи на лист больше не ставить. Во время протяжки панель рисуется как есть
   // (drawPreviewArea), и «лишний лист обрезан» не выскакивает на лист.
-  const колонка = L.band ? bandColumn(getModel()) : null;
+  const колонка = (!cab && L.band) ? bandColumn(getModel()) : null;
   const вКолонке = id => !!(колонка && колонка.placed.has(id));
   sheetPush();
   const yb = s.y + s.h * (1 - p);
@@ -470,8 +505,8 @@ function drawLay() {
     else drawRollBody(s.x + s.w / 2, yb, R, s.w + 10, [{ a: 0, b: 1, off: 0 }]);
   }
   // циновка-ручка: подпись и стрелка — по направлению тяги
-  rr(hd.x, hd.y, hd.w, hd.h, 10); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
-  ctx.fillStyle = 'rgba(40,30,20,0.55)'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  rr(hd.x, hd.y, hd.w, hd.h, 10); ctx.fillStyle = tubePlay() ? '#1c201e' : 'rgba(0,0,0,0.12)'; ctx.fill();
+  ctx.fillStyle = tubePlay() ? '#e4dccb' : 'rgba(40,30,20,0.55)'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   if (L.sheet.uAxis === 'x') {   // ручка — вертикальная полоса сбоку, текст кладётся вдоль неё
     const arr = SHEET_U0 === 'left' ? '→' : '←', dir = SHEET_U0 === 'left' ? 'вправо' : 'влево';
     let ht = p > 0 ? `ещё… ${arr}` : arr;
@@ -489,7 +524,7 @@ function drawLay() {
   // поэтому она сидит в углу циновки-ручки: там нечего задеть, кроме самой тяги, а касание
   // по иконке проверяется раньше тяги (onDown смотрит icons первыми). Подтверждение — прежнее,
   // в два касания (clearArm), подсказка «Ещё раз — очистить» — в шапке.
-  if (p === 0 && patches().length) {
+  if (p === 0 && patches().length && !tubePlay()) {
     const sz = 32, вдоль = L.sheet.uAxis === 'x';
     const cb = вдоль ? { x: hd.x + (hd.w - sz) / 2, y: hd.y + 8, w: sz, h: sz }
                      : { x: hd.x + 10, y: hd.y + (hd.h - sz) / 2, w: sz, h: sz };

@@ -14,9 +14,10 @@ function fitText(label, w) {
 function drawButtons() {
   for (const b of buttons) {
     rr(b.x, b.y, b.w, b.h, 12);
-    ctx.fillStyle = b.primary ? '#e0b25a' : '#2a2a25'; ctx.fill();
-    ctx.strokeStyle = b.dim ? '#332f27' : b.primary ? '#f0cb7d' : '#4d4838'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = b.dim ? '#5c5749' : b.primary ? '#171713' : '#efe4cd'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const arcade = tubePlay();
+    ctx.fillStyle = b.primary ? (arcade ? '#c45c4a' : '#e0b25a') : '#2a2a25'; ctx.fill();
+    ctx.strokeStyle = b.dim ? '#332f27' : b.primary ? (arcade ? '#e08a7a' : '#f0cb7d') : '#4d4838'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = b.dim ? '#5c5749' : b.primary ? (arcade ? '#fff6ee' : '#171713') : '#efe4cd'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const t = fitText(b.label, b.w - 20);   // fitText выставляет шрифт
     ctx.fillText(t, b.x + b.w / 2, b.y + b.h / 2 + 1);
   }
@@ -108,7 +109,30 @@ function drawPalTabs() {
 // теперь `uiPalGroup().ings`, а вкладки и жест меняют страницу. Место под ленту раскладка
 // считает по САМОЙ БОЛЬШОЙ группе, поэтому страница меньше просто не заполняет ряд до конца —
 // и ничего не сдвигает.
+function drawCabChip() {
+  chips = []; palTabs = [];
+  const ings = uiPalGroup().ings, kind = ings[0] || S.sel, c = L.chips, size = c.size;
+  const x = c.x, y = c.y, d = ING[kind];
+  chips.push({ kind, x, y, w: size, h: size, dead: false });
+  const cx = x + size / 2, cy = y + size / 2, R = size / 2;
+  ctx.beginPath(); ctx.arc(cx, cy, R + 6, 0, TAU); ctx.fillStyle = '#c45c4a'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fillStyle = '#1c201e'; ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R - 4, 0, TAU); ctx.clip();
+  const sprite = iconImg(kind);
+  if (sprite) {
+    ctx.imageSmoothingEnabled = false;
+    const k = Math.max(1, Math.floor((size - 16) / sprite.width)), sz = sprite.width * k;
+    ctx.drawImage(sprite, Math.round(cx - sz / 2), Math.round(cy - sz / 2), sz, sz);
+  } else {
+    ctx.translate(cx, cy);
+    ctx.fillStyle = d.color;
+    const gw = size * 0.55, gh = size * 0.22;
+    rr(-gw / 2, -gh / 2, gw, gh, 6); ctx.fill();
+  }
+  ctx.restore();
+}
 function drawChips(скрытьПоследний) {
+  if (tubePlay()) { drawCabChip(); return; }
   chips = []; const c = L.chips, ings = uiPalGroup().ings, n = ings.length, gap = 8, size = c.size;
   const perRow = c.perRow || n, rowH = size + (c.labels ? 18 : 6);
   // Лента центрируется по ТОМУ, ЧТО В НЕЙ ЕСТЬ, а не по размеру страницы: группа из двух фишек
@@ -215,14 +239,7 @@ function рисоватьОбразецБазы(cx, cy, ключ) {
 }
 function drawTopBar(hint) {
   const T0 = SAFE.top, ox = L.ox, cw = L.cw, narrow = cw < 480;
-  if (tubePlay()) {
-    ctx.fillStyle = '#ece8e1'; ctx.font = font(17, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText('まきポン', ox + 16, 24 + T0);
-    ctx.fillStyle = '#c45c4a'; ctx.font = font(13, 700); ctx.textAlign = 'right';
-    const lv = S.puzzle ? (S.puzzle.level + 1) + ' / ' + TUBE_LEVELS.length : '1 / 5';
-    ctx.fillText(lv, ox + cw - 16, 24 + T0);
-    return;
-  }
+  if (tubePlay()) return;
   ctx.font = font(17, 700);
   const заголовокW = 16 + ctx.measureText('Ролльня').width + 12;   // с зазором до первой иконки
   // Обёртка — кнопка-образец: глиф не эмодзи, а кружок цвета самой обёртки, так видно выбор

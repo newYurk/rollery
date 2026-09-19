@@ -296,24 +296,53 @@ function selBtnGeom(hd) {
 }
 // Раскладка экрана. Режимы: P — телефон портрет, L — телефон альбом, T — планшет, D — широкий десктоп.
 // Всё считается в рамке cw × ch внутри safe-area; лист — в приоритете, предпросмотр/цель — полосой, накладкой или в боковой колонке.
+function layoutTubePlay(cw, ch, ox, oy) {
+  const marqueeH = 46, deckH = 124, handleH = 34, inset = 14, gap = 10;
+  L.top = oy + marqueeH;
+  L.rowBtn = { x: ox + 28, y: oy + ch - 16 - 44, w: cw - 56, h: 44, max: 1 };
+  const deckY = oy + ch - deckH;
+  const innerX = ox + inset, innerW = cw - inset * 2;
+  const goalD = Math.min(132, Math.max(96, ch * 0.16));
+  const goal = { x: ox + cw / 2, y: L.top + 8 + goalD / 2, size: goalD };
+  const crtTop = goal.y + goalD / 2 + gap;
+  const crtBot = deckY - 8;
+  const sheetAvailH = Math.max(90, crtBot - handleH - 8 - crtTop);
+  const sheetAvailW = Math.min(innerW - 20, 300);
+  const f = sheetFit(sheetAvailW, sheetAvailH, 'y');
+  const sheetY = crtTop + Math.max(0, (sheetAvailH - f.sh) / 2);
+  L.sheet = { x: ox + (cw - f.sw) / 2, y: sheetY, w: f.sw, h: f.sh, uAxis: 'y', lenU: f.sh, lenV: f.sw };
+  L.handle = { x: L.sheet.x - 8, y: L.sheet.y + L.sheet.h + 6, w: L.sheet.w + 16, h: handleH };
+  const fs = goalD;
+  L.previewMode = 'band';
+  L.previewSize = fs;
+  L.band = {
+    x: innerX, y: L.top, w: innerW, h: 8 + goalD, fs,
+    cells: [{ x: goal.x, y: goal.y, size: fs }],
+    доска: { x: goal.x - fs / 2 - 4, y: goal.y - fs / 2 - 4, w: fs + 8, h: fs + 8, r: fs / 2 + 4 },
+    col: null,
+  };
+  const chip = 68;
+  L.chips = { x: ox + (cw - chip) / 2 - 70, y: deckY + 18, w: chip + 8, size: chip, rows: 1, labels: false, perRow: 1 };
+  L.layBtn = { x: ox + cw / 2 + 8, y: deckY + 40, w: Math.min(150, cw / 2 - 24), h: 48, max: 1 };
+  L.tabs = null;
+  L.selBtn = null;
+  L.cab = {
+    marqueeH, deckY, deckH, inset, goal,
+    body: { x: ox + 6, y: oy + 4, w: cw - 12, h: ch - 8 },
+    crt: { x: L.sheet.x - 12, y: L.sheet.y - 10, w: L.sheet.w + 24, h: L.sheet.h + handleH + 22 },
+  };
+}
 function layout() {
   const cw = W - SAFE.left - SAFE.right, ch = H - SAFE.top - SAFE.bottom, ox = SAFE.left, oy = SAFE.top;
-  // ⚑ n — РАЗМЕР СТРАНИЦЫ, А НЕ ВСЕЙ ПАЛИТРЫ (17.09). Здесь стояло `uiIngredients().length`,
-  // то есть все начинки базы разом (двадцать семь); с листанием по группам на экране всегда
-  // одна группа, и место считается по САМОЙ БОЛЬШОЙ из них — семь. Именно по большой, а не по
-  // открытой: иначе лист и лента прыгали бы на каждом перелистывании.
   const n = uiPalMax(), pz = S.puzzle, k = pz ? pz.vs.length : 1, showPrev = !!(pz || S.preview);
   const tabsH = palStripH();
   const mode = ch < 500 ? 'L' : cw >= 1100 ? 'D' : cw >= 600 ? 'T' : 'P';
-  // ⚑ ДВЕ СТРОКИ ПОДСКАЗКИ — ТОЛЬКО ТАМ, ГДЕ ОНИ БЫВАЮТ (02.09, замечание владельца: «сверху
-  // такой зазор, а там всего надпись в одну строку»). Панель резервировала 78 px под две
-  // строки на ЛЮБОМ узком экране. На листе постоянной подсказки больше нет (снята 02.09), а
-  // оставшиеся там — про выбранный кусок и про перетаскивание — умещаются в строку. Значит
-  // шестнадцать пикселей просто стояли пустыми над циновкой, и владелец увидела именно их.
   const hint2 = mode === 'P' && cw < 480 && S.mode !== 'lay', panelH = hint2 ? 78 : 62, btnH = 44;
-  Object.assign(L, { mode, cw, ch, ox, oy, hint2, top: oy + panelH, side: null, previewMode: 'none', previewSize: 116, chipScroll: false, btnH , targetCell: 0, chipsShareBtn: false, tabs: null, band: null, отбор: null, selBtn: null, слот: 0 });
+  Object.assign(L, { mode, cw, ch, ox, oy, hint2, top: oy + panelH, side: null, previewMode: 'none', previewSize: 116, chipScroll: false, btnH , targetCell: 0, chipsShareBtn: false, tabs: null, band: null, отбор: null, selBtn: null, слот: 0, cab: null });
   L.rowBtn = { x: ox + (cw - Math.min(cw - 32, 560)) / 2, y: oy + ch - 12 - btnH, w: Math.min(cw - 32, 560), h: btnH, max: 3 };
-  if (mode === 'L') {
+  if (typeof tubePlay === 'function' && tubePlay() && S.mode === 'lay') {
+    layoutTubePlay(cw, ch, ox, oy);
+  } else if (mode === 'L') {
     // Ландшафтный телефон СОЗНАТЕЛЬНО не повёрнут (#23): раскладка здесь вне нормы касания при
     // любой ориентации (см. LAY_SKIP в checks.js — лист 258 px против пола 336), это ориентация
     // для скрутки и просмотра, а не для раскладки. Поворачивать имеет смысл вместе с пересмотром
