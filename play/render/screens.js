@@ -67,8 +67,11 @@ const windingSelf = () => B().winding === 'spiral';   // спираль по с�
 function bandFacts(m) {
   const out = [{ id: 'title', r: 'title', уступ: 3, t: S.puzzle ? 'цель' : 'живой срез' }];
   if (S.puzzle) {
-    if (patches().length) out.push({ id: 'ghost', r: 'note', уступ: 2, t: 'розовое кольцо — куда встанет' });
-    if (S.puzzle.tube) out.push({ id: 'axis', r: 'note', уступ: 1, t: 'не считай витки · к ручке — к центру' });
+    if (S.puzzle.tube) {
+      out.push({ id: 'hint', r: 'main', уступ: 0, t: patches().length ? 'розовое — твой срез' : 'положи на пунктир' });
+      return out;
+    }
+    if (patches().length) out.push({ id: 'ghost', r: 'note', уступ: 2, t: 'розовое — куда встанет' });
     return out;
   }
   out.push({ id: 'turns', r: 'main', уступ: 0, t: liveTurnsText(m) });
@@ -137,78 +140,26 @@ function bandLines(col, facts) {
 const bandColumn = m => bandLines(L.band && L.band.col, bandFacts(m));
 function drawPuzzleFace(v, size, x, y, tm) {
   drawFaceImg(face(v, size, tm), x, y, size);
-  if (S.puzzle && S.puzzle.tube) drawTubeFaceGuides(v, size, x, y, tm);
   if (!patches().length) return;
   const pm = getModel();
   drawFaceImg(ghostMaskImg(v, size, pm, Math.max(tm.Rmax, pm.Rmax)), x, y, size, 1, 0.9, true);
 }
-// Средний радиус пикселей класса на карте, доля Rref (тот же масштаб, что у картинки среза).
-function mapMeanR(map, N, lo, hi) {
-  const half = N / 2, den = half - 1;
-  let s = 0, n = 0;
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    const c = map[y * N + x];
-    if (c < lo || c > hi) continue;
-    s += Math.hypot(x + 0.5 - half, y + 0.5 - half) / den;
-    n++;
-  }
-  return n ? s / n : 0;
-}
-// На срезе цель читается как РАДИУС, не как «клин в семи часах». Угол ставит виток, не игрок.
-function drawTubeFaceGuides(v, size, x, y, tm) {
-  const N = ROLL_MAP_SIZE, pm = patches().length ? getModel() : null;
-  const Rref = Math.max(tm.Rmax, pm ? pm.Rmax : tm.Rmax);
-  const tMap = materialMapOf(N, v, tm, Rref);
-  const snap = PIX ? a => Math.round(a / PIX) * PIX : a => a;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.beginPath(); ctx.arc(0, 0, size / 2 - 1, 0, TAU); ctx.clip();
-  ctx.lineWidth = PIX ? Math.max(2, PIX) : 2.5;
-  ctx.lineCap = 'butt';
-  for (const t of S.puzzle.target) {
-    if (!ING[t.kind] || t.kind === 'nori') continue;
-    const code = 3 + ROLL_KIND_IDS.indexOf(t.kind);
-    if (code < 3) continue;
-    const rf = mapMeanR(tMap, N, code, code);
-    if (rf < 0.05) continue;
-    ctx.strokeStyle = rgbCss(hexRgb(ING[t.kind].color), 0.95);
-    ctx.beginPath(); ctx.arc(0, 0, snap(rf * size / 2), 0, TAU); ctx.stroke();
-  }
-  if (pm) {
-    const rf = mapMeanR(materialMapOf(N, v, pm, Rref), N, 3, 99);
-    if (rf > 0.05) {
-      ctx.strokeStyle = 'rgba(224,118,138,0.95)';
-      ctx.beginPath(); ctx.arc(0, 0, snap(rf * size / 2), 0, TAU); ctx.stroke();
-    }
-  }
-  ctx.fillStyle = 'rgba(243,231,202,0.85)';
-  ctx.beginPath(); ctx.arc(0, 0, PIX ? PIX : 2.5, 0, TAU); ctx.fill();
-  ctx.restore();
-}
-// Ось скрутки на листе + полоса цели. Низ (ручка) едет в центр среза, верх — к нори.
-// Без этого «куда свернётся» не из чего угадать: срез — диск, лист — лента.
+// Слот цели — ПРИЗРАК КУСКА, не пятно и не теория витков. Первый жест: накрой пунктир.
 function drawTubeZones(s, mdl) {
   if (!(S.puzzle && S.puzzle.tube) || S.rollP > 0) return;
-  const rice = riceSpanU(mdl.g);
-  const yOf = u => s.y + (1 - u) * s.h;
   for (const t of S.puzzle.target) {
     if (!ING[t.kind] || t.kind === 'nori') continue;
-    const bb = bounds(t, mdl.g, true);
-    const y0 = yOf(bb.u1), h = yOf(bb.u0) - y0;
-    if (h <= 1) continue;
-    ctx.fillStyle = rgbCss(hexRgb(ING[t.kind].color), 0.28);
-    ctx.fillRect(s.x, y0, s.w, h);
-    ctx.fillStyle = rgbCss(hexRgb(ING[t.kind].color), 0.7);
-    ctx.fillRect(s.x, yOf(t.u) - 1, s.w, 2);
+    const g = { kind: t.kind, u: t.u, v: t.v, phase: 0 };
+    const r = patchRect(g), col = ING[t.kind].color;
+    ctx.fillStyle = rgbCss(hexRgb(col), 0.14);
+    rr(r.x, r.y, r.w, r.h, 6); ctx.fill();
+    ctx.save();
+    ctx.setLineDash(PIX ? [PIX * 2, PIX * 2] : [7, 5]);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = PIX ? Math.max(2, PIX) : 2.5;
+    rr(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 7); ctx.stroke();
+    ctx.restore();
   }
-  unrot(s.x + 8, yOf(rice.u0) - 3, () => {
-    ctx.fillStyle = 'rgba(243,231,202,0.82)'; ctx.font = font(11, 700);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText('центр', 0, 0);
-  });
-  unrot(s.x + 8, yOf(rice.u1) + 3, () => {
-    ctx.fillStyle = 'rgba(243,231,202,0.82)'; ctx.font = font(11, 700);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText('край', 0, 0);
-  });
 }
 // Цель пазла / живой предпросмотр: полосой над листом, накладкой на листе или в боковой колонке.
 // колонка — уже разложенный текст полосы (drawLay считает его один раз на кадр: по нему же он решает,
@@ -433,7 +384,7 @@ function drawLay() {
         ctx.fillText('начинки не обхватить — нори не сомкнётся', 0, 0);
       });
     }
-    if (mm.g.winding === 'spiral' && !windingSelf() && !вКолонке('spiral') && !вКолонке('turns')) {
+    if (mm.g.winding === 'spiral' && !windingSelf() && !вКолонке('spiral') && !вКолонке('turns') && !(S.puzzle && S.puzzle.tube)) {
       unrot(s.x + s.w - 6, spiralNoteY(), () => {
         ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
         ctx.textAlign = 'right'; ctx.textBaseline = 'top';
