@@ -1,13 +1,20 @@
 'use strict';
 // Режим ?tube — пять авторских раскладок из tube-levels.js. 19.09.2026.
 //
-// Живёт РЯДОМ с ?puzzle. LEVELS и genTarget не зовёт.
+// Живёт РЯДОм с ?puzzle. LEVELS и genTarget не зовёт.
 // Перехват действий ставит tubeInstall() из точки входа — после actions.js.
+//
+// Намотка в трубке — спираль, не кольцо. У хосомаки один огурец иначе уезжает в ядро
+// (#98 / #152): положение на листе меняет только угол, срез один и тот же. Спираль
+// везёт начинку вместе с листом — u читается радиусом, «сюда / туда» работает.
+
+const TUBE_U_TOL = 0.08;
 
 function tubeStart(level) {
   level = Math.max(0, Math.min(TUBE_LEVELS.length - 1, level | 0));
   const spec = TUBE_LEVELS[level];
   S.base = TUBE_BASE;
+  S.winding = 'spiral';
   palSync();
   const lv = { sheets: TUBE_SHEETS, pieces: spec.pieces, n: spec.palette.length, tube: true };
   S.turns = levelTurns(lv);
@@ -35,9 +42,23 @@ function tubeStart(level) {
   requestFrame();
 }
 
-function tubeStop() { puzzleStop(); }
+function tubeStop() { S.winding = null; puzzleStop(); }
 function tubeTitle(pz) { return (pz.level + 1) + ' / ' + TUBE_LEVELS.length; }
 function tubeDone() { return S.puzzle && S.puzzle.tube && S.puzzle.level + 1 >= TUBE_LEVELS.length; }
+
+function tubeUOff() {
+  const pz = S.puzzle, pm = getModel();
+  if (!pz || !pm) return true;
+  for (const t of pz.target) {
+    if (t.kind === 'nori') continue;
+    const mine = pm.list.filter(p => p.kind === t.kind);
+    if (!mine.length) return true;
+    let bd = 9;
+    for (const p of mine) bd = Math.min(bd, Math.abs(p.u - t.u));
+    if (bd > TUBE_U_TOL) return true;
+  }
+  return false;
+}
 
 function tubeInstall() {
   const origAction = action;
@@ -85,6 +106,7 @@ function tubeInstall() {
     try { keep = localStorage.getItem('rollery.puzzle'); } catch (e) {}
     const r = origEval();
     try { if (keep !== null) localStorage.setItem('rollery.puzzle', keep); } catch (e) {}
-    return r;
+    if (tubeUOff()) S.puzzle.result.pass = false;
+    return S.puzzle.result;
   };
 }
