@@ -203,6 +203,7 @@ function onMove(x, y, id) {
     drag.patch.u = layU(drag.patch, uv.u + drag.ou);
     drag.patch.v = clamp(uv.v + drag.ov, Math.min(0.5, hv), Math.max(0.5, 1 - hv));
     drag.outside = !inRect(x, y, { x: L.sheet.x - 24, y: L.sheet.y - 24, w: L.sheet.w + 48, h: L.sheet.h + 48 });
+    touchModel();
   } else if (drag.kind === 'place') {
     drag.moved = drag.moved || Math.hypot(x - drag.x0, y - drag.y0) > 10;
   }

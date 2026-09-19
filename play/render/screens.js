@@ -66,7 +66,10 @@ const hints = {
 const windingSelf = () => B().winding === 'spiral';   // спираль по самой базе (узумаки), а не по раскладке
 function bandFacts(m) {
   const out = [{ id: 'title', r: 'title', уступ: 3, t: S.puzzle ? 'цель' : 'живой срез' }];
-  if (S.puzzle) return out;
+  if (S.puzzle) {
+    if (patches().length) out.push({ id: 'ghost', r: 'note', уступ: 2, t: 'розовое — куда встанет' });
+    return out;
+  }
   out.push({ id: 'turns', r: 'main', уступ: 0, t: liveTurnsText(m) });
   // Причина спирали — только когда спираль выбрала РАСКЛАДКА. У узумаки она от базы, и «начинка
   // по всему листу» там неправда; режим и так назван строкой выше.
@@ -131,12 +134,19 @@ function bandLines(col, facts) {
   return { lines, placed };
 }
 const bandColumn = m => bandLines(L.band && L.band.col, bandFacts(m));
+function drawPuzzleFace(v, size, x, y, tm) {
+  drawFaceImg(face(v, size, tm), x, y, size);
+  if (!patches().length) return;
+  const pm = getModel();
+  drawFaceImg(ghostMaskImg(v, size, pm, Math.max(tm.Rmax, pm.Rmax)), x, y, size, 1, 0.9, true);
+}
 // Цель пазла / живой предпросмотр: полосой над листом, накладкой на листе или в боковой колонке.
 // колонка — уже разложенный текст полосы (drawLay считает его один раз на кадр: по нему же он решает,
 // какие надписи НЕ рисовать на листе); без него считается здесь.
 // ⚑ Во время протяжки прячется всё, что лежит НА ЛИСТЕ (окошко: по нему катится ролл), но не панель
 // над циновкой (18.09): она стоит отдельно, ролл её не задевает, и пустая тёмная подложка на время
-// тяги читалась бы заглушкой. Срез в ней за тягу не меняется — почерк считается на отпускании.
+// тяги читалась бы заглушкой. Цель в панели не меняется; розовая маска — живой срез игрока, её
+// двигает перетаскивание начинки (touchModel на кадре жеста).
 function drawPreviewArea(p, колонка) {
   const pm = L.previewMode, панель = pm === 'band' && L.band && S.mode === 'lay';
   if (pm === 'none' || (p > 0 && !панель)) return;
@@ -151,7 +161,10 @@ function drawPreviewArea(p, колонка) {
     const b = L.band, д = b.доска;
     drawSlab(b.cells, 1, B(), ДОСКА);
     ctx.save(); rr(д.x, д.y, д.w, д.h, д.r); ctx.clip();
-    b.cells.forEach((c, i) => drawFaceImg(pz ? face(pz.vs[i], c.size, tm) : face(0.5, c.size), c.x, c.y, c.size));
+    b.cells.forEach((c, i) => {
+      if (pz) drawPuzzleFace(pz.vs[i], c.size, c.x, c.y, tm);
+      else drawFaceImg(face(0.5, c.size), c.x, c.y, c.size);
+    });
     ctx.restore();
     const кол = колонка || bandColumn(getModel());
     for (const л of кол.lines) {
@@ -162,13 +175,13 @@ function drawPreviewArea(p, колонка) {
     // Прежняя полоса — у планшета и десктопа (bandGeom там не считается) и у целей пазла на
     // экране ролла: там циновки нет, и ряд стоит по центру на своей подложке.
     const cx = L.ox + L.cw / 2, y = L.previewY;
-    if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs); }
+    if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawPuzzleFace(pz.vs[i], fs, x0 + i * (fs + 8), y, tm); }
     else { drawSlab([{ x: cx - 30, y, size: 116 }], 1, B(), 8); drawFaceImg(face(0.5, 116), cx - 30, y, 116); { const m0 = getModel(), нх = sheetShortText(m0); label(cx + 30 + 14, y - (нх ? 16 : 8), ['живой срез', turnsTxt()].concat(нх ? ['листа не хватило'] : []), 'left'); } }
   } else if (pm === 'overlay') {
     const s = L.sheet, o = overlayGeom();
     if (pz) {
       drawMat(s.x + 4, s.y + 4, s.w - 8, o.fs + 8, 10);
-      for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], o.fs, tm), o.x0 + i * (o.fs + 6), o.y, o.fs);
+      for (let i = 0; i < k; i++) drawPuzzleFace(pz.vs[i], o.fs, o.x0 + i * (o.fs + 6), o.y, tm);
     } else {
       // ОКОШКО «ЧТО ВНУТРИ» — КРУГЛАЯ ВРЕЗКА В УГЛУ ЛИСТА.
       //
@@ -194,8 +207,8 @@ function drawPreviewArea(p, колонка) {
   } else if (pm === 'side') {
     const sd = L.side, cx = sd.x + sd.w / 2; let y = sd.y;
     if (pz) {
-      if (k === 1) { const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 7); drawFaceImg(face(pz.vs[0], fs, tm), cx, y + fs / 2, fs); y += fs + 16; }
-      else { const cell = L.targetCell, per = Math.min(k, 3), rows = Math.ceil(k / per), x0 = cx - ((per - 1) * (cell + 8)) / 2; const pos = i => ({ x: x0 + (i % per) * (cell + 8), y: y + cell / 2 + Math.floor(i / per) * (cell + 8), size: cell }); drawSlab(Array.from({ length: k }, (_, i) => pos(i)), 1, B(), 6); for (let i = 0; i < k; i++) { const q = pos(i); drawFaceImg(face(pz.vs[i], cell, tm), q.x, q.y, cell); } y += rows * (cell + 8) + 8; }
+      if (k === 1) { const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 7); drawPuzzleFace(pz.vs[0], fs, cx, y + fs / 2, tm); y += fs + 16; }
+      else { const cell = L.targetCell, per = Math.min(k, 3), rows = Math.ceil(k / per), x0 = cx - ((per - 1) * (cell + 8)) / 2; const pos = i => ({ x: x0 + (i % per) * (cell + 8), y: y + cell / 2 + Math.floor(i / per) * (cell + 8), size: cell }); drawSlab(Array.from({ length: k }, (_, i) => pos(i)), 1, B(), 6); for (let i = 0; i < k; i++) { const q = pos(i); drawPuzzleFace(pz.vs[i], cell, q.x, q.y, tm); } y += rows * (cell + 8) + 8; }
       if (L.mode !== 'L') { ctx.fillStyle = '#e0b25a'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const t = levelTitle(pz.lv, pz.level); ctx.fillText(t.length > 34 ? t.slice(0, 33) + '…' : t, cx, y + 8); label(cx, y + 28, ['повтори срез: разложи, скрути, разрежь']); }
     } else {
       const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 6); drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); { const нх = sheetShortText(getModel()); label(cx, y + fs + 18, ['живой срез · ' + turnsTxt()].concat(нх ? [нх] : [])); }

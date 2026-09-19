@@ -660,6 +660,34 @@ function face(vSlice, cssSize, m, Rref) {
   img._m = m; img._v = vSlice;
   return img;
 }
+// Живая маска «куда встанет» — только начинка игрока, розовым, поверх цели пазла.
+// Считается той же картой, что и оценка, чтобы палец и срез не врали друг другу.
+function ghostMaskImg(vSlice, cssSize, m, Rref) {
+  const size = Math.round(cssSize * DPR);
+  const key = 'g|' + m.key + '|' + vSlice.toFixed(3) + '|' + size + '|' + (Rref ? Rref.toFixed(3) : '');
+  let img = faceCache.get(key);
+  if (img) return img;
+  if (faceCache.size > 60) faceCache.clear();
+  const N = ROLL_MAP_SIZE;
+  const map = materialMapOf(N, vSlice, m, Rref);
+  const src = document.createElement('canvas');
+  src.width = src.height = N;
+  const sx = src.getContext('2d');
+  const data = sx.createImageData(N, N);
+  for (let i = 0; i < map.length; i++) {
+    if (map[i] < 3) continue;
+    const o = i * 4;
+    data.data[o] = 224; data.data[o + 1] = 118; data.data[o + 2] = 138; data.data[o + 3] = 220;
+  }
+  sx.putImageData(data, 0, 0);
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const cx = cv.getContext('2d');
+  cx.imageSmoothingEnabled = false;
+  cx.drawImage(src, 0, 0, N, N, 0, 0, size, size);
+  faceCache.set(key, cv);
+  return cv;
+}
 // ⚑ ЧИСЛО КУСКОВ ПРИХОДИТ АРГУМЕНТОМ, А НЕ ИЗ ГЛОБАЛЬНОЙ КОНСТАНТЫ (правка 01.09).
 //
 // Здесь стояло `i / NPIECES`. Константу сняли, когда футомаки стали резать на восемь, а
