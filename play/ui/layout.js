@@ -297,40 +297,35 @@ function selBtnGeom(hd) {
 // Раскладка экрана. Режимы: P — телефон портрет, L — телефон альбом, T — планшет, D — широкий десктоп.
 // Всё считается в рамке cw × ch внутри safe-area; лист — в приоритете, предпросмотр/цель — полосой, накладкой или в боковой колонке.
 function layoutTubePlay(cw, ch, ox, oy) {
-  const marqueeH = 48, creditH = 26, deckH = 126, handleH = 34, inset = 10;
+  const marqueeH = 42, creditH = 18, deckH = 118, handleH = 32, inset = 10;
   L.top = oy + marqueeH;
   const deckY = oy + ch - creditH - deckH;
   const innerW = cw - inset * 2;
-  const goalD = Math.min(152, Math.max(112, cw * 0.38));
-  const crt = { x: ox + inset, y: L.top + 4, w: innerW, h: deckY - 8 - (L.top + 4) };
-  const goal = { x: ox + cw / 2, y: crt.y + 12 + goalD / 2, size: goalD };
-  const sheetTop = goal.y + goalD / 2 + 10;
-  const sheetBot = crt.y + crt.h - handleH - 6;
-  const f = sheetFit(crt.w - 18, Math.max(90, sheetBot - sheetTop), 'y');
-  L.sheet = {
-    x: ox + (cw - f.sw) / 2,
-    y: sheetBot - f.sh,
-    w: f.sw, h: f.sh, uAxis: 'y', lenU: f.sh, lenV: f.sw,
-  };
-  L.handle = { x: crt.x + 8, y: crt.y + crt.h - handleH - 4, w: crt.w - 16, h: handleH };
+  const goalD = Math.min(120, Math.max(100, cw * 0.32));
+  const goal = { x: ox + cw / 2, y: L.top + 4 + goalD / 2, size: goalD };
+  const sheetY = goal.y + goalD / 2 + 6;
+  const sheetH = Math.max(140, deckY - handleH - 8 - sheetY);
+  const sheetW = innerW - 8;
+  L.sheet = { x: ox + (cw - sheetW) / 2, y: sheetY, w: sheetW, h: sheetH, uAxis: 'y', lenU: sheetH, lenV: sheetW };
+  L.handle = { x: L.sheet.x, y: L.sheet.y + L.sheet.h + 4, w: L.sheet.w, h: handleH };
   L.previewMode = 'band';
   L.previewSize = goalD;
   L.band = {
-    x: crt.x, y: crt.y, w: crt.w, h: 14 + goalD, fs: goalD,
+    x: ox + inset, y: L.top, w: innerW, h: 8 + goalD, fs: goalD,
     cells: [{ x: goal.x, y: goal.y, size: goalD }],
     доска: { x: goal.x - goalD / 2 - 4, y: goal.y - goalD / 2 - 4, w: goalD + 8, h: goalD + 8, r: goalD / 2 + 4 },
     col: null,
   };
-  const chip = 96;
-  L.chips = { x: ox + (cw - chip) / 2, y: deckY + 12, w: chip + 8, size: chip, rows: 1, labels: false, perRow: 1 };
-  L.layBtn = { x: ox + cw / 2 + chip / 2 + 8, y: deckY + 38, w: Math.min(130, cw / 2 - chip / 2 - 20), h: 48, max: 1 };
-  L.rowBtn = { x: ox + 20, y: oy + ch - creditH - 8, w: cw - 40, h: 0, max: 1 };
+  const chip = 92;
+  L.chips = { x: ox + (cw - chip) / 2, y: deckY + 10, w: chip + 8, size: chip, rows: 1, labels: false, perRow: 1 };
+  L.layBtn = { x: ox, y: deckY, w: 0, h: 0, max: 1 };
+  L.rowBtn = { x: ox, y: oy + ch - creditH, w: cw, h: 0, max: 1 };
   L.tabs = null;
   L.selBtn = null;
   L.cab = {
     marqueeH, deckY, deckH, creditH, inset, goal,
     body: { x: ox + 4, y: oy + 2, w: cw - 8, h: ch - 4 },
-    crt,
+    crt: { x: L.sheet.x - 6, y: goal.y - goalD / 2 - 6, w: L.sheet.w + 12, h: (L.handle.y + L.handle.h) - (goal.y - goalD / 2 - 6) },
   };
 }
 function layout() {

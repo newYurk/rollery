@@ -400,8 +400,6 @@ function drawCabChrome() {
   ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(g.x - 8, g.y - 10, R * 0.9, -Math.PI * 0.9, -Math.PI * 0.15); ctx.stroke();
   ctx.restore();
-  ctx.fillStyle = 'rgba(232,224,208,0.9)'; ctx.font = font(10, 700); ctx.textAlign = 'center';
-  ctx.fillText('GOAL', g.x, g.y + R + 18);
   // green deck
   const dY = cab.deckY;
   rr(b.x + 12, dY, b.w - 24, cab.deckH - 6, 16);
@@ -657,10 +655,7 @@ function drawLay() {
     // ряд в 56 px, который оплатил теперь третий ряд палитры. Наверху у неё подтверждение в
     // два касания и возврат плашкой: на телефоне отмены не было вовсе (см. `clearArm`).
     if (tubePlay()) {
-      if (patches().length) {
-        const bx = L.ox + L.cw / 2 + 10, by = (L.cab && L.cab.deckY || L.chips.y) + 28;
-        buttonRow([['rollnow', 'Скрутить', true]], { x: bx, y: by, w: Math.min(148, L.cw / 2 - 26), h: 52, max: 1 });
-      }
+      /* ручка — единственное «скрутить»; кнопка на палубе дублировала и ела огурец */
     } else if (S.puzzle) buttonRow([['newpuzzle', '⟳ Другой', false, 1]], { ...area, max: 1 });
   }
   // Кнопки и палитра делят один слот — последний ряд чипов. Если в слоте кто-то стоит,

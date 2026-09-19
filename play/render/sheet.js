@@ -32,7 +32,7 @@ function getSpreadTex(w, h) {
   // что уже чинилась в срезе, issue #104). Умножаем обратно на PIX.
   const sheetLod = Math.min(0.5, clamp((cw * (PIX || 1) / (b.Wv / GRAIN) - 6) / 8));
   for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
-    const col = spreadColor(i / cw * b.Wv / GRAIN, j / ch * sheetLen(b) / GRAIN, b, undefined, undefined, sheetLod), k = (j * cw + i) * 4;
+    const col = spreadColor(i / cw * b.Wv / GRAIN, (tubePlay() ? j / (cw / (b.Wv / GRAIN)) : j / ch * sheetLen(b) / GRAIN), b, undefined, undefined, sheetLod), k = (j * cw + i) * 4;
     let r0 = base[0] + (col[0] - base[0]) * 0.7, g0 = base[1] + (col[1] - base[1]) * 0.7, b0 = base[2] + (col[2] - base[2]) * 0.7;
     if (PIX) { const q = pixSnap(r0, g0, b0); r0 = q[0]; g0 = q[1]; b0 = q[2]; }
     d[k] = r0; d[k + 1] = g0; d[k + 2] = b0; d[k + 3] = 255;
@@ -117,7 +117,7 @@ const TOP_CACHE = new Map();
 // ПОЧЕМУ НЕ ЦВЕТ ИЗ КАРТИНКИ. Тогда розовая спираль наруто и красная плёнка краба приехали бы
 // ДВАЖДЫ — из каталога и из PNG, — и разошлись бы при первой же правке каталога. Это та самая
 // болезнь «одно свойство, два описания», от которой избавлялся #105.
-const SKIN_DIR = 'assets/topview/';
+const SKIN_DIR = (typeof location !== 'undefined' && location.pathname.indexOf('/play') >= 0 ? '' : '/play/') + 'assets/topview/';
 // КОНТРАСТ ШКУРЫ ЗАЖАТ, и нижняя граница — то же решение, что AMBIENT = 0,62 (31.08,
 // «креветка выглядит коричневой»): тёмный контур спрайта — это 24,22,20 при средней яркости
 // полосы около 200, то есть множитель 0,11. Умноженный на розовый он даёт не «розовый в тени»,
