@@ -67,8 +67,8 @@ const windingSelf = () => B().winding === 'spiral';   // спираль по с�
 function bandFacts(m) {
   const out = [{ id: 'title', r: 'title', уступ: 3, t: S.puzzle ? 'цель' : 'живой срез' }];
   if (S.puzzle) {
-    if (patches().length) out.push({ id: 'ghost', r: 'note', уступ: 2, t: 'розовое — куда встанет' });
-    if (S.puzzle.tube) out.push({ id: 'axis', r: 'note', уступ: 1, t: 'низ листа — центр среза' });
+    if (patches().length) out.push({ id: 'ghost', r: 'note', уступ: 2, t: 'розовое кольцо — куда встанет' });
+    if (S.puzzle.tube) out.push({ id: 'axis', r: 'note', уступ: 1, t: 'не считай витки · к ручке — к центру' });
     return out;
   }
   out.push({ id: 'turns', r: 'main', уступ: 0, t: liveTurnsText(m) });
@@ -137,9 +137,53 @@ function bandLines(col, facts) {
 const bandColumn = m => bandLines(L.band && L.band.col, bandFacts(m));
 function drawPuzzleFace(v, size, x, y, tm) {
   drawFaceImg(face(v, size, tm), x, y, size);
+  if (S.puzzle && S.puzzle.tube) drawTubeFaceGuides(v, size, x, y, tm);
   if (!patches().length) return;
   const pm = getModel();
   drawFaceImg(ghostMaskImg(v, size, pm, Math.max(tm.Rmax, pm.Rmax)), x, y, size, 1, 0.9, true);
+}
+// Средний радиус пикселей класса на карте, доля Rref (тот же масштаб, что у картинки среза).
+function mapMeanR(map, N, lo, hi) {
+  const half = N / 2, den = half - 1;
+  let s = 0, n = 0;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const c = map[y * N + x];
+    if (c < lo || c > hi) continue;
+    s += Math.hypot(x + 0.5 - half, y + 0.5 - half) / den;
+    n++;
+  }
+  return n ? s / n : 0;
+}
+// На срезе цель читается как РАДИУС, не как «клин в семи часах». Угол ставит виток, не игрок.
+function drawTubeFaceGuides(v, size, x, y, tm) {
+  const N = ROLL_MAP_SIZE, pm = patches().length ? getModel() : null;
+  const Rref = Math.max(tm.Rmax, pm ? pm.Rmax : tm.Rmax);
+  const tMap = materialMapOf(N, v, tm, Rref);
+  const snap = PIX ? a => Math.round(a / PIX) * PIX : a => a;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.beginPath(); ctx.arc(0, 0, size / 2 - 1, 0, TAU); ctx.clip();
+  ctx.lineWidth = PIX ? Math.max(2, PIX) : 2.5;
+  ctx.lineCap = 'butt';
+  for (const t of S.puzzle.target) {
+    if (!ING[t.kind] || t.kind === 'nori') continue;
+    const code = 3 + ROLL_KIND_IDS.indexOf(t.kind);
+    if (code < 3) continue;
+    const rf = mapMeanR(tMap, N, code, code);
+    if (rf < 0.05) continue;
+    ctx.strokeStyle = rgbCss(hexRgb(ING[t.kind].color), 0.95);
+    ctx.beginPath(); ctx.arc(0, 0, snap(rf * size / 2), 0, TAU); ctx.stroke();
+  }
+  if (pm) {
+    const rf = mapMeanR(materialMapOf(N, v, pm, Rref), N, 3, 99);
+    if (rf > 0.05) {
+      ctx.strokeStyle = 'rgba(224,118,138,0.95)';
+      ctx.beginPath(); ctx.arc(0, 0, snap(rf * size / 2), 0, TAU); ctx.stroke();
+    }
+  }
+  ctx.fillStyle = 'rgba(243,231,202,0.85)';
+  ctx.beginPath(); ctx.arc(0, 0, PIX ? PIX : 2.5, 0, TAU); ctx.fill();
+  ctx.restore();
 }
 // Ось скрутки на листе + полоса цели. Низ (ручка) едет в центр среза, верх — к нори.
 // Без этого «куда свернётся» не из чего угадать: срез — диск, лист — лента.
