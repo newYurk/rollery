@@ -244,7 +244,7 @@
   function drawSpriteMaki(cx, cy, R, pieces, isTarget) {
     if (!imgs.maki) return false;
     const size = R * 2.0;
-    if (isTarget || matchScore().pass || orderMatch()) {
+    if (isTarget || matchScore().pass) {
       ctx.drawImage(imgs.maki, cx - size / 2, cy - size / 2, size, size);
       return true;
     }
