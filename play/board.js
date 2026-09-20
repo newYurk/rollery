@@ -20,7 +20,7 @@
     { kind: 'tuna', u: 0.48, id: 'tuna' },
     { kind: 'cucumber', u: 0.74, id: 'cucumber' },
   ];
-  const DU = 0.13;
+  const DU = 0.11;
 
   const canvasEl = document.getElementById('c');
   if (!(canvasEl instanceof HTMLCanvasElement)) return;
@@ -102,17 +102,17 @@
     G.W = VW; G.H = VH; G.dpr = dpr;
     const colW = Math.min(420, VW);
     const ox = Math.round((VW - colW) / 2);
-    const headerH = 48, stepsH = 28, cutH = 142, dockH = 86, pad = 14;
+    const headerH = 48, stepsH = 28, cutH = 158, dockH = 86, pad = 14;
     const sheetY = headerH + stepsH + cutH + 8;
     const sheetH = Math.max(170, VH - sheetY - dockH - 6);
     const sheet = { x: ox + pad, y: sheetY, w: colW - pad * 2, h: sheetH };
     const rice = { x: sheet.x + 22, y: sheet.y + 18, w: sheet.w - 44, h: sheet.h - 40 };
     const cardW = (colW - pad * 2 - 10) / 2;
     const cutY = headerH + stepsH + 8;
-    const cutR = Math.min(50, cardW / 2 - 18, (cutH - 44) / 2);
+    const cutR = Math.min(46, cardW / 2 - 20, (cutH - 52) / 2);
     const cuts = [
-      { lab: 'TARGET CUT', x: ox + pad + cardW / 2, y: cutY + 18 + cutR, r: cutR, target: true, card: { x: ox + pad, y: cutY, w: cardW, h: cutH - 12 } },
-      { lab: 'YOUR CUT', x: ox + pad + 10 + cardW + cardW / 2, y: cutY + 18 + cutR, r: cutR, target: false, card: { x: ox + pad + cardW + 10, y: cutY, w: cardW, h: cutH - 12 } },
+      { lab: 'TARGET CUT', x: ox + pad + cardW / 2, y: cutY + 10 + cutR, r: cutR, target: true, card: { x: ox + pad, y: cutY, w: cardW, h: cutH - 10 } },
+      { lab: 'YOUR CUT', x: ox + pad + 10 + cardW + cardW / 2, y: cutY + 10 + cutR, r: cutR, target: false, card: { x: ox + pad + cardW + 10, y: cutY, w: cardW, h: cutH - 10 } },
     ];
     G.layout = { ox, colW, headerH, stepsH, cutH, sheet, rice, cuts, dockY: VH - dockH, dockH, pad };
   }
@@ -193,23 +193,41 @@
     ctx.restore();
   }
 
-  function drawRiceWell(rad) {
-    ctx.beginPath();
-    ctx.arc(0, 0, rad * 0.68, 0, TAU);
-    ctx.fillStyle = '#efe6d6';
-    ctx.fill();
-    for (let i = 0; i < 70; i++) {
-      const a = i * 2.513;
-      const r = rad * (0.12 + (i % 9) * 0.055);
-      if (r > rad * 0.64) continue;
+  function drawRiceRing(rad) {
+    const n = 16;
+    for (let i = 0; i < n; i++) {
+      const a = (i + 0.35) / n * TAU;
       ctx.save();
-      ctx.translate(Math.cos(a) * r, Math.sin(a) * r);
-      ctx.rotate(a * 0.4);
+      ctx.translate(Math.cos(a) * rad * 0.80, Math.sin(a) * rad * 0.80);
+      ctx.rotate(a + 0.5);
       ctx.beginPath();
-      ctx.ellipse(0, 0, rad * 0.055, rad * 0.034, 0, 0, TAU);
-      ctx.fillStyle = i % 3 ? '#f7f1e6' : '#e5d8c4';
+      ctx.ellipse(0, 0, rad * 0.135, rad * 0.088, 0, 0, TAU);
+      ctx.fillStyle = i % 2 ? '#f8f3e9' : '#efe5d4';
       ctx.fill();
       ctx.restore();
+    }
+  }
+
+  function drawSchematicRoll(pieces, rad) {
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * 1.02, 0, TAU);
+    ctx.fillStyle = '#16140f';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * 0.93, 0, TAU);
+    ctx.fillStyle = '#f3ece0';
+    ctx.fill();
+    drawRiceRing(rad);
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * 0.66, 0, TAU);
+    ctx.fillStyle = '#f3ece0';
+    ctx.fill();
+    const seats = TARGET.slice().sort((a, b) => a.u - b.u);
+    const placed = pieces.slice().sort((a, b) => a.u - b.u);
+    for (let i = 0; i < placed.length; i++) {
+      const dest = WEDGE_ANG[seats[i].kind];
+      if (dest == null) continue;
+      drawPetal(placed[i].kind, dest, rad);
     }
   }
 
@@ -225,7 +243,7 @@
 
   function drawSpriteMaki(cx, cy, R, pieces, isTarget) {
     if (!imgs.maki) return false;
-    const size = R * 2.2;
+    const size = R * 2.0;
     if (isTarget || matchScore().pass || orderMatch()) {
       ctx.drawImage(imgs.maki, cx - size / 2, cy - size / 2, size, size);
       return true;
@@ -233,20 +251,7 @@
     ctx.save();
     ctx.translate(cx, cy);
     const rad = size / 2;
-    ctx.drawImage(imgs.maki, -size / 2, -size / 2, size, size);
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(0, 0, rad * 0.68, 0, TAU);
-    ctx.clip();
-    drawRiceWell(rad);
-    const seats = TARGET.slice().sort((a, b) => a.u - b.u);
-    const placed = pieces.slice().sort((a, b) => a.u - b.u);
-    for (let i = 0; i < placed.length; i++) {
-      const dest = WEDGE_ANG[seats[i].kind];
-      if (dest == null) continue;
-      drawPetal(placed[i].kind, dest, rad);
-    }
-    ctx.restore();
+    drawSchematicRoll(pieces, rad);
     ctx.restore();
     return true;
   }
@@ -375,12 +380,18 @@
     for (const c of L.cuts) {
       rr(c.card.x, c.card.y, c.card.w, c.card.h, 14);
       ctx.fillStyle = '#243038'; ctx.fill();
+      ctx.save();
+      rr(c.card.x, c.card.y, c.card.w, c.card.h, 14);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(12,14,16,0.45)';
+      ctx.fillRect(c.card.x, c.card.y + c.card.h - 24, c.card.w, 24);
+      ctx.restore();
       if (!drawSpriteMaki(c.x, c.y, c.r, c.target ? TARGET : G.pieces, c.target)) {
         drawMaki(c.x, c.y, c.r, c.target ? TARGET : G.pieces, c.target ? null : TARGET);
       }
-      ctx.fillStyle = '#f4ead8';
-      ctx.font = ui(8, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.fillText(c.lab, c.x, c.card.y + c.card.h - 8);
+      ctx.fillStyle = '#d8ccb6';
+      ctx.font = ui(7, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(c.lab, c.x, c.card.y + c.card.h - 12);
     }
     if (G.pass) {
       const c = L.cuts[1];
@@ -446,11 +457,19 @@
       const r = stripRect(p, rice);
       const spec = INK[p.kind];
       const hold = G.drag && G.drag.id === p.id;
-      const dx = r.x, dy = r.y + r.h * 0.06, dw = r.w, dh = r.h * 0.88;
+      const dx = r.x + 10, dw = r.w - 20, dh = r.h * 0.74;
+      const dy = r.y + (r.h - dh) / 2;
+      ctx.save();
+      rr(dx, dy + 3, dw, dh, dh * 0.48);
+      ctx.fillStyle = 'rgba(40, 36, 28, 0.10)';
+      ctx.fill();
+      ctx.restore();
       ctx.save();
       rr(dx, dy, dw, dh, dh * 0.48);
       ctx.clip();
-      if (p.kind === 'tuna' || !imgs[p.kind]) {
+      if (imgs[p.kind]) {
+        ctx.drawImage(imgs[p.kind], dx, dy, dw, dh);
+      } else {
         const g = ctx.createLinearGradient(dx, dy, dx + dw, dy + dh);
         g.addColorStop(0, spec.fill[1]);
         g.addColorStop(0.5, spec.fill[0]);
@@ -465,10 +484,6 @@
           ctx.lineTo(dx + i * dw * 0.12 + dh * 0.9, dy + dh);
           ctx.stroke();
         }
-      } else {
-        ctx.fillStyle = spec.fill[0];
-        ctx.fillRect(dx, dy, dw, dh);
-        ctx.drawImage(imgs[p.kind], dx, dy, dw, dh);
       }
       ctx.restore();
       if (hold) {
