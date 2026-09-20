@@ -137,39 +137,42 @@
     return outer.concat(inner);
   }
 
-  function drawFilling(kind, ang, R) {
-    const c = INK[kind].fill;
-    ctx.save();
-    ctx.rotate(ang);
-    ctx.beginPath();
-    if (kind === 'cucumber') {
-      ctx.moveTo(R * 0.02, 0);
-      ctx.bezierCurveTo(R * 0.18, R * 0.30, R * 0.40, R * 0.26, R * 0.58, 0);
-      ctx.bezierCurveTo(R * 0.40, -R * 0.26, R * 0.18, -R * 0.30, R * 0.02, 0);
-    } else if (kind === 'salmon') {
+  function wrapAng(a) {
+    a = a % TAU;
+    return a < 0 ? a + TAU : a;
+  }
+  function arcMid(a, b) {
+    let d = wrapAng(b) - wrapAng(a);
+    if (d < 0) d += TAU;
+    return wrapAng(a + d / 2);
+  }
+  function drawWell(pieces, rad) {
+    const items = pieces.map((p) => ({ kind: p.kind, a: wrapAng(angleOf(p)) }));
+    items.sort((x, y) => x.a - y.a);
+    const n = items.length;
+    const gap = 0.05;
+    for (let i = 0; i < n; i++) {
+      const prev = items[(i + n - 1) % n];
+      const next = items[(i + 1) % n];
+      const a0 = wrapAng(arcMid(prev.a, items[i].a) + gap);
+      let span = wrapAng(arcMid(items[i].a, next.a) - gap) - a0;
+      if (span < 0) span += TAU;
+      const c = INK[items[i].kind].fill;
+      const mid = a0 + span / 2;
+      ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(R * 0.18, R * 0.28);
-      ctx.lineTo(R * 0.48, R * 0.24);
-      ctx.lineTo(R * 0.58, 0);
-      ctx.lineTo(R * 0.48, -R * 0.24);
-      ctx.lineTo(R * 0.18, -R * 0.26);
+      ctx.arc(0, 0, rad * 0.58, a0, a0 + span);
       ctx.closePath();
-    } else {
-      ctx.moveTo(0, 0);
-      ctx.lineTo(R * 0.20, R * 0.20);
-      ctx.lineTo(R * 0.46, R * 0.16);
-      ctx.lineTo(R * 0.56, 0);
-      ctx.lineTo(R * 0.46, -R * 0.16);
-      ctx.lineTo(R * 0.20, -R * 0.20);
-      ctx.closePath();
+      const g = ctx.createLinearGradient(
+        Math.cos(mid) * rad * 0.08, Math.sin(mid) * rad * 0.08,
+        Math.cos(mid) * rad * 0.5, Math.sin(mid) * rad * 0.5
+      );
+      g.addColorStop(0, c[2]);
+      g.addColorStop(0.5, c[0]);
+      g.addColorStop(1, c[1]);
+      ctx.fillStyle = g;
+      ctx.fill();
     }
-    const g = ctx.createLinearGradient(R * 0.04, -R * 0.18, R * 0.56, R * 0.16);
-    g.addColorStop(0, c[2]);
-    g.addColorStop(0.5, c[0]);
-    g.addColorStop(1, c[1]);
-    ctx.fillStyle = g;
-    ctx.fill();
-    ctx.restore();
   }
 
   function angleOf(p) {
@@ -194,12 +197,7 @@
     ctx.arc(0, 0, rad * 0.62, 0, TAU);
     ctx.fillStyle = '#f4eee4';
     ctx.fill();
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(0, 0, rad * 0.60, 0, TAU);
-    ctx.clip();
-    for (const p of pieces) drawFilling(p.kind, angleOf(p), rad);
-    ctx.restore();
+    drawWell(pieces, rad);
     ctx.restore();
     return true;
   }
