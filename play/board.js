@@ -203,14 +203,14 @@
   function drawHeader(L) {
     ctx.fillStyle = '#1c2430';
     ctx.fillRect(L.ox, 0, L.colW, L.headerH);
-    roundBtn('back', L.ox + 24, L.headerH / 2, '←');
+    roundBtn('back', L.ox + 22, L.headerH / 2, '←');
     ctx.fillStyle = '#f4ead8';
-    ctx.font = displayFont(18, 700);
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('ROLLERY', L.ox + L.colW / 2, L.headerH / 2 - 6);
+    ctx.font = displayFont(16, 700);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('ROLLERY', L.ox + 42, L.headerH / 2 - 7);
     ctx.fillStyle = '#e2c48a';
     ctx.font = ui(9, 600);
-    ctx.fillText('PUZZLE 01  —  ARRANGE', L.ox + L.colW / 2, L.headerH / 2 + 12);
+    ctx.fillText('PUZZLE 01', L.ox + 42, L.headerH / 2 + 10);
     roundBtn('undo', L.ox + L.colW - 56, L.headerH / 2, '↺');
     roundBtn('guides', L.ox + L.colW - 22, L.headerH / 2, G.guides ? '▣' : '□');
   }
