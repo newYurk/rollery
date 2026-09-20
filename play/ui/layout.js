@@ -354,10 +354,12 @@ function layoutTable(cw, ch, ox, oy) {
     L.handle = { x: L.sheet.x - 8, y: L.sheet.y + L.sheet.h + 4, w: L.sheet.w + 16, h: handleH };
     const gs = uiGroups(), cur = uiPalIndex(), g = gs[cur] || gs[0];
     const headH = 36, n = Math.max(1, (g && g.ings.length) || 1);
-    const chip = Math.min(78, Math.floor((left.w - 28) / 2) - 6);
+    const chip = Math.min(72, Math.floor((left.w - 28) / 2) - 6);
+    const chipRows = Math.max(1, Math.ceil(n / 2));
+    const chipBlock = chipRows * (chip + 26) + 10;
     L.chips = {
-      x: left.x + 12, y: left.y + 10 + gs.length * headH + 8,
-      w: left.w - 24, size: chip, rows: Math.max(1, Math.ceil(n / 2)), labels: true, perRow: 2, pad: 0,
+      x: left.x + 12, y: left.y + 8 + (cur + 1) * headH + 4,
+      w: left.w - 24, size: chip, rows: chipRows, labels: true, perRow: 2, pad: 0,
     };
     const liveFs = Math.min(114, right.w - 48);
     L.previewMode = 'band';
@@ -381,12 +383,15 @@ function layoutTable(cw, ch, ox, oy) {
     L.selBtn = null;
     L.table = { wide, headerH, stepY, stepH, left, right, mat, groups: gs.map((q, i) => ({
       key: q.key, name: q.name, short: q.short, icon: q.icon,
-      x: left.x + 8, y: left.y + 8 + i * headH, w: left.w - 16, h: headH, on: i === cur,
-    })) };
+      x: left.x + 8,
+      y: left.y + 8 + i * headH + (i > cur ? chipBlock : 0),
+      w: left.w - 16, h: headH, on: i === cur,
+    })), sides: [] };
   } else {
-    const liveH = 108, palH = 56;
+    const liveH = 108, palH = 52, tabH = 30;
     const palY = stepY - palH - 6;
-    const liveY = palY - liveH - 6;
+    const tabY = palY - tabH;
+    const liveY = tabY - liveH - 6;
     const mat = { x: ox + 22, y: L.top + 4, w: cw - 44, h: Math.max(120, liveY - gap - (L.top + 4)) };
     const pad = 14, handleH = 26;
     const f = sheetFit(mat.w - pad * 2, Math.max(80, mat.h - pad * 2 - handleH), 'y');
@@ -419,14 +424,12 @@ function layoutTable(cw, ch, ox, oy) {
     L.layBtn = { x: ox, y: stepY, w: 0, h: 0, max: 1 };
     L.rowBtn = { x: ox + 16, y: stepY + 4, w: cw - 32, h: stepH - 10, max: 1 };
     L.selBtn = null;
-    const sideKeys = gs.slice(0, 3);
+    const tw = gs.length ? (cw - 24) / gs.length : cw;
     L.table = {
-      wide: false, headerH, stepY, stepH, left: null, right: null, mat, groups: [],
-      sides: sideKeys.map((q, i) => ({
-        key: q.key, name: q.short || q.name, on: i === cur,
-        x: i === 0 ? ox : ox + cw - 28,
-        y: mat.y + mat.h * (0.22 + i * 0.28),
-        w: 28, h: 64,
+      wide: false, headerH, stepY, stepH, left: null, right: null, mat, sides: [],
+      groups: gs.map((q, i) => ({
+        key: q.key, name: q.name, short: q.short, icon: q.icon,
+        x: ox + 12 + i * tw, y: tabY, w: tw, h: tabH, on: i === cur,
       })),
     };
   }

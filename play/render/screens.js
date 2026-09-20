@@ -525,12 +525,24 @@ function drawTableChrome() {
 
   palTabs = [];
   if (T.groups && T.groups.length) {
-    for (const g of T.groups) {
-      palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
-      if (g.on) { ctx.fillStyle = card; rr(g.x, g.y, g.w, g.h, 7); ctx.fill(); ctx.fillStyle = coral; ctx.fillRect(g.x, g.y + 8, 3, g.h - 16); }
-      ctx.fillStyle = g.on ? cream : mute; ctx.font = font(11, 600); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText((g.short || g.name).toUpperCase(), g.x + 14, g.y + g.h / 2);
-      ctx.textAlign = 'right'; ctx.fillText(g.on ? '⌃' : '⌄', g.x + g.w - 10, g.y + g.h / 2);
+    if (T.wide) {
+      for (const g of T.groups) {
+        palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
+        if (g.on) { ctx.fillStyle = card; rr(g.x, g.y, g.w, g.h, 7); ctx.fill(); ctx.fillStyle = coral; ctx.fillRect(g.x, g.y + 8, 3, g.h - 16); }
+        ctx.fillStyle = g.on ? cream : mute; ctx.font = font(11, 600); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText((g.short || g.name).toUpperCase(), g.x + 14, g.y + g.h / 2);
+        ctx.textAlign = 'right'; ctx.fillText(g.on ? '⌃' : '⌄', g.x + g.w - 10, g.y + g.h / 2);
+      }
+    } else {
+      for (const g of T.groups) {
+        palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
+        ctx.fillStyle = g.on ? cream : mute; ctx.font = font(9, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText((g.short || g.name).toUpperCase(), g.x + g.w / 2, g.y + g.h / 2);
+        if (g.on) {
+          ctx.fillStyle = coral;
+          ctx.fillRect(g.x + 8, g.y + g.h - 3, Math.max(12, g.w - 16), 2);
+        }
+      }
     }
   }
   if (T.sides && T.sides.length) {

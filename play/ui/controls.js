@@ -158,6 +158,12 @@ function drawChips(скрытьПоследний) {
   if (видимыхРядов > 0) {
     if (!tableOwnsPal) drawPalTabs();
   } else if (!tableOwnsPal) palTabs = [];
+  ctx.save();
+  if (L.table && L.table.left) {
+    ctx.beginPath();
+    ctx.rect(L.table.left.x, L.table.left.y, L.table.left.w, L.table.left.h);
+    ctx.clip();
+  }
   ctx.save(); ctx.beginPath(); ctx.rect(c.x - 2, c.y - 4, c.w + 4, видимыхРядов * rowH + 8); ctx.clip();
   // Сдвиг страницы под пальцем (palDX) — это ответ на жест, а не прокрутка: страница уходит за
   // край, и на отпускании либо встаёт соседняя группа, либо эта возвращается на место.
@@ -210,6 +216,7 @@ function drawChips(скрытьПоследний) {
     }
   }
   if (!c.labels) { ctx.fillStyle = '#f3e7ca'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(ING[S.sel].name, c.x + c.w / 2, c.y + c.rows * rowH + 2); }
+  ctx.restore();
 }
 let icons = [];
 let wrapNote = '', wrapNoteT = 0;   // имя выбранной обёртки: на кнопке оно не помещается
