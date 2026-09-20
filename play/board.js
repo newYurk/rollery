@@ -2,6 +2,7 @@
 /* Puzzle 01 board — paper chrome + faceted cuts. Independent of the lab renderer. */
 
 (function () {
+  if (typeof window.__boardStop === 'function') window.__boardStop();
   const TAU = Math.PI * 2;
   const Lmm = 180;
   const INK = {
@@ -21,8 +22,10 @@
   ];
   const DU = 0.13;
 
-  const canvas = document.getElementById('c');
-  if (!(canvas instanceof HTMLCanvasElement)) return;
+  const canvasEl = document.getElementById('c');
+  if (!(canvasEl instanceof HTMLCanvasElement)) return;
+  const canvas = canvasEl.cloneNode(false);
+  canvasEl.parentNode.replaceChild(canvas, canvasEl);
   const ctx = canvas.getContext('2d');
   const G = {
     pieces: START.map((p) => ({ ...p })),
@@ -588,11 +591,21 @@
     return { x: t.clientX - r.left, y: t.clientY - r.top };
   }
 
-  canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); const p = pt(e); onDown(p.x, p.y); });
-  canvas.addEventListener('pointermove', (e) => { const p = pt(e); onMove(p.x, p.y); });
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
   window.addEventListener('resize', frame);
+  window.__boardStop = function () {
+    canvas.removeEventListener('pointerdown', onPointerDown);
+    canvas.removeEventListener('pointermove', onPointerMove);
+    canvas.removeEventListener('pointerup', onUp);
+    canvas.removeEventListener('pointercancel', onUp);
+    window.removeEventListener('resize', frame);
+    window.__board = null;
+  };
+  function onPointerDown(e) { canvas.setPointerCapture(e.pointerId); const p = pt(e); onDown(p.x, p.y); }
+  function onPointerMove(e) { const p = pt(e); onMove(p.x, p.y); }
   reset();
   window.__board = G;
 })();
