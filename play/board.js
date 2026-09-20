@@ -40,7 +40,7 @@
   loadImg('maki', '/play/assets/board/maki-target.png');
   loadImg('base', '/play/assets/board/maki-base.png');
   ['salmon','cucumber','tuna'].forEach((k) => {
-    loadImg(k, '/play/assets/board/' + k + '.png?v=2');
+    loadImg(k, '/play/assets/board/' + k + '.png?v=3');
     loadImg('bit-' + k, '/play/assets/board/bit-' + k + '.png');
   });
 
@@ -134,24 +134,24 @@
     ctx.rotate(ang);
     ctx.beginPath();
     ctx.moveTo(R * 0.04, 0);
-    ctx.lineTo(R * 0.20, R * 0.18);
-    ctx.lineTo(R * 0.38, R * 0.12);
-    ctx.lineTo(R * 0.46, 0);
+    ctx.lineTo(R * 0.24, R * 0.30);
+    ctx.lineTo(R * 0.50, R * 0.18);
+    ctx.lineTo(R * 0.58, 0);
     ctx.closePath();
     ctx.fillStyle = c[0];
     ctx.fill();
     ctx.beginPath();
     ctx.moveTo(R * 0.04, 0);
-    ctx.lineTo(R * 0.46, 0);
-    ctx.lineTo(R * 0.38, -R * 0.12);
-    ctx.lineTo(R * 0.20, -R * 0.16);
+    ctx.lineTo(R * 0.58, 0);
+    ctx.lineTo(R * 0.50, -R * 0.18);
+    ctx.lineTo(R * 0.24, -R * 0.26);
     ctx.closePath();
     ctx.fillStyle = c[1];
     ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(R * 0.20, R * 0.18);
-    ctx.lineTo(R * 0.38, R * 0.12);
-    ctx.lineTo(R * 0.32, R * 0.02);
+    ctx.moveTo(R * 0.24, R * 0.30);
+    ctx.lineTo(R * 0.50, R * 0.18);
+    ctx.lineTo(R * 0.42, R * 0.04);
     ctx.closePath();
     ctx.fillStyle = c[2];
     ctx.fill();
@@ -168,26 +168,17 @@
     ctx.save();
     ctx.translate(cx, cy);
     const rad = size / 2;
+    if (imgs.base) ctx.drawImage(imgs.base, -size / 2, -size / 2, size, size);
+    else {
+      ctx.beginPath(); ctx.arc(0, 0, rad, 0, TAU);
+      ctx.fillStyle = '#1a1c18'; ctx.fill();
+    }
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(0, 0, rad, 0, TAU);
-    ctx.fillStyle = '#1a1c18';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(0, 0, rad * 0.88, 0, TAU);
+    ctx.arc(0, 0, rad * 0.52, 0, TAU);
     ctx.fillStyle = '#f4eee4';
     ctx.fill();
-    for (let i = 0; i < 22; i++) {
-      const a = (i / 22) * TAU;
-      const rr0 = rad * 0.70;
-      ctx.beginPath();
-      ctx.ellipse(Math.cos(a) * rr0, Math.sin(a) * rr0, rad * 0.11, rad * 0.075, a, 0, TAU);
-      ctx.fillStyle = i % 2 ? '#efe6d4' : '#faf6ee';
-      ctx.fill();
-    }
-    ctx.beginPath();
-    ctx.arc(0, 0, rad * 0.48, 0, TAU);
-    ctx.fillStyle = '#f7f1e6';
-    ctx.fill();
+    ctx.clip();
     const slots = TARGET.slice().sort((a, b) => a.u - b.u);
     const placed = pieces.slice().sort((a, b) => a.u - b.u);
     for (let i = 0; i < placed.length; i++) {
@@ -195,11 +186,7 @@
       if (home == null) continue;
       drawFacetPetal(placed[i].kind, home, rad);
     }
-    ctx.beginPath();
-    ctx.arc(0, 0, rad, 0, TAU);
-    ctx.strokeStyle = '#1a1c18';
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    ctx.restore();
     ctx.restore();
     return true;
   }
@@ -401,21 +388,12 @@
       const hold = G.drag && G.drag.id === p.id;
       const spr = imgs[p.kind];
       if (spr) {
-        const dh = r.h * 0.9;
-        const dw = Math.min(r.w * 0.94, dh * (spr.width / spr.height) * 1.35);
-        const dx = r.x + (r.w - dw) / 2;
-        const dy = r.y + (r.h - dh) / 2;
-        ctx.save();
-        ctx.globalAlpha = 0.16;
-        ctx.fillStyle = '#1c2430';
-        rr(dx + 2, dy + 4, dw, dh, 12);
-        ctx.fill();
-        ctx.restore();
+        const dx = r.x, dy = r.y + r.h * 0.04, dw = r.w, dh = r.h * 0.92;
         ctx.drawImage(spr, dx, dy, dw, dh);
         if (hold) {
           ctx.strokeStyle = '#1c2430';
           ctx.lineWidth = 2;
-          rr(dx - 3, dy - 3, dw + 6, dh + 6, 12);
+          rr(dx - 2, dy - 2, dw + 4, dh + 4, 10);
           ctx.stroke();
         }
       } else {
