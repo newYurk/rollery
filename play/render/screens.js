@@ -179,18 +179,58 @@ function drawTubeBeads(v, size, x, y, tm) {
   ctx.restore();
 }
 // Слот цели — ПРИЗРАК КУСКА, не пятно и не теория витков. Первый жест: накрой пунктир.
+function markFillings(x, y, size, m, v) {
+  if (!m) return;
+  const N = typeof ROLL_MAP_SIZE === 'number' ? ROLL_MAP_SIZE : 48;
+  const map = materialMapOf(N, v, m, m.Rmax);
+  const pt = mapCentroid(map, N, 3, 99);
+  if (!pt) return;
+  const R = size / 2, rad = Math.max(6, size * 0.08);
+  ctx.save(); ctx.translate(x, y);
+  ctx.beginPath(); ctx.arc(pt.x * R, pt.y * R, rad, 0, TAU);
+  ctx.fillStyle = 'rgb(224,118,138)'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#1c2430'; ctx.stroke();
+  ctx.restore();
+}
+function punchColor(k) {
+  const d = ING[k]; if (!d) return '#d45a3c';
+  if (d.tex === 'kanikama') return '#d44e3c';
+  const c = hexRgb(d.color);
+  if (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2] > 190) return '#d45a3c';
+  return d.color;
+}
 function drawPuzzleGhosts() {
   if (!S.puzzle || !S.puzzle.target || S.rollP > 0 || S.guides === false) return;
   if (S.puzzle.tube) return;
+  const mine = patches();
   for (const t of S.puzzle.target) {
     if (!ING[t.kind] || t.kind === 'nori') continue;
     const r = patchRect({ kind: t.kind, u: t.u, v: t.v, phase: 0, wU: t.wU, hU: t.hU, dv: t.dv });
+    const col = punchColor(t.kind);
     ctx.save();
-    ctx.setLineDash(PIX ? [PIX * 2, PIX * 2] : [6, 5]);
-    ctx.strokeStyle = ING[t.kind].color;
-    ctx.globalAlpha = 0.7;
-    ctx.lineWidth = PIX ? Math.max(2, PIX) : 2;
-    rr(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 6); ctx.stroke();
+    ctx.fillStyle = rgbCss(hexRgb(col), 0.16);
+    rr(r.x, r.y, r.w, r.h, 6); ctx.fill();
+    ctx.setLineDash(PIX ? [PIX * 2, PIX * 2] : [7, 5]);
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = 0.95;
+    ctx.lineWidth = PIX ? Math.max(2, PIX) : 2.5;
+    rr(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 7); ctx.stroke();
+    ctx.restore();
+    const cand = mine.filter(p => p.kind === t.kind);
+    if (!cand.length) continue;
+    let best = cand[0], bd = 9;
+    for (const p of cand) { const d = Math.abs(p.u - t.u); if (d < bd) { bd = d; best = p; } }
+    if (bd < 0.04) continue;
+    const a = patchRect(best), tx = r.x + r.w / 2, ty = r.y + r.h / 2, fx = a.x + a.w / 2, fy = a.y + a.h / 2;
+    ctx.save();
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 2; ctx.globalAlpha = 0.85;
+    ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(tx, ty); ctx.stroke();
+    const ang = Math.atan2(ty - fy, tx - fx);
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx - 9 * Math.cos(ang - 0.4), ty - 9 * Math.sin(ang - 0.4));
+    ctx.lineTo(tx - 9 * Math.cos(ang + 0.4), ty - 9 * Math.sin(ang + 0.4));
+    ctx.closePath(); ctx.fill();
     ctx.restore();
   }
 }
@@ -259,13 +299,21 @@ function drawPreviewArea(p, колонка) {
     if (S.puzzle && S.puzzle.target && goal) {
       ring(goal);
       const tm = targetModel();
-      drawFaceImg(face(S.puzzle.vs[0], goal.size, tm), goal.x, goal.y, goal.size);
+      const gImg = typeof withPix === 'function' ? withPix(0, () => face(S.puzzle.vs[0], goal.size, tm)) : face(S.puzzle.vs[0], goal.size, tm);
+      drawFaceImg(gImg, goal.x, goal.y, goal.size);
+      markFillings(goal.x, goal.y, goal.size, tm, S.puzzle.vs[0]);
       ctx.fillStyle = '#f4ead8'; ctx.font = font(9, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillText((goal.lab === 'цель' ? 'TARGET CUT' : (goal.lab || 'цель').toUpperCase()), goal.x, goal.y + goal.size / 2 + 6);
     }
     if (yours) {
       ring(yours);
-      drawFaceImg(face(0.5, yours.size), yours.x, yours.y, yours.size);
+      const pm = getModel();
+      const yImg = typeof withPix === 'function' ? withPix(0, () => face(0.5, yours.size, pm)) : face(0.5, yours.size, pm);
+      drawFaceImg(yImg, yours.x, yours.y, yours.size);
+      if (patches().length) {
+        drawFaceImg(ghostMaskImg(0.5, yours.size, pm, pm.Rmax), yours.x, yours.y, yours.size, 1, 0.88, true);
+        markFillings(yours.x, yours.y, yours.size, pm, 0.5);
+      }
       ctx.fillStyle = '#f4ead8'; ctx.font = font(9, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillText((yours.lab === 'твоё' ? 'YOUR CUT' : (yours.lab || 'твоё').toUpperCase()), yours.x, yours.y + yours.size / 2 + 6);
     }
@@ -696,9 +744,9 @@ function drawLay() {
   }
   ctx.restore();
   drawTubeZones(s, mdl);
-  drawPuzzleGhosts();
   const zOf = pt => { const i = patches().indexOf(pt), q = i >= 0 ? mdl.list[i] : null; return q ? q.z0 : 0; };   // стопка — из модели, порядок клона тот же
   for (const pt of patches()) if (pt !== drag.patch) drawPatchTop(pt, uEnd < 1 && pt.u > uEnd ? 0.35 : 1, zOf(pt));
+  drawPuzzleGhosts();
   if (uEnd < 1) {   // лишний лист обрезан: ролл замкнулся раньше; что выше линии — не попадёт в ролл
     const yEnd = s.y + (1 - uEnd) * s.h; ctx.fillStyle = 'rgba(23,23,19,0.35)'; ctx.fillRect(s.x - 5, s.y - 5, s.w + 10, yEnd - s.y + 5);
     ctx.setLineDash([6, 4]); ctx.strokeStyle = 'rgba(243,231,202,0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x, yEnd); ctx.lineTo(s.x + s.w, yEnd); ctx.stroke(); ctx.setLineDash([]);
