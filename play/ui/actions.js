@@ -123,6 +123,7 @@ function action(id) {
     // авто. S.winding остаётся параметром модели — им пользуются сторожа и отпечаток.
     case 'shape': { const ks = Object.keys(SHAPES); S.shape = ks[(ks.indexOf(S.shape) + 1) % ks.length]; save(); if (S.puzzle && S.puzzle.result) S.puzzle.result = null; dirty = true; break; }
     case 'rollnow':
+      if (S.puzzle) { puzzleEvaluate(); dirty = true; break; }
       if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 1600, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 1; dirty = true; });
       break;
     case 'pause':

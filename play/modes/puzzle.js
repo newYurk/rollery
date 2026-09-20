@@ -266,6 +266,24 @@ function puzzleStart(level, seed) {
 }
 function puzzleMax() { try { return (JSON.parse(localStorage.getItem('rollery.puzzle') || '{}').max) || 0; } catch (e) { return 0; } }
 function puzzleStop() { S.puzzle = null; S.turns = null; touchModel(); layout(); if (S.mode !== 'lay') action('back'); dirty = true; requestFrame(); }
+function liveNudge() {
+  if (!S.puzzle || !S.puzzle.target) return [];
+  const mine = patches(), L = geometry().L;
+  const hints = [];
+  for (const t of S.puzzle.target) {
+    if (t.kind === 'nori' || !ING[t.kind]) continue;
+    const cand = mine.filter(p => p.kind === t.kind);
+    if (!cand.length) { hints.push('положи ' + ING[t.kind].name.toLowerCase()); continue; }
+    let best = cand[0], bd = 9;
+    for (const p of cand) { const d = Math.abs(p.u - t.u); if (d < bd) { bd = d; best = p; } }
+    if (bd > 0.04) {
+      const mm = Math.max(1, Math.round(bd * L * 5));
+      hints.push(ING[t.kind].name + ': ' + (best.u < t.u ? 'дальше ' : 'ближе ') + mm + ' мм');
+    } else if (ING[t.kind].dv < 1 && Math.abs(best.v - t.v) > 0.12) hints.push(ING[t.kind].name.toLowerCase() + ': не в тех кусочках');
+  }
+  for (const p of mine) if (p.kind !== 'nori' && !S.puzzle.target.some(t => t.kind === p.kind)) hints.push('лишнее: ' + ING[p.kind].name.toLowerCase());
+  return hints.slice(0, 2);
+}
 function targetModel() { return buildModel(S.puzzle.target); }
 function puzzleEvaluate() {
   const pz = S.puzzle, tm = targetModel(), pm = getModel();

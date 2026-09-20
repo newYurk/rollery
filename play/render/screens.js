@@ -179,6 +179,21 @@ function drawTubeBeads(v, size, x, y, tm) {
   ctx.restore();
 }
 // Слот цели — ПРИЗРАК КУСКА, не пятно и не теория витков. Первый жест: накрой пунктир.
+function drawPuzzleGhosts() {
+  if (!S.puzzle || !S.puzzle.target || S.rollP > 0 || S.guides === false) return;
+  if (S.puzzle.tube) return;
+  for (const t of S.puzzle.target) {
+    if (!ING[t.kind] || t.kind === 'nori') continue;
+    const r = patchRect({ kind: t.kind, u: t.u, v: t.v, phase: 0, wU: t.wU, hU: t.hU, dv: t.dv });
+    ctx.save();
+    ctx.setLineDash(PIX ? [PIX * 2, PIX * 2] : [6, 5]);
+    ctx.strokeStyle = ING[t.kind].color;
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = PIX ? Math.max(2, PIX) : 2;
+    rr(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 6); ctx.stroke();
+    ctx.restore();
+  }
+}
 function drawTubeZones(s, mdl) {
   if (!(S.puzzle && S.puzzle.tube) || S.rollP > 0) return;
   for (const t of S.puzzle.target) {
@@ -234,11 +249,34 @@ function drawTubeCompare(cells) {
 }
 function drawPreviewArea(p, колонка) {
   if (L.table) {
-    const c = L.band && L.band.cells && L.band.cells[0];
-    if (c && S.mode === 'lay') {
-      ctx.beginPath(); ctx.arc(c.x, c.y, c.size / 2 + 5, 0, TAU);
-      ctx.strokeStyle = 'rgba(232,224,208,0.45)'; ctx.lineWidth = 1.5; ctx.stroke();
-      drawFaceImg(face(0.5, c.size), c.x, c.y, c.size);
+    const cells = L.band && L.band.cells;
+    if (!cells || S.mode !== 'lay') return;
+    const goal = cells[0], yours = cells[1] || cells[0];
+    const ring = (c) => {
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.size / 2 + 4, 0, TAU);
+      ctx.strokeStyle = 'rgba(232,224,208,0.4)'; ctx.lineWidth = 1.4; ctx.stroke();
+    };
+    if (S.puzzle && S.puzzle.target && goal) {
+      ring(goal);
+      const tm = targetModel();
+      drawFaceImg(face(S.puzzle.vs[0], goal.size, tm), goal.x, goal.y, goal.size);
+      ctx.fillStyle = '#f4ead8'; ctx.font = font(9, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText((goal.lab === 'цель' ? 'TARGET CUT' : (goal.lab || 'цель').toUpperCase()), goal.x, goal.y + goal.size / 2 + 6);
+    }
+    if (yours) {
+      ring(yours);
+      drawFaceImg(face(0.5, yours.size), yours.x, yours.y, yours.size);
+      ctx.fillStyle = '#f4ead8'; ctx.font = font(9, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText((yours.lab === 'твоё' ? 'YOUR CUT' : (yours.lab || 'твоё').toUpperCase()), yours.x, yours.y + yours.size / 2 + 6);
+    }
+    const nudges = (S.puzzle && S.puzzle.result && S.puzzle.result.hints && S.puzzle.result.hints.length)
+      ? S.puzzle.result.hints
+      : (typeof liveNudge === 'function' ? liveNudge() : []);
+    if (nudges.length) {
+      const yHint = L.band.y + L.band.h + 6;
+      ctx.fillStyle = '#d45a3c'; ctx.font = font(11, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(nudges[0], L.band.x + L.band.w / 2, yHint);
+      if (nudges[1]) ctx.fillText(nudges[1], L.band.x + L.band.w / 2, yHint + 16);
     }
     return;
   }
@@ -496,31 +534,37 @@ function drawFoldGlyph(key, cx, cy, s, color) {
 }
 function drawTableChrome() {
   const T = L.table; if (!T) return;
-  const cream = '#e8e0d0', mute = '#8a8478', line = 'rgba(232,224,208,0.22)', coral = '#c45c4a', card = '#1a1916';
-  ctx.fillStyle = cream; ctx.font = font(17, 600); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const cream = '#f4ead8', mute = '#6b5e4e', line = 'rgba(40,32,24,0.16)', coral = '#d45a3c', ink = '#1c2430', navy = '#243038';
+  ctx.fillStyle = '#1c2430';
+  ctx.fillRect(L.ox, L.oy, L.cw, T.headerH);
+  ctx.fillStyle = cream; ctx.font = font(16, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText('ROLLERY', L.ox + 16, L.oy + T.headerH / 2);
-  ctx.fillStyle = mute; ctx.font = font(9, 500);
-  ctx.fillText(T.wide ? 'SUSHI ROLL CRAFT SIMULATOR' : 'SUSHI CRAFT SIMULATOR', L.ox + 16 + 92, L.oy + T.headerH / 2 + 1);
-  ctx.strokeStyle = line; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(L.ox + 14, L.oy + T.headerH - 1); ctx.lineTo(L.ox + L.cw - 14, L.oy + T.headerH - 1); ctx.stroke();
+  if (S.puzzle) {
+    ctx.fillStyle = '#e2c48a'; ctx.font = font(10, 600);
+    ctx.fillText('PUZZLE ' + String((S.puzzle.level || 0) + 1).padStart(2, '0'), L.ox + 108, L.oy + T.headerH / 2);
+  }
   const mx = L.ox + L.cw - 42, my = L.oy + (T.headerH - 28) / 2;
-  const rx = mx - 58;
-  icons.push({ id: 'demo-rose', x: rx, y: my, w: 52, h: 28 });
-  rr(rx, my, 52, 28, 8); ctx.strokeStyle = coral; ctx.lineWidth = 1.2; ctx.stroke();
-  ctx.fillStyle = cream; ctx.font = font(10, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('роза', rx + 26, my + 15);
   icons.push({ id: 'mute', x: mx, y: my, w: 28, h: 28 });
-  ctx.strokeStyle = line; ctx.beginPath(); ctx.arc(mx + 14, my + 14, 11, 0, TAU); ctx.stroke();
-  ctx.fillStyle = S.mute ? mute : cream; ctx.font = font(12); ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(244,234,216,0.35)'; ctx.beginPath(); ctx.arc(mx + 14, my + 14, 11, 0, TAU); ctx.stroke();
+  ctx.fillStyle = S.mute ? '#8a8478' : cream; ctx.font = font(12); ctx.textAlign = 'center';
   ctx.fillText('♪', mx + 14, my + 15);
+  icons.push({ id: 'clear', x: mx - 36, y: my, w: 28, h: 28 });
+  ctx.strokeStyle = 'rgba(244,234,216,0.35)'; ctx.beginPath(); ctx.arc(mx - 22, my + 14, 11, 0, TAU); ctx.stroke();
+  ctx.fillStyle = cream; ctx.font = font(13); ctx.fillText('↺', mx - 22, my + 15);
 
   if (T.wide && T.left) {
     ctx.strokeStyle = line;
     rr(T.left.x, T.left.y, T.left.w, T.left.h, 10); ctx.stroke();
     rr(T.right.x, T.right.y, T.right.w, T.right.h, 10); ctx.stroke();
     ctx.fillStyle = mute; ctx.font = font(9, 600); ctx.textAlign = 'center';
-    ctx.fillText('LIVE RESULT', T.right.x + T.right.w / 2, T.right.y + 14);
-    if (L.folds[0]) ctx.fillText('FOLD PROFILES', T.right.x + T.right.w / 2, L.folds[0].y - 12);
+    ctx.fillText(S.puzzle ? 'ЦЕЛЬ  ·  ТВОЁ' : 'LIVE RESULT', T.right.x + T.right.w / 2, T.right.y + 14);
+  }
+
+  if (L.band && L.band.cells && L.band.cells.length > 1) {
+    for (const c of L.band.cells) {
+      rr(c.x - c.size / 2 - 10, c.y - c.size / 2 - 22, c.size + 20, c.size + 38, 12);
+      ctx.fillStyle = navy; ctx.fill();
+    }
   }
 
   palTabs = [];
@@ -528,31 +572,20 @@ function drawTableChrome() {
     if (T.wide) {
       for (const g of T.groups) {
         palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
-        if (g.on) { ctx.fillStyle = card; rr(g.x, g.y, g.w, g.h, 7); ctx.fill(); ctx.fillStyle = coral; ctx.fillRect(g.x, g.y + 8, 3, g.h - 16); }
+        if (g.on) { ctx.fillStyle = navy; rr(g.x, g.y, g.w, g.h, 7); ctx.fill(); ctx.fillStyle = coral; ctx.fillRect(g.x, g.y + 8, 3, g.h - 16); }
         ctx.fillStyle = g.on ? cream : mute; ctx.font = font(11, 600); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         ctx.fillText((g.short || g.name).toUpperCase(), g.x + 14, g.y + g.h / 2);
         ctx.textAlign = 'right'; ctx.fillText(g.on ? '⌃' : '⌄', g.x + g.w - 10, g.y + g.h / 2);
-      }
-    } else {
-      for (const g of T.groups) {
-        palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
-        ctx.fillStyle = g.on ? cream : mute; ctx.font = font(9, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText((g.short || g.name).toUpperCase(), g.x + g.w / 2, g.y + g.h / 2);
-        if (g.on) {
-          ctx.fillStyle = coral;
-          ctx.fillRect(g.x + 8, g.y + g.h - 3, Math.max(12, g.w - 16), 2);
-        }
       }
     }
   }
   if (T.sides && T.sides.length) {
     for (const g of T.sides) {
       palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
-      ctx.fillStyle = g.on ? '#1e2a38' : '#15202c';
+      ctx.fillStyle = g.on ? coral : navy;
       rr(g.x, g.y, g.w, g.h, 8); ctx.fill();
-      ctx.strokeStyle = g.on ? cream : line; ctx.stroke();
       ctx.save(); ctx.translate(g.x + g.w / 2, g.y + g.h / 2); ctx.rotate(-Math.PI / 2);
-      ctx.fillStyle = g.on ? cream : mute; ctx.font = font(10, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = cream; ctx.font = font(10, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText((g.name || '').slice(0, 6), 0, 0);
       ctx.restore();
     }
@@ -563,7 +596,7 @@ function drawTableChrome() {
     icons.push({ id: f.id, x: f.x, y: f.y, w: f.w, h: f.h });
     rr(f.x, f.y, f.w, f.h, 8);
     ctx.strokeStyle = f.key === onFold ? coral : line; ctx.lineWidth = f.key === onFold ? 1.6 : 1; ctx.stroke();
-    drawFoldGlyph(f.key, f.x + f.w / 2, f.y + f.h * 0.42, Math.min(f.w, f.h), f.key === onFold ? coral : cream);
+    drawFoldGlyph(f.key, f.x + f.w / 2, f.y + f.h * 0.42, Math.min(f.w, f.h), f.key === onFold ? coral : '#3a332c');
     ctx.fillStyle = f.key === onFold ? coral : mute; ctx.font = font(8, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillText(f.t.toUpperCase(), f.x + f.w / 2, f.y + f.h - 5);
   }
@@ -572,7 +605,7 @@ function drawTableChrome() {
   if (T.wide) {
     const steps = [
       { id: 'step-place', t: 'клади', on: S.mode === 'lay' },
-      { id: 'rollnow', t: 'скрути', on: S.mode === 'rolled' || S.mode === 'cut' },
+      { id: 'rollnow', t: 'проверь', on: !!(S.puzzle && S.puzzle.result) },
       { id: 'cutnow', t: 'режь', on: S.mode === 'cut' || S.mode === 'revealed' },
       { id: 'step-look', t: 'смотри', on: S.mode === 'revealed' || S.mode === 'plate' },
     ];
@@ -582,16 +615,17 @@ function drawTableChrome() {
       const x = sx + i * slot + slot / 2;
       icons.push({ id: st.id, x: x - 30, y: T.stepY + 2, w: 60, h: T.stepH - 6 });
       ctx.beginPath(); ctx.arc(x, sy - 8, 9, 0, TAU);
-      ctx.strokeStyle = st.on ? cream : line; ctx.lineWidth = 1.3; ctx.stroke();
-      ctx.fillStyle = st.on ? cream : mute; ctx.font = font(9, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.strokeStyle = st.on ? coral : line; ctx.lineWidth = 1.3; ctx.stroke();
+      ctx.fillStyle = st.on ? coral : mute; ctx.font = font(9, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillText(st.t.toUpperCase(), x, sy + 6);
     });
   } else {
     const bx = L.ox + 20, by = T.stepY + 6, bw = L.cw - 40, bh = T.stepH - 12;
     icons.push({ id: 'rollnow', x: bx, y: by, w: bw, h: bh });
-    rr(bx, by, bw, bh, 12); ctx.strokeStyle = cream; ctx.lineWidth = 1.4; ctx.stroke();
-    ctx.fillStyle = cream; ctx.font = font(16, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('ROLL', bx + bw / 2, by + bh / 2);
+    rr(bx, by, bw, bh, 12); ctx.fillStyle = coral; ctx.fill();
+    ctx.fillStyle = cream; ctx.font = font(15, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const pass = S.puzzle && S.puzzle.result && S.puzzle.result.pass;
+    ctx.fillText(pass ? 'СКРУТИТЬ' : 'ПРОВЕРИТЬ СРЕЗ', bx + bw / 2, by + bh / 2);
   }
 }
 function drawLay() {
@@ -662,6 +696,7 @@ function drawLay() {
   }
   ctx.restore();
   drawTubeZones(s, mdl);
+  drawPuzzleGhosts();
   const zOf = pt => { const i = patches().indexOf(pt), q = i >= 0 ? mdl.list[i] : null; return q ? q.z0 : 0; };   // стопка — из модели, порядок клона тот же
   for (const pt of patches()) if (pt !== drag.patch) drawPatchTop(pt, uEnd < 1 && pt.u > uEnd ? 0.35 : 1, zOf(pt));
   if (uEnd < 1) {   // лишний лист обрезан: ролл замкнулся раньше; что выше линии — не попадёт в ролл
@@ -808,7 +843,7 @@ function drawLay() {
   // ряд палитры прячется; лист и остальные ряды при этом не двигаются.
   drawButtons(); drawChips(L.chipsShareBtn && buttons.length > 0);
   const hintLay = L.sheet.uAxis === 'x' ? (SHEET_U0 === 'left' ? hints.layR : hints.layL) : hints.lay;
-  drawTopBar(drag.patch ? hints.layMove : sel ? hints.laySel : S.puzzle ? (L.previewMode === 'side' ? hints.puzzle : levelTitle(S.puzzle.lv, S.puzzle.level)) : hintLay);
+  if (!L.table) drawTopBar(drag.patch ? hints.layMove : sel ? hints.laySel : S.puzzle ? (L.previewMode === 'side' ? hints.puzzle : levelTitle(S.puzzle.lv, S.puzzle.level)) : hintLay);
 }
 // Мост «лист → доска реза»: длина ролла на доске масштабируется от экранной протяжённости оси v
 // (длины ролла на листе), радиус — от пикселей на единицу оси u. Раньше тут стояли s.w и s.h —
@@ -842,7 +877,7 @@ function drawV2Refusal(refusal) {
   ctx.restore();
 }
 function theaterOn() {
-  return typeof tablePlay === 'function' && tablePlay() && S.mode !== 'cut' && (S.rollP > 0.02 || S.mode === 'rolled');
+  return false;
 }
 function fillingBands() {
   const list = (patches() || []).filter(p => ING[p.kind] && !ING[p.kind].paint && !ING[p.kind].bedDelta);

@@ -329,7 +329,7 @@ function layoutTubePlay(cw, ch, ox, oy) {
   };
 }
 function tablePlay() {
-  return !S.puzzle && !(typeof tubePlay === 'function' && tubePlay());
+  return !(typeof tubePlay === 'function' && tubePlay());
 }
 function layoutTable(cw, ch, ox, oy) {
   const wide = cw >= 700;
@@ -361,22 +361,21 @@ function layoutTable(cw, ch, ox, oy) {
       x: left.x + 12, y: left.y + 8 + (cur + 1) * headH + 4,
       w: left.w - 24, size: chip, rows: chipRows, labels: true, perRow: 2, pad: 0,
     };
-    const liveFs = Math.min(114, right.w - 48);
+    const liveFs = Math.min(108, (right.h - 90) / 2 - 18);
     L.previewMode = 'band';
     L.previewSize = liveFs;
+    const c1y = right.y + 28 + liveFs / 2;
+    const c2y = c1y + liveFs + 28;
     L.band = {
-      x: right.x, y: right.y + 36, w: right.w, h: liveFs + 16, fs: liveFs,
-      cells: [{ x: right.x + right.w / 2, y: right.y + 42 + liveFs / 2, size: liveFs }],
-      доска: { x: right.x + (right.w - liveFs) / 2 - 6, y: right.y + 36, w: liveFs + 12, h: liveFs + 12, r: liveFs / 2 + 6 },
+      x: right.x, y: right.y + 20, w: right.w, h: liveFs * 2 + 56, fs: liveFs,
+      cells: [
+        { x: right.x + right.w / 2, y: c1y, size: liveFs, lab: 'цель' },
+        { x: right.x + right.w / 2, y: c2y, size: liveFs, lab: 'твоё' },
+      ],
+      доска: { x: right.x + (right.w - liveFs) / 2 - 6, y: right.y + 20, w: liveFs + 12, h: liveFs * 2 + 48, r: 12 },
       col: null,
     };
-    const foldY = right.y + liveFs + 72, foldGap = 8, foldW = (right.w - 16 - foldGap) / 2, foldH = Math.min(86, Math.max(64, (right.y + right.h - foldY - 8 - foldGap) / 2));
-    L.folds = [
-      { id: 'fold-core', key: 'core', t: 'ядро', x: right.x + 8, y: foldY, w: foldW, h: foldH },
-      { id: 'fold-one', key: 'one', t: 'виток', x: right.x + 8 + foldW + foldGap, y: foldY, w: foldW, h: foldH },
-      { id: 'fold-spiral', key: 'spiral', t: 'спираль', x: right.x + 8, y: foldY + foldH + foldGap, w: foldW, h: foldH },
-      { id: 'fold-layer', key: 'layer', t: 'слои', x: right.x + 8 + foldW + foldGap, y: foldY + foldH + foldGap, w: foldW, h: foldH },
-    ];
+    L.folds = [];
     L.layBtn = { x: ox, y: stepY, w: 0, h: 0, max: 1 };
     L.rowBtn = { x: ox + 20, y: stepY + 6, w: cw - 40, h: stepH - 12, max: 4 };
     L.tabs = null;
@@ -388,34 +387,35 @@ function layoutTable(cw, ch, ox, oy) {
       w: left.w - 16, h: headH, on: i === cur,
     })), sides: [] };
   } else {
-    const liveH = 108, palH = 56;
+    const compareH = 128, palH = 56;
     const palY = stepY - palH - 6;
-    const liveY = palY - liveH - 6;
-    const mat = { x: ox + 22, y: L.top + 4, w: cw - 44, h: Math.max(120, liveY - gap - (L.top + 4)) };
-    const pad = 14, handleH = 26;
-    const f = sheetFit(mat.w - pad * 2, Math.max(80, mat.h - pad * 2 - handleH), 'y');
+    const matY = oy + headerH + compareH;
+    const mat = { x: ox + 16, y: matY, w: cw - 32, h: Math.max(120, palY - 8 - matY) };
+    const pad = 8, handleH = 18;
+    const f = sheetFit(mat.w - pad * 2, Math.max(110, mat.h - pad * 2 - handleH), 'y');
     L.sheet = {
       x: mat.x + (mat.w - f.sw) / 2,
       y: mat.y + pad + Math.max(0, (mat.h - pad * 2 - handleH - f.sh) / 2),
       w: f.sw, h: f.sh, uAxis: 'y', lenU: f.sh, lenV: f.sw,
     };
     L.handle = { x: L.sheet.x - 6, y: L.sheet.y + L.sheet.h + 2, w: L.sheet.w + 12, h: handleH };
-    const liveFs = 88;
+    const liveFs = Math.min(92, (cw - 40) / 2 - 12);
     L.previewMode = 'band';
     L.previewSize = liveFs;
+    const gapX = 18;
+    const pairW = liveFs * 2 + gapX;
+    const x0 = ox + (cw - pairW) / 2;
+    const cy = oy + headerH + 18 + liveFs / 2;
     L.band = {
-      x: ox + 12, y: liveY + 10, w: liveFs + 12, h: liveFs + 12, fs: liveFs,
-      cells: [{ x: ox + 12 + 6 + liveFs / 2, y: liveY + 10 + liveFs / 2, size: liveFs }],
-      доска: { x: ox + 12, y: liveY + 10, w: liveFs + 12, h: liveFs + 12, r: liveFs / 2 + 6 },
+      x: x0 - 8, y: oy + headerH + 8, w: pairW + 16, h: compareH - 12, fs: liveFs,
+      cells: [
+        { x: x0 + liveFs / 2, y: cy, size: liveFs, lab: 'цель' },
+        { x: x0 + liveFs + gapX + liveFs / 2, y: cy, size: liveFs, lab: 'твоё' },
+      ],
+      доска: { x: x0 - 8, y: oy + headerH + 8, w: pairW + 16, h: compareH - 16, r: 12 },
       col: null,
     };
-    const foldX = ox + 12 + liveFs + 18, foldW = Math.min(64, (cw - foldX - 12 - 18) / 4), foldH = 72;
-    L.folds = [
-      { id: 'fold-hoso', key: 'hoso', t: 'хосо', x: foldX, y: liveY + 18, w: foldW, h: foldH },
-      { id: 'fold-futo', key: 'futo', t: 'футо', x: foldX + foldW + 6, y: liveY + 18, w: foldW, h: foldH },
-      { id: 'fold-square', key: 'square', t: 'каку', x: foldX + 2 * (foldW + 6), y: liveY + 18, w: foldW, h: foldH },
-      { id: 'fold-ura', key: 'ura', t: 'ура', x: foldX + 3 * (foldW + 6), y: liveY + 18, w: foldW, h: foldH },
-    ];
+    L.folds = [];
     const gs = uiGroups(), cur = uiPalIndex(), g = gs[cur] || gs[0];
     const n = Math.max(1, (g && g.ings.length) || 1);
     L.tabs = null;
@@ -423,23 +423,7 @@ function layoutTable(cw, ch, ox, oy) {
     L.layBtn = { x: ox, y: stepY, w: 0, h: 0, max: 1 };
     L.rowBtn = { x: ox + 16, y: stepY + 4, w: cw - 32, h: stepH - 10, max: 1 };
     L.selBtn = null;
-    const nL = Math.ceil(gs.length / 2);
-    L.table = {
-      wide: false, headerH, stepY, stepH, left: null, right: null, mat, groups: [],
-      sides: gs.map((q, i) => {
-        const left = i < nL;
-        const col = left ? i : i - nL;
-        const colN = left ? nL : gs.length - nL;
-        const h = Math.min(64, Math.max(48, (mat.h - 20) / Math.max(1, colN) - 8));
-        const step = (mat.h - 12) / Math.max(1, colN);
-        return {
-          key: q.key, name: q.short || q.name, on: i === cur,
-          x: left ? ox : ox + cw - 28,
-          y: mat.y + 6 + col * step + Math.max(0, (step - h) / 2),
-          w: 28, h,
-        };
-      }),
-    };
+    L.table = { wide: false, headerH, stepY, stepH, left: null, right: null, mat, groups: [], sides: [] };
   }
 }
 function layout() {

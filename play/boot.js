@@ -4,7 +4,7 @@ function frame(now) {
   rafId = 0; lastNow = now; dirty = false; icons = [];
   if (L) L.scrub = null;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.fillStyle = (typeof theaterOn === 'function' && theaterOn()) ? '#070707' : (typeof tablePlay === 'function' && tablePlay()) ? '#121820' : tubePlay() ? '#2a2e2c' : '#171713'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = (typeof theaterOn === 'function' && theaterOn()) ? '#070707' : (typeof tablePlay === 'function' && tablePlay()) ? '#efe4cf' : tubePlay() ? '#2a2e2c' : '#171713'; ctx.fillRect(0, 0, W, H);
   let animating = false;
   switch (S.mode) {
     case 'lay':
@@ -90,5 +90,6 @@ if (linked) puzzleFromLink(linked);
 else if (location.search.includes('puzzle')) action('puzzle');
 else if (S.tubeLab) action('tube');
 else if (/[?&]pon(?:[=&]|$)/.test(location.search)) tubeStart(0);
+else puzzleStart(0, 1);
 window.addEventListener('hashchange', () => { const pz = decodePuzzle(location.hash); if (pz) puzzleFromLink(pz); });
 requestFrame();
