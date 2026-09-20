@@ -133,29 +133,38 @@
     return outer.concat(inner);
   }
 
-  function drawSlotPie(kind, ang, R) {
+  function drawFilling(kind, ang, R) {
     const c = INK[kind].fill;
     ctx.save();
     ctx.rotate(ang);
     ctx.beginPath();
-    ctx.moveTo(R * 0.03, 0);
-    ctx.arc(0, 0, R * 0.48, -0.78, 0.78);
-    ctx.closePath();
-    const g = ctx.createLinearGradient(R * 0.08, -R * 0.2, R * 0.46, R * 0.18);
+    if (kind === 'cucumber') {
+      ctx.moveTo(R * 0.08, 0);
+      ctx.bezierCurveTo(R * 0.20, R * 0.20, R * 0.40, R * 0.15, R * 0.52, 0);
+      ctx.bezierCurveTo(R * 0.40, -R * 0.15, R * 0.20, -R * 0.20, R * 0.08, 0);
+    } else if (kind === 'salmon') {
+      ctx.moveTo(R * 0.06, 0);
+      ctx.lineTo(R * 0.20, R * 0.20);
+      ctx.lineTo(R * 0.46, R * 0.16);
+      ctx.lineTo(R * 0.54, 0);
+      ctx.lineTo(R * 0.46, -R * 0.16);
+      ctx.lineTo(R * 0.20, -R * 0.18);
+      ctx.closePath();
+    } else {
+      ctx.moveTo(R * 0.10, 0);
+      ctx.lineTo(R * 0.24, R * 0.14);
+      ctx.lineTo(R * 0.42, R * 0.10);
+      ctx.lineTo(R * 0.50, 0);
+      ctx.lineTo(R * 0.42, -R * 0.10);
+      ctx.lineTo(R * 0.24, -R * 0.14);
+      ctx.closePath();
+    }
+    const g = ctx.createLinearGradient(R * 0.1, -R * 0.12, R * 0.5, R * 0.12);
     g.addColorStop(0, c[2]);
-    g.addColorStop(0.45, c[0]);
+    g.addColorStop(0.5, c[0]);
     g.addColorStop(1, c[1]);
     ctx.fillStyle = g;
     ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(R * 0.12, 0);
-    ctx.lineTo(R * 0.42, R * 0.12);
-    ctx.lineTo(R * 0.42, -R * 0.06);
-    ctx.closePath();
-    ctx.fillStyle = c[2];
-    ctx.globalAlpha = 0.35;
-    ctx.fill();
-    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
@@ -166,29 +175,21 @@
       ctx.drawImage(imgs.maki, cx - size / 2, cy - size / 2, size, size);
       return true;
     }
-    if (!imgs.base) return false;
     ctx.save();
     ctx.translate(cx, cy);
     const rad = size / 2;
-    ctx.drawImage(imgs.base, -size / 2, -size / 2, size, size);
-    ctx.save();
+    ctx.drawImage(imgs.maki, -size / 2, -size / 2, size, size);
     ctx.beginPath();
-    ctx.arc(0, 0, rad * 0.52, 0, TAU);
+    ctx.arc(0, 0, rad * 0.62, 0, TAU);
     ctx.fillStyle = '#f4eee4';
     ctx.fill();
-    ctx.clip();
     const slots = TARGET.slice().sort((a, b) => a.u - b.u);
     const placed = pieces.slice().sort((a, b) => a.u - b.u);
     for (let i = 0; i < placed.length; i++) {
       const home = WEDGE_ANG[slots[i].kind];
       if (home == null) continue;
-      drawSlotPie(placed[i].kind, home, rad);
+      drawFilling(placed[i].kind, home, rad);
     }
-    ctx.beginPath();
-    ctx.arc(0, 0, rad * 0.08, 0, TAU);
-    ctx.fillStyle = '#f4eee4';
-    ctx.fill();
-    ctx.restore();
     ctx.restore();
     return true;
   }
