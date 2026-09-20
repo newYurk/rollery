@@ -248,6 +248,13 @@ const R0 = 0.25;   // радиус сердцевины
 // Обратный порядок (витки → длина) остаётся запасным для баз без замера и опирается на угаданный turns,
 // из-за чего ошибка в толщине листа w молча уезжала в длину листа. См. sim/KINEMATICS.md.
 const U_MM = 5;    // одна единица модели = 5 мм
+const ING_DENS = { cucumber: 0.64, salmon: 1.04, tuna: 1.05, avocado: 0.91, tamago: 1.02, shrimp: 1.04, nori: 0.35, mayo: 0.95 };
+function pieceGrams(kind) {
+  const d = ING[kind], b = typeof B === 'function' ? B() : null;
+  if (!d || !b) return 0;
+  const vol = (d.wU * U_MM / 10) * (d.hU * U_MM / 10) * (d.dv * b.Wv * U_MM / 10);
+  return Math.max(1, Math.round(vol * (ING_DENS[kind] || 0.95)));
+}
 function turnsFor(L, P0) { // сколько витков даст лист длины L при шаге P0 (спираль Архимеда, обратная sheetLen)
   return (Math.sqrt(R0 * R0 + 2 * P0 * L / TAU) - R0) / P0;
 }

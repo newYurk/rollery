@@ -328,16 +328,121 @@ function layoutTubePlay(cw, ch, ox, oy) {
     crt: { x: L.sheet.x - 6, y: goal.y - goalD / 2 - 6, w: L.sheet.w + 12, h: (L.handle.y + L.handle.h) - (goal.y - goalD / 2 - 6) },
   };
 }
+function tablePlay() {
+  return !S.puzzle && !(typeof tubePlay === 'function' && tubePlay());
+}
+function layoutTable(cw, ch, ox, oy) {
+  const wide = cw >= 700;
+  const headerH = wide ? 48 : 42, stepH = wide ? 54 : 50, gap = wide ? 16 : 10;
+  L.top = oy + headerH;
+  const stepY = oy + ch - stepH;
+  const innerH = stepY - L.top - gap;
+  if (wide) {
+    const leftW = Math.min(248, Math.max(196, cw * 0.21));
+    const rightW = Math.min(268, Math.max(210, cw * 0.22));
+    const left = { x: ox + 14, y: L.top + 6, w: leftW, h: innerH };
+    const right = { x: ox + cw - 14 - rightW, y: L.top + 6, w: rightW, h: innerH };
+    const mat = { x: left.x + left.w + gap, y: L.top + 6, w: right.x - gap - (left.x + left.w + gap), h: innerH };
+    const pad = Math.max(16, Math.min(28, mat.w * 0.05));
+    const handleH = 28;
+    const f = sheetFit(mat.w - pad * 2, mat.h - pad * 2 - handleH, 'y');
+    L.sheet = {
+      x: mat.x + (mat.w - f.sw) / 2,
+      y: mat.y + pad + (mat.h - pad * 2 - handleH - f.sh) / 2,
+      w: f.sw, h: f.sh, uAxis: 'y', lenU: f.sh, lenV: f.sw,
+    };
+    L.handle = { x: L.sheet.x - 8, y: L.sheet.y + L.sheet.h + 4, w: L.sheet.w + 16, h: handleH };
+    const gs = uiGroups(), cur = uiPalIndex(), g = gs[cur] || gs[0];
+    const headH = 36, n = Math.max(1, (g && g.ings.length) || 1);
+    const chip = Math.min(78, Math.floor((left.w - 28) / 2) - 6);
+    L.chips = {
+      x: left.x + 12, y: left.y + 10 + gs.length * headH + 8,
+      w: left.w - 24, size: chip, rows: Math.max(1, Math.ceil(n / 2)), labels: true, perRow: 2, pad: 0,
+    };
+    const liveFs = Math.min(114, right.w - 48);
+    L.previewMode = 'band';
+    L.previewSize = liveFs;
+    L.band = {
+      x: right.x, y: right.y + 36, w: right.w, h: liveFs + 16, fs: liveFs,
+      cells: [{ x: right.x + right.w / 2, y: right.y + 42 + liveFs / 2, size: liveFs }],
+      доска: { x: right.x + (right.w - liveFs) / 2 - 6, y: right.y + 36, w: liveFs + 12, h: liveFs + 12, r: liveFs / 2 + 6 },
+      col: null,
+    };
+    const foldY = right.y + liveFs + 72, foldGap = 8, foldW = (right.w - 16 - foldGap) / 2, foldH = Math.min(86, Math.max(64, (right.y + right.h - foldY - 8 - foldGap) / 2));
+    L.folds = [
+      { id: 'fold-core', key: 'core', t: 'ядро', x: right.x + 8, y: foldY, w: foldW, h: foldH },
+      { id: 'fold-one', key: 'one', t: 'виток', x: right.x + 8 + foldW + foldGap, y: foldY, w: foldW, h: foldH },
+      { id: 'fold-spiral', key: 'spiral', t: 'спираль', x: right.x + 8, y: foldY + foldH + foldGap, w: foldW, h: foldH },
+      { id: 'fold-layer', key: 'layer', t: 'слои', x: right.x + 8 + foldW + foldGap, y: foldY + foldH + foldGap, w: foldW, h: foldH },
+    ];
+    L.layBtn = { x: ox, y: stepY, w: 0, h: 0, max: 1 };
+    L.rowBtn = { x: ox + 20, y: stepY + 6, w: cw - 40, h: stepH - 12, max: 4 };
+    L.tabs = null;
+    L.selBtn = null;
+    L.table = { wide, headerH, stepY, stepH, left, right, mat, groups: gs.map((q, i) => ({
+      key: q.key, name: q.name, short: q.short, icon: q.icon,
+      x: left.x + 8, y: left.y + 8 + i * headH, w: left.w - 16, h: headH, on: i === cur,
+    })) };
+  } else {
+    const liveH = 108, palH = 56;
+    const palY = stepY - palH - 6;
+    const liveY = palY - liveH - 6;
+    const mat = { x: ox + 22, y: L.top + 4, w: cw - 44, h: Math.max(120, liveY - gap - (L.top + 4)) };
+    const pad = 14, handleH = 26;
+    const f = sheetFit(mat.w - pad * 2, Math.max(80, mat.h - pad * 2 - handleH), 'y');
+    L.sheet = {
+      x: mat.x + (mat.w - f.sw) / 2,
+      y: mat.y + pad + Math.max(0, (mat.h - pad * 2 - handleH - f.sh) / 2),
+      w: f.sw, h: f.sh, uAxis: 'y', lenU: f.sh, lenV: f.sw,
+    };
+    L.handle = { x: L.sheet.x - 6, y: L.sheet.y + L.sheet.h + 2, w: L.sheet.w + 12, h: handleH };
+    const liveFs = 88;
+    L.previewMode = 'band';
+    L.previewSize = liveFs;
+    L.band = {
+      x: ox + 12, y: liveY + 10, w: liveFs + 12, h: liveFs + 12, fs: liveFs,
+      cells: [{ x: ox + 12 + 6 + liveFs / 2, y: liveY + 10 + liveFs / 2, size: liveFs }],
+      доска: { x: ox + 12, y: liveY + 10, w: liveFs + 12, h: liveFs + 12, r: liveFs / 2 + 6 },
+      col: null,
+    };
+    const foldX = ox + 12 + liveFs + 18, foldW = Math.min(64, (cw - foldX - 12 - 18) / 4), foldH = 72;
+    L.folds = [
+      { id: 'fold-hoso', key: 'hoso', t: 'хосо', x: foldX, y: liveY + 18, w: foldW, h: foldH },
+      { id: 'fold-futo', key: 'futo', t: 'футо', x: foldX + foldW + 6, y: liveY + 18, w: foldW, h: foldH },
+      { id: 'fold-square', key: 'square', t: 'каку', x: foldX + 2 * (foldW + 6), y: liveY + 18, w: foldW, h: foldH },
+      { id: 'fold-ura', key: 'ura', t: 'ура', x: foldX + 3 * (foldW + 6), y: liveY + 18, w: foldW, h: foldH },
+    ];
+    const gs = uiGroups(), cur = uiPalIndex(), g = gs[cur] || gs[0];
+    const n = Math.max(1, (g && g.ings.length) || 1);
+    L.tabs = null;
+    L.chips = { x: ox + 12, y: palY + 4, w: cw - 24, size: 44, rows: 1, labels: false, perRow: Math.max(n, 4), pad: 8 };
+    L.layBtn = { x: ox, y: stepY, w: 0, h: 0, max: 1 };
+    L.rowBtn = { x: ox + 16, y: stepY + 4, w: cw - 32, h: stepH - 10, max: 1 };
+    L.selBtn = null;
+    const sideKeys = gs.slice(0, 3);
+    L.table = {
+      wide: false, headerH, stepY, stepH, left: null, right: null, mat, groups: [],
+      sides: sideKeys.map((q, i) => ({
+        key: q.key, name: q.short || q.name, on: i === cur,
+        x: i === 0 ? ox : ox + cw - 28,
+        y: mat.y + mat.h * (0.22 + i * 0.28),
+        w: 28, h: 64,
+      })),
+    };
+  }
+}
 function layout() {
   const cw = W - SAFE.left - SAFE.right, ch = H - SAFE.top - SAFE.bottom, ox = SAFE.left, oy = SAFE.top;
   const n = uiPalMax(), pz = S.puzzle, k = pz ? pz.vs.length : 1, showPrev = !!(pz || S.preview);
   const tabsH = palStripH();
   const mode = ch < 500 ? 'L' : cw >= 1100 ? 'D' : cw >= 600 ? 'T' : 'P';
   const hint2 = mode === 'P' && cw < 480 && S.mode !== 'lay', panelH = hint2 ? 78 : 62, btnH = 44;
-  Object.assign(L, { mode, cw, ch, ox, oy, hint2, top: oy + panelH, side: null, previewMode: 'none', previewSize: 116, chipScroll: false, btnH , targetCell: 0, chipsShareBtn: false, tabs: null, band: null, отбор: null, selBtn: null, слот: 0, cab: null });
+  Object.assign(L, { mode, cw, ch, ox, oy, hint2, top: oy + panelH, side: null, previewMode: 'none', previewSize: 116, chipScroll: false, btnH , targetCell: 0, chipsShareBtn: false, tabs: null, band: null, отбор: null, selBtn: null, слот: 0, cab: null, table: null, folds: [] });
   L.rowBtn = { x: ox + (cw - Math.min(cw - 32, 560)) / 2, y: oy + ch - 12 - btnH, w: Math.min(cw - 32, 560), h: btnH, max: 3 };
   if (typeof tubePlay === 'function' && tubePlay() && S.mode === 'lay') {
     layoutTubePlay(cw, ch, ox, oy);
+  } else if (typeof tablePlay === 'function' && tablePlay() && S.mode === 'lay') {
+    layoutTable(cw, ch, ox, oy);
   } else if (mode === 'L') {
     // Ландшафтный телефон СОЗНАТЕЛЬНО не повёрнут (#23): раскладка здесь вне нормы касания при
     // любой ориентации (см. LAY_SKIP в checks.js — лист 258 px против пола 336), это ориентация

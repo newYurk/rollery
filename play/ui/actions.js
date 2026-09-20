@@ -90,6 +90,24 @@ function action(id) {
     // Перебор режима намотки (кнопка ◎/○/◍, #141) снят 17.09 по решению владельца: режим всегда
     // авто. S.winding остаётся параметром модели — им пользуются сторожа и отпечаток.
     case 'shape': { const ks = Object.keys(SHAPES); S.shape = ks[(ks.indexOf(S.shape) + 1) % ks.length]; save(); if (S.puzzle && S.puzzle.result) S.puzzle.result = null; dirty = true; break; }
+    case 'rollnow':
+      if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 520, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; dirty = true; });
+      break;
+    case 'cutnow':
+      if (S.mode === 'rolled') startCut(0.5);
+      else if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 520, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; startCut(0.5); dirty = true; });
+      break;
+    case 'fold-core': S.winding = null; S.turns = null; touchModel(); break;
+    case 'fold-one': S.winding = 'ring'; S.turns = null; touchModel(); break;
+    case 'fold-spiral': S.winding = 'spiral'; S.turns = null; touchModel(); break;
+    case 'fold-layer': S.winding = 'ring'; S.turns = 2; touchModel(); break;
+    case 'fold-hoso': S.base = 'hoso'; S.shape = 'round'; palSync(); S.selPatch = null; layOnRice(patches()); selOnRice(); palSync(); touchModel(); layout(); break;
+    case 'fold-futo': S.base = 'futo'; S.shape = 'round'; palSync(); S.selPatch = null; layOnRice(patches()); selOnRice(); palSync(); touchModel(); layout(); break;
+    case 'fold-ura': S.base = 'ura'; S.shape = 'round'; palSync(); S.selPatch = null; layOnRice(patches()); selOnRice(); palSync(); touchModel(); layout(); break;
+    case 'fold-square': S.shape = 'square'; touchModel(); layout(); break;
+    case 'mute': S.mute = !S.mute; sfx.setMute(S.mute); if (!S.mute) sfx.start(); save(); break;
+    case 'step-place': if (S.mode !== 'lay') action('back'); break;
+    case 'step-look': break;
     case 'next': if (S.puzzle && S.puzzle.result && S.puzzle.result.pass) puzzleStart(Math.max(0, S.puzzle.level + 1), S.puzzle.seed + 1); break;
     case 'lvprev': if (S.puzzle && S.puzzle.level > 0) puzzleStart(S.puzzle.level - 1, S.puzzle.seed); else if (S.puzzle && S.puzzle.level < 0) puzzleStart(0, 1); break;
     case 'lvnext': if (S.puzzle && S.puzzle.level + 1 < LEVELS.length && S.puzzle.level + 1 <= puzzleMax()) puzzleStart(S.puzzle.level + 1, S.puzzle.seed); break;
@@ -106,7 +124,7 @@ function action(id) {
   requestFrame();
 }
 
-function chipsRect() { const c = L.chips; return { x: c.x - 4, y: c.y - 4, w: c.w + 8, h: c.rows * (c.size + (c.labels ? 18 : 6)) + 8 }; }
+function chipsRect() { const c = L.chips; const rowH = c.size + (c.labels ? (L.table ? 26 : 18) : 6); return { x: c.x - 4, y: c.y - 4, w: c.w + 8, h: c.rows * rowH + 8 }; }
 // ЛИСТАНИЕ СТРАНИЦ ПАЛИТРЫ: порог в пикселях, а не в долях ленты (17.09).
 // Палец проходит одно и то же расстояние на любом экране — той же мыслью считается и протяжка
 // циновки (ROLL_REACH, #6). 40 px — больше порога «сдвинулся» (6) и меньше половины фишки.

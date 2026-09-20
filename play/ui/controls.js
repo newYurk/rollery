@@ -143,7 +143,7 @@ function drawCabChip() {
 function drawChips(скрытьПоследний) {
   if (tubePlay()) { drawCabChip(); return; }
   chips = []; const c = L.chips, ings = uiPalGroup().ings, n = ings.length, gap = 8, size = c.size;
-  const perRow = c.perRow || n, rowH = size + (c.labels ? 18 : 6);
+  const perRow = c.perRow || n, rowH = size + (c.labels ? (L.table ? 26 : 18) : 6);
   // Лента центрируется по ТОМУ, ЧТО В НЕЙ ЕСТЬ, а не по размеру страницы: группа из двух фишек
   // при странице на семь стояла бы в левом углу, будто ряд обрезан.
   const rowW = Math.max(1, Math.min(perRow, n)) * (size + gap) - gap;
@@ -154,7 +154,9 @@ function drawChips(скрытьПоследний) {
   const maxScroll = Math.max(0, rowW - inner); chipScrollX = clamp(chipScrollX, 0, L.chipScroll ? maxScroll : 0);
   // Полоса вкладок живёт вместе с лентой: спрятали палитру целиком (один ряд, и он отдан
   // кнопкам) — вкладки тоже уходят, иначе над кнопкой остался бы ряд, ничего не открывающий.
-  if (видимыхРядов > 0) drawPalTabs(); else palTabs = [];
+  if (видимыхРядов > 0) {
+    if (!(L.table && L.table.groups && L.table.groups.length)) drawPalTabs();
+  } else if (!(L.table && L.table.groups && L.table.groups.length)) palTabs = [];
   ctx.save(); ctx.beginPath(); ctx.rect(c.x - 2, c.y - 4, c.w + 4, видимыхРядов * rowH + 8); ctx.clip();
   // Сдвиг страницы под пальцем (palDX) — это ответ на жест, а не прокрутка: страница уходит за
   // край, и на отпускании либо встаёт соседняя группа, либо эта возвращается на место.
@@ -184,7 +186,14 @@ function drawChips(скрытьПоследний) {
       if (d.paint) { ctx.fillStyle = d.color; rr(-gh / 2, -gw / 2, gh, gw, 6); ctx.fill(); } else drawPatchShape(d, -gh / 2, -gw / 2, gh, gw, true);
     }
     ctx.restore();
-    if (c.labels) { ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(chipLabel(kind, size + gap), x + size / 2, y + size + 3); }
+    if (c.labels) {
+      ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(chipLabel(kind, size + gap), x + size / 2, y + size + 3);
+      if (L.table && typeof pieceGrams === 'function') {
+        ctx.fillStyle = '#8a8478'; ctx.font = font(9);
+        ctx.fillText(pieceGrams(kind) + ' g', x + size / 2, y + size + 15);
+      }
+    }
     ctx.restore();
   });
   ctx.restore();
@@ -247,6 +256,7 @@ function рисоватьОбразецБазы(cx, cy, ключ) {
   ctx.restore();
 }
 function drawTopBar(hint) {
+  if (L.table) return;
   const T0 = SAFE.top, ox = L.ox, cw = L.cw, narrow = cw < 480;
   if (tubePlay()) return;
   ctx.font = font(17, 700);

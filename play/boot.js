@@ -3,7 +3,7 @@ let rafId = 0, lastNow = 0;
 function frame(now) {
   rafId = 0; lastNow = now; dirty = false; icons = [];
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.fillStyle = tubePlay() ? '#2a2e2c' : '#171713'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = (typeof tablePlay === 'function' && tablePlay()) ? '#121820' : tubePlay() ? '#2a2e2c' : '#171713'; ctx.fillRect(0, 0, W, H);
   let animating = false;
   switch (S.mode) {
     case 'lay': drawLay(); animating = !!anim; break;
@@ -74,6 +74,7 @@ setTimeout(() => { resize(); requestFrame(); }, 300); setTimeout(() => { resize(
 window.addEventListener('orientationchange', () => setTimeout(() => { resize(); requestFrame(); }, 120));
 
 load(); resize(); touchModel(); sfx.armStart();
+if (!S.puzzle) S.preview = true;
 tubeInstall();
 if (S.v2 && S.v2Scenario !== 'layout') { S.mode = 'rolled'; S.base = 'hoso'; }
 const linked = decodePuzzle(location.hash);

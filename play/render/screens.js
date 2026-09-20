@@ -233,6 +233,15 @@ function drawTubeCompare(cells) {
   });
 }
 function drawPreviewArea(p, колонка) {
+  if (L.table) {
+    const c = L.band && L.band.cells && L.band.cells[0];
+    if (c && S.mode === 'lay') {
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.size / 2 + 5, 0, TAU);
+      ctx.strokeStyle = 'rgba(232,224,208,0.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+      drawFaceImg(face(0.5, c.size), c.x, c.y, c.size);
+    }
+    return;
+  }
   const pm = L.previewMode, панель = pm === 'band' && L.band && S.mode === 'lay';
   if (pm === 'none' || (p > 0 && !панель)) return;
   const pz = S.puzzle, k = pz ? pz.vs.length : 1, tm = pz ? targetModel() : null;
@@ -262,7 +271,7 @@ function drawPreviewArea(p, колонка) {
       });
       ctx.restore();
     }
-    if (!tubePlay()) {
+    if (!tubePlay() && !L.table) {
       const кол = колонка || bandColumn(getModel());
       for (const л of кол.lines) {
         ctx.fillStyle = л.color; ctx.font = font(л.size, л.weight); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
@@ -451,6 +460,120 @@ function cabImg(id) {
   const im = cache[id];
   return im.complete && im.naturalWidth ? im : null;
 }
+function foldCurrent() {
+  if (S.base === 'ura') return 'ura';
+  if (S.shape === 'square') return 'square';
+  if (S.base === 'futo') return 'futo';
+  if (S.winding === 'spiral') return 'spiral';
+  if (S.winding === 'ring' && S.turns != null) return 'layer';
+  if (S.winding === 'ring') return 'one';
+  if (S.base === 'hoso') return 'hoso';
+  return 'core';
+}
+function drawFoldGlyph(key, cx, cy, s, color) {
+  ctx.strokeStyle = color; ctx.lineWidth = 1.35; ctx.beginPath();
+  if (key === 'core' || key === 'hoso') ctx.arc(cx, cy, s * 0.28, 0, TAU);
+  else if (key === 'one' || key === 'futo') { ctx.arc(cx, cy, s * 0.16, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, s * 0.32, 0, TAU); }
+  else if (key === 'spiral') {
+    for (let a = 0; a < 3.4 * Math.PI; a += 0.18) {
+      const r = s * 0.05 + a * s * 0.038;
+      const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+      if (a < 0.2) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+  } else if (key === 'square') { ctx.strokeRect(cx - s * 0.26, cy - s * 0.26, s * 0.52, s * 0.52); }
+  else if (key === 'ura') { ctx.arc(cx, cy, s * 0.3, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, s * 0.12, 0, TAU); }
+  else {
+    for (let i = 0; i < 3; i++) {
+      ctx.moveTo(cx - s * 0.26, cy - s * 0.16 + i * s * 0.14);
+      ctx.quadraticCurveTo(cx, cy - s * 0.26 + i * s * 0.14, cx + s * 0.26, cy - s * 0.16 + i * s * 0.14);
+    }
+  }
+  ctx.stroke();
+}
+function drawTableChrome() {
+  const T = L.table; if (!T) return;
+  const cream = '#e8e0d0', mute = '#8a8478', line = 'rgba(232,224,208,0.22)', coral = '#c45c4a', card = '#1a1916';
+  ctx.fillStyle = cream; ctx.font = font(17, 600); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('ROLLERY', L.ox + 16, L.oy + T.headerH / 2);
+  ctx.fillStyle = mute; ctx.font = font(9, 500);
+  ctx.fillText(T.wide ? 'SUSHI ROLL CRAFT SIMULATOR' : 'SUSHI CRAFT SIMULATOR', L.ox + 16 + 92, L.oy + T.headerH / 2 + 1);
+  ctx.strokeStyle = line; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(L.ox + 14, L.oy + T.headerH - 1); ctx.lineTo(L.ox + L.cw - 14, L.oy + T.headerH - 1); ctx.stroke();
+  const mx = L.ox + L.cw - 42, my = L.oy + (T.headerH - 28) / 2;
+  icons.push({ id: 'mute', x: mx, y: my, w: 28, h: 28 });
+  ctx.strokeStyle = line; ctx.beginPath(); ctx.arc(mx + 14, my + 14, 11, 0, TAU); ctx.stroke();
+  ctx.fillStyle = S.mute ? mute : cream; ctx.font = font(12); ctx.textAlign = 'center';
+  ctx.fillText('♪', mx + 14, my + 15);
+
+  if (T.wide && T.left) {
+    ctx.strokeStyle = line;
+    rr(T.left.x, T.left.y, T.left.w, T.left.h, 10); ctx.stroke();
+    rr(T.right.x, T.right.y, T.right.w, T.right.h, 10); ctx.stroke();
+    ctx.fillStyle = mute; ctx.font = font(9, 600); ctx.textAlign = 'center';
+    ctx.fillText('LIVE RESULT', T.right.x + T.right.w / 2, T.right.y + 14);
+    if (L.folds[0]) ctx.fillText('FOLD PROFILES', T.right.x + T.right.w / 2, L.folds[0].y - 12);
+  }
+
+  if (T.groups && T.groups.length) {
+    palTabs = [];
+    for (const g of T.groups) {
+      palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
+      if (g.on) { ctx.fillStyle = card; rr(g.x, g.y, g.w, g.h, 7); ctx.fill(); ctx.fillStyle = coral; ctx.fillRect(g.x, g.y + 8, 3, g.h - 16); }
+      ctx.fillStyle = g.on ? cream : mute; ctx.font = font(11, 600); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText((g.short || g.name).toUpperCase(), g.x + 14, g.y + g.h / 2);
+      ctx.textAlign = 'right'; ctx.fillText(g.on ? '⌃' : '⌄', g.x + g.w - 10, g.y + g.h / 2);
+    }
+  }
+  if (T.sides && T.sides.length) {
+    palTabs = palTabs || [];
+    for (const g of T.sides) {
+      palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
+      ctx.fillStyle = g.on ? '#1e2a38' : '#15202c';
+      rr(g.x, g.y, g.w, g.h, 8); ctx.fill();
+      ctx.strokeStyle = g.on ? cream : line; ctx.stroke();
+      ctx.save(); ctx.translate(g.x + g.w / 2, g.y + g.h / 2); ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = g.on ? cream : mute; ctx.font = font(10, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText((g.name || '').slice(0, 6), 0, 0);
+      ctx.restore();
+    }
+  }
+
+  const onFold = foldCurrent();
+  for (const f of (L.folds || [])) {
+    icons.push({ id: f.id, x: f.x, y: f.y, w: f.w, h: f.h });
+    rr(f.x, f.y, f.w, f.h, 8);
+    ctx.strokeStyle = f.key === onFold ? coral : line; ctx.lineWidth = f.key === onFold ? 1.6 : 1; ctx.stroke();
+    drawFoldGlyph(f.key, f.x + f.w / 2, f.y + f.h * 0.42, Math.min(f.w, f.h), f.key === onFold ? coral : cream);
+    ctx.fillStyle = f.key === onFold ? coral : mute; ctx.font = font(8, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(f.t.toUpperCase(), f.x + f.w / 2, f.y + f.h - 5);
+  }
+
+  const sy = T.stepY + T.stepH / 2;
+  if (T.wide) {
+    const steps = [
+      { id: 'step-place', t: 'клади', on: S.mode === 'lay' },
+      { id: 'rollnow', t: 'скрути', on: S.mode === 'rolled' || S.mode === 'cut' },
+      { id: 'cutnow', t: 'режь', on: S.mode === 'cut' || S.mode === 'revealed' },
+      { id: 'step-look', t: 'смотри', on: S.mode === 'revealed' || S.mode === 'plate' },
+    ];
+    const sw = Math.min(640, L.cw - 48), sx = L.ox + (L.cw - sw) / 2, slot = sw / steps.length;
+    ctx.strokeStyle = line; ctx.beginPath(); ctx.moveTo(sx + 24, T.stepY); ctx.lineTo(sx + sw - 24, T.stepY); ctx.stroke();
+    steps.forEach((st, i) => {
+      const x = sx + i * slot + slot / 2;
+      icons.push({ id: st.id, x: x - 30, y: T.stepY + 2, w: 60, h: T.stepH - 6 });
+      ctx.beginPath(); ctx.arc(x, sy - 8, 9, 0, TAU);
+      ctx.strokeStyle = st.on ? cream : line; ctx.lineWidth = 1.3; ctx.stroke();
+      ctx.fillStyle = st.on ? cream : mute; ctx.font = font(9, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(st.t.toUpperCase(), x, sy + 6);
+    });
+  } else {
+    const bx = L.ox + 20, by = T.stepY + 6, bw = L.cw - 40, bh = T.stepH - 12;
+    icons.push({ id: 'rollnow', x: bx, y: by, w: bw, h: bh });
+    rr(bx, by, bw, bh, 12); ctx.strokeStyle = cream; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.fillStyle = cream; ctx.font = font(16, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('ROLL', bx + bw / 2, by + bh / 2);
+  }
+}
 function drawLay() {
   // s — ЛОГИЧЕСКАЯ рамка листа (SB): x вправо = v, y вниз = −u. Весь лист рисуется внутри
   // sheetPush()/sheetPop() — при повёрнутом листе (#23) это один общий поворот на ±90°.
@@ -458,8 +581,11 @@ function drawLay() {
   const s = SB(), p = S.rollP, hd = L.handle;
   const cab = tubePlay();
   if (cab) drawCabChrome();
+  if (L.table) drawTableChrome();
   if (!cab) {
-  if (L.sheet.uAxis === 'x') {   // циновка-фон: от ручки сбоку через весь лист, прутья поперёк скрутки
+  if (L.table && L.table.mat) {
+    drawMat(L.table.mat.x, L.table.mat.y, L.table.mat.w, L.table.mat.h, 10);
+  } else if (L.sheet.uAxis === 'x') {
     const x0 = Math.min(hd.x, L.sheet.x - 8), x1 = Math.max(hd.x + hd.w, L.sheet.x + L.sheet.w + 8);
     drawMat(x0, L.sheet.y - 18, x1 - x0, L.sheet.h + 36, 14, B(), true);
   } else {
@@ -468,12 +594,12 @@ function drawLay() {
     // отдельно — фон как бы другой». Теперь это отдельная панель со своей подложкой через ШАГ.
     drawMat(hd.x, L.sheet.y - РАМКА, hd.w, hd.y + hd.h + 8 - (L.sheet.y - РАМКА));
   }
-  if (L.band) { const b = L.band; rr(b.x, b.y, b.w, b.h, ПАНЕЛЬ_R); ctx.fillStyle = BAND_BG; ctx.fill(); }
+  if (L.band && !L.table) { const b = L.band; rr(b.x, b.y, b.w, b.h, ПАНЕЛЬ_R); ctx.fillStyle = BAND_BG; ctx.fill(); }
   }
   // Текст панели раскладывается один раз на кадр и до листа: по тому, что в колонку влезло, ниже
   // решается, какие надписи на лист больше не ставить. Во время протяжки панель рисуется как есть
   // (drawPreviewArea), и «лишний лист обрезан» не выскакивает на лист.
-  const колонка = (!cab && L.band) ? bandColumn(getModel()) : null;
+  const колонка = (!cab && L.band && !L.table) ? bandColumn(getModel()) : null;
   const вКолонке = id => !!(колонка && колонка.placed.has(id));
   sheetPush();
   const yb = s.y + s.h * (1 - p);
@@ -594,7 +720,7 @@ function drawLay() {
   } else {
     // Надпись на циновке снята вместе с подсказкой (02.09, просьба владельца). Стрелка
     // осталась: без неё циновка — просто полоса, и потянуть её никто не догадается.
-    let ht = p > 0 ? 'ещё… ↑' : (tubePlay() ? '↑ скрутить' : '↑');
+    let ht = p > 0 ? 'ещё… ↑' : (tubePlay() ? '↑ скрутить' : L.table ? '' : '↑');
     ctx.fillText(ht, hd.x + hd.w / 2, hd.y + hd.h / 2);
   }
   // ⚑ «ОЧИСТИТЬ» — ВНИЗУ, НА ЦИНОВКЕ (решение владельца 17.09: «очистить куда-то вниз надо
