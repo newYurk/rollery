@@ -176,10 +176,13 @@
   }
 
   function angleOf(p) {
-    const t = TARGET.find((x) => x.kind === p.kind);
-    const home = WEDGE_ANG[p.kind] || 0;
-    const du = t ? p.u - t.u : 0;
-    return home + clamp(du * TAU * 0.65, -1.15, 1.15);
+    return 0.78 + p.u * 7.73;
+  }
+  function angDelta(from, to) {
+    let d = (to - from) % TAU;
+    if (d > Math.PI) d -= TAU;
+    if (d < -Math.PI) d += TAU;
+    return d;
   }
 
   function drawSpriteMaki(cx, cy, R, pieces, isTarget) {
@@ -197,7 +200,16 @@
     ctx.arc(0, 0, rad * 0.62, 0, TAU);
     ctx.fillStyle = '#f4eee4';
     ctx.fill();
-    drawWell(pieces, rad);
+    const order = ['tuna', 'cucumber', 'salmon'];
+    for (const kind of order) {
+      const p = pieces.find((x) => x.kind === kind);
+      const w = imgs['wedge-' + kind];
+      if (!p || !w) continue;
+      ctx.save();
+      ctx.rotate(angDelta(WEDGE_ANG[kind] || 0, angleOf(p)));
+      ctx.drawImage(w, -size / 2, -size / 2, size, size);
+      ctx.restore();
+    }
     ctx.restore();
     return true;
   }
