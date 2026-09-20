@@ -830,6 +830,188 @@ function drawV2Refusal(refusal) {
   ctx.fillText(refusal.code, L.roll.x, L.roll.y);
   ctx.restore();
 }
+function theaterOn() {
+  return typeof tablePlay === 'function' && tablePlay() && S.mode !== 'cut' && (S.rollP > 0.02 || S.mode === 'rolled');
+}
+function fillingBands() {
+  const list = (patches() || []).filter(p => ING[p.kind] && !ING[p.kind].paint && !ING[p.kind].bedDelta);
+  const by = {};
+  for (const p of list) {
+    const k = p.kind;
+    if (!by[k]) by[k] = { kind: k, color: ING[k].color, name: ING[k].name, n: 0, u: p.u };
+    by[k].n += 1;
+    by[k].u = Math.min(by[k].u, p.u);
+  }
+  return Object.keys(by).map(k => by[k]).sort((a, b) => a.u - b.u);
+}
+function riceGrams() {
+  const b = B(), s0 = b.spreadStart === undefined ? 0.048 : b.spreadStart;
+  const Lmm = b.L * U_MM, Wmm = b.Wv * U_MM, t = b.T * U_MM;
+  return Math.max(1, Math.round(Lmm * (b.spreadEnd - s0) * Wmm * t * 0.758 / 1000));
+}
+function drawGramBar(x, y, w) {
+  const bands = fillingBands();
+  const rice = riceGrams();
+  const items = bands.map(b => ({ color: b.color, name: b.name, g: pieceGrams(b.kind) * b.n }));
+  const fillG = items.reduce((s, a) => s + a.g, 0);
+  const total = rice + fillG;
+  const barH = 44, pad = 8, totW = 64;
+  rr(x, y, w, barH, 12);
+  ctx.strokeStyle = 'rgba(232,224,208,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+  const inner = w - totW - pad * 2 - 8, bx = x + pad, by = y + 10, bh = 12;
+  const sum = Math.max(1, fillG);
+  let xx = bx;
+  for (const it of items) {
+    const ww = Math.max(18, inner * it.g / sum);
+    ctx.fillStyle = it.color;
+    rr(xx, by, ww - 3, bh, 6); ctx.fill();
+    ctx.fillStyle = 'rgba(12,12,10,0.7)'; ctx.font = font(8, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(it.g + ' g', xx + (ww - 3) / 2, by + bh + 3);
+    xx += ww;
+  }
+  ctx.strokeStyle = 'rgba(232,224,208,0.2)';
+  ctx.beginPath(); ctx.moveTo(x + w - totW, y + 8); ctx.lineTo(x + w - totW, y + barH - 8); ctx.stroke();
+  ctx.fillStyle = '#cfc6b8'; ctx.font = font(8, 500); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('TOTAL', x + w - totW / 2, y + 14);
+  ctx.font = font(12, 600); ctx.fillText(total + ' g', x + w - totW / 2, y + 30);
+}
+function drawMakisuSide(x, y, w, h, p) {
+  p = clamp(p, 0, 1);
+  const baseY = y + h * 0.78;
+  const matH = Math.max(18, Math.min(26, h * 0.12));
+  const maxR = Math.min(h * 0.36, w * 0.28);
+  const R = lerp(16, maxR, Math.pow(p, 0.55));
+  const travel = w * 0.58;
+  const rollCx = x + 18 + (1 - p) * travel + R * 0.2;
+  const rollCy = baseY - R * 0.12;
+  const flatX0 = x - 8;
+  const flatX1 = rollCx - R * 0.72;
+
+  const matY = baseY - matH;
+  const matW = Math.max(40, rollCx + R + 36 - flatX0);
+  rr(flatX0, matY, matW, matH + 6, 8);
+  ctx.fillStyle = '#d2bc93'; ctx.fill();
+  ctx.save();
+  ctx.beginPath(); rr(flatX0, matY, matW, matH + 6, 8); ctx.clip();
+  ctx.strokeStyle = 'rgba(92,68,36,0.32)'; ctx.lineWidth = 2.2;
+  for (let sx = flatX0 + 6; sx < flatX0 + matW; sx += 11) {
+    ctx.beginPath(); ctx.moveTo(sx, matY + 1); ctx.lineTo(sx, matY + matH + 5); ctx.stroke();
+  }
+  ctx.restore();
+
+  const bands = fillingBands();
+  const stack = [{ color: B().wrapper, h: 4.5 }];
+  stack.push({ color: B().spread || '#e8e0d4', h: 11 });
+  const fh = bands.length ? Math.max(7, Math.min(12, 28 / bands.length)) : 0;
+  for (const b of bands) stack.push({ color: b.color, h: fh });
+  const stackH = stack.reduce((s, a) => s + a.h, 0);
+  if (flatX1 > flatX0 + 8) {
+    let y0 = matY - stackH;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(flatX0, y0 - 1, flatX1 - flatX0, stackH + 2); ctx.clip();
+    for (const b of stack) {
+      ctx.fillStyle = b.color;
+      ctx.fillRect(flatX0, y0, flatX1 - flatX0 + 2, b.h + 0.4);
+      y0 += b.h;
+    }
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.translate(rollCx + 6, rollCy + R * 0.55);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(0, 0, R * 1.15, R * 0.28, 0, 0, TAU); ctx.fill();
+  ctx.restore();
+
+  const fs = Math.max(36, R * 1.85);
+  ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 5, 0, TAU);
+  ctx.fillStyle = '#1a1714'; ctx.fill();
+  ctx.strokeStyle = '#cbb48a'; ctx.lineWidth = 7; ctx.stroke();
+  ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 1, 0, TAU);
+  ctx.strokeStyle = B().wrapper; ctx.lineWidth = 5; ctx.stroke();
+  if (p > 0.04) drawFaceImg(face(0.5, fs), rollCx, rollCy, fs);
+
+  const flapA0 = -Math.PI * 0.95, flapA1 = -Math.PI * 0.95 + p * Math.PI * 1.35;
+  ctx.strokeStyle = '#d2bc93'; ctx.lineWidth = matH * 0.85; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 10, flapA0, flapA1); ctx.stroke();
+  ctx.strokeStyle = 'rgba(92,68,36,0.28)'; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 5; i++) {
+    const a = flapA0 + (flapA1 - flapA0) * (i + 0.5) / 5;
+    ctx.beginPath();
+    ctx.arc(rollCx, rollCy, fs / 2 + 7, a - 0.04, a + 0.04);
+    ctx.stroke();
+  }
+
+  if (p > 0.1 && p < 0.92) {
+    ctx.strokeStyle = 'rgba(232,224,208,0.4)'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 26, -1.25, 0.15); ctx.stroke();
+    const ax = rollCx + Math.cos(0.15) * (fs / 2 + 26), ay = rollCy + Math.sin(0.15) * (fs / 2 + 26);
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax - 7, ay - 2); ctx.moveTo(ax, ay); ctx.lineTo(ax - 2, ay + 7); ctx.stroke();
+  }
+}
+function drawScrub(x, y, w, p) {
+  const h = 4, cy = y + 18;
+  ctx.strokeStyle = 'rgba(232,224,208,0.25)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x + w, cy); ctx.stroke();
+  ctx.strokeStyle = '#e08a72'; ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x + w * p, cy); ctx.stroke();
+  const kx = x + w * p, ky = cy;
+  ctx.fillStyle = '#f3eee4';
+  ctx.beginPath(); ctx.arc(kx, ky, 9, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1; ctx.stroke();
+  const pct = Math.round(p * 100) + ' %';
+  ctx.fillStyle = '#6a8f72';
+  rr(kx - 22, ky - 32, 44, 18, 9); ctx.fill();
+  ctx.fillStyle = '#f3eee4'; ctx.font = font(10, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(pct, kx, ky - 22);
+  ctx.fillStyle = 'rgba(200,192,176,0.55)'; ctx.font = font(9, 500);
+  ctx.textAlign = 'left'; ctx.fillText('FLAT', x, cy + 18);
+  ctx.textAlign = 'right'; ctx.fillText('ROLLED', x + w, cy + 18);
+  L.scrub = { x, y: y - 8, w, h: 48 };
+}
+function drawRollTheater(p) {
+  p = clamp(p, 0, 1);
+  const ox = L.ox, oy = L.oy, cw = L.cw, ch = L.ch;
+  ctx.fillStyle = '#070707'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#cfc6b8'; ctx.font = font(12, 500); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('ROLLERY', ox + cw / 2, oy + 22);
+  icons.push({ id: 'back', x: ox + 8, y: oy + 8, w: 36, h: 32 });
+  ctx.fillStyle = '#cfc6b8'; ctx.font = font(16); ctx.fillText('‹', ox + 22, oy + 24);
+
+  drawGramBar(ox + 14, oy + 44, cw - 28);
+
+  const fs = Math.min(58, Math.max(44, cw * 0.14));
+  const sx = ox + cw - 16 - fs / 2, sy = oy + 102 + fs / 2;
+  ctx.beginPath(); ctx.arc(sx, sy, fs / 2 + 4, 0, TAU);
+  ctx.strokeStyle = 'rgba(232,224,208,0.28)'; ctx.lineWidth = 1.4; ctx.stroke();
+  drawFaceImg(face(0.5, fs), sx, sy, fs);
+
+  const stageY = oy + 96;
+  const stageH = Math.max(180, (oy + ch - 118) - stageY);
+  drawMakisuSide(ox, stageY, cw, stageH, p);
+
+  drawScrub(ox + 28, oy + ch - 100, cw - 56, p);
+
+  const by = oy + ch - 52, bw = Math.min(cw - 24, 320), bx = ox + (cw - bw) / 2, slot = bw / 3;
+  const btns = [
+    { id: anim ? 'pause' : 'resume', t: anim ? '❚❚' : '▶', lab: anim ? 'PAUSE' : 'PLAY' },
+    { id: 'cutnow', t: '', lab: 'CUT', knife: true },
+    { id: 'mute', t: '♪', lab: '' },
+  ];
+  btns.forEach((b, i) => {
+    const x = bx + i * slot + slot / 2;
+    icons.push({ id: b.id, x: x - 28, y: by - 4, w: 56, h: 44 });
+    ctx.strokeStyle = 'rgba(232,224,208,0.28)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(x, by + 6, 16, 0, TAU); ctx.stroke();
+    ctx.fillStyle = '#cfc6b8'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (b.knife) {
+      ctx.save(); ctx.translate(x, by + 6); ctx.rotate(-0.6);
+      ctx.fillStyle = '#cfc6b8'; ctx.fillRect(-1, -9, 2, 14);
+      ctx.fillRect(-4, -10, 8, 3);
+      ctx.restore();
+    } else ctx.fillText(b.t, x, by + 7);
+    if (b.lab) { ctx.font = font(8, 500); ctx.fillStyle = 'rgba(200,192,176,0.5)'; ctx.fillText(b.lab, x, by + 28); }
+  });
+}
 function drawRolled() {
   if (S.v2 && !window.CoreV2) return;
   const refusal = S.v2 ? v2Refusal(v2Snap()) : null;

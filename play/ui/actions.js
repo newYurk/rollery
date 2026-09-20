@@ -123,11 +123,21 @@ function action(id) {
     // авто. S.winding остаётся параметром модели — им пользуются сторожа и отпечаток.
     case 'shape': { const ks = Object.keys(SHAPES); S.shape = ks[(ks.indexOf(S.shape) + 1) % ks.length]; save(); if (S.puzzle && S.puzzle.result) S.puzzle.result = null; dirty = true; break; }
     case 'rollnow':
-      if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 520, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; dirty = true; });
+      if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 1600, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 1; dirty = true; });
+      break;
+    case 'pause':
+      if (anim) { anim = null; dirty = true; }
+      break;
+    case 'resume':
+      if (!anim && S.rollP < 0.99) tween(S.rollP, 1, Math.max(200, 1600 * (1 - S.rollP)), v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 1; dirty = true; });
       break;
     case 'cutnow':
+      if (typeof tablePlay === 'function' && tablePlay() && S.rollP < 0.98) {
+        tween(S.rollP, 1, Math.max(180, 700 * (1 - S.rollP)), v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 1; startCut(0.5); dirty = true; });
+        break;
+      }
       if (S.mode === 'rolled') startCut(0.5);
-      else if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 520, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 0; startCut(0.5); dirty = true; });
+      else if (S.mode === 'lay' && !anim) tween(S.rollP, 1, 520, v => { S.rollP = v; }, () => { S.mode = 'rolled'; S.rollP = 1; startCut(0.5); dirty = true; });
       break;
     case 'fold-core': S.winding = null; S.turns = null; touchModel(); break;
     case 'fold-one': S.winding = 'ring'; S.turns = null; touchModel(); break;
@@ -165,6 +175,15 @@ function onDown(x, y, id) {
   sfx.ensure();
   for (const ic of icons) if (inRect(x, y, ic)) { action(ic.id); return; }
   for (const b of buttons) if (inRect(x, y, b)) { action(b.id); return; }
+  if (L.scrub && inRect(x, y, L.scrub)) {
+    anim = null;
+    const p = clamp((x - L.scrub.x) / L.scrub.w);
+    S.rollP = p; S.mode = p >= 0.99 ? 'rolled' : 'lay';
+    drag.id = id; drag.kind = 'scrub'; drag.x0 = x; drag.y0 = y;
+    dirty = true; requestFrame();
+    return;
+  }
+  if (typeof theaterOn === 'function' && theaterOn()) return;
   if (S.mode === 'lay') {
     if (anim) return;
     // Вкладка группы — как кнопка: открывает страницу и НЕ меняет выбранную начинку.
@@ -256,6 +275,10 @@ function onMove(x, y, id) {
     drag.patch.v = clamp(uv.v + drag.ov, Math.min(0.5, hv), Math.max(0.5, 1 - hv));
     drag.outside = !inRect(x, y, { x: L.sheet.x - 24, y: L.sheet.y - 24, w: L.sheet.w + 48, h: L.sheet.h + 48 });
     touchModel();
+  } else if (drag.kind === 'scrub' && L.scrub) {
+    const p = clamp((x - L.scrub.x) / L.scrub.w);
+    S.rollP = p; S.mode = p >= 0.99 ? 'rolled' : 'lay';
+    anim = null;
   } else if (drag.kind === 'cut') {
     drag.moved = drag.moved || Math.abs(y - drag.y0) > 4;
     if (cut) { cut.held = true; cut.fingerY = y; }

@@ -2,12 +2,19 @@
 let rafId = 0, lastNow = 0;
 function frame(now) {
   rafId = 0; lastNow = now; dirty = false; icons = [];
+  if (L) L.scrub = null;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.fillStyle = (typeof tablePlay === 'function' && tablePlay()) ? '#121820' : tubePlay() ? '#2a2e2c' : '#171713'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = (typeof theaterOn === 'function' && theaterOn()) ? '#070707' : (typeof tablePlay === 'function' && tablePlay()) ? '#121820' : tubePlay() ? '#2a2e2c' : '#171713'; ctx.fillRect(0, 0, W, H);
   let animating = false;
   switch (S.mode) {
-    case 'lay': drawLay(); animating = !!anim; break;
-    case 'rolled': drawRolled(); break;
+    case 'lay':
+      if (typeof theaterOn === 'function' && theaterOn()) drawRollTheater(S.rollP);
+      else drawLay();
+      animating = !!anim; break;
+    case 'rolled':
+      if (typeof tablePlay === 'function' && tablePlay()) drawRollTheater(S.rollP < 0.02 ? 1 : S.rollP);
+      else drawRolled();
+      break;
     case 'cut': drawCut(now); animating = S.mode === 'cut'; break;
     case 'revealed': drawRevealed(); break;
     case 'slicing': drawSlicing(now); animating = S.mode === 'slicing'; break;
