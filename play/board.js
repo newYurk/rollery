@@ -129,8 +129,9 @@
   }
 
   function drawSpriteMaki(cx, cy, R, pieces, isTarget) {
+    if (!imgs.maki) return false;
     const size = R * 2.2;
-    if (isTarget && imgs.maki) {
+    if (isTarget || matchScore().pass) {
       ctx.drawImage(imgs.maki, cx - size / 2, cy - size / 2, size, size);
       return true;
     }
@@ -140,7 +141,8 @@
     ctx.drawImage(imgs.base, -size / 2, -size / 2, size, size);
     for (const p of pieces) {
       const t = TARGET.find((x) => x.kind === p.kind);
-      const rot = t ? (p.u - t.u) * TAU * 0.9 : 0;
+      const du = t ? p.u - t.u : 0;
+      const rot = clamp(du * TAU * 0.32, -0.55, 0.55);
       const w = imgs['wedge-' + p.kind];
       if (!w) continue;
       ctx.save();
@@ -318,16 +320,18 @@
     ctx.restore();
 
     if (G.guides) {
-      for (const t of TARGET) {
+      const worst = deltas().filter((d) => d.mm >= 6).sort((a, b) => b.mm - a.mm)[0];
+      if (worst) {
+        const t = TARGET.find((x) => x.kind === worst.kind);
         const r = stripRect(t, rice);
         ctx.save();
         ctx.setLineDash([6, 5]);
         ctx.strokeStyle = INK[t.kind].mark;
         ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.9;
+        ctx.globalAlpha = 0.7;
         rr(r.x, r.y, r.w, r.h, 7); ctx.stroke();
         ctx.fillStyle = INK[t.kind].mark;
-        ctx.globalAlpha = 0.12; rr(r.x, r.y, r.w, r.h, 7); ctx.fill();
+        ctx.globalAlpha = 0.10; rr(r.x, r.y, r.w, r.h, 7); ctx.fill();
         ctx.restore();
       }
     }
