@@ -929,21 +929,21 @@ function drawMakisuSide(x, y, w, h, p) {
   const mdl = getModel();
   const pulled = p > 0.02 ? modelAtPull(p) : mdl;
   const matH = Math.max(16, Math.min(22, h * 0.1));
-  const faceMax = Math.min(h * 0.58, w * 0.62);
+  const faceMax = Math.min(h * 0.56, w * 0.72);
   const fs = faceMax;
-  const sheetPx = w * 0.52;
-  const remainPx = (1 - p) * sheetPx;
-  const rollCx = x + 16 + remainPx + fs * 0.52;
-  const rollCy = y + h * 0.46;
-  const matY = Math.min(y + h * 0.82, rollCy + fs * 0.5 + 6);
-  const flatX0 = x + 8;
-  const flatX1 = rollCx - fs * 0.46;
-  const scale = Math.max(7, Math.min(13, h * 0.03));
+  const sheetPx = Math.min(w * 0.42, 220);
+  const remainPx = p < 0.92 ? (1 - p) * sheetPx : 0;
+  const rollCx = x + (remainPx > 16 ? remainPx + 20 : 0) + (w - (remainPx > 16 ? remainPx + 20 : 0)) / 2;
+  const matY = y + h * 0.78;
+  const rollCy = matY - fs * 0.42;
+  const flatX0 = x + 10;
+  const flatX1 = flatX0 + remainPx;
+  const scale = Math.max(8, Math.min(14, h * 0.032));
   const vSlice = 0.5;
-  const N = 56;
+  const N = 48;
 
-  const matLeft = flatX0 - 6;
-  const matRight = (p < 0.96 ? Math.max(flatX1, rollCx) : rollCx) + fs * 0.2;
+  const matLeft = remainPx > 16 ? flatX0 - 8 : rollCx - fs * 0.38;
+  const matRight = Math.max(rollCx + fs * 0.28, remainPx > 16 ? flatX1 + 18 : rollCx + fs * 0.38);
   rr(matLeft, matY, matRight - matLeft, matH + 4, 8);
   ctx.fillStyle = '#d2bc93'; ctx.fill();
   ctx.save();
@@ -954,7 +954,7 @@ function drawMakisuSide(x, y, w, h, p) {
   }
   ctx.restore();
 
-  if (p < 0.97 && flatX1 > flatX0 + 8) {
+  if (remainPx > 16) {
     const span = flatX1 - flatX0;
     for (let i = 0; i < N; i++) {
       const t0 = i / N, t1 = (i + 1) / N;
@@ -963,35 +963,11 @@ function drawMakisuSide(x, y, w, h, p) {
     }
   }
 
-  if (p > 0.03 && p < 0.94 && flatX1 > flatX0) {
-    const edge = sheetStackAt(p, vSlice, mdl);
-    const sh = stackHpx(edge, scale);
-    const x1 = flatX1, y1 = matY - sh * 0.5;
-    const a0 = Math.PI * 0.95, a1 = Math.PI * 0.95 - Math.min(2.2, 0.4 + p * 2.1);
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    let rr0 = fs / 2 + 2;
-    for (let i = edge.length - 1; i >= 0; i--) {
-      const layer = edge[i];
-      const lw = Math.max(2, layer.h * scale);
-      rr0 += lw * 0.5;
-      ctx.beginPath();
-      ctx.arc(rollCx, rollCy, rr0, a0, a1, true);
-      ctx.strokeStyle = layer.color;
-      ctx.lineWidth = lw;
-      ctx.stroke();
-      rr0 += lw * 0.5;
-    }
-    ctx.beginPath();
-    ctx.moveTo(x1, matY);
-    ctx.quadraticCurveTo(x1 + (rollCx - x1) * 0.35, matY - sh - 8, rollCx + Math.cos(a0) * (fs / 2 + 8), rollCy + Math.sin(a0) * (fs / 2 + 8));
-    ctx.strokeStyle = '#d2bc93'; ctx.lineWidth = matH * 0.7; ctx.stroke();
-  }
-
   if (p > 0.02) {
     ctx.save();
-    ctx.translate(rollCx, rollCy + fs * 0.46);
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.beginPath(); ctx.ellipse(0, 0, fs * 0.35 * Math.max(0.3, p), fs * 0.1, 0, 0, TAU); ctx.fill();
+    ctx.translate(rollCx, matY + 6);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(0, 0, fs * 0.32 * Math.max(0.35, p), fs * 0.08, 0, 0, TAU); ctx.fill();
     ctx.restore();
     drawFaceImg(face(0.5, fs, pulled, mdl.Rmax), rollCx, rollCy, fs);
   }
