@@ -138,33 +138,24 @@
     ctx.save();
     ctx.rotate(ang);
     ctx.beginPath();
-    if (kind === 'cucumber') {
-      ctx.moveTo(R * 0.02, 0);
-      ctx.bezierCurveTo(R * 0.16, R * 0.28, R * 0.40, R * 0.24, R * 0.58, 0);
-      ctx.bezierCurveTo(R * 0.40, -R * 0.24, R * 0.16, -R * 0.28, R * 0.02, 0);
-    } else if (kind === 'salmon') {
-      ctx.moveTo(R * 0.02, 0);
-      ctx.lineTo(R * 0.18, R * 0.30);
-      ctx.lineTo(R * 0.48, R * 0.26);
-      ctx.lineTo(R * 0.58, 0);
-      ctx.lineTo(R * 0.48, -R * 0.26);
-      ctx.lineTo(R * 0.18, -R * 0.28);
-      ctx.closePath();
-    } else {
-      ctx.moveTo(R * 0.02, 0);
-      ctx.lineTo(R * 0.20, R * 0.22);
-      ctx.lineTo(R * 0.44, R * 0.18);
-      ctx.lineTo(R * 0.56, 0);
-      ctx.lineTo(R * 0.44, -R * 0.18);
-      ctx.lineTo(R * 0.20, -R * 0.22);
-      ctx.closePath();
-    }
-    const g = ctx.createLinearGradient(R * 0.04, -R * 0.16, R * 0.56, R * 0.16);
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, R * 0.58, -0.9, 0.9);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, -R * 0.25, R * 0.58, R * 0.2);
     g.addColorStop(0, c[2]);
-    g.addColorStop(0.5, c[0]);
+    g.addColorStop(0.45, c[0]);
     g.addColorStop(1, c[1]);
     ctx.fillStyle = g;
     ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(R * 0.08, 0);
+    ctx.lineTo(R * 0.50, R * 0.16);
+    ctx.lineTo(R * 0.50, -R * 0.08);
+    ctx.closePath();
+    ctx.fillStyle = c[2];
+    ctx.globalAlpha = 0.28;
+    ctx.fill();
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
