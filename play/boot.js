@@ -81,6 +81,6 @@ S.tubeLab = /[?&]lab(?:[=&]|$)/.test(location.search);
 if (linked) puzzleFromLink(linked);
 else if (location.search.includes('puzzle')) action('puzzle');
 else if (S.tubeLab) action('tube');
-else tubeStart(0);
+else if (/[?&]pon(?:[=&]|$)/.test(location.search)) tubeStart(0);
 window.addEventListener('hashchange', () => { const pz = decodePuzzle(location.hash); if (pz) puzzleFromLink(pz); });
 requestFrame();
