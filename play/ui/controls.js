@@ -154,9 +154,10 @@ function drawChips(скрытьПоследний) {
   const maxScroll = Math.max(0, rowW - inner); chipScrollX = clamp(chipScrollX, 0, L.chipScroll ? maxScroll : 0);
   // Полоса вкладок живёт вместе с лентой: спрятали палитру целиком (один ряд, и он отдан
   // кнопкам) — вкладки тоже уходят, иначе над кнопкой остался бы ряд, ничего не открывающий.
+  const tableOwnsPal = !!(L.table && ((L.table.groups && L.table.groups.length) || (L.table.sides && L.table.sides.length)));
   if (видимыхРядов > 0) {
-    if (!(L.table && L.table.groups && L.table.groups.length)) drawPalTabs();
-  } else if (!(L.table && L.table.groups && L.table.groups.length)) palTabs = [];
+    if (!tableOwnsPal) drawPalTabs();
+  } else if (!tableOwnsPal) palTabs = [];
   ctx.save(); ctx.beginPath(); ctx.rect(c.x - 2, c.y - 4, c.w + 4, видимыхРядов * rowH + 8); ctx.clip();
   // Сдвиг страницы под пальцем (palDX) — это ответ на жест, а не прокрутка: страница уходит за
   // край, и на отпускании либо встаёт соседняя группа, либо эта возвращается на место.

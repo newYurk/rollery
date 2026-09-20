@@ -523,8 +523,8 @@ function drawTableChrome() {
     if (L.folds[0]) ctx.fillText('FOLD PROFILES', T.right.x + T.right.w / 2, L.folds[0].y - 12);
   }
 
+  palTabs = [];
   if (T.groups && T.groups.length) {
-    palTabs = [];
     for (const g of T.groups) {
       palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
       if (g.on) { ctx.fillStyle = card; rr(g.x, g.y, g.w, g.h, 7); ctx.fill(); ctx.fillStyle = coral; ctx.fillRect(g.x, g.y + 8, 3, g.h - 16); }
@@ -534,7 +534,6 @@ function drawTableChrome() {
     }
   }
   if (T.sides && T.sides.length) {
-    palTabs = palTabs || [];
     for (const g of T.sides) {
       palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
       ctx.fillStyle = g.on ? '#1e2a38' : '#15202c';

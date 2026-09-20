@@ -206,7 +206,7 @@ function onDown(x, y, id) {
     if (inRect(x, y, s)) {
       const p = hitPatch(x, y);
       drag.id = id; drag.x0 = x; drag.y0 = y; drag.moved = false;
-      if (p) { drag.kind = 'move'; drag.patch = p; const uv = sheetUV(x, y); drag.ou = p.u - uv.u; drag.ov = p.v - uv.v; }
+      if (p && p.kind === S.sel) { drag.kind = 'move'; drag.patch = p; const uv = sheetUV(x, y); drag.ou = p.u - uv.u; drag.ov = p.v - uv.v; }
       else drag.kind = 'place';
       dirty = true; requestFrame();
     }

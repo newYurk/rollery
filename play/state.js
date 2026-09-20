@@ -242,8 +242,11 @@ function palSync() {
 // уехала на другую страницу (сторож «П» это проверяет).
 function palSet(key) {
   const gs = uiGroups();
-  if (!gs.some(g => g.key === key) || S.palGroup === key) return false;
-  S.palGroup = key; return true;
+  const g = gs.find(x => x.key === key);
+  if (!g || S.palGroup === key) return false;
+  S.palGroup = key;
+  if (typeof tablePlay === 'function' && tablePlay() && g.ings.indexOf(S.sel) < 0) S.sel = g.ings[0];
+  return true;
 }
 function palStep(d) {
   const gs = uiGroups(), i = uiPalIndex(), j = clamp(i + d, 0, gs.length - 1);
