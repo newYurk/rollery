@@ -200,14 +200,28 @@
     ctx.arc(0, 0, rad * 0.62, 0, TAU);
     ctx.fillStyle = '#f4eee4';
     ctx.fill();
-    const order = ['tuna', 'cucumber', 'salmon'];
-    for (const kind of order) {
-      const p = pieces.find((x) => x.kind === kind);
-      const w = imgs['wedge-' + kind];
-      if (!p || !w) continue;
+    const items = pieces.map((p) => ({ kind: p.kind, a: wrapAng(angleOf(p)) }));
+    items.sort((x, y) => x.a - y.a);
+    const n = items.length;
+    const gap = 0.03;
+    for (let i = 0; i < n; i++) {
+      const prev = items[(i + n - 1) % n];
+      const next = items[(i + 1) % n];
+      const a0 = wrapAng(arcMid(prev.a, items[i].a) + gap);
+      let span = wrapAng(arcMid(items[i].a, next.a) - gap) - a0;
+      if (span < 0) span += TAU;
+      const mid = a0 + span / 2;
+      const w = imgs['wedge-' + items[i].kind];
       ctx.save();
-      ctx.rotate(angDelta(WEDGE_ANG[kind] || 0, angleOf(p)));
-      ctx.drawImage(w, -size / 2, -size / 2, size, size);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, rad * 0.60, a0, a0 + span);
+      ctx.closePath();
+      ctx.clip();
+      if (w) {
+        ctx.rotate(angDelta(WEDGE_ANG[items[i].kind] || 0, mid));
+        ctx.drawImage(w, -size / 2, -size / 2, size, size);
+      }
       ctx.restore();
     }
     ctx.restore();
