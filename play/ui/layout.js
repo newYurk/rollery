@@ -388,10 +388,9 @@ function layoutTable(cw, ch, ox, oy) {
       w: left.w - 16, h: headH, on: i === cur,
     })), sides: [] };
   } else {
-    const liveH = 108, palH = 52, tabH = 30;
+    const liveH = 108, palH = 56;
     const palY = stepY - palH - 6;
-    const tabY = palY - tabH;
-    const liveY = tabY - liveH - 6;
+    const liveY = palY - liveH - 6;
     const mat = { x: ox + 22, y: L.top + 4, w: cw - 44, h: Math.max(120, liveY - gap - (L.top + 4)) };
     const pad = 14, handleH = 26;
     const f = sheetFit(mat.w - pad * 2, Math.max(80, mat.h - pad * 2 - handleH), 'y');
@@ -424,13 +423,22 @@ function layoutTable(cw, ch, ox, oy) {
     L.layBtn = { x: ox, y: stepY, w: 0, h: 0, max: 1 };
     L.rowBtn = { x: ox + 16, y: stepY + 4, w: cw - 32, h: stepH - 10, max: 1 };
     L.selBtn = null;
-    const tw = gs.length ? (cw - 24) / gs.length : cw;
+    const nL = Math.ceil(gs.length / 2);
     L.table = {
-      wide: false, headerH, stepY, stepH, left: null, right: null, mat, sides: [],
-      groups: gs.map((q, i) => ({
-        key: q.key, name: q.name, short: q.short, icon: q.icon,
-        x: ox + 12 + i * tw, y: tabY, w: tw, h: tabH, on: i === cur,
-      })),
+      wide: false, headerH, stepY, stepH, left: null, right: null, mat, groups: [],
+      sides: gs.map((q, i) => {
+        const left = i < nL;
+        const col = left ? i : i - nL;
+        const colN = left ? nL : gs.length - nL;
+        const h = Math.min(64, Math.max(48, (mat.h - 20) / Math.max(1, colN) - 8));
+        const step = (mat.h - 12) / Math.max(1, colN);
+        return {
+          key: q.key, name: q.short || q.name, on: i === cur,
+          x: left ? ox : ox + cw - 28,
+          y: mat.y + 6 + col * step + Math.max(0, (step - h) / 2),
+          w: 28, h,
+        };
+      }),
     };
   }
 }
