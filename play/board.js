@@ -31,17 +31,21 @@
   };
 
   const WEDGE_ANG = { salmon: -1.5436, cucumber: 2.4842, tuna: 0.5288 };
+  const ASSET = (function () {
+    const s = document.currentScript && document.currentScript.src;
+    return s ? s.replace(/board\.js(\?.*)?$/, '') : '/play/';
+  })();
   const imgs = {};
   function loadImg(name, src) {
     const im = new Image();
     im.onload = () => { imgs[name] = im; if (G.layout) frame(); };
     im.src = src;
   }
-  loadImg('maki', '/play/assets/board/maki-target.png');
-  loadImg('base', '/play/assets/board/maki-base.png');
+  loadImg('maki', ASSET + 'assets/board/maki-target.png');
+  loadImg('base', ASSET + 'assets/board/maki-base.png');
   ['salmon','cucumber','tuna'].forEach((k) => {
-    loadImg(k, '/play/assets/board/' + k + '.png?v=3');
-    loadImg('wedge-' + k, '/play/assets/board/wedge-' + k + '.png');
+    loadImg(k, ASSET + 'assets/board/' + k + '.png?v=3');
+    loadImg('wedge-' + k, ASSET + 'assets/board/wedge-' + k + '.png');
   });
 
 
