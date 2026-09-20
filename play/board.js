@@ -1,5 +1,5 @@
 'use strict';
-/* Puzzle 01 board — paper chrome + faceted cuts. Independent of the lab renderer. */
+/* Puzzle board — arrange sticks, check the cut, roll. */
 
 (function () {
   if (typeof window.__boardStop === 'function') window.__boardStop();
@@ -10,15 +10,33 @@
     cucumber: { name: 'Cucumber', fill: ['#6f9440', '#4e6e2c', '#c5d97a'], mark: '#6f9440' },
     tuna: { name: 'Tuna', fill: ['#b03a48', '#7a2432', '#e07a82'], mark: '#b03a48' },
   };
-  const TARGET = [
-    { kind: 'cucumber', u: 0.22 },
-    { kind: 'salmon', u: 0.50 },
-    { kind: 'tuna', u: 0.78 },
-  ];
-  const START = [
-    { kind: 'salmon', u: 0.28, id: 'salmon' },
-    { kind: 'tuna', u: 0.48, id: 'tuna' },
-    { kind: 'cucumber', u: 0.74, id: 'cucumber' },
+  const PUZZLES = [
+    {
+      id: 1, title: 'PUZZLE 01', photo: true, guides: true, tol: 0.045,
+      target: [
+        { kind: 'cucumber', u: 0.22 },
+        { kind: 'salmon', u: 0.50 },
+        { kind: 'tuna', u: 0.78 },
+      ],
+      start: [
+        { kind: 'salmon', u: 0.28, id: 'salmon' },
+        { kind: 'tuna', u: 0.48, id: 'tuna' },
+        { kind: 'cucumber', u: 0.74, id: 'cucumber' },
+      ],
+    },
+    {
+      id: 2, title: 'PUZZLE 02', photo: false, guides: false, tol: 0.04,
+      target: [
+        { kind: 'salmon', u: 0.24 },
+        { kind: 'tuna', u: 0.50 },
+        { kind: 'cucumber', u: 0.76 },
+      ],
+      start: [
+        { kind: 'cucumber', u: 0.26, id: 'cucumber' },
+        { kind: 'salmon', u: 0.54, id: 'salmon' },
+        { kind: 'tuna', u: 0.78, id: 'tuna' },
+      ],
+    },
   ];
   const DU = 0.11;
 
@@ -28,8 +46,10 @@
   canvasEl.parentNode.replaceChild(canvas, canvasEl);
   const ctx = canvas.getContext('2d');
   const G = {
-    pieces: START.map((p) => ({ ...p })),
+    level: 0,
+    pieces: PUZZLES[0].start.map((p) => ({ ...p })),
     drag: null, pass: false, checked: false, score: 0, guides: true,
+    phase: 'arrange', rollT: 0, winPulse: 0, lesson: true,
     W: 0, H: 0, dpr: 1, layout: null, hits: [],
   };
 
@@ -41,19 +61,22 @@
   const imgs = {};
   function loadImg(name, src) {
     const im = new Image();
-    im.onload = () => { imgs[name] = im; if (G.layout) frame(); };
+    im.onload = () => { imgs[name] = im; };
     im.src = src;
   }
   loadImg('maki', ASSET + 'assets/board/maki-target.png');
   loadImg('base', ASSET + 'assets/board/maki-base.png');
-  ['salmon','cucumber','tuna'].forEach((k) => {
+  ['salmon', 'cucumber', 'tuna'].forEach((k) => {
     loadImg(k, ASSET + 'assets/board/' + k + '.png?v=7');
     loadImg('wedge-' + k, ASSET + 'assets/board/wedge-' + k + '.png');
   });
 
+  function puzzle() { return PUZZLES[G.level]; }
+  function TARGET() { return puzzle().target; }
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function lerp(a, b, t) { return a + (b - a) * t; }
+  function ease(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
   function rr(x, y, w, h, r) {
     const R = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
@@ -72,7 +95,7 @@
   }
 
   function deltas() {
-    return TARGET.map((t) => {
+    return TARGET().map((t) => {
       const p = G.pieces.find((x) => x.kind === t.kind);
       const du = (p ? p.u : 0) - t.u;
       return { kind: t.kind, du, mm: Math.round(Math.abs(du) * Lmm), dir: (p && p.u < t.u) ? 'UP' : 'DOWN' };
@@ -81,12 +104,7 @@
   function matchScore() {
     const ds = deltas();
     const worst = Math.max(...ds.map((d) => Math.abs(d.du)));
-    return { pass: worst <= 0.045, score: Math.round(clamp(1 - worst / 0.35, 0, 1) * 100), ds };
-  }
-  function orderMatch() {
-    const a = G.pieces.slice().sort((x, y) => x.u - y.u).map((p) => p.kind).join();
-    const b = TARGET.slice().sort((x, y) => x.u - y.u).map((p) => p.kind).join();
-    return a === b;
+    return { pass: worst <= puzzle().tol, score: Math.round(clamp(1 - worst / 0.35, 0, 1) * 100), ds };
   }
 
   function relayout() {
@@ -124,31 +142,6 @@
     return { x: rice.x + 10, y: uToY(p.u, rice) - h / 2, w: rice.w - 20, h };
   }
 
-  function wedge(R, u, du, r0, r1) {
-    const a = -Math.PI / 2 + u * TAU * 0.9;
-    const half = Math.max(0.38, du * TAU * 0.45);
-    const steps = 6, outer = [], inner = [];
-    for (let i = 0; i <= steps; i++) {
-      const t = lerp(a - half, a + half, i / steps);
-      const j = 1 + ((i % 2) ? 0.025 : -0.02);
-      outer.push([Math.cos(t) * r1 * j, Math.sin(t) * r1 * j]);
-    }
-    for (let i = steps; i >= 0; i--) {
-      const t = lerp(a - half, a + half, i / steps);
-      inner.push([Math.cos(t) * r0, Math.sin(t) * r0]);
-    }
-    return outer.concat(inner);
-  }
-
-  function wrapAng(a) {
-    a = a % TAU;
-    return a < 0 ? a + TAU : a;
-  }
-  function arcMid(a, b) {
-    let d = wrapAng(b) - wrapAng(a);
-    if (d < 0) d += TAU;
-    return wrapAng(a + d / 2);
-  }
   function drawPetal(kind, ang, R) {
     const c = INK[kind].fill;
     ctx.save();
@@ -222,7 +215,7 @@
     ctx.arc(0, 0, rad * 0.66, 0, TAU);
     ctx.fillStyle = '#f3ece0';
     ctx.fill();
-    const seats = TARGET.slice().sort((a, b) => a.u - b.u);
+    const seats = TARGET().slice().sort((a, b) => a.u - b.u);
     const placed = pieces.slice().sort((a, b) => a.u - b.u);
     for (let i = 0; i < placed.length; i++) {
       const dest = WEDGE_ANG[seats[i].kind];
@@ -231,88 +224,18 @@
     }
   }
 
-  function angleOf(p) {
-    return 0.78 + p.u * 7.73;
-  }
-  function angDelta(from, to) {
-    let d = (to - from) % TAU;
-    if (d > Math.PI) d -= TAU;
-    if (d < -Math.PI) d += TAU;
-    return d;
-  }
-
   function drawSpriteMaki(cx, cy, R, pieces, isTarget) {
-    if (!imgs.maki) return false;
     const size = R * 2.0;
-    if (isTarget || matchScore().pass) {
+    const wantPhoto = puzzle().photo && imgs.maki && (isTarget || G.pass);
+    if (wantPhoto) {
       ctx.drawImage(imgs.maki, cx - size / 2, cy - size / 2, size, size);
       return true;
     }
     ctx.save();
     ctx.translate(cx, cy);
-    const rad = size / 2;
-    drawSchematicRoll(pieces, rad);
+    drawSchematicRoll(isTarget ? TARGET() : pieces, size / 2);
     ctx.restore();
     return true;
-  }
-
-  function drawMaki(cx, cy, R, pieces, ghosts) {
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.beginPath();
-    for (let i = 0; i < 8; i++) {
-      const a = (i + 0.5) / 8 * TAU;
-      const x = Math.cos(a) * (R + 5), y = Math.sin(a) * (R + 5);
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-    }
-    ctx.closePath();
-    ctx.fillStyle = '#1c2430'; ctx.fill();
-
-    ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU);
-    ctx.fillStyle = '#1a241c'; ctx.fill();
-
-    const riceN = 8;
-    for (let i = 0; i < riceN; i++) {
-      const a0 = i / riceN * TAU, a1 = (i + 1) / riceN * TAU;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(a0) * R * 0.22, Math.sin(a0) * R * 0.22);
-      ctx.lineTo(Math.cos(a0) * R * 0.9, Math.sin(a0) * R * 0.9);
-      ctx.lineTo(Math.cos(a1) * R * 0.9, Math.sin(a1) * R * 0.9);
-      ctx.lineTo(Math.cos(a1) * R * 0.22, Math.sin(a1) * R * 0.22);
-      ctx.closePath();
-      ctx.fillStyle = i % 2 ? '#f6f0e4' : '#eadfcf';
-      ctx.fill();
-    }
-
-    for (const p of pieces.slice().sort((a, b) => a.u - b.u)) {
-      const spec = INK[p.kind];
-      const pts = wedge(R, p.u, DU, R * 0.26, R * 0.84);
-      ctx.beginPath();
-      pts.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]));
-      ctx.closePath();
-      const g = ctx.createLinearGradient(pts[0][0], pts[0][1], pts[3][0], pts[3][1]);
-      g.addColorStop(0, spec.fill[0]); g.addColorStop(0.55, spec.fill[2]); g.addColorStop(1, spec.fill[1]);
-      ctx.fillStyle = g; ctx.fill();
-      ctx.strokeStyle = 'rgba(28,36,48,0.35)'; ctx.lineWidth = 1; ctx.stroke();
-    }
-
-    if (ghosts) {
-      ctx.setLineDash([4, 3]); ctx.lineWidth = 1.6; ctx.globalAlpha = 0.85;
-      for (const t of ghosts) {
-        const pts = wedge(R, t.u, DU, R * 0.26, R * 0.84);
-        ctx.beginPath();
-        pts.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]));
-        ctx.closePath();
-        ctx.strokeStyle = INK[t.kind].mark; ctx.stroke();
-      }
-      ctx.setLineDash([]); ctx.globalAlpha = 1;
-    }
-
-    ctx.beginPath(); ctx.arc(0, 0, R * 0.2, 0, TAU);
-    ctx.fillStyle = '#f3eadc'; ctx.fill();
-    ctx.beginPath(); ctx.arc(0, 0, R * 0.9, 0, TAU);
-    ctx.strokeStyle = '#1a241c'; ctx.lineWidth = 3; ctx.stroke();
-    ctx.restore();
   }
 
   function drawPaper() {
@@ -353,16 +276,23 @@
     ctx.fillText('ROLLERY', L.ox + 42, L.headerH / 2 - 7);
     ctx.fillStyle = '#e2c48a';
     ctx.font = ui(9, 600);
-    ctx.fillText('PUZZLE 01', L.ox + 42, L.headerH / 2 + 10);
+    ctx.fillText(puzzle().title, L.ox + 42, L.headerH / 2 + 10);
     roundBtn('undo', L.ox + L.colW - 56, L.headerH / 2, '↺');
-    roundBtn('guides', L.ox + L.colW - 22, L.headerH / 2, G.guides ? '▣' : '□');
+    if (puzzle().guides) {
+      roundBtn('guides', L.ox + L.colW - 22, L.headerH / 2, G.guides ? '▣' : '□');
+    }
   }
 
   function drawSteps(L) {
     const y = L.headerH;
+    const nowArrange = G.phase === 'arrange' && !G.pass;
+    const nowMatch = G.pass && G.phase === 'arrange';
+    const nowCut = G.phase === 'rolling' || G.phase === 'rolled';
     const steps = [
       { t: 'BASE', on: true }, { t: 'RICE', on: true },
-      { t: 'ARRANGE', on: true, now: true }, { t: 'MATCH', on: G.pass }, { t: 'CUT', on: false },
+      { t: 'ARRANGE', on: true, now: nowArrange },
+      { t: 'MATCH', on: G.pass, now: nowMatch },
+      { t: 'CUT', on: nowCut, now: nowCut },
     ];
     const x0 = L.ox + 12, w = L.colW - 24, slot = w / steps.length;
     ctx.fillStyle = '#e8dcc6';
@@ -377,7 +307,14 @@
   }
 
   function drawCuts(L) {
+    const pulse = G.winPulse > 0 ? 1 + 0.04 * Math.sin(G.winPulse * 14) * G.winPulse : 1;
     for (const c of L.cuts) {
+      ctx.save();
+      if (!c.target && pulse !== 1) {
+        ctx.translate(c.x, c.y);
+        ctx.scale(pulse, pulse);
+        ctx.translate(-c.x, -c.y);
+      }
       rr(c.card.x, c.card.y, c.card.w, c.card.h, 14);
       ctx.fillStyle = '#243038'; ctx.fill();
       ctx.save();
@@ -386,23 +323,25 @@
       ctx.fillStyle = 'rgba(12,14,16,0.45)';
       ctx.fillRect(c.card.x, c.card.y + c.card.h - 24, c.card.w, 24);
       ctx.restore();
-      if (!drawSpriteMaki(c.x, c.y, c.r, c.target ? TARGET : G.pieces, c.target)) {
-        drawMaki(c.x, c.y, c.r, c.target ? TARGET : G.pieces, c.target ? null : TARGET);
-      }
+      drawSpriteMaki(c.x, c.y, c.r, c.target ? TARGET() : G.pieces, c.target);
       ctx.fillStyle = '#d8ccb6';
       ctx.font = ui(7, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(c.lab, c.x, c.card.y + c.card.h - 12);
+      ctx.restore();
     }
     if (G.pass) {
       const c = L.cuts[1];
       ctx.fillStyle = '#9dba5a';
       ctx.font = ui(8, 700);
+      ctx.textAlign = 'center';
       ctx.fillText('MATCHED', c.x, c.card.y + 14);
     }
   }
 
   function drawSheet(L) {
     const s = L.sheet, rice = L.rice;
+    const rolling = G.phase === 'rolling' || G.phase === 'rolled';
+    const t = rolling ? ease(G.rollT) : 0;
     rr(s.x, s.y, s.w, s.h, 16);
     ctx.fillStyle = '#2a322c'; ctx.fill();
 
@@ -425,16 +364,18 @@
       ctx.fillStyle = i % 3 ? 'rgba(210,196,170,0.45)' : 'rgba(255,252,246,0.5)';
       ctx.fill();
     }
-    ctx.restore();
 
-    if (G.guides) {
+    const front = rice.y + rice.h * (1 - t);
+    const cylH = lerp(0, Math.min(42, rice.h * 0.18), Math.min(1, t * 1.4));
+
+    if (G.guides && G.phase === 'arrange' && !G.pass) {
       const worst = deltas().filter((d) => d.mm >= 6).sort((a, b) => b.mm - a.mm)[0];
       if (worst) {
-        const t = TARGET.find((x) => x.kind === worst.kind);
-        const y = uToY(t.u, rice);
+        const tgt = TARGET().find((x) => x.kind === worst.kind);
+        const y = uToY(tgt.u, rice);
         ctx.save();
         ctx.setLineDash([5, 4]);
-        ctx.strokeStyle = INK[t.kind].mark;
+        ctx.strokeStyle = INK[tgt.kind].mark;
         ctx.lineWidth = 1.6;
         ctx.globalAlpha = 0.55;
         ctx.beginPath();
@@ -455,6 +396,8 @@
 
     for (const p of G.pieces) {
       const r = stripRect(p, rice);
+      const cy = r.y + r.h / 2;
+      if (rolling && (t > 0.82 || cy > front - 6)) continue;
       const spec = INK[p.kind];
       const hold = G.drag && G.drag.id === p.id;
       const dx = r.x + 10, dw = r.w - 20, dh = r.h * 0.74;
@@ -463,25 +406,12 @@
       rr(dx, dy, dw, dh, dh * 0.48);
       ctx.clip();
       if (imgs[p.kind]) {
-        const im = imgs[p.kind];
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(im, dx, dy, dw, dh);
+        ctx.drawImage(imgs[p.kind], dx, dy, dw, dh);
       } else {
-        const g = ctx.createLinearGradient(dx, dy, dx + dw, dy + dh);
-        g.addColorStop(0, spec.fill[1]);
-        g.addColorStop(0.5, spec.fill[0]);
-        g.addColorStop(1, spec.fill[2]);
-        ctx.fillStyle = g;
+        ctx.fillStyle = spec.fill[0];
         ctx.fillRect(dx, dy, dw, dh);
-        ctx.strokeStyle = 'rgba(255,230,230,0.22)';
-        ctx.lineWidth = Math.max(3, dh * 0.14);
-        for (let i = -2; i < 12; i++) {
-          ctx.beginPath();
-          ctx.moveTo(dx + i * dw * 0.12, dy);
-          ctx.lineTo(dx + i * dw * 0.12 + dh * 0.9, dy + dh);
-          ctx.stroke();
-        }
       }
       ctx.restore();
       if (hold) {
@@ -490,15 +420,35 @@
         rr(dx - 2, dy - 2, dw + 4, dh + 4, dh * 0.48);
         ctx.stroke();
       }
-      G.hits.push({ id: 'piece:' + p.id, x: r.x, y: r.y, w: r.w, h: r.h });
+      if (G.phase === 'arrange') {
+        G.hits.push({ id: 'piece:' + p.id, x: r.x, y: r.y, w: r.w, h: r.h });
+      }
     }
 
-    if (G.guides) {
+    if (rolling && cylH > 2) {
+      const y = front - cylH * 0.45;
+      rr(rice.x + 4, y, rice.w - 8, cylH, cylH * 0.48);
+      ctx.fillStyle = '#1a1814';
+      ctx.fill();
+      rr(rice.x + 10, y + cylH * 0.18, rice.w - 20, cylH * 0.42, cylH * 0.2);
+      ctx.fillStyle = '#3a342c';
+      ctx.fill();
+      ctx.fillStyle = 'rgba(244,234,216,0.16)';
+      ctx.fillRect(rice.x + 18, y + cylH * 0.22, rice.w - 36, 2);
+    }
+
+    if (t > 0.02) {
+      ctx.fillStyle = '#2a322c';
+      ctx.fillRect(rice.x, front + cylH * 0.4, rice.w, rice.y + rice.h - front);
+    }
+    ctx.restore();
+
+    if (G.guides && G.phase === 'arrange' && !G.pass) {
       const ds = deltas().filter((d) => d.mm >= 4).sort((a, b) => b.mm - a.mm);
       if (ds[0]) {
-        const t = TARGET.find((x) => x.kind === ds[0].kind);
+        const tgt = TARGET().find((x) => x.kind === ds[0].kind);
         const p = G.pieces.find((x) => x.kind === ds[0].kind);
-        const a = stripRect(p, rice), b = stripRect(t, rice);
+        const a = stripRect(p, rice), b = stripRect(tgt, rice);
         const x = rice.x + rice.w - 10;
         ctx.strokeStyle = INK[ds[0].kind].mark;
         ctx.fillStyle = INK[ds[0].kind].mark;
@@ -529,9 +479,21 @@
       }
     }
 
-    ctx.fillStyle = '#d8d0c0';
-    ctx.font = ui(8, 600); ctx.textAlign = 'center';
-    ctx.fillText('↑  FROM THIS EDGE  ·  becomes the core', s.x + s.w / 2, s.y + s.h - 12);
+    if (G.lesson && G.phase === 'arrange' && G.level === 0) {
+      const ly = s.y + s.h - 36;
+      rr(s.x + 28, ly, s.w - 56, 22, 8);
+      ctx.fillStyle = '#1c2430';
+      ctx.fill();
+      ctx.fillStyle = '#f4ead8';
+      ctx.font = ui(8, 700);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('THIS EDGE BECOMES THE CORE', s.x + s.w / 2, ly + 12);
+    } else {
+      ctx.fillStyle = '#d8d0c0';
+      ctx.font = ui(8, 600); ctx.textAlign = 'center';
+      ctx.fillText('↑  FROM THIS EDGE  ·  becomes the core', s.x + s.w / 2, s.y + s.h - 12);
+    }
   }
 
   function drawDock(L) {
@@ -540,27 +502,40 @@
     const gap = 8;
     const resetW = 72, rollW = 88;
     const checkW = w - resetW - rollW - gap * 2;
+    const busy = G.phase === 'rolling';
 
     rr(x, by, resetW, bh, 12);
     ctx.fillStyle = '#fff'; ctx.fill();
     ctx.strokeStyle = 'rgba(28,36,48,0.18)'; ctx.lineWidth = 1; ctx.stroke();
     ctx.fillStyle = '#1c2430'; ctx.font = ui(11, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('RESET', x + resetW / 2, by + bh / 2);
-    G.hits.push({ id: 'reset', x, y: by, w: resetW, h: bh });
+    if (!busy) G.hits.push({ id: 'reset', x, y: by, w: resetW, h: bh });
 
     const cx = x + resetW + gap;
     rr(cx, by, checkW, bh, 12);
     ctx.fillStyle = G.pass ? '#2a6b62' : '#d45a3c'; ctx.fill();
     ctx.fillStyle = '#f4ead8'; ctx.font = ui(13, 700);
-    ctx.fillText(G.pass ? 'MATCHED  ' + G.score + '%' : (G.checked ? 'AGAIN  ·  ' + G.score + '%' : 'CHECK CUT'), cx + checkW / 2, by + bh / 2);
-    G.hits.push({ id: 'check', x: cx, y: by, w: checkW, h: bh });
+    let mid = 'CHECK CUT';
+    if (G.phase === 'rolling') mid = 'ROLLING';
+    else if (G.phase === 'rolled') mid = 'ROLLED';
+    else if (G.pass) mid = 'MATCHED  ' + G.score + '%';
+    else if (G.checked) mid = 'AGAIN  ·  ' + G.score + '%';
+    ctx.fillText(mid, cx + checkW / 2, by + bh / 2);
+    if (G.phase === 'arrange') G.hits.push({ id: 'check', x: cx, y: by, w: checkW, h: bh });
 
     const rx = x + w - rollW;
+    const canRoll = G.pass && G.phase === 'arrange';
+    const canNext = G.phase === 'rolled';
+    const glow = canRoll && (Math.sin(performance.now() / 280) > 0);
     rr(rx, by, rollW, bh, 12);
-    ctx.fillStyle = G.pass ? '#1c2430' : '#d9d0c2'; ctx.fill();
-    ctx.fillStyle = G.pass ? '#f4ead8' : '#8a7f70'; ctx.font = ui(10, 700);
-    ctx.fillText(G.pass ? 'ROLL' : 'LOCKED', rx + rollW / 2, by + bh / 2);
-    G.hits.push({ id: 'roll', x: rx, y: by, w: rollW, h: bh });
+    ctx.fillStyle = canRoll || canNext ? (glow ? '#2a241c' : '#1c2430') : '#d9d0c2';
+    ctx.fill();
+    ctx.fillStyle = canRoll || canNext ? '#f4ead8' : '#8a7f70';
+    ctx.font = ui(10, 700);
+    const rlab = busy ? '…' : (canNext ? (G.level < PUZZLES.length - 1 ? 'NEXT' : 'AGAIN') : (canRoll ? 'ROLL' : 'LOCKED'));
+    ctx.fillText(rlab, rx + rollW / 2, by + bh / 2);
+    if (canRoll) G.hits.push({ id: 'roll', x: rx, y: by, w: rollW, h: bh });
+    if (canNext) G.hits.push({ id: 'next', x: rx, y: by, w: rollW, h: bh });
   }
 
   function frame() {
@@ -582,15 +557,32 @@
     }
     return null;
   }
-  function reset() {
-    G.pieces = START.map((p) => ({ ...p }));
+  function loadLevel(i) {
+    G.level = clamp(i, 0, PUZZLES.length - 1);
+    const P = puzzle();
+    G.pieces = P.start.map((p) => ({ ...p }));
     G.pass = false; G.checked = false; G.score = 0; G.drag = null;
-    frame();
+    G.phase = 'arrange'; G.rollT = 0; G.winPulse = 0;
+    G.guides = P.guides;
+    if (G.level === 0) G.lesson = G.lesson !== false;
+  }
+  function reset() {
+    loadLevel(G.level);
   }
   function check() {
+    if (G.phase !== 'arrange') return;
     const m = matchScore();
     G.checked = true; G.pass = m.pass; G.score = m.score;
-    frame();
+    if (m.pass) G.winPulse = 1;
+  }
+  function startRoll() {
+    if (!(G.pass && G.phase === 'arrange')) return;
+    G.phase = 'rolling';
+    G.rollT = 0;
+  }
+  function goNext() {
+    if (G.level < PUZZLES.length - 1) loadLevel(G.level + 1);
+    else loadLevel(0);
   }
   function onDown(x, y) {
     const h = hitAt(x, y);
@@ -601,24 +593,42 @@
       const r = stripRect(p, G.layout.rice);
       G.drag = { id, off: y - (r.y + r.h / 2) };
       G.pass = false;
+      G.lesson = false;
       return;
     }
     if (h.id === 'reset' || h.id === 'undo') reset();
     if (h.id === 'check') check();
-    if (h.id === 'guides') { G.guides = !G.guides; frame(); }
+    if (h.id === 'guides') G.guides = !G.guides;
+    if (h.id === 'roll') startRoll();
+    if (h.id === 'next') goNext();
+    if (h.id === 'back') { if (G.level > 0) loadLevel(G.level - 1); else reset(); }
   }
   function onMove(x, y) {
-    if (!G.drag) return;
+    if (!G.drag || G.phase !== 'arrange') return;
     const p = G.pieces.find((q) => q.id === G.drag.id);
     p.u = yToU(y - G.drag.off, G.layout.rice);
     G.pass = false;
-    frame();
   }
-  function onUp() { G.drag = null; frame(); }
+  function onUp() { G.drag = null; }
   function pt(e) {
     const r = canvas.getBoundingClientRect();
     const t = e.touches ? e.touches[0] || e.changedTouches[0] : e;
     return { x: t.clientX - r.left, y: t.clientY - r.top };
+  }
+
+  let alive = true;
+  let last = 0;
+  function loop(now) {
+    if (!alive) return;
+    const dt = Math.min(0.1, (now - last) / 1000 || 0.016);
+    last = now;
+    if (G.winPulse > 0) G.winPulse = Math.max(0, G.winPulse - dt * 1.6);
+    if (G.phase === 'rolling') {
+      G.rollT = Math.min(1, G.rollT + dt / 1.35);
+      if (G.rollT >= 1) G.phase = 'rolled';
+    }
+    frame();
+    requestAnimationFrame(loop);
   }
 
   canvas.addEventListener('pointerdown', onPointerDown);
@@ -627,6 +637,7 @@
   canvas.addEventListener('pointercancel', onUp);
   window.addEventListener('resize', frame);
   window.__boardStop = function () {
+    alive = false;
     canvas.removeEventListener('pointerdown', onPointerDown);
     canvas.removeEventListener('pointermove', onPointerMove);
     canvas.removeEventListener('pointerup', onUp);
@@ -636,6 +647,7 @@
   };
   function onPointerDown(e) { canvas.setPointerCapture(e.pointerId); const p = pt(e); onDown(p.x, p.y); }
   function onPointerMove(e) { const p = pt(e); onMove(p.x, p.y); }
-  reset();
+  loadLevel(0);
   window.__board = G;
+  requestAnimationFrame(loop);
 })();
