@@ -47,7 +47,7 @@
   loadImg('maki', ASSET + 'assets/board/maki-target.png');
   loadImg('base', ASSET + 'assets/board/maki-base.png');
   ['salmon','cucumber','tuna'].forEach((k) => {
-    loadImg(k, ASSET + 'assets/board/' + k + '.png?v=4');
+    loadImg(k, ASSET + 'assets/board/' + k + '.png?v=5');
     loadImg('wedge-' + k, ASSET + 'assets/board/wedge-' + k + '.png');
   });
 
@@ -90,7 +90,7 @@
   }
 
   function relayout() {
-    const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
     const VW = window.innerWidth, VH = window.innerHeight;
     if (canvas.width !== Math.round(VW * dpr) || canvas.height !== Math.round(VH * dpr)) {
       canvas.width = Math.round(VW * dpr);
@@ -460,15 +460,15 @@
       const dx = r.x + 10, dw = r.w - 20, dh = r.h * 0.74;
       const dy = r.y + (r.h - dh) / 2;
       ctx.save();
-      rr(dx, dy + 3, dw, dh, dh * 0.48);
-      ctx.fillStyle = 'rgba(40, 36, 28, 0.10)';
-      ctx.fill();
-      ctx.restore();
-      ctx.save();
       rr(dx, dy, dw, dh, dh * 0.48);
       ctx.clip();
       if (imgs[p.kind]) {
-        ctx.drawImage(imgs[p.kind], dx, dy, dw, dh);
+        const im = imgs[p.kind];
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        const scale = Math.max(dw / im.width, dh / im.height);
+        const iw = im.width * scale, ih = im.height * scale;
+        ctx.drawImage(im, dx + (dw - iw) / 2, dy + (dh - ih) / 2, iw, ih);
       } else {
         const g = ctx.createLinearGradient(dx, dy, dx + dw, dy + dh);
         g.addColorStop(0, spec.fill[1]);
