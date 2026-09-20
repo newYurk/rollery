@@ -41,7 +41,7 @@
   loadImg('base', '/play/assets/board/maki-base.png');
   ['salmon','cucumber','tuna'].forEach((k) => {
     loadImg(k, '/play/assets/board/' + k + '.png?v=3');
-    loadImg('bit-' + k, '/play/assets/board/bit-' + k + '.png');
+    loadImg('wedge-' + k, '/play/assets/board/wedge-' + k + '.png');
   });
 
 
@@ -75,6 +75,11 @@
     const ds = deltas();
     const worst = Math.max(...ds.map((d) => Math.abs(d.du)));
     return { pass: worst <= 0.045, score: Math.round(clamp(1 - worst / 0.35, 0, 1) * 100), ds };
+  }
+  function orderMatch() {
+    const a = G.pieces.slice().sort((x, y) => x.u - y.u).map((p) => p.kind).join();
+    const b = TARGET.slice().sort((x, y) => x.u - y.u).map((p) => p.kind).join();
+    return a === b;
   }
 
   function relayout() {
@@ -161,18 +166,15 @@
   function drawSpriteMaki(cx, cy, R, pieces, isTarget) {
     if (!imgs.maki) return false;
     const size = R * 2.2;
-    if (isTarget || matchScore().pass) {
+    if (isTarget || matchScore().pass || orderMatch()) {
       ctx.drawImage(imgs.maki, cx - size / 2, cy - size / 2, size, size);
       return true;
     }
+    if (!imgs.base) return false;
     ctx.save();
     ctx.translate(cx, cy);
     const rad = size / 2;
-    if (imgs.base) ctx.drawImage(imgs.base, -size / 2, -size / 2, size, size);
-    else {
-      ctx.beginPath(); ctx.arc(0, 0, rad, 0, TAU);
-      ctx.fillStyle = '#1a1c18'; ctx.fill();
-    }
+    ctx.drawImage(imgs.base, -size / 2, -size / 2, size, size);
     ctx.save();
     ctx.beginPath();
     ctx.arc(0, 0, rad * 0.52, 0, TAU);
@@ -386,21 +388,36 @@
       const r = stripRect(p, rice);
       const spec = INK[p.kind];
       const hold = G.drag && G.drag.id === p.id;
-      const spr = imgs[p.kind];
-      if (spr) {
-        const dx = r.x, dy = r.y + r.h * 0.04, dw = r.w, dh = r.h * 0.92;
-        ctx.drawImage(spr, dx, dy, dw, dh);
-        if (hold) {
-          ctx.strokeStyle = '#1c2430';
-          ctx.lineWidth = 2;
-          rr(dx - 2, dy - 2, dw + 4, dh + 4, 10);
+      const dx = r.x, dy = r.y + r.h * 0.06, dw = r.w, dh = r.h * 0.88;
+      ctx.save();
+      rr(dx, dy, dw, dh, dh * 0.48);
+      ctx.clip();
+      if (p.kind === 'tuna' || !imgs[p.kind]) {
+        const g = ctx.createLinearGradient(dx, dy, dx + dw, dy + dh);
+        g.addColorStop(0, spec.fill[1]);
+        g.addColorStop(0.5, spec.fill[0]);
+        g.addColorStop(1, spec.fill[2]);
+        ctx.fillStyle = g;
+        ctx.fillRect(dx, dy, dw, dh);
+        ctx.strokeStyle = 'rgba(255,230,230,0.22)';
+        ctx.lineWidth = Math.max(3, dh * 0.14);
+        for (let i = -2; i < 12; i++) {
+          ctx.beginPath();
+          ctx.moveTo(dx + i * dw * 0.12, dy);
+          ctx.lineTo(dx + i * dw * 0.12 + dh * 0.9, dy + dh);
           ctx.stroke();
         }
       } else {
-        rr(r.x, r.y, r.w, r.h, 8);
-        const g = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
-        g.addColorStop(0, spec.fill[1]); g.addColorStop(0.45, spec.fill[0]); g.addColorStop(1, spec.fill[2]);
-        ctx.fillStyle = g; ctx.fill();
+        ctx.fillStyle = spec.fill[0];
+        ctx.fillRect(dx, dy, dw, dh);
+        ctx.drawImage(imgs[p.kind], dx, dy, dw, dh);
+      }
+      ctx.restore();
+      if (hold) {
+        ctx.strokeStyle = '#1c2430';
+        ctx.lineWidth = 2;
+        rr(dx - 2, dy - 2, dw + 4, dh + 4, dh * 0.48);
+        ctx.stroke();
       }
       G.hits.push({ id: 'piece:' + p.id, x: r.x, y: r.y, w: r.w, h: r.h });
     }
