@@ -212,11 +212,14 @@
       if (span < 0) span += TAU;
       const mid = a0 + span / 2;
       const w = imgs['wedge-' + items[i].kind];
+      const c = INK[items[i].kind].fill;
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.arc(0, 0, rad * 0.60, a0, a0 + span);
       ctx.closePath();
+      ctx.fillStyle = c[0];
+      ctx.fill();
       ctx.clip();
       if (w) {
         ctx.rotate(angDelta(WEDGE_ANG[items[i].kind] || 0, mid));
