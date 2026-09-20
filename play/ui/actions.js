@@ -145,10 +145,12 @@ function onDown(x, y, id) {
   }
   if (S.mode === 'rolled') {
     const { R, len } = rollDims();
-    if (Math.abs(y - L.roll.y) < R + 30 && Math.abs(x - L.roll.x) < len / 2 + 20) {
+    if (Math.abs(y - L.roll.y) < R + 40 && Math.abs(x - L.roll.x) < len / 2 + 24) {
       const v = clamp((x - (L.roll.x - len / 2)) / len);
       const snapped = clamp(Math.round(v * npieces()), 1, npieces() - 1) / npieces();
-      startCut(snapped); requestFrame();
+      startCut(snapped, { held: true, fingerY: y, bladeY: L.roll.y - R - R * 2.2 });
+      drag.id = id; drag.kind = 'cut'; drag.x0 = x; drag.y0 = y; drag.moved = false;
+      requestFrame();
     }
     return;
   }
@@ -204,6 +206,9 @@ function onMove(x, y, id) {
     drag.patch.v = clamp(uv.v + drag.ov, Math.min(0.5, hv), Math.max(0.5, 1 - hv));
     drag.outside = !inRect(x, y, { x: L.sheet.x - 24, y: L.sheet.y - 24, w: L.sheet.w + 48, h: L.sheet.h + 48 });
     touchModel();
+  } else if (drag.kind === 'cut') {
+    drag.moved = drag.moved || Math.abs(y - drag.y0) > 4;
+    if (cut) { cut.held = true; cut.fingerY = y; }
   } else if (drag.kind === 'place') {
     drag.moved = drag.moved || Math.hypot(x - drag.x0, y - drag.y0) > 10;
   }
@@ -274,6 +279,11 @@ function onUp(x, y, id) {
     if (!drag.moved) { S.selPatch = S.selPatch === p ? null : p; }
     else { if (drag.outside) { const l = patches(); l.splice(l.indexOf(p), 1); S.selPatch = null; } touchModel(); if (!drag.outside) tubePeekRoll(); }
     drag.outside = false;
+  } else if (kind === 'cut') {
+    if (cut) {
+      cut.held = false;
+      if (cut.phase === 'drive') cut.bladeVy = Math.max(cut.bladeVy, 1100);
+    }
   } else if (kind === 'place') {
     // Кусок шире всей грядки не ложится (#253). Через палитру такой выбор не попадает: фишка
     // тусклая, а выбранная уходит на доступную при смене листа (selOnRice). Если он всё же пришёл

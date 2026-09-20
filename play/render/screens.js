@@ -43,7 +43,7 @@ const hints = {
   // без него у выделенного куска остаются сдвиг и «Убрать» — о них и строка.
   laySel: ROTATE_PIECE_ON ? 'Поворот меняет рисунок в кусочках' : 'Тащи · вытащи за лист — убрать',
   puzzle: 'Повтори срез: разложи, скрути, разрежь',
-  rolled: 'Тапни по роллу там, где резать',
+  rolled: 'Проведи ножом вниз — где коснёшься, там рез',
   revealed: 'Вот что ты положил. Хочется ещё?',
   plate: 'Шесть кусочков — тапни, чтобы рассмотреть',
 };
@@ -856,40 +856,122 @@ function кусковСлово(n) {
 }
 // Ритуал реза: t — прогресс 0..1 (850 мс), потом zoom (0..1, 500 мс).
 let cut = null;
-function startCut(v) {
+function startCut(v, opts) {
   const { R, len } = rollDims();
-  const img = face(v, Math.max(L.faceSize, 2 * R));   // считаем срез заранее, до начала анимации
-  cut = { v, x: L.roll.x - len / 2 + v * len, t0: performance.now(), dur: 850, zoom: 0, img, R, len, sounded: false, particled: false };
+  const img = face(v, Math.max(L.faceSize, 2 * R));
+  const o = opts || {};
+  cut = {
+    v, x: L.roll.x - len / 2 + v * len, R, len, img,
+    bladeY: o.bladeY != null ? o.bladeY : L.roll.y - R - R * 2.8,
+    bladeVy: o.held ? 0 : 160,
+    fingerY: o.fingerY != null ? o.fingerY : null,
+    held: !!o.held,
+    lastT: performance.now(),
+    phase: 'drive',
+    squash: 1,
+    Loff: 0, Roff: 0, Lv: 0, Rv: 0,
+    opened: 0, zoom: 0,
+    nori: false, split: false, board: false,
+    hitstop: 0, trauma: 0,
+    t0: performance.now(), sounded: false, particled: false,
+  };
   S.mode = 'cut'; S.cuts++; S.cutsTotal++; save();
 }
+function cutReduce() {
+  return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
 function drawCut(now) {
-  const c = cut, t = clamp((now - c.t0) / c.dur);
-  const press = easeOutCubic(remap(t, 0.18, 0.48)), cutP = easeInOutCubic(remap(t, 0.48, 0.68)), open = easeOutBack(remap(t, 0.68, 1));
-  const gap = 18 * open, squash = 1 - 0.07 * press * (1 - cutP) - 0.03 * Math.sin(cutP * Math.PI);
-  if (t >= 0.55 && !c.sounded) { c.sounded = true; sfx.cut(); shakeUntil = now + 70; }
-  if (t >= 0.58 && !c.particled) { c.particled = true; spawnParticles(c.x, L.roll.y, 14); }
-  if (shakeUntil > now) ctx.translate((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
+  const c = cut;
+  let dt = (now - c.lastT) / 1000; c.lastT = now;
+  if (!(dt > 0) || dt > 0.08) dt = 1 / 60;
+  const reduce = cutReduce();
+  if (c.hitstop > 0 && !reduce) { c.hitstop -= dt; dt = 0; }
+
+  const top = L.roll.y - c.R, bot = L.roll.y + c.R, mid = L.roll.y;
+
+  if (c.phase === 'drive' || c.phase === 'split') {
+    if (c.held && c.fingerY != null) {
+      let k = 1;
+      if (c.bladeY > top - 6 && c.bladeY < bot + 4) {
+        k = 0.26;
+        if (c.bladeY < top + 10) k = 0.11;
+      }
+      const want = (c.fingerY - c.bladeY) / Math.max(dt, 1 / 120);
+      c.bladeVy += (want * k - c.bladeVy) * Math.min(1, 10 * Math.max(dt, 1 / 120));
+    } else if (c.phase === 'drive' || (c.phase === 'split' && c.bladeY < bot + c.R)) {
+      c.bladeVy += (c.held ? 800 : 1250) * dt;
+    }
+    c.bladeY += c.bladeVy * dt;
+    if (c.bladeY > bot + c.R * 1.6) { c.bladeY = bot + c.R * 1.6; c.bladeVy = Math.min(c.bladeVy, 0); }
+
+    if (!c.nori && c.bladeY >= top) {
+      c.nori = true;
+      sfx.nori();
+      if (!reduce) { c.hitstop = 0.032; c.trauma = Math.max(c.trauma, 0.42); }
+      spawnParticles(c.x, top, 5);
+    }
+    if (c.phase === 'drive') {
+      const pen = clamp((c.bladeY - top) / (2 * c.R));
+      c.squash = 1 - 0.13 * Math.sin(Math.min(pen, 0.72) * Math.PI);
+    }
+    if (!c.split && c.bladeY >= mid) {
+      c.split = true; c.phase = 'split'; c.squash = 1;
+      const sp = Math.max(90, Math.abs(c.bladeVy) * 0.14);
+      c.Lv = -sp; c.Rv = sp;
+      sfx.cut();
+      spawnParticles(c.x, mid, 16);
+      if (!reduce) { c.hitstop = 0.048; c.trauma = 0.72; }
+    }
+    if (c.phase === 'split') {
+      c.Loff += c.Lv * dt; c.Roff += c.Rv * dt;
+      const damp = Math.exp(-5.2 * dt);
+      c.Lv *= damp; c.Rv *= damp;
+      c.opened = clamp(c.opened + dt * 1.9);
+      if (!c.board && c.bladeY >= bot + 2) {
+        c.board = true;
+        c.boardT = now;
+        sfx.thud();
+        c.bladeVy *= -0.18;
+        if (!reduce) c.trauma = Math.max(c.trauma, 0.28);
+      }
+      if (c.opened >= 0.9 && c.board && now - (c.boardT || 0) > 220 && !c.held) {
+        c.phase = 'reveal'; c.revT0 = now;
+      }
+    }
+  }
+
+  c.trauma = Math.max(0, c.trauma - dt * 2.4);
+  const shake = reduce ? 0 : c.trauma * c.trauma;
+  if (shake > 0.012) ctx.translate((Math.random() - 0.5) * 12 * shake, (Math.random() - 0.5) * 9 * shake);
+
   let zoom = 0;
-  if (t >= 1) { zoom = clamp((now - c.t0 - c.dur) / 500); c.zoom = zoom; }
+  if (c.phase === 'reveal') zoom = clamp((now - (c.revT0 || now)) / 480);
+  c.zoom = zoom;
   const rollAlpha = 1 - 0.7 * easeOutCubic(zoom);
+  const pieces = c.split
+    ? [{ a: 0, b: c.v, off: c.Loff }, { a: c.v, b: 1, off: c.Roff }]
+    : [{ a: 0, b: 1, off: 0 }];
   drawBoard(c.R, c.len, 1 - easeOutCubic(zoom));
-  drawRollBody(L.roll.x, L.roll.y, c.R, c.len, cutP > 0 ? [{ a: 0, b: c.v, off: -gap }, { a: c.v, b: 1, off: gap }] : [{ a: 0, b: 1, off: 0 }], squash, rollAlpha);
-  // срез правой половины «поворачивается» к камере, потом наезжает
-  if (open > 0) {
-    const reveal = clamp(open), z = easeInOutCubic(zoom);
-    const size = lerp(2 * c.R, L.faceSize, z), x = lerp(c.x + gap, L.ox + L.cw / 2, z), y = lerp(L.roll.y, L.faceY, z);
+  drawRollBody(L.roll.x, L.roll.y, c.R, c.len, pieces, c.squash, rollAlpha);
+
+  if (c.opened > 0) {
+    const reveal = clamp(c.opened), z = easeInOutCubic(zoom);
+    const size = lerp(2 * c.R, L.faceSize, z);
+    const x = lerp(c.x + c.Roff + 6, L.ox + L.cw / 2, z);
+    const y = lerp(L.roll.y, L.faceY, z);
     drawSlab([{ x, y, size }], easeOutCubic(zoom) * reveal, B(), 10);
     drawFaceImg(c.img, x, y, size, reveal);
   }
-  if (t < 0.9) {
-    const kt = easeInOutCubic(remap(t, 0, 0.68)), yTop = L.roll.y - c.R - c.R * 2.6, yCut = L.roll.y + c.R * 0.95;
-    const y = lerp(yTop, yCut, kt) + (t > 0.68 ? -(t - 0.68) / 0.22 * c.R * 2 : 0);
-    drawKnife(c.x, y, -0.04 + 0.03 * Math.sin(t * Math.PI), press * (1 - cutP), c.R);
+
+  if (zoom < 0.85) {
+    const ang = clamp(c.bladeVy * 0.00005, -0.1, 0.14);
+    const press = c.bladeY > top && c.bladeY < bot ? 0.7 : 0;
+    drawKnife(c.x, c.bladeY, ang, press, c.R);
   }
-  drawParticles(1 / 60);
+  drawParticles(dt || 1 / 60);
   buttons = [];
   drawTopBar('');
-  if (t >= 1 && zoom >= 1) { S.mode = 'revealed'; c.revealedAt = now; if (S.puzzle) puzzleEvaluate(); dirty = true; }
+  if (c.phase === 'reveal' && zoom >= 1) { S.mode = 'revealed'; c.revealedAt = now; if (S.puzzle) puzzleEvaluate(); dirty = true; }
 }
 function drawCompare() {
   const pz = S.puzzle, res = pz.result || puzzleEvaluate(), tm = targetModel(), pm = getModel(), k = pz.vs.length, Rref = Math.max(tm.Rmax, pm.Rmax);

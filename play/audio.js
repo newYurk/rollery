@@ -33,7 +33,9 @@ const sfx = {
     o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.02);
   },
   place() { this.ensure(); this.tone(170, 90, 0.09, 0.22); this.burst(1200, 0.7, 0.03, 0.12); },
-  cut() { this.ensure(); this.burst(2200, 0.6, 0.18, 0.5); this.burst(600, 1.2, 0.12, 0.25, 0.05); this.tone(80, 50, 0.09, 0.35, 0.09); },
+  cut() { this.ensure(); this.burst(2200, 0.6, 0.18, 0.5); this.burst(600, 1.2, 0.12, 0.25, 0.05); this.tone(80, 50, 0.09, 0.35, 0.09); this.burst(1100, 0.5, 0.08, 0.18, 0.02); },
+  nori() { this.ensure(); this.burst(3400, 1.6, 0.045, 0.32); this.tone(380, 140, 0.06, 0.16); },
+  thud() { this.ensure(); this.burst(130, 0.7, 0.14, 0.42); this.tone(64, 36, 0.16, 0.28); },
   chop() { this.ensure(); this.burst(2000, 0.7, 0.09, 0.4); this.tone(90, 55, 0.06, 0.28, 0.04); },
   rustleStart() {
     this.ensure(); if (!this.ac || this.rustleGain) return;
