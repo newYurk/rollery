@@ -903,116 +903,96 @@ function sheetStackAt(u, v, mdl) {
   for (const h of hits) layers.push(h);
   return layers;
 }
-function polarAt(cx, cy, r, phi) {
-  return { x: cx + Math.sin(phi) * r, y: cy - Math.cos(phi) * r };
+function stackHpx(layers, scale) {
+  let h = 0; for (const Lr of layers) h += Lr.h * scale; return h;
 }
-function fillQuad(a, b, c, d, color) {
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y);
-  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+function drawStackStrip(x0, x1, yBottom, layers, scale) {
+  let yy = yBottom;
+  for (const layer of layers) {
+    const hh = layer.h * scale;
+    yy -= hh;
+    ctx.fillStyle = layer.color;
+    ctx.fillRect(x0, yy, x1 - x0, hh + 0.4);
+  }
 }
 function drawMakisuSide(x, y, w, h, p) {
   p = clamp(p, 0, 1);
   const mdl = getModel();
-  const baseY = y + h * 0.78;
-  const matH = Math.max(18, Math.min(26, h * 0.12));
-  const maxR = Math.min(h * 0.42, w * 0.34);
-  const R = lerp(20, maxR, Math.pow(Math.max(p, 0.04), 0.5));
-  const sheetPx = w * 0.58;
+  const matH = Math.max(16, Math.min(22, h * 0.1));
+  const faceMax = Math.min(h * 0.58, w * 0.62);
+  const fs = lerp(36, faceMax, Math.pow(Math.max(p, 0.02), 0.7));
+  const sheetPx = w * 0.52;
   const remainPx = (1 - p) * sheetPx;
-  const rollCx = x + 18 + remainPx + R * 1.15;
-  const rollCy = baseY - R * 0.22;
-  const flatX0 = x + 6;
-  const flatX1 = rollCx - R * 0.92;
-  const scale = Math.max(8, Math.min(16, h * 0.038));
+  const rollCx = x + 16 + remainPx + fs * 0.52;
+  const rollCy = y + h * 0.46;
+  const matY = Math.min(y + h * 0.82, rollCy + fs * 0.5 + 6);
+  const flatX0 = x + 8;
+  const flatX1 = rollCx - fs * 0.46;
+  const scale = Math.max(7, Math.min(13, h * 0.03));
   const vSlice = 0.5;
-  const N = 72;
+  const N = 56;
 
-  const matY = baseY - matH;
-  const matW = Math.max(48, rollCx + R + 28 - flatX0);
-  rr(flatX0 - 4, matY, matW, matH + 6, 8);
+  const matLeft = flatX0 - 6;
+  const matRight = (p < 0.96 ? Math.max(flatX1, rollCx) : rollCx) + fs * 0.2;
+  rr(matLeft, matY, matRight - matLeft, matH + 4, 8);
   ctx.fillStyle = '#d2bc93'; ctx.fill();
   ctx.save();
-  ctx.beginPath(); rr(flatX0 - 4, matY, matW, matH + 6, 8); ctx.clip();
-  ctx.strokeStyle = 'rgba(92,68,36,0.32)'; ctx.lineWidth = 2.2;
-  for (let sx = flatX0 + 2; sx < flatX0 + matW; sx += 11) {
-    ctx.beginPath(); ctx.moveTo(sx, matY + 1); ctx.lineTo(sx, matY + matH + 5); ctx.stroke();
+  ctx.beginPath(); rr(matLeft, matY, matRight - matLeft, matH + 4, 8); ctx.clip();
+  ctx.strokeStyle = 'rgba(92,68,36,0.32)'; ctx.lineWidth = 2;
+  for (let sx = matLeft + 4; sx < matRight; sx += 10) {
+    ctx.beginPath(); ctx.moveTo(sx, matY + 1); ctx.lineTo(sx, matY + matH + 3); ctx.stroke();
   }
   ctx.restore();
 
-  if (p < 0.995 && flatX1 > flatX0 + 6) {
+  if (p < 0.97 && flatX1 > flatX0 + 8) {
     const span = flatX1 - flatX0;
     for (let i = 0; i < N; i++) {
       const t0 = i / N, t1 = (i + 1) / N;
       const u = p + (1 - p) * (1 - (t0 + t1) / 2);
-      const x0 = flatX0 + span * t0, x1 = flatX0 + span * t1 + 0.6;
-      const layers = sheetStackAt(u, vSlice, mdl);
-      let yy = matY;
-      for (const layer of layers) {
-        const hh = layer.h * scale;
-        yy -= hh;
-        ctx.fillStyle = layer.color;
-        ctx.fillRect(x0, yy, x1 - x0, hh + 0.4);
-      }
+      drawStackStrip(flatX0 + span * t0, flatX0 + span * t1 + 0.7, matY, sheetStackAt(u, vSlice, mdl), scale);
     }
+  }
+
+  if (p > 0.03 && p < 0.94 && flatX1 > flatX0) {
+    const edge = sheetStackAt(p, vSlice, mdl);
+    const sh = stackHpx(edge, scale);
+    const x1 = flatX1, y1 = matY - sh * 0.5;
+    const a0 = Math.PI * 0.95, a1 = Math.PI * 0.95 - Math.min(2.2, 0.4 + p * 2.1);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    let rr0 = fs / 2 + 2;
+    for (let i = edge.length - 1; i >= 0; i--) {
+      const layer = edge[i];
+      const lw = Math.max(2, layer.h * scale);
+      rr0 += lw * 0.5;
+      ctx.beginPath();
+      ctx.arc(rollCx, rollCy, rr0, a0, a1, true);
+      ctx.strokeStyle = layer.color;
+      ctx.lineWidth = lw;
+      ctx.stroke();
+      rr0 += lw * 0.5;
+    }
+    ctx.beginPath();
+    ctx.moveTo(x1, matY);
+    ctx.quadraticCurveTo(x1 + (rollCx - x1) * 0.35, matY - sh - 8, rollCx + Math.cos(a0) * (fs / 2 + 8), rollCy + Math.sin(a0) * (fs / 2 + 8));
+    ctx.strokeStyle = '#d2bc93'; ctx.lineWidth = matH * 0.7; ctx.stroke();
   }
 
   ctx.save();
-  ctx.translate(rollCx + 4, rollCy + R * 0.62);
-  ctx.fillStyle = 'rgba(0,0,0,0.38)';
-  ctx.beginPath(); ctx.ellipse(0, 0, R * 1.12, R * 0.26, 0, 0, TAU); ctx.fill();
+  ctx.translate(rollCx, rollCy + fs * 0.46);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(0, 0, fs * 0.52, fs * 0.12, 0, 0, TAU); ctx.fill();
   ctx.restore();
 
   if (p > 0.02) {
-    const spiral = mdl.g.winding === 'spiral';
-    const hasCore = !!(mdl.core && !spiral);
-    const turns = spiral ? (0.7 + p * 2.4) : (0.3 + p * 0.95);
-    const phiMax = turns * TAU;
-    const r0 = hasCore ? R * 0.3 : R * 0.1;
-    if (hasCore) {
-      ctx.beginPath(); ctx.arc(rollCx, rollCy, r0 - 1, 0, TAU);
-      ctx.fillStyle = B().spread || '#e8e0d4'; ctx.fill();
-    }
-    const samples = [];
-    for (let i = 0; i <= N; i++) {
-      const t = i / N;
-      const u = p * t;
-      const layers = sheetStackAt(u, vSlice, mdl);
-      const phi = t * phiMax;
-      const r = r0 + (R - r0) * t;
-      samples.push({ phi, r, layers });
-    }
-    for (let i = 0; i < samples.length - 1; i++) {
-      const a = samples[i], b = samples[i + 1];
-      const rolled = a.layers.slice().reverse();
-      let rA = a.r, rB = b.r;
-      for (const layer of rolled) {
-        const hA = layer.h * scale, hB = layer.h * scale;
-        const p0 = polarAt(rollCx, rollCy, rA, a.phi);
-        const p1 = polarAt(rollCx, rollCy, rA + hA, a.phi);
-        const p2 = polarAt(rollCx, rollCy, rB + hB, b.phi);
-        const p3 = polarAt(rollCx, rollCy, rB, b.phi);
-        fillQuad(p0, p1, p2, p3, layer.color);
-        rA += hA; rB += hB;
-      }
-    }
-    const last = samples[samples.length - 1];
-    if (last && p < 0.98) {
-      ctx.strokeStyle = '#d2bc93'; ctx.lineWidth = matH * 0.75; ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.arc(rollCx, rollCy, last.r + 14, last.phi - 0.1, last.phi + 0.7);
-      ctx.stroke();
-    }
-  } else {
-    ctx.beginPath(); ctx.arc(rollCx, rollCy, 10, 0, TAU);
-    ctx.fillStyle = B().wrapper; ctx.fill();
-  }
-
-  if (p > 0.12 && p < 0.9) {
-    ctx.strokeStyle = 'rgba(232,224,208,0.35)'; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(rollCx, rollCy, R + 22, -1.2, 0.2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 5, 0, TAU);
+    ctx.fillStyle = '#14110e'; ctx.fill();
+    ctx.strokeStyle = '#cbb48a'; ctx.lineWidth = Math.max(5, fs * 0.045); ctx.stroke();
+    ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 1, 0, TAU);
+    ctx.strokeStyle = B().wrapper; ctx.lineWidth = Math.max(3, fs * 0.03); ctx.stroke();
+    drawFaceImg(face(0.5, fs), rollCx, rollCy, fs);
   }
 }
+
 function drawScrub(x, y, w, p) {
   const h = 4, cy = y + 18;
   ctx.strokeStyle = 'rgba(232,224,208,0.25)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
