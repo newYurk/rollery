@@ -8,6 +8,38 @@
 // Вынесено 30.08.2026 из modes/puzzle.js, куда попало при нарезке по разделам: action() — общий
 // обработчик всей игры, а не часть режима «Пазл».
 
+function layRose() {
+  S.base = 'futo';
+  S.shape = 'round';
+  S.winding = 'spiral';
+  S.turns = null;
+  S.mode = 'lay';
+  S.rollP = 0;
+  S.puzzle = null;
+  if (!S.lists[S.base]) S.lists[S.base] = [];
+  palSync();
+  const list = patches();
+  if (!list) return;
+  pushHistory();
+  list.length = 0;
+  const put = (kind, u) => {
+    const m = dims({ kind });
+    const p = { kind, u, v: 0.5, z0: 0, z1: m.h, phase: 0 };
+    if (!layFits(p)) return;
+    p.u = layU(p, u);
+    list.push(p);
+  };
+  put('cucumber', 0.14);
+  put('salmonSlice', 0.30);
+  put('tunaSlice', 0.46);
+  put('salmonSlice', 0.62);
+  put('tunaSlice', 0.78);
+  S.sel = 'salmonSlice';
+  S.palGroup = 'fish';
+  S.preview = true;
+  touchModel(); layout(); dirty = true;
+}
+
 function action(id) {
   switch (id) {
     // Отмена и возврат — по ИСТОРИИ ДЕЙСТВИЙ, а не по концу списка (issue #84). Каждое
@@ -107,7 +139,7 @@ function action(id) {
     case 'fold-square': S.shape = 'square'; touchModel(); layout(); break;
     case 'mute': S.mute = !S.mute; sfx.setMute(S.mute); if (!S.mute) sfx.start(); save(); break;
     case 'step-place': if (S.mode !== 'lay') action('back'); break;
-    case 'step-look': break;
+    case 'demo-rose': layRose(); break;
     case 'next': if (S.puzzle && S.puzzle.result && S.puzzle.result.pass) puzzleStart(Math.max(0, S.puzzle.level + 1), S.puzzle.seed + 1); break;
     case 'lvprev': if (S.puzzle && S.puzzle.level > 0) puzzleStart(S.puzzle.level - 1, S.puzzle.seed); else if (S.puzzle && S.puzzle.level < 0) puzzleStart(0, 1); break;
     case 'lvnext': if (S.puzzle && S.puzzle.level + 1 < LEVELS.length && S.puzzle.level + 1 <= puzzleMax()) puzzleStart(S.puzzle.level + 1, S.puzzle.seed); break;

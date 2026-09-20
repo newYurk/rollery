@@ -140,9 +140,9 @@ const MIN_BASES = ['hoso', 'chu', 'futo', 'ura', 'uzumaki', 'fruit'];
 // Ровные ряды — просьба владельца 02.09 («не хотим сделать равное количество иконок в ряду?»),
 // и 15 делится на 3 без остатка: 8+7 давало ступеньку, 5+5+5 не даёт.
 const MIN_ING_ORDER = [
-  'salmon', 'tuna', 'shrimp', 'anago', 'kanikama',      // рыба
-  'cucumber', 'avocado', 'shiitake', 'kanpyo', 'tamago', // растительное и яйцо
-  'naruto', 'nori', 'mayo', 'ricePink', 'riceGreen',     // узор, обёртка, цвет
+  'salmon', 'tuna', 'salmonSlice', 'tunaSlice', 'shrimp', 'anago', 'kanikama',
+  'cucumber', 'avocado', 'shiitake', 'kanpyo', 'tamago',
+  'naruto', 'nori', 'mayo', 'ricePink', 'riceGreen',
 ];
 const MIN_ING = new Set(MIN_ING_ORDER);
 const uiBases = () => FULL_UI ? Object.keys(BASES) : MIN_BASES;
@@ -171,7 +171,7 @@ const uiBases = () => FULL_UI ? Object.keys(BASES) : MIN_BASES;
 // этой начинки нет — берётся первая оставшаяся, чтобы вкладка не осталась пустой.
 const ING_GROUPS = [
   { key: 'fish',  name: 'Рыба',             short: 'Рыба',   icon: 'salmon',
-    ings: ['salmon', 'tuna', 'shrimp', 'kanikama', 'anago', 'naruto'] },
+    ings: ['salmon', 'tuna', 'salmonSlice', 'tunaSlice', 'shrimp', 'kanikama', 'anago', 'naruto'] },
   { key: 'veg',   name: 'Овощи и грибы',    short: 'Овощи',  icon: 'cucumber',
     ings: ['cucumber', 'avocado', 'shiitake', 'kanpyo'] },
   { key: 'egg',   name: 'Яйцо',             short: 'Яйцо',   icon: 'tamago',
@@ -334,7 +334,7 @@ const WRAPPERS = {
 for (const k in WRAPPERS) WRAPPERS[k].rgb = hexRgb(WRAPPERS[k].color);
 // Начинки общие для всех: один экран, сладкое и несладкое рядом. Деление на типы отложено
 // до игровых стратегий — владелец 27.08 отложила это на потом: разделить на типы можно будет позже.
-const ALL_INGREDIENTS = ['salmon', 'tuna', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet',
+const ALL_INGREDIENTS = ['salmon', 'tuna', 'salmonSlice', 'tunaSlice', 'cucumber', 'tamago', 'avocado', 'shrimp', 'nori', 'mayo', 'eggsheet',
   // Канон футомаки, заведён 31.08 (#10): без него собрать настоящий футомаки было нечем.
   // ⚑ КРАБ-ПАЛОЧКА И НАРУТО ВОЗВРАЩЕНЫ 02.09 (#157). Обе были в каталоге (`catalog.js`), обе
   // имели готовую фактуру в `geometry.js`, краб-палочка входит в канонический ряд из семи

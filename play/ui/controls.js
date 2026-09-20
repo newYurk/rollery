@@ -59,7 +59,7 @@ function iconImg(kind) {
     im = new Image();
     im.onload = () => { dirty = true; requestFrame(); };
     im.onerror = () => { ICONS[kind] = null; };          // нет файла — молча рисуем по-старому
-    im.src = (location.pathname.indexOf('/play') >= 0 ? '' : '/play/') + 'assets/icons/' + kind + '.png';
+    im.src = (location.pathname.indexOf('/play') >= 0 ? '' : '/play/') + 'assets/icons/' + ({ salmonSlice: 'salmon', tunaSlice: 'tuna' }[kind] || kind) + '.png';
     ICONS[kind] = im;
   }
   return im && im.complete && im.naturalWidth ? im : null;

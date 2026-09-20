@@ -461,13 +461,17 @@ function cabImg(id) {
   return im.complete && im.naturalWidth ? im : null;
 }
 function foldCurrent() {
-  if (S.base === 'ura') return 'ura';
-  if (S.shape === 'square') return 'square';
-  if (S.base === 'futo') return 'futo';
+  const keys = (L.folds || []).map(f => f.key);
+  const has = k => keys.indexOf(k) >= 0;
+  if (has('hoso')) {
+    if (S.shape === 'square') return 'square';
+    if (S.base === 'ura') return 'ura';
+    if (S.base === 'futo') return 'futo';
+    return 'hoso';
+  }
   if (S.winding === 'spiral') return 'spiral';
   if (S.winding === 'ring' && S.turns != null) return 'layer';
   if (S.winding === 'ring') return 'one';
-  if (S.base === 'hoso') return 'hoso';
   return 'core';
 }
 function drawFoldGlyph(key, cx, cy, s, color) {
@@ -500,6 +504,11 @@ function drawTableChrome() {
   ctx.strokeStyle = line; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(L.ox + 14, L.oy + T.headerH - 1); ctx.lineTo(L.ox + L.cw - 14, L.oy + T.headerH - 1); ctx.stroke();
   const mx = L.ox + L.cw - 42, my = L.oy + (T.headerH - 28) / 2;
+  const rx = mx - 58;
+  icons.push({ id: 'demo-rose', x: rx, y: my, w: 52, h: 28 });
+  rr(rx, my, 52, 28, 8); ctx.strokeStyle = coral; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.fillStyle = cream; ctx.font = font(10, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('роза', rx + 26, my + 15);
   icons.push({ id: 'mute', x: mx, y: my, w: 28, h: 28 });
   ctx.strokeStyle = line; ctx.beginPath(); ctx.arc(mx + 14, my + 14, 11, 0, TAU); ctx.stroke();
   ctx.fillStyle = S.mute ? mute : cream; ctx.font = font(12); ctx.textAlign = 'center';
