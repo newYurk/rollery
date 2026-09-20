@@ -142,25 +142,41 @@
     ctx.save();
     ctx.rotate(ang);
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, R * 0.58, -0.9, 0.9);
-    ctx.closePath();
-    const g = ctx.createLinearGradient(0, -R * 0.25, R * 0.58, R * 0.2);
+    if (kind === 'cucumber') {
+      ctx.moveTo(R * 0.02, 0);
+      ctx.bezierCurveTo(R * 0.18, R * 0.30, R * 0.40, R * 0.26, R * 0.58, 0);
+      ctx.bezierCurveTo(R * 0.40, -R * 0.26, R * 0.18, -R * 0.30, R * 0.02, 0);
+    } else if (kind === 'salmon') {
+      ctx.moveTo(0, 0);
+      ctx.lineTo(R * 0.18, R * 0.28);
+      ctx.lineTo(R * 0.48, R * 0.24);
+      ctx.lineTo(R * 0.58, 0);
+      ctx.lineTo(R * 0.48, -R * 0.24);
+      ctx.lineTo(R * 0.18, -R * 0.26);
+      ctx.closePath();
+    } else {
+      ctx.moveTo(0, 0);
+      ctx.lineTo(R * 0.20, R * 0.20);
+      ctx.lineTo(R * 0.46, R * 0.16);
+      ctx.lineTo(R * 0.56, 0);
+      ctx.lineTo(R * 0.46, -R * 0.16);
+      ctx.lineTo(R * 0.20, -R * 0.20);
+      ctx.closePath();
+    }
+    const g = ctx.createLinearGradient(R * 0.04, -R * 0.18, R * 0.56, R * 0.16);
     g.addColorStop(0, c[2]);
-    g.addColorStop(0.45, c[0]);
+    g.addColorStop(0.5, c[0]);
     g.addColorStop(1, c[1]);
     ctx.fillStyle = g;
     ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(R * 0.08, 0);
-    ctx.lineTo(R * 0.50, R * 0.16);
-    ctx.lineTo(R * 0.50, -R * 0.08);
-    ctx.closePath();
-    ctx.fillStyle = c[2];
-    ctx.globalAlpha = 0.28;
-    ctx.fill();
-    ctx.globalAlpha = 1;
     ctx.restore();
+  }
+
+  function angleOf(p) {
+    const t = TARGET.find((x) => x.kind === p.kind);
+    const home = WEDGE_ANG[p.kind] || 0;
+    const du = t ? p.u - t.u : 0;
+    return home + clamp(du * TAU * 0.65, -1.15, 1.15);
   }
 
   function drawSpriteMaki(cx, cy, R, pieces, isTarget) {
@@ -178,13 +194,12 @@
     ctx.arc(0, 0, rad * 0.62, 0, TAU);
     ctx.fillStyle = '#f4eee4';
     ctx.fill();
-    const slots = TARGET.slice().sort((a, b) => a.u - b.u);
-    const placed = pieces.slice().sort((a, b) => a.u - b.u);
-    for (let i = 0; i < placed.length; i++) {
-      const home = WEDGE_ANG[slots[i].kind];
-      if (home == null) continue;
-      drawFilling(placed[i].kind, home, rad);
-    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * 0.60, 0, TAU);
+    ctx.clip();
+    for (const p of pieces) drawFilling(p.kind, angleOf(p), rad);
+    ctx.restore();
     ctx.restore();
     return true;
   }
