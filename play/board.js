@@ -19,7 +19,7 @@
     { kind: 'tuna', u: 0.48, id: 'tuna' },
     { kind: 'cucumber', u: 0.74, id: 'cucumber' },
   ];
-  const DU = 0.18;
+  const DU = 0.13;
 
   const canvas = document.getElementById('c');
   if (!(canvas instanceof HTMLCanvasElement)) return;
@@ -128,6 +128,36 @@
     return outer.concat(inner);
   }
 
+  function drawFacetPetal(kind, ang, R) {
+    const c = INK[kind].fill;
+    ctx.save();
+    ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(R * 0.04, 0);
+    ctx.lineTo(R * 0.20, R * 0.18);
+    ctx.lineTo(R * 0.38, R * 0.12);
+    ctx.lineTo(R * 0.46, 0);
+    ctx.closePath();
+    ctx.fillStyle = c[0];
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(R * 0.04, 0);
+    ctx.lineTo(R * 0.46, 0);
+    ctx.lineTo(R * 0.38, -R * 0.12);
+    ctx.lineTo(R * 0.20, -R * 0.16);
+    ctx.closePath();
+    ctx.fillStyle = c[1];
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(R * 0.20, R * 0.18);
+    ctx.lineTo(R * 0.38, R * 0.12);
+    ctx.lineTo(R * 0.32, R * 0.02);
+    ctx.closePath();
+    ctx.fillStyle = c[2];
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawSpriteMaki(cx, cy, R, pieces, isTarget) {
     if (!imgs.maki) return false;
     const size = R * 2.2;
@@ -155,29 +185,15 @@
       ctx.fill();
     }
     ctx.beginPath();
-    ctx.arc(0, 0, rad * 0.42, 0, TAU);
+    ctx.arc(0, 0, rad * 0.48, 0, TAU);
     ctx.fillStyle = '#f7f1e6';
     ctx.fill();
     const slots = TARGET.slice().sort((a, b) => a.u - b.u);
     const placed = pieces.slice().sort((a, b) => a.u - b.u);
-    const ring = rad * 0.28;
-    const gem = rad * 0.22;
     for (let i = 0; i < placed.length; i++) {
       const home = WEDGE_ANG[slots[i].kind];
-      const bit = imgs['bit-' + placed[i].kind];
       if (home == null) continue;
-      ctx.save();
-      ctx.translate(Math.cos(home) * ring, Math.sin(home) * ring);
-      if (bit) {
-        ctx.rotate(home + Math.PI / 2);
-        ctx.drawImage(bit, -gem, -gem, gem * 2, gem * 2);
-      } else {
-        ctx.beginPath();
-        ctx.arc(0, 0, gem * 0.7, 0, TAU);
-        ctx.fillStyle = INK[placed[i].kind].fill[0];
-        ctx.fill();
-      }
-      ctx.restore();
+      drawFacetPetal(placed[i].kind, home, rad);
     }
     ctx.beginPath();
     ctx.arc(0, 0, rad, 0, TAU);
