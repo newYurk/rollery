@@ -47,7 +47,7 @@
   loadImg('maki', ASSET + 'assets/board/maki-target.png');
   loadImg('base', ASSET + 'assets/board/maki-base.png');
   ['salmon','cucumber','tuna'].forEach((k) => {
-    loadImg(k, ASSET + 'assets/board/' + k + '.png?v=6');
+    loadImg(k, ASSET + 'assets/board/' + k + '.png?v=7');
     loadImg('wedge-' + k, ASSET + 'assets/board/wedge-' + k + '.png');
   });
 
