@@ -47,7 +47,7 @@
   loadImg('maki', ASSET + 'assets/board/maki-target.png');
   loadImg('base', ASSET + 'assets/board/maki-base.png');
   ['salmon','cucumber','tuna'].forEach((k) => {
-    loadImg(k, ASSET + 'assets/board/' + k + '.png?v=5');
+    loadImg(k, ASSET + 'assets/board/' + k + '.png?v=6');
     loadImg('wedge-' + k, ASSET + 'assets/board/wedge-' + k + '.png');
   });
 
@@ -466,9 +466,7 @@
         const im = imgs[p.kind];
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        const scale = Math.max(dw / im.width, dh / im.height);
-        const iw = im.width * scale, ih = im.height * scale;
-        ctx.drawImage(im, dx + (dw - iw) / 2, dy + (dh - ih) / 2, iw, ih);
+        ctx.drawImage(im, dx, dy, dw, dh);
       } else {
         const g = ctx.createLinearGradient(dx, dy, dx + dw, dy + dh);
         g.addColorStop(0, spec.fill[1]);
