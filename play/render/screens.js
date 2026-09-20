@@ -886,78 +886,131 @@ function drawGramBar(x, y, w) {
   ctx.fillText('TOTAL', x + w - totW / 2, y + 14);
   ctx.font = font(12, 600); ctx.fillText(total + ' g', x + w - totW / 2, y + 30);
 }
+function sheetStackAt(u, v, mdl) {
+  const g = mdl.g, layers = [];
+  layers.push({ color: B().wrapper, h: 0.22 });
+  const rice = typeof spreadAt === 'function' ? spreadAt(u, g, v) : 0;
+  if (rice > 0.04) layers.push({ color: B().spread || '#e8e0d4', h: rice });
+  const hits = [];
+  for (const p of (mdl.list || [])) {
+    const d = ING[p.kind];
+    if (!d || d.paint || d.bedDelta) continue;
+    const f = typeof heightAt === 'function' ? heightAt(p, u, v, g) : 0;
+    if (f <= 0.02) continue;
+    hits.push({ color: d.color, z0: p.z0 || 0, h: Math.max(0.12, (p.z1 - p.z0) * f) });
+  }
+  hits.sort((a, b) => a.z0 - b.z0);
+  for (const h of hits) layers.push(h);
+  return layers;
+}
+function polarAt(cx, cy, r, phi) {
+  return { x: cx + Math.sin(phi) * r, y: cy - Math.cos(phi) * r };
+}
+function fillQuad(a, b, c, d, color) {
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y);
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
 function drawMakisuSide(x, y, w, h, p) {
   p = clamp(p, 0, 1);
+  const mdl = getModel();
   const baseY = y + h * 0.78;
   const matH = Math.max(18, Math.min(26, h * 0.12));
-  const maxR = Math.min(h * 0.36, w * 0.28);
-  const R = lerp(16, maxR, Math.pow(p, 0.55));
-  const travel = w * 0.58;
-  const rollCx = x + 18 + (1 - p) * travel + R * 0.2;
-  const rollCy = baseY - R * 0.12;
-  const flatX0 = x - 8;
-  const flatX1 = rollCx - R * 0.72;
+  const maxR = Math.min(h * 0.42, w * 0.34);
+  const R = lerp(20, maxR, Math.pow(Math.max(p, 0.04), 0.5));
+  const sheetPx = w * 0.58;
+  const remainPx = (1 - p) * sheetPx;
+  const rollCx = x + 18 + remainPx + R * 1.15;
+  const rollCy = baseY - R * 0.22;
+  const flatX0 = x + 6;
+  const flatX1 = rollCx - R * 0.92;
+  const scale = Math.max(8, Math.min(16, h * 0.038));
+  const vSlice = 0.5;
+  const N = 72;
 
   const matY = baseY - matH;
-  const matW = Math.max(40, rollCx + R + 36 - flatX0);
-  rr(flatX0, matY, matW, matH + 6, 8);
+  const matW = Math.max(48, rollCx + R + 28 - flatX0);
+  rr(flatX0 - 4, matY, matW, matH + 6, 8);
   ctx.fillStyle = '#d2bc93'; ctx.fill();
   ctx.save();
-  ctx.beginPath(); rr(flatX0, matY, matW, matH + 6, 8); ctx.clip();
+  ctx.beginPath(); rr(flatX0 - 4, matY, matW, matH + 6, 8); ctx.clip();
   ctx.strokeStyle = 'rgba(92,68,36,0.32)'; ctx.lineWidth = 2.2;
-  for (let sx = flatX0 + 6; sx < flatX0 + matW; sx += 11) {
+  for (let sx = flatX0 + 2; sx < flatX0 + matW; sx += 11) {
     ctx.beginPath(); ctx.moveTo(sx, matY + 1); ctx.lineTo(sx, matY + matH + 5); ctx.stroke();
   }
   ctx.restore();
 
-  const bands = fillingBands();
-  const stack = [{ color: B().wrapper, h: 4.5 }];
-  stack.push({ color: B().spread || '#e8e0d4', h: 11 });
-  const fh = bands.length ? Math.max(7, Math.min(12, 28 / bands.length)) : 0;
-  for (const b of bands) stack.push({ color: b.color, h: fh });
-  const stackH = stack.reduce((s, a) => s + a.h, 0);
-  if (flatX1 > flatX0 + 8) {
-    let y0 = matY - stackH;
-    ctx.save();
-    ctx.beginPath(); ctx.rect(flatX0, y0 - 1, flatX1 - flatX0, stackH + 2); ctx.clip();
-    for (const b of stack) {
-      ctx.fillStyle = b.color;
-      ctx.fillRect(flatX0, y0, flatX1 - flatX0 + 2, b.h + 0.4);
-      y0 += b.h;
+  if (p < 0.995 && flatX1 > flatX0 + 6) {
+    const span = flatX1 - flatX0;
+    for (let i = 0; i < N; i++) {
+      const t0 = i / N, t1 = (i + 1) / N;
+      const u = p + (1 - p) * (1 - (t0 + t1) / 2);
+      const x0 = flatX0 + span * t0, x1 = flatX0 + span * t1 + 0.6;
+      const layers = sheetStackAt(u, vSlice, mdl);
+      let yy = matY;
+      for (const layer of layers) {
+        const hh = layer.h * scale;
+        yy -= hh;
+        ctx.fillStyle = layer.color;
+        ctx.fillRect(x0, yy, x1 - x0, hh + 0.4);
+      }
     }
-    ctx.restore();
   }
 
   ctx.save();
-  ctx.translate(rollCx + 6, rollCy + R * 0.55);
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.beginPath(); ctx.ellipse(0, 0, R * 1.15, R * 0.28, 0, 0, TAU); ctx.fill();
+  ctx.translate(rollCx + 4, rollCy + R * 0.62);
+  ctx.fillStyle = 'rgba(0,0,0,0.38)';
+  ctx.beginPath(); ctx.ellipse(0, 0, R * 1.12, R * 0.26, 0, 0, TAU); ctx.fill();
   ctx.restore();
 
-  const fs = Math.max(36, R * 1.85);
-  ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 5, 0, TAU);
-  ctx.fillStyle = '#1a1714'; ctx.fill();
-  ctx.strokeStyle = '#cbb48a'; ctx.lineWidth = 7; ctx.stroke();
-  ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 1, 0, TAU);
-  ctx.strokeStyle = B().wrapper; ctx.lineWidth = 5; ctx.stroke();
-  if (p > 0.04) drawFaceImg(face(0.5, fs), rollCx, rollCy, fs);
-
-  const flapA0 = -Math.PI * 0.95, flapA1 = -Math.PI * 0.95 + p * Math.PI * 1.35;
-  ctx.strokeStyle = '#d2bc93'; ctx.lineWidth = matH * 0.85; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 10, flapA0, flapA1); ctx.stroke();
-  ctx.strokeStyle = 'rgba(92,68,36,0.28)'; ctx.lineWidth = 1.5;
-  for (let i = 0; i < 5; i++) {
-    const a = flapA0 + (flapA1 - flapA0) * (i + 0.5) / 5;
-    ctx.beginPath();
-    ctx.arc(rollCx, rollCy, fs / 2 + 7, a - 0.04, a + 0.04);
-    ctx.stroke();
+  if (p > 0.02) {
+    const spiral = mdl.g.winding === 'spiral';
+    const hasCore = !!(mdl.core && !spiral);
+    const turns = spiral ? (0.7 + p * 2.4) : (0.3 + p * 0.95);
+    const phiMax = turns * TAU;
+    const r0 = hasCore ? R * 0.3 : R * 0.1;
+    if (hasCore) {
+      ctx.beginPath(); ctx.arc(rollCx, rollCy, r0 - 1, 0, TAU);
+      ctx.fillStyle = B().spread || '#e8e0d4'; ctx.fill();
+    }
+    const samples = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const u = p * t;
+      const layers = sheetStackAt(u, vSlice, mdl);
+      const phi = t * phiMax;
+      const r = r0 + (R - r0) * t;
+      samples.push({ phi, r, layers });
+    }
+    for (let i = 0; i < samples.length - 1; i++) {
+      const a = samples[i], b = samples[i + 1];
+      const rolled = a.layers.slice().reverse();
+      let rA = a.r, rB = b.r;
+      for (const layer of rolled) {
+        const hA = layer.h * scale, hB = layer.h * scale;
+        const p0 = polarAt(rollCx, rollCy, rA, a.phi);
+        const p1 = polarAt(rollCx, rollCy, rA + hA, a.phi);
+        const p2 = polarAt(rollCx, rollCy, rB + hB, b.phi);
+        const p3 = polarAt(rollCx, rollCy, rB, b.phi);
+        fillQuad(p0, p1, p2, p3, layer.color);
+        rA += hA; rB += hB;
+      }
+    }
+    const last = samples[samples.length - 1];
+    if (last && p < 0.98) {
+      ctx.strokeStyle = '#d2bc93'; ctx.lineWidth = matH * 0.75; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(rollCx, rollCy, last.r + 14, last.phi - 0.1, last.phi + 0.7);
+      ctx.stroke();
+    }
+  } else {
+    ctx.beginPath(); ctx.arc(rollCx, rollCy, 10, 0, TAU);
+    ctx.fillStyle = B().wrapper; ctx.fill();
   }
 
-  if (p > 0.1 && p < 0.92) {
-    ctx.strokeStyle = 'rgba(232,224,208,0.4)'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 26, -1.25, 0.15); ctx.stroke();
-    const ax = rollCx + Math.cos(0.15) * (fs / 2 + 26), ay = rollCy + Math.sin(0.15) * (fs / 2 + 26);
-    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax - 7, ay - 2); ctx.moveTo(ax, ay); ctx.lineTo(ax - 2, ay + 7); ctx.stroke();
+  if (p > 0.12 && p < 0.9) {
+    ctx.strokeStyle = 'rgba(232,224,208,0.35)'; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(rollCx, rollCy, R + 22, -1.2, 0.2); ctx.stroke();
   }
 }
 function drawScrub(x, y, w, p) {
