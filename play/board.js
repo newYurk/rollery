@@ -155,42 +155,62 @@
     ctx.rotate(ang);
     ctx.beginPath();
     if (kind === 'cucumber') {
-      ctx.moveTo(R * 0.04, 0);
-      ctx.bezierCurveTo(R * 0.18, R * 0.22, R * 0.40, R * 0.20, R * 0.56, 0);
-      ctx.bezierCurveTo(R * 0.40, -R * 0.20, R * 0.18, -R * 0.22, R * 0.04, 0);
+      ctx.moveTo(R * 0.06, 0);
+      ctx.bezierCurveTo(R * 0.22, R * 0.30, R * 0.48, R * 0.28, R * 0.66, 0);
+      ctx.bezierCurveTo(R * 0.48, -R * 0.28, R * 0.22, -R * 0.30, R * 0.06, 0);
     } else if (kind === 'salmon') {
-      ctx.moveTo(R * 0.03, 0);
-      ctx.lineTo(R * 0.16, R * 0.26);
-      ctx.lineTo(R * 0.46, R * 0.22);
-      ctx.lineTo(R * 0.56, 0);
-      ctx.lineTo(R * 0.46, -R * 0.22);
-      ctx.lineTo(R * 0.16, -R * 0.24);
+      ctx.moveTo(R * 0.04, 0);
+      ctx.lineTo(R * 0.18, R * 0.34);
+      ctx.lineTo(R * 0.52, R * 0.30);
+      ctx.lineTo(R * 0.66, 0);
+      ctx.lineTo(R * 0.52, -R * 0.30);
+      ctx.lineTo(R * 0.18, -R * 0.32);
       ctx.closePath();
     } else {
-      ctx.moveTo(R * 0.06, 0);
-      ctx.lineTo(R * 0.22, R * 0.16);
-      ctx.lineTo(R * 0.42, R * 0.14);
-      ctx.lineTo(R * 0.54, 0);
-      ctx.lineTo(R * 0.42, -R * 0.14);
-      ctx.lineTo(R * 0.22, -R * 0.16);
+      ctx.moveTo(R * 0.08, 0);
+      ctx.lineTo(R * 0.26, R * 0.22);
+      ctx.lineTo(R * 0.50, R * 0.20);
+      ctx.lineTo(R * 0.64, 0);
+      ctx.lineTo(R * 0.50, -R * 0.20);
+      ctx.lineTo(R * 0.26, -R * 0.22);
       ctx.closePath();
     }
-    const g = ctx.createLinearGradient(R * 0.08, -R * 0.14, R * 0.54, R * 0.12);
+    const g = ctx.createLinearGradient(R * 0.10, -R * 0.16, R * 0.62, R * 0.14);
     g.addColorStop(0, c[2]);
     g.addColorStop(0.5, c[0]);
     g.addColorStop(1, c[1]);
     ctx.fillStyle = g;
     ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(R * 0.10, 0);
-    ctx.lineTo(R * 0.42, R * 0.10);
-    ctx.lineTo(R * 0.42, -R * 0.04);
+    ctx.moveTo(R * 0.12, 0);
+    ctx.lineTo(R * 0.48, R * 0.12);
+    ctx.lineTo(R * 0.48, -R * 0.05);
     ctx.closePath();
     ctx.fillStyle = c[2];
-    ctx.globalAlpha = 0.32;
+    ctx.globalAlpha = 0.30;
     ctx.fill();
     ctx.globalAlpha = 1;
     ctx.restore();
+  }
+
+  function drawRiceWell(rad) {
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * 0.68, 0, TAU);
+    ctx.fillStyle = '#efe6d6';
+    ctx.fill();
+    for (let i = 0; i < 70; i++) {
+      const a = i * 2.513;
+      const r = rad * (0.12 + (i % 9) * 0.055);
+      if (r > rad * 0.64) continue;
+      ctx.save();
+      ctx.translate(Math.cos(a) * r, Math.sin(a) * r);
+      ctx.rotate(a * 0.4);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rad * 0.055, rad * 0.034, 0, 0, TAU);
+      ctx.fillStyle = i % 3 ? '#f7f1e6' : '#e5d8c4';
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   function angleOf(p) {
@@ -214,10 +234,11 @@
     ctx.translate(cx, cy);
     const rad = size / 2;
     ctx.drawImage(imgs.maki, -size / 2, -size / 2, size, size);
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(0, 0, rad * 0.62, 0, TAU);
-    ctx.fillStyle = '#f4eee4';
-    ctx.fill();
+    ctx.arc(0, 0, rad * 0.68, 0, TAU);
+    ctx.clip();
+    drawRiceWell(rad);
     const seats = TARGET.slice().sort((a, b) => a.u - b.u);
     const placed = pieces.slice().sort((a, b) => a.u - b.u);
     for (let i = 0; i < placed.length; i++) {
@@ -225,6 +246,7 @@
       if (dest == null) continue;
       drawPetal(placed[i].kind, dest, rad);
     }
+    ctx.restore();
     ctx.restore();
     return true;
   }
