@@ -40,7 +40,7 @@
   loadImg('maki', '/play/assets/board/maki-target.png');
   loadImg('base', '/play/assets/board/maki-base.png');
   ['salmon','cucumber','tuna'].forEach((k) => {
-    loadImg(k, '/play/assets/board/' + k + '.png');
+    loadImg(k, '/play/assets/board/' + k + '.png?v=2');
     loadImg('bit-' + k, '/play/assets/board/bit-' + k + '.png');
   });
 
@@ -357,15 +357,24 @@
       const worst = deltas().filter((d) => d.mm >= 6).sort((a, b) => b.mm - a.mm)[0];
       if (worst) {
         const t = TARGET.find((x) => x.kind === worst.kind);
-        const r = stripRect(t, rice);
+        const y = uToY(t.u, rice);
         ctx.save();
-        ctx.setLineDash([6, 5]);
+        ctx.setLineDash([5, 4]);
         ctx.strokeStyle = INK[t.kind].mark;
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.7;
-        rr(r.x, r.y, r.w, r.h, 7); ctx.stroke();
-        ctx.fillStyle = INK[t.kind].mark;
-        ctx.globalAlpha = 0.10; rr(r.x, r.y, r.w, r.h, 7); ctx.fill();
+        ctx.lineWidth = 1.6;
+        ctx.globalAlpha = 0.55;
+        ctx.beginPath();
+        ctx.moveTo(rice.x + 12, y);
+        ctx.lineTo(rice.x + rice.w - 12, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.moveTo(rice.x + 12, y - 5);
+        ctx.lineTo(rice.x + 12, y + 5);
+        ctx.moveTo(rice.x + rice.w - 12, y - 5);
+        ctx.lineTo(rice.x + rice.w - 12, y + 5);
+        ctx.stroke();
         ctx.restore();
       }
     }
@@ -374,22 +383,31 @@
       const r = stripRect(p, rice);
       const spec = INK[p.kind];
       const hold = G.drag && G.drag.id === p.id;
-      rr(r.x, r.y, r.w, r.h, 8);
       const spr = imgs[p.kind];
       if (spr) {
-        ctx.save(); rr(r.x, r.y, r.w, r.h, 8); ctx.clip();
-        const sc = Math.max(r.w / spr.width, r.h / spr.height);
-        const dw = spr.width * sc, dh = spr.height * sc;
-        ctx.drawImage(spr, r.x + (r.w - dw) / 2, r.y + (r.h - dh) / 2, dw, dh);
+        const dh = r.h * 0.9;
+        const dw = Math.min(r.w * 0.94, dh * (spr.width / spr.height) * 1.35);
+        const dx = r.x + (r.w - dw) / 2;
+        const dy = r.y + (r.h - dh) / 2;
+        ctx.save();
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = '#1c2430';
+        rr(dx + 2, dy + 4, dw, dh, 12);
+        ctx.fill();
         ctx.restore();
+        ctx.drawImage(spr, dx, dy, dw, dh);
+        if (hold) {
+          ctx.strokeStyle = '#1c2430';
+          ctx.lineWidth = 2;
+          rr(dx - 3, dy - 3, dw + 6, dh + 6, 12);
+          ctx.stroke();
+        }
       } else {
+        rr(r.x, r.y, r.w, r.h, 8);
         const g = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
         g.addColorStop(0, spec.fill[1]); g.addColorStop(0.45, spec.fill[0]); g.addColorStop(1, spec.fill[2]);
         ctx.fillStyle = g; ctx.fill();
       }
-      ctx.strokeStyle = hold ? '#1c2430' : 'rgba(28,36,48,0.4)';
-      ctx.lineWidth = hold ? 2.4 : 1.1;
-      rr(r.x, r.y, r.w, r.h, 8); ctx.stroke();
       G.hits.push({ id: 'piece:' + p.id, x: r.x, y: r.y, w: r.w, h: r.h });
     }
 
@@ -399,20 +417,33 @@
         const t = TARGET.find((x) => x.kind === ds[0].kind);
         const p = G.pieces.find((x) => x.kind === ds[0].kind);
         const a = stripRect(p, rice), b = stripRect(t, rice);
-        const x = a.x + a.w - 16;
-        ctx.strokeStyle = INK[ds[0].kind].mark; ctx.fillStyle = INK[ds[0].kind].mark; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(x, a.y + a.h / 2); ctx.lineTo(x, b.y + b.h / 2); ctx.stroke();
+        const x = rice.x + rice.w - 10;
+        ctx.strokeStyle = INK[ds[0].kind].mark;
+        ctx.fillStyle = INK[ds[0].kind].mark;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, a.y + a.h / 2);
+        ctx.lineTo(x, b.y + b.h / 2);
+        ctx.stroke();
         const dir = b.y < a.y ? -1 : 1, ty = b.y + b.h / 2;
         ctx.beginPath();
-        ctx.moveTo(x, ty); ctx.lineTo(x - 5, ty + 8 * dir); ctx.lineTo(x + 5, ty + 8 * dir); ctx.closePath(); ctx.fill();
-        const label = INK[ds[0].kind].name.toUpperCase() + ': ' + ds[0].dir + ' ' + ds[0].mm + ' mm';
-        ctx.font = ui(10, 700);
+        ctx.moveTo(x, ty);
+        ctx.lineTo(x - 4, ty + 7 * dir);
+        ctx.lineTo(x + 4, ty + 7 * dir);
+        ctx.closePath();
+        ctx.fill();
+        const label = INK[ds[0].kind].name.toUpperCase() + '  ' + ds[0].dir + '  ' + ds[0].mm + ' mm';
+        ctx.font = ui(9, 700);
         const tw = ctx.measureText(label).width;
-        const ly = Math.max(rice.y + 6, Math.min(a.y, b.y) - 22);
-        rr(x - tw / 2 - 8, ly, tw + 16, 18, 6);
-        ctx.fillStyle = '#1c2430'; ctx.fill();
-        ctx.fillStyle = '#f4ead8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(label, x, ly + 10);
+        const ly = rice.y + 8;
+        const lx = rice.x + rice.w - tw - 18;
+        rr(lx, ly, tw + 14, 18, 6);
+        ctx.fillStyle = '#1c2430';
+        ctx.fill();
+        ctx.fillStyle = '#f4ead8';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, lx + tw / 2 + 7, ly + 10);
       }
     }
 
