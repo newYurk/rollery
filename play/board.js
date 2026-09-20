@@ -133,33 +133,29 @@
     return outer.concat(inner);
   }
 
-  function drawFacetPetal(kind, ang, R) {
+  function drawSlotPie(kind, ang, R) {
     const c = INK[kind].fill;
     ctx.save();
     ctx.rotate(ang);
     ctx.beginPath();
-    ctx.moveTo(R * 0.04, 0);
-    ctx.lineTo(R * 0.24, R * 0.30);
-    ctx.lineTo(R * 0.50, R * 0.18);
-    ctx.lineTo(R * 0.58, 0);
+    ctx.moveTo(R * 0.03, 0);
+    ctx.arc(0, 0, R * 0.48, -0.78, 0.78);
     ctx.closePath();
-    ctx.fillStyle = c[0];
+    const g = ctx.createLinearGradient(R * 0.08, -R * 0.2, R * 0.46, R * 0.18);
+    g.addColorStop(0, c[2]);
+    g.addColorStop(0.45, c[0]);
+    g.addColorStop(1, c[1]);
+    ctx.fillStyle = g;
     ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(R * 0.04, 0);
-    ctx.lineTo(R * 0.58, 0);
-    ctx.lineTo(R * 0.50, -R * 0.18);
-    ctx.lineTo(R * 0.24, -R * 0.26);
-    ctx.closePath();
-    ctx.fillStyle = c[1];
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(R * 0.24, R * 0.30);
-    ctx.lineTo(R * 0.50, R * 0.18);
-    ctx.lineTo(R * 0.42, R * 0.04);
+    ctx.moveTo(R * 0.12, 0);
+    ctx.lineTo(R * 0.42, R * 0.12);
+    ctx.lineTo(R * 0.42, -R * 0.06);
     ctx.closePath();
     ctx.fillStyle = c[2];
+    ctx.globalAlpha = 0.35;
     ctx.fill();
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
@@ -186,8 +182,12 @@
     for (let i = 0; i < placed.length; i++) {
       const home = WEDGE_ANG[slots[i].kind];
       if (home == null) continue;
-      drawFacetPetal(placed[i].kind, home, rad);
+      drawSlotPie(placed[i].kind, home, rad);
     }
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * 0.08, 0, TAU);
+    ctx.fillStyle = '#f4eee4';
+    ctx.fill();
     ctx.restore();
     ctx.restore();
     return true;
