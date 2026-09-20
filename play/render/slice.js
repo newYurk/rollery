@@ -333,6 +333,7 @@ function renderSection(size, vSlice, m, Rref) {
     if (r > wd.Rout + 1 / scale) { d[i + 3] = 0; continue; }
     let alpha = 1, rgb;
     const mat = materialAt(m, wd, vSlice, r, phi);
+    if (mat.cls === 'pending') { d[i + 3] = 0; continue; }
     if (mat.cls === 'out') {
       alpha = clamp(0.5 + (topAt(wd, phi) - r) * scale);
       if (alpha <= 0) { d[i + 3] = 0; continue; }

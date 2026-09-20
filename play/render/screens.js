@@ -915,12 +915,22 @@ function drawStackStrip(x0, x1, yBottom, layers, scale) {
     ctx.fillRect(x0, yy, x1 - x0, hh + 0.4);
   }
 }
+let pullCache = { key: '', t: -1, m: null };
+function modelAtPull(p) {
+  const base = getModel();
+  const t = Math.max(1, Math.round(clamp(p, 0.06, 1) * 24)) / 24;
+  if (pullCache.key === base.key && pullCache.t === t) return pullCache.m;
+  const m = Object.assign({}, base, { key: base.key + '|u' + t.toFixed(4), uMax: t });
+  pullCache = { key: base.key, t, m };
+  return m;
+}
 function drawMakisuSide(x, y, w, h, p) {
   p = clamp(p, 0, 1);
   const mdl = getModel();
+  const pulled = p > 0.02 ? modelAtPull(p) : mdl;
   const matH = Math.max(16, Math.min(22, h * 0.1));
   const faceMax = Math.min(h * 0.58, w * 0.62);
-  const fs = lerp(36, faceMax, Math.pow(Math.max(p, 0.02), 0.7));
+  const fs = faceMax;
   const sheetPx = w * 0.52;
   const remainPx = (1 - p) * sheetPx;
   const rollCx = x + 16 + remainPx + fs * 0.52;
@@ -977,19 +987,13 @@ function drawMakisuSide(x, y, w, h, p) {
     ctx.strokeStyle = '#d2bc93'; ctx.lineWidth = matH * 0.7; ctx.stroke();
   }
 
-  ctx.save();
-  ctx.translate(rollCx, rollCy + fs * 0.46);
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.beginPath(); ctx.ellipse(0, 0, fs * 0.52, fs * 0.12, 0, 0, TAU); ctx.fill();
-  ctx.restore();
-
   if (p > 0.02) {
-    ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 5, 0, TAU);
-    ctx.fillStyle = '#14110e'; ctx.fill();
-    ctx.strokeStyle = '#cbb48a'; ctx.lineWidth = Math.max(5, fs * 0.045); ctx.stroke();
-    ctx.beginPath(); ctx.arc(rollCx, rollCy, fs / 2 + 1, 0, TAU);
-    ctx.strokeStyle = B().wrapper; ctx.lineWidth = Math.max(3, fs * 0.03); ctx.stroke();
-    drawFaceImg(face(0.5, fs), rollCx, rollCy, fs);
+    ctx.save();
+    ctx.translate(rollCx, rollCy + fs * 0.46);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.ellipse(0, 0, fs * 0.35 * Math.max(0.3, p), fs * 0.1, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+    drawFaceImg(face(0.5, fs, pulled, mdl.Rmax), rollCx, rollCy, fs);
   }
 }
 
@@ -1027,7 +1031,8 @@ function drawRollTheater(p) {
   const sx = ox + cw - 16 - fs / 2, sy = oy + 102 + fs / 2;
   ctx.beginPath(); ctx.arc(sx, sy, fs / 2 + 4, 0, TAU);
   ctx.strokeStyle = 'rgba(232,224,208,0.28)'; ctx.lineWidth = 1.4; ctx.stroke();
-  drawFaceImg(face(0.5, fs), sx, sy, fs);
+  const liveM = p > 0.02 ? modelAtPull(p) : getModel();
+  drawFaceImg(face(0.5, fs, liveM, getModel().Rmax), sx, sy, fs);
 
   const stageY = oy + 96;
   const stageH = Math.max(180, (oy + ch - 118) - stageY);

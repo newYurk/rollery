@@ -6472,6 +6472,7 @@ function materialAt(m, wd, vSlice, r, phi) {
   if (r < coreR) return m.core ? coreMaterial(m, r, phi, vSlice, wd.core || m.core, wd.coreRiceLimit) : { cls: 'spread', sm: null };
   const sm = sampleWind(wd, r, phi);
   if (!sm) return { cls: 'out' };
+  if (m.uMax != null && sm.u > m.uMax) return { cls: 'pending' };
   if (wd.materialTransport) return conservativeBandMaterial(m, wd, vSlice, r, sm, phi);
   // ⚠ У УРАМАКИ ОБЁРТКА НА ВНУТРЕННЕМ КРАЮ ВИТКА, А НЕ НА ВНЕШНЕМ (#124, 01.09).
   // Так его и делают: рис намазан на нори, лист ПЕРЕВОРАЧИВАЮТ рисом на циновку, начинку
