@@ -41,7 +41,7 @@
   loadImg('base', '/play/assets/board/maki-base.png');
   ['salmon','cucumber','tuna'].forEach((k) => {
     loadImg(k, '/play/assets/board/' + k + '.png');
-    loadImg('wedge-' + k, '/play/assets/board/wedge-' + k + '.png');
+    loadImg('bit-' + k, '/play/assets/board/bit-' + k + '.png');
   });
 
 
@@ -135,21 +135,55 @@
       ctx.drawImage(imgs.maki, cx - size / 2, cy - size / 2, size, size);
       return true;
     }
-    if (!imgs.base || !imgs['wedge-salmon']) return false;
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.drawImage(imgs.base, -size / 2, -size / 2, size, size);
-    for (const p of pieces) {
-      const t = TARGET.find((x) => x.kind === p.kind);
-      const du = t ? p.u - t.u : 0;
-      const rot = clamp(du * TAU * 0.32, -0.55, 0.55);
-      const w = imgs['wedge-' + p.kind];
-      if (!w) continue;
+    const rad = size / 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, rad, 0, TAU);
+    ctx.fillStyle = '#1a1c18';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * 0.88, 0, TAU);
+    ctx.fillStyle = '#f4eee4';
+    ctx.fill();
+    for (let i = 0; i < 22; i++) {
+      const a = (i / 22) * TAU;
+      const rr0 = rad * 0.70;
+      ctx.beginPath();
+      ctx.ellipse(Math.cos(a) * rr0, Math.sin(a) * rr0, rad * 0.11, rad * 0.075, a, 0, TAU);
+      ctx.fillStyle = i % 2 ? '#efe6d4' : '#faf6ee';
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * 0.42, 0, TAU);
+    ctx.fillStyle = '#f7f1e6';
+    ctx.fill();
+    const slots = TARGET.slice().sort((a, b) => a.u - b.u);
+    const placed = pieces.slice().sort((a, b) => a.u - b.u);
+    const ring = rad * 0.28;
+    const gem = rad * 0.22;
+    for (let i = 0; i < placed.length; i++) {
+      const home = WEDGE_ANG[slots[i].kind];
+      const bit = imgs['bit-' + placed[i].kind];
+      if (home == null) continue;
       ctx.save();
-      ctx.rotate(rot);
-      ctx.drawImage(w, -size / 2, -size / 2, size, size);
+      ctx.translate(Math.cos(home) * ring, Math.sin(home) * ring);
+      if (bit) {
+        ctx.rotate(home + Math.PI / 2);
+        ctx.drawImage(bit, -gem, -gem, gem * 2, gem * 2);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, gem * 0.7, 0, TAU);
+        ctx.fillStyle = INK[placed[i].kind].fill[0];
+        ctx.fill();
+      }
       ctx.restore();
     }
+    ctx.beginPath();
+    ctx.arc(0, 0, rad, 0, TAU);
+    ctx.strokeStyle = '#1a1c18';
+    ctx.lineWidth = 3;
+    ctx.stroke();
     ctx.restore();
     return true;
   }
