@@ -30,6 +30,21 @@
     W: 0, H: 0, dpr: 1, layout: null, hits: [],
   };
 
+  const WEDGE_ANG = { salmon: -1.5436, cucumber: 2.4842, tuna: 0.5288 };
+  const imgs = {};
+  function loadImg(name, src) {
+    const im = new Image();
+    im.onload = () => { imgs[name] = im; if (G.layout) frame(); };
+    im.src = src;
+  }
+  loadImg('maki', '/play/assets/board/maki-target.png');
+  loadImg('base', '/play/assets/board/maki-base.png');
+  ['salmon','cucumber','tuna'].forEach((k) => {
+    loadImg(k, '/play/assets/board/' + k + '.png');
+    loadImg('wedge-' + k, '/play/assets/board/wedge-' + k + '.png');
+  });
+
+
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function lerp(a, b, t) { return a + (b - a) * t; }
   function rr(x, y, w, h, r) {
@@ -111,6 +126,30 @@
       inner.push([Math.cos(t) * r0, Math.sin(t) * r0]);
     }
     return outer.concat(inner);
+  }
+
+  function drawSpriteMaki(cx, cy, R, pieces, isTarget) {
+    const size = R * 2.2;
+    if (isTarget && imgs.maki) {
+      ctx.drawImage(imgs.maki, cx - size / 2, cy - size / 2, size, size);
+      return true;
+    }
+    if (!imgs.base || !imgs['wedge-salmon']) return false;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.drawImage(imgs.base, -size / 2, -size / 2, size, size);
+    for (const p of pieces) {
+      const t = TARGET.find((x) => x.kind === p.kind);
+      const rot = t ? (p.u - t.u) * TAU * 0.9 : 0;
+      const w = imgs['wedge-' + p.kind];
+      if (!w) continue;
+      ctx.save();
+      ctx.rotate(rot);
+      ctx.drawImage(w, -size / 2, -size / 2, size, size);
+      ctx.restore();
+    }
+    ctx.restore();
+    return true;
   }
 
   function drawMaki(cx, cy, R, pieces, ghosts) {
@@ -237,7 +276,9 @@
     for (const c of L.cuts) {
       rr(c.card.x, c.card.y, c.card.w, c.card.h, 14);
       ctx.fillStyle = '#243038'; ctx.fill();
-      drawMaki(c.x, c.y, c.r, c.target ? TARGET : G.pieces, c.target ? null : TARGET);
+      if (!drawSpriteMaki(c.x, c.y, c.r, c.target ? TARGET : G.pieces, c.target)) {
+        drawMaki(c.x, c.y, c.r, c.target ? TARGET : G.pieces, c.target ? null : TARGET);
+      }
       ctx.fillStyle = '#f4ead8';
       ctx.font = ui(8, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
       ctx.fillText(c.lab, c.x, c.card.y + c.card.h - 8);
@@ -296,13 +337,21 @@
       const spec = INK[p.kind];
       const hold = G.drag && G.drag.id === p.id;
       rr(r.x, r.y, r.w, r.h, 8);
-      const g = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
-      g.addColorStop(0, spec.fill[1]); g.addColorStop(0.45, spec.fill[0]); g.addColorStop(1, spec.fill[2]);
-      ctx.fillStyle = g; ctx.fill();
+      const spr = imgs[p.kind];
+      if (spr) {
+        ctx.save(); rr(r.x, r.y, r.w, r.h, 8); ctx.clip();
+        const sc = Math.max(r.w / spr.width, r.h / spr.height);
+        const dw = spr.width * sc, dh = spr.height * sc;
+        ctx.drawImage(spr, r.x + (r.w - dw) / 2, r.y + (r.h - dh) / 2, dw, dh);
+        ctx.restore();
+      } else {
+        const g = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
+        g.addColorStop(0, spec.fill[1]); g.addColorStop(0.45, spec.fill[0]); g.addColorStop(1, spec.fill[2]);
+        ctx.fillStyle = g; ctx.fill();
+      }
       ctx.strokeStyle = hold ? '#1c2430' : 'rgba(28,36,48,0.4)';
-      ctx.lineWidth = hold ? 2.4 : 1.1; ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.28)';
-      ctx.fillRect(r.x + 10, r.y + 4, r.w * 0.35, 3);
+      ctx.lineWidth = hold ? 2.4 : 1.1;
+      rr(r.x, r.y, r.w, r.h, 8); ctx.stroke();
       G.hits.push({ id: 'piece:' + p.id, x: r.x, y: r.y, w: r.w, h: r.h });
     }
 
