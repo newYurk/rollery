@@ -14,9 +14,10 @@ function fitText(label, w) {
 function drawButtons() {
   for (const b of buttons) {
     rr(b.x, b.y, b.w, b.h, 12);
-    ctx.fillStyle = b.primary ? '#e0b25a' : '#2a2a25'; ctx.fill();
-    ctx.strokeStyle = b.dim ? '#332f27' : b.primary ? '#f0cb7d' : '#4d4838'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = b.dim ? '#5c5749' : b.primary ? '#171713' : '#efe4cd'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const arcade = tubePlay();
+    ctx.fillStyle = b.primary ? (arcade ? '#c45c4a' : '#e0b25a') : '#2a2a25'; ctx.fill();
+    ctx.strokeStyle = b.dim ? '#332f27' : b.primary ? (arcade ? '#e08a7a' : '#f0cb7d') : '#4d4838'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = b.dim ? '#5c5749' : b.primary ? (arcade ? '#fff6ee' : '#171713') : '#efe4cd'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const t = fitText(b.label, b.w - 20);   // fitText выставляет шрифт
     ctx.fillText(t, b.x + b.w / 2, b.y + b.h / 2 + 1);
   }
@@ -34,6 +35,9 @@ function buttonRow(list, area) {
   });
 }
 let chips = [], chipScrollX = 0;
+// Вкладки групп палитры и сдвиг страницы под пальцем (17.09). palTabs — цели касания, как
+// chips и buttons: собираются при рисовании, там же и ловят попадание.
+let palTabs = [], palDX = 0;
 
 // ── ИКОНКИ-СПРАЙТЫ (issue #104) ─────────────────────────────────────────────
 // Чипы рисовались тем же кодом, что и начинки на листе, — то есть вычислялись. Но иконка
@@ -46,33 +50,133 @@ let chips = [], chipScrollX = 0;
 const ICONS = {};
 function iconImg(kind) {
   let im = ICONS[kind];
+  // ⚠ БЕЗ Image РИСОВАНИЕ НЕ ПАДАЕТ, А ОТКАТЫВАЕТСЯ К ФОРМЕ (17.09). В tools/check.js браузер
+  // заглушён, и Image там нет вовсе: сторож палитры считает НАРИСОВАННЫЕ фишки (раздел «ПГ»),
+  // то есть честно зовёт drawChips — и на `new Image()` терминальный прогон сваливался целиком.
+  // Спрайт — украшение, и его отсутствие уже предусмотрено ветвью «нет файла — рисуем по-старому».
+  if (im === undefined && typeof Image === 'undefined') { ICONS[kind] = null; return null; }
   if (im === undefined) {
     im = new Image();
     im.onload = () => { dirty = true; requestFrame(); };
     im.onerror = () => { ICONS[kind] = null; };          // нет файла — молча рисуем по-старому
-    im.src = 'assets/icons/' + kind + '.png';
+    im.src = (location.pathname.indexOf('/play') >= 0 ? '' : '/play/') + 'assets/icons/' + ({ salmonSlice: 'salmon', tunaSlice: 'tuna' }[kind] || kind) + '.png';
     ICONS[kind] = im;
   }
   return im && im.complete && im.naturalWidth ? im : null;
 }
+// ── ПОЛОСА ВКЛАДОК: ОБРАЗЕЦ ГРУППЫ И ИМЯ ОТКРЫТОЙ (17.09) ───────────────────────────────
+//
+// Вкладка — не буква и не слово, а ОБРАЗЕЦ: спрайт одной начинки группы, тот же, что на фишке.
+// Так ряд читается не читая — ровно как в клавиатуре смайлов, о которой и просила владелец.
+// Если спрайта нет (файл не пришёл, начинка без иконки) — кружок её цвета из каталога: то же
+// решение, что у кнопки обёртки («так видно выбор не читая», #158).
+//
+// Геометрию полосы считает раскладка (`palStrip` в ui/layout.js) — здесь только рисование и
+// цели касания, чтобы сторож и палец читали одни и те же числа.
+function drawPalTabs() {
+  palTabs = []; const t = L.tabs; if (!t) return;
+  const гр = uiGroups(), тек = uiPalIndex();
+  if (t.label) {
+    ctx.fillStyle = '#f3e7ca'; ctx.font = font(12); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(t.label, t.x, t.y + t.h / 2);
+  }
+  гр.forEach((g, i) => {
+    const x = t.tabsX + i * (t.tabW + t.gap), активна = i === тек;
+    palTabs.push({ key: g.key, x, y: t.y, w: t.tabW, h: t.h });
+    rr(x, t.y, t.tabW, t.h, 9);
+    ctx.fillStyle = активна ? '#4a4331' : '#26261f'; ctx.fill();
+    if (активна) { ctx.strokeStyle = '#f3e7ca'; ctx.lineWidth = 1.5; ctx.stroke(); }
+    const sp = iconImg(g.icon), d = ING[g.icon];
+    if (sp) {
+      const сторона = Math.min(t.tabW, t.h) - 6, k = Math.max(1, Math.floor(сторона / sp.width)), sz = sp.width * k;
+      ctx.save(); ctx.globalAlpha = активна ? 1 : 0.72; ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(sp, Math.round(x + (t.tabW - sz) / 2), Math.round(t.y + (t.h - sz) / 2), sz, sz);
+      ctx.restore();
+    } else if (d) {
+      ctx.save(); ctx.globalAlpha = активна ? 1 : 0.72; ctx.fillStyle = d.color;
+      ctx.beginPath(); ctx.arc(x + t.tabW / 2, t.y + t.h / 2, Math.min(t.tabW, t.h) / 2 - 7, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
+  });
+}
 // ПОСЛЕДНИЙ РЯД ПАЛИТРЫ — ОБЩИЙ СЛОТ С КНОПКАМИ ДЕЙСТВИЙ (#157, 02.09). Пока кусок выбран,
-// в этом слоте стоят «⟳» и «Убрать», и ряд чипов не рисуется. Пропускать надо не только
+// в этом слоте стоят «⟳» и «Убрать», и ряд чипов не рисуется. (18.09: на портрете телефона слот
+// есть только в «Пазле» — «⟳ Другой», — а «Убрать» стоит на ручке циновки; ui/layout.js, `слот`.) Пропускать надо не только
 // РИСОВАНИЕ, но и запись в `chips`: иначе под кнопкой остались бы живые цели касания, и тап
 // по «Убрать» менял бы заодно выбранную начинку.
+//
+// ⚑ РИСУЕТСЯ ОДНА ГРУППА — СТРАНИЦА (17.09). Раньше здесь шла вся палитра базы одной лентой;
+// теперь `uiPalGroup().ings`, а вкладки и жест меняют страницу. Место под ленту раскладка
+// считает по САМОЙ БОЛЬШОЙ группе, поэтому страница меньше просто не заполняет ряд до конца —
+// и ничего не сдвигает.
+const CAB_IMG = {};
+function loadCab(id) {
+  if (!CAB_IMG[id]) {
+    const im = new Image();
+    im.onload = () => { dirty = true; if (typeof requestFrame === 'function') requestFrame(); };
+    im.src = '/play/assets/cab/' + id + '.png';
+    CAB_IMG[id] = im;
+  }
+  const im = CAB_IMG[id];
+  return im && im.complete && im.naturalWidth ? im : null;
+}
+loadCab('cucumber'); loadCab('pin');
+function drawCabChip() {
+  chips = []; palTabs = [];
+  const ings = uiPalGroup().ings, kind = ings[0] || S.sel, c = L.chips, size = c.size;
+  const placed = patches().length > 0;
+  const x = placed ? L.ox + L.cw / 2 - size - 8 : L.ox + (L.cw - size) / 2;
+  const y = c.y;
+  chips.push({ kind, x, y, w: size, h: size, dead: false });
+  const cx = x + size / 2, cy = y + size / 2, R = size / 2;
+  ctx.beginPath(); ctx.arc(cx, cy, R + 7, 0, TAU); ctx.fillStyle = '#e8e0d0'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, R + 4, 0, TAU); ctx.fillStyle = '#c45c4a'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, R - 3, 0, TAU); ctx.fillStyle = '#1a1210'; ctx.fill();
+  const spr = loadCab('cucumber') || iconImg(kind);
+  if (spr) {
+    ctx.imageSmoothingEnabled = false;
+    const s = size + 8;
+    ctx.drawImage(spr, cx - s / 2, cy - s / 2 + 2, s, s);
+    ctx.imageSmoothingEnabled = true;
+  }
+}
 function drawChips(скрытьПоследний) {
-  chips = []; const c = L.chips, ings = uiIngredients(), n = ings.length, gap = 8, size = c.size;
-  const perRow = c.perRow || n, rowH = size + (c.labels ? 18 : 6), rowW = perRow * (size + gap) - gap;
+  if (tubePlay()) { drawCabChip(); return; }
+  chips = []; const c = L.chips, ings = uiPalGroup().ings, n = ings.length, gap = 8, size = c.size;
+  const perRow = c.perRow || n, rowH = size + (c.labels ? (L.table ? 26 : 18) : 6);
+  // Лента центрируется по ТОМУ, ЧТО В НЕЙ ЕСТЬ, а не по размеру страницы: группа из двух фишек
+  // при странице на семь стояла бы в левом углу, будто ряд обрезан.
+  const rowW = Math.max(1, Math.min(perRow, n)) * (size + gap) - gap;
   const видимыхРядов = скрытьПоследний ? Math.max(0, c.rows - 1) : c.rows;
   // Подпись шире чипа, а полоса отсекается по своей рамке, поэтому содержимое живёт с отступом
   // pad от краёв: иначе крайняя подпись («Огурец» → «гурец») срезана даже при нулевой прокрутке.
   const pad = c.pad || 0, inner = Math.max(size, c.w - 2 * pad);
   const maxScroll = Math.max(0, rowW - inner); chipScrollX = clamp(chipScrollX, 0, L.chipScroll ? maxScroll : 0);
+  // Полоса вкладок живёт вместе с лентой: спрятали палитру целиком (один ряд, и он отдан
+  // кнопкам) — вкладки тоже уходят, иначе над кнопкой остался бы ряд, ничего не открывающий.
+  const tableOwnsPal = !!(L.table && ((L.table.groups && L.table.groups.length) || (L.table.sides && L.table.sides.length)));
+  if (видимыхРядов > 0) {
+    if (!tableOwnsPal) drawPalTabs();
+  } else if (!tableOwnsPal) palTabs = [];
+  ctx.save();
+  if (L.table && L.table.left) {
+    ctx.beginPath();
+    ctx.rect(L.table.left.x, L.table.left.y, L.table.left.w, L.table.left.h);
+    ctx.clip();
+  }
   ctx.save(); ctx.beginPath(); ctx.rect(c.x - 2, c.y - 4, c.w + 4, видимыхРядов * rowH + 8); ctx.clip();
-  const x0 = c.x + pad + (L.chipScroll ? -chipScrollX : Math.max(0, (inner - rowW) / 2));
+  // Сдвиг страницы под пальцем (palDX) — это ответ на жест, а не прокрутка: страница уходит за
+  // край, и на отпускании либо встаёт соседняя группа, либо эта возвращается на место.
+  const x0 = c.x + pad + palDX + (L.chipScroll ? -chipScrollX : Math.max(0, (inner - rowW) / 2));
   ings.forEach((kind, i) => {
     const row = Math.floor(i / perRow), col = i % perRow, x = x0 + col * (size + gap), y = c.y + row * rowH, d = ING[kind], selected = kind === S.sel;
     if (row >= видимыхРядов) return;
-    chips.push({ kind, x, y, w: size, h: rowH });
+    // ТУСКЛАЯ ФИШКА (#253, 17.09): кусок не помещается на рис этого листа вовсе (узумаки в пазле на
+    // двух витках — омлет-лист, киви, манго, банан, дэмбу). Остаётся на месте, чтобы ряд не прыгал,
+    // но рисуется на треть яркости и касанием не выбирается (onDown/onUp смотрят `dead`).
+    const dead = !chipFits(kind);
+    chips.push({ kind, x, y, w: size, h: rowH, dead });
+    ctx.save(); if (dead) ctx.globalAlpha = 0.3;
     rr(x, y, size, size, 12); ctx.fillStyle = '#26261f'; ctx.fill();
     if (selected) { ctx.strokeStyle = '#f3e7ca'; ctx.lineWidth = 2.5; ctx.stroke(); }
     ctx.save(); rr(x + 4, y + 4, size - 8, size - 8, 9); ctx.clip();
@@ -89,7 +193,15 @@ function drawChips(скрытьПоследний) {
       if (d.paint) { ctx.fillStyle = d.color; rr(-gh / 2, -gw / 2, gh, gw, 6); ctx.fill(); } else drawPatchShape(d, -gh / 2, -gw / 2, gh, gw, true);
     }
     ctx.restore();
-    if (c.labels) { ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(chipLabel(kind, size + gap), x + size / 2, y + size + 3); }
+    if (c.labels) {
+      ctx.fillStyle = selected ? '#f3e7ca' : '#a79d86'; ctx.font = font(11); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(chipLabel(kind, size + gap), x + size / 2, y + size + 3);
+      if (L.table && typeof pieceGrams === 'function') {
+        ctx.fillStyle = '#8a8478'; ctx.font = font(9);
+        ctx.fillText(pieceGrams(kind) + ' g', x + size / 2, y + size + 15);
+      }
+    }
+    ctx.restore();
   });
   ctx.restore();
   if (L.chipScroll) {   // край прокрутки: гасим и ставим шеврон — и только с той стороны, где чипы ЕСТЬ
@@ -104,6 +216,7 @@ function drawChips(скрытьПоследний) {
     }
   }
   if (!c.labels) { ctx.fillStyle = '#f3e7ca'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(ING[S.sel].name, c.x + c.w / 2, c.y + c.rows * rowH + 2); }
+  ctx.restore();
 }
 let icons = [];
 let wrapNote = '', wrapNoteT = 0;   // имя выбранной обёртки: на кнопке оно не помещается
@@ -151,7 +264,9 @@ function рисоватьОбразецБазы(cx, cy, ключ) {
   ctx.restore();
 }
 function drawTopBar(hint) {
+  if (L.table) return;
   const T0 = SAFE.top, ox = L.ox, cw = L.cw, narrow = cw < 480;
+  if (tubePlay()) return;
   ctx.font = font(17, 700);
   const заголовокW = 16 + ctx.measureText('Ролльня').width + 12;   // с зазором до первой иконки
   // Обёртка — кнопка-образец: глиф не эмодзи, а кружок цвета самой обёртки, так видно выбор
@@ -161,13 +276,14 @@ function drawTopBar(hint) {
   // если игрок пришёл по ссылке ?puzzle — тогда FULL_UI и так включён).
   const items = [...(uiBases().length > 1 ? [['base', B().emoji]] : []), ['shape', SHAPES[S.shape].glyph],
                  ...(FULL_UI ? [['album', '★'], ['puzzle', '🧩']] : []),
-                 ['preview', '👁'], ['lines', '📐'],
-                 // ⚑ РЕЖИМ НАМОТКИ ВИДЕН И ПЕРЕКЛЮЧАЕТСЯ (правка 02.09, просьба владельца).
-                 // Три положения: авто (модель решает по охвату начинок) · кольцо · спираль.
-                 // Глиф показывает ТЕКУЩЕЕ состояние, а не следующее: ◎ авто, ○ кольцо, ◍ спираль.
-                 ['winding', S.winding === 'ring' ? '○' : S.winding === 'spiral' ? '◍' : '◎'],
-                 ...(S.mode === 'lay' ? [['clear', '🗑']] : []),
-                 ['mute', S.mute ? '🔇' : '🔊']];
+                 ['preview', '👁'], ['lines', '📐']];
+  // ⚑ ПАНЕЛЬ УРЕЗАНА (решение владельца 17.09: «избыточно сверху значков»).
+  //  · ЗВУК — без кнопки: «звуком пускай управляет сам человек» — громкостью и беззвучным
+  //    режимом телефона (audioSession 'ambient' в audio.js). Звук включён всегда.
+  //  · РЕЖИМ НАМОТКИ — без кнопки: «будет всегда авто», кольцо или спираль решает модель по
+  //    раскладке и листу (02.09, #247). Название режима остаётся в подписи живого среза.
+  //  · «ОЧИСТИТЬ» уехала вниз, на циновку (screens.js, drawLay) — с тем же подтверждением
+  //    в два касания; подсказка «Ещё раз — очистить» по-прежнему здесь, в шапке.
   // ⚠ КНОПКА, А НЕ ТОЛЬКО КЛАВИША. Контуры сделаны 31.08 с переключателем на клавише L —
   // и это была ошибка: владелец смотрит игру с телефона, где клавиатуры нет вовсе. Режим
   // существовал, работал и был невидим для того единственного человека, ради кого сделан.

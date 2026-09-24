@@ -16,9 +16,11 @@ function albumSave() {
   // F03). Без неё запись с блином открывалась как нори, молча и без ошибки (issue #86).
   // Пишем разрешённую обёртку базы, а не сырое S.wrap: у баз с wrapFixed (рулет) своя, и
   // S.wrap там не участвует — иначе в записи оказалось бы то, чего в модели не было.
+  // Витки — по тому же правилу, что при чтении (acceptTurns, 17.09): записи короче 2 витков не бывает.
   const e = { id: 'a' + Date.now().toString(36), base: S.base, wrap: B().wrapKey || null,
-              turns: turnsOf(S.turns), shape: S.shape,
-              hand: { air: +(h.air || 0).toFixed(3), wobble: +(h.wobble || 0).toFixed(3), phase: +(h.phase || 0).toFixed(2), press: +(h.press || 1).toFixed(2) },
+              turns: acceptTurns(S.turns), shape: S.shape,
+              // Почерк — без округления (#236): запись обязана открываться тем же роллом, что сохранили.
+              hand: { air: h.air || 0, wobble: h.wobble || 0, phase: h.phase || 0, press: h.press || 1 },
               list: JSON.parse(JSON.stringify(list)), at: Date.now(),
               level: S.puzzle ? S.puzzle.level : null, sim: S.puzzle && S.puzzle.result ? Math.round(S.puzzle.result.sim * 100) : null };
   S.album.unshift(e); if (S.album.length > ALBUM_MAX) S.album.length = ALBUM_MAX;
@@ -37,10 +39,17 @@ function withRecipe(e, fn) {
   // а он уже на блине (issue #86).
   const keep = { base: S.base, wrap: S.wrap, turns: S.turns, shape: S.shape, hand: S.hand, list: S.lists[e.base] };
   S.base = e.base; S.wrap = (e.wrap && WRAPPERS[e.wrap]) ? e.wrap : null;
-  S.turns = turnsOf(e.turns); S.shape = SHAPES[e.shape] ? e.shape : 'round';
+  // Витки записи — по тому же правилу, что у ссылки (#253, решение владельца 17.09): лист не
+  // короче 2 витков и такой, чтобы на рис лёг каждый кусок. recipeTurns СИЛЬНЕЕ прежнего
+  // acceptTurns и включает его: он тоже поднимает витки до 2 (RECIPE_TURNS_MIN), а потом
+  // добавляет по целому витку, пока каждый кусок не ляжет на рис. Миниатюра и «На лист»
+  // считают лист одной дорогой — иначе миниатюра обещала бы не тот ролл, что откроется.
+  S.turns = recipeTurns(e, e.list); S.shape = SHAPES[e.shape] ? e.shape : 'round';
   S.hand = Object.assign(handOf(), e.hand || {});
   let out;
-  try { out = fn(buildModel(JSON.parse(JSON.stringify(e.list)))); }
+  // Запись до 17.09 могла положить кусок на голый край — миниатюра считается уже со сдвигом,
+  // той же дорогой, что «На лист» и ссылка (#253). Сама запись в хранилище не переписывается.
+  try { const list = JSON.parse(JSON.stringify(e.list)); layOnRice(list); out = fn(buildModel(list)); }
   finally { S.base = keep.base; S.wrap = keep.wrap; S.turns = keep.turns; S.shape = keep.shape; S.hand = keep.hand; S.lists[e.base] = keep.list; }
   return out;
 }
@@ -61,14 +70,20 @@ function albumLoad(i) {
   const e = S.album[i]; if (!e) return;
   if (S.puzzle) puzzleStop();
   S.base = e.base; S.wrap = (e.wrap && WRAPPERS[e.wrap]) ? e.wrap : null;   // старые записи без поля → обёртка базы (issue #86)
-  S.turns = turnsOf(e.turns); S.shape = SHAPES[e.shape] ? e.shape : 'round';
+  // ⚑ Старая запись с листом короче 2 витков открывается с 2, и с бóльшим листом, если на
+  // 2 витках не ложится каждый кусок (решение владельца 17.09, #253): лист короче начинки игра
+  // не принимает. Разбор — у recipeTurns в state.js (он включает прежний порог acceptTurns).
+  S.turns = recipeTurns(e, e.list); S.shape = SHAPES[e.shape] ? e.shape : 'round';
   S.hand = Object.assign(handOf(), e.hand || {});
-  S.sel = uiIngredients()[0] || B().ingredients[0]; S.selPatch = null;
+  // Выбор начинки переживает возврат из альбома: palSync() меняет его только если у базы
+  // записи такой начинки нет (17.09, прежде сбрасывался всегда).
+  palSync(); S.selPatch = null;
   // ⚠ ФИЛЬТР ПО KIND, КАК ПРИ ЗАГРУЗКЕ СОХРАНЁННОГО (#150). Альбом хранит рецепты и открывает
   // их СЕГОДНЯШНЕЙ моделью, а начинки со временем снимают: pepper, pinkcream и choco уже сняты.
   // `load()` в state.js такие отсеивает, а этот путь клал список как есть — и запись со снятой
   // начинкой валила не плитку, а саму игру.
   S.lists[e.base] = JSON.parse(JSON.stringify(e.list)).filter(p => ING[p.kind]);
+  layOnRice(S.lists[e.base]);                    // #253: кусок с голого края — на ближайшее место на рисе
   histReset();                                   // #150: пришла другая раскладка — прошлого нет
   S.albumOpen = -1; S.mode = 'lay'; S.rollP = 0; anim = null; cut = null; slicing = null;
   touchModel(); layout(); dirty = true; requestFrame();

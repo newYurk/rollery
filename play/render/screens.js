@@ -16,6 +16,21 @@ function drawParticles(dt) {
   for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; ctx.globalAlpha = 1 - p.t / p.life; ctx.fillStyle = rgbCss(p.c); ctx.fillRect(p.x, p.y, p.s, p.s); }
   ctx.globalAlpha = 1;
 }
+// ⚑ РЕЖИМ НАМОТКИ ПОДПИСАН ТАМ ЖЕ, ГДЕ ВИТКИ (решение владельца 16.09). Автомат переключает
+// кольцо в спираль скачком — так решено 02.09 (#141), и 16.09 владелец это подтвердила: «скачок
+// честный». Честный скачок должен быть виден словом: без подписи узор на границе просто
+// перескакивает, и не понять почему. Подпись — в строке живого среза, не на листе: подсказок на
+// экране раскладки нет намеренно (02.09). Одно название режима на все экраны.
+const windingName = m => (m.g.winding === 'spiral' ? 'спираль' : 'кольцо');
+const liveTurnsText = (m, v = 0.5) => `${windingName(m)}, ${windFor(m, v).turns.toFixed(1).replace('.', ',')} витка`;
+// ⚑ НЕХВАТКА ЛИСТА СКАЗАНА СЛОВАМИ (#242, решение владельца 16.09: «честная дыра»). Модель давно
+// знала, что нори не сомкнулась (`хватило`), но этого поля не читал никто — ни экран, ни сторож.
+// Экрана поражения нет (любой результат — узор), есть строка там же, где витки.
+// ⚑ ВТОРАЯ ПОЛОВИНА ПОДПИСИ ЗАВИСИТ ОТ ОБЁРТКИ (#255, 17.09): у сладкой базы лист — гюхи, и
+// «нори не сомкнулась» там неправда. Фраза берётся из WRAPPERS (`notClosed`), потому что род
+// у названий разный; запасной вариант — для обёртки, которой ещё не дописали слово.
+const sheetShortText = (m, v = 0.5) => (windFor(m, v).хватило === false
+  ? 'листа не хватило — ' + (((WRAPPERS[B().wrapKey] || WRAPPERS.nori).notClosed) || 'лист не сомкнулся') : '');
 const hints = {
   // ⚑ ПОСТОЯННАЯ ПОДСКАЗКА НА ЛИСТЕ СНЯТА 02.09 по просьбе владельца («можно подсказку про
   // скручивание и раскладку убрать пока»). Пустая строка, а не удалённый ключ: подсказку
@@ -24,28 +39,342 @@ const hints = {
   layMove: 'Тащи · вытащи за лист — убрать',
   // ⚑ «В НОРИ» УБРАНО ИЗ ПОДСКАЗКИ (02.09). Кнопки «Кусок в нори» нет с 31.08 (canWrap = false
   // ниже), а подсказка продолжала обещать приём, которого игрок сделать не может.
-  laySel: 'Поворот меняет рисунок в кусочках',
+  // ⚑ Про поворот подсказка говорит, только пока он есть (#168, ROTATE_PIECE_ON в state.js);
+  // без него у выделенного куска остаются сдвиг и «Убрать» — о них и строка.
+  laySel: ROTATE_PIECE_ON ? 'Поворот меняет рисунок в кусочках' : 'Тащи · вытащи за лист — убрать',
   puzzle: 'Повтори срез: разложи, скрути, разрежь',
-  rolled: 'Тапни по роллу там, где резать',
+  rolled: 'Проведи ножом вниз — где коснёшься, там рез',
   revealed: 'Вот что ты положил. Хочется ещё?',
   plate: 'Шесть кусочков — тапни, чтобы рассмотреть',
 };
+// ── КОЛОНКА ПОЛОСЫ: ЧТО ИГРА ЗНАЕТ О РОЛЛЕ (17.09) ────────────────────────────────────────
+//
+// Владелец: «подписывать что-то как раз текстом можно». Сюда уехали надписи, которые висели
+// ПОВЕРХ ЛИСТА и закрывали его там же, где кладут начинку: «начинка по всему листу — свернётся
+// спиралью», «начинки не обхватить — нори не сомкнётся», «лишний нори — обрезан». Рядом с ними —
+// то, что полоса говорила и раньше (намотка и витки, нехватка листа #242), и форма ролла.
+//
+// ⚠ ТОЛЬКО СОСТОЯНИЕ, НИКАКИХ УКАЗАНИЙ. «Подсказки на экране раскладки нет намеренно» — решение
+// владельца 02.09, и колонка его не отменяет: каждая строка здесь — то, что модель уже посчитала
+// о ЭТОМ ролле (что будет), а не то, что игроку сделать. Новую строку добавлять тем же правилом.
+//
+// У пазла колонка говорит только «цель»: срезы в полосе — чужой ролл, и строки о своём под этим
+// словом читались бы как описание цели. Свои надписи игрока в пазле остаются на листе.
+//
+// `уступ` — кто уходит первым, когда колонка узкая или низкая: форма, обрезок, заголовок, причина
+// спирали, нехватка листа; намотка с витками не уходит (без неё колонке незачем быть).
+const windingSelf = () => B().winding === 'spiral';   // спираль по самой базе (узумаки), а не по раскладке
+function bandFacts(m) {
+  const out = [{ id: 'title', r: 'title', уступ: 3, t: S.puzzle ? 'цель' : 'живой срез' }];
+  if (S.puzzle) {
+    if (S.puzzle.tube) {
+      out.push({ id: 'hint', r: 'main', уступ: 0, t: tubePlay() ? 'ゴール' : 'слева — в ядре · справа — на витке' });
+      return out;
+    }
+    if (patches().length) out.push({ id: 'ghost', r: 'note', уступ: 2, t: 'розовое — куда встанет' });
+    return out;
+  }
+  out.push({ id: 'turns', r: 'main', уступ: 0, t: liveTurnsText(m) });
+  // Причина спирали — только когда спираль выбрала РАСКЛАДКА. У узумаки она от базы, и «начинка
+  // по всему листу» там неправда; режим и так назван строкой выше.
+  if (m.g.winding === 'spiral' && !windingSelf()) out.push({ id: 'spiral', r: 'note', уступ: 2, t: 'начинка по всему листу — свернётся спиралью' });
+  const нх = sheetShortText(m);
+  if (нх) out.push({ id: 'short', r: 'warn', уступ: 1, t: нх });
+  // «Лист», а не «нори», как было на листе: у сладкой базы лист — гюхи (#255).
+  if (windFor(m, 0.5).sEnd < m.g.L) out.push({ id: 'trim', r: 'note', уступ: 4, t: 'лишний лист обрезан — ролл замкнулся раньше' });
+  out.push({ id: 'shape', r: 'note', уступ: 5, t: 'форма: ' + SHAPES[S.shape].name });
+  return out;
+}
+// ПАНЕЛЬ — ЭЛЕМЕНТ ИНТЕРФЕЙСА, И ГОВОРИТ ЕГО ЦВЕТАМИ (18.09). 17.09 текст стоял на дереве и был тёмным;
+// панель теперь тёмная, как подложки кнопок верхней панели и фишек палитры (`#26261f`, ui/controls.js),
+// и текст — светлыми цветами той же шапки: главное — цветом заголовка «Ролльня», заметки — цветом
+// подсказки, заголовок колонки — цветом подписи фишки, нехватка листа — тем же `#c98a5a`, каким её
+// пишет экран среза. Мелкий текст держит AA 4,5:1 на подложке: 5,7 / 6,9 / 5,3 (сторож «Ш» считает).
+const BAND_BG = '#26261f';
+const BAND_TEXT = {
+  title: { size: 11, weight: 600, color: '#a79d86', lh: 14 },
+  main:  { size: 15, weight: 700, color: '#f3e7ca', lh: 19 },
+  note:  { size: 12, weight: 500, color: '#b8ad95', lh: 15 },
+  warn:  { size: 12, weight: 700, color: '#c98a5a', lh: 15 },
+};
+const BAND_GAP = 3;   // между фактами, px
+// Раскладка текста в колонке. Возвращает строки с их местом и шириной и набор id уместившихся
+// фактов: по нему drawLay решает, какие надписи всё-таки рисовать на листе (не влезло — не пропало).
+// ⚠ ВЫЙТИ ЗА КОЛОНКУ НЕЛЬЗЯ ПО ПОСТРОЕНИЮ: слово шире колонки не рвётся и не обрезается — факт
+// уступает целиком; не влезло по высоте — уходит факт с бо́льшим `уступ`. Сторож проверяет итог.
+function bandLines(col, facts) {
+  const lines = [], placed = new Set();
+  if (!col || !facts.length) return { lines, placed };
+  const строкиФакта = f => {
+    const st = BAND_TEXT[f.r]; ctx.font = font(st.size, st.weight);
+    // Тире держится за предыдущее слово: строка, начатая с «—», читается как реплика.
+    const слова = f.t.replace(/ — /g, '\u00a0— ').split(' ');
+    const out = []; let cur = '';
+    for (const w of слова) {
+      const t = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(t).width <= col.w) { cur = t; continue; }
+      if (!cur || ctx.measureText(w).width > col.w) return null;
+      out.push(cur); cur = w;
+    }
+    if (cur) out.push(cur);
+    return out;
+  };
+  let блоки = facts.map(f => ({ f, rows: строкиФакта(f) })).filter(b => b.rows);
+  const высота = бл => бл.reduce((a, b) => a + b.rows.length * BAND_TEXT[b.f.r].lh, 0) + Math.max(0, бл.length - 1) * BAND_GAP;
+  while (блоки.length && высота(блоки) > col.h) {
+    const худший = блоки.reduce((a, b) => (b.f.уступ > a.f.уступ ? b : a));
+    блоки = блоки.filter(b => b !== худший);
+  }
+  let y = col.y + (col.h - высота(блоки)) / 2;
+  for (const b of блоки) {
+    const st = BAND_TEXT[b.f.r]; ctx.font = font(st.size, st.weight);
+    for (const t of b.rows) {
+      lines.push({ t, x: col.x, y: y + st.lh / 2, w: ctx.measureText(t).width, size: st.size, weight: st.weight, color: st.color, lh: st.lh, id: b.f.id });
+      y += st.lh;
+    }
+    y += BAND_GAP;
+    placed.add(b.f.id);
+  }
+  return { lines, placed };
+}
+const bandColumn = m => bandLines(L.band && L.band.col, bandFacts(m));
+function drawPuzzleFace(v, size, x, y, tm) {
+  drawFaceImg(face(v, size, tm), x, y, size);
+  if (patches().length) {
+    const pm = getModel();
+    drawFaceImg(ghostMaskImg(v, size, pm, Math.max(tm.Rmax, pm.Rmax)), x, y, size, 1, 0.9, true);
+  }
+  if (S.puzzle && S.puzzle.tube && S.tubeLab) drawTubeBeads(v, size, x, y, tm);
+}
+function mapCentroid(map, N, lo, hi) {
+  const half = N / 2, den = half - 1;
+  let sx = 0, sy = 0, n = 0;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const c = map[y * N + x];
+    if (c < lo || c > hi) continue;
+    sx += x + 0.5 - half; sy += y + 0.5 - half; n++;
+  }
+  return n ? { x: sx / n / den, y: sy / n / den } : null;
+}
+// Точка на срезе — то самое «вверх / вниз». Одна ось на листе везёт её по витку.
+function drawTubeBeads(v, size, x, y, tm) {
+  const N = ROLL_MAP_SIZE, pm = patches().length ? getModel() : null;
+  const Rref = Math.max(tm.Rmax, pm ? pm.Rmax : tm.Rmax);
+  const tMap = materialMapOf(N, v, tm, Rref);
+  const R = size / 2, rad = PIX ? Math.max(PIX * 2, 4) : 5;
+  ctx.save(); ctx.translate(x, y);
+  const dot = (pt, fill) => {
+    if (!pt) return;
+    ctx.beginPath(); ctx.arc(pt.x * R, pt.y * R, rad, 0, TAU);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = PIX ? PIX : 1.2; ctx.strokeStyle = 'rgba(23,23,19,0.65)'; ctx.stroke();
+  };
+  for (const t of S.puzzle.target) {
+    if (!ING[t.kind] || t.kind === 'nori') continue;
+    const code = 3 + ROLL_KIND_IDS.indexOf(t.kind);
+    if (code < 3) continue;
+    dot(mapCentroid(tMap, N, code, code), ING[t.kind].color);
+  }
+  if (pm) dot(mapCentroid(materialMapOf(N, v, pm, Rref), N, 3, 99), 'rgb(224,118,138)');
+  ctx.restore();
+}
+// Слот цели — ПРИЗРАК КУСКА, не пятно и не теория витков. Первый жест: накрой пунктир.
+function markFillings(x, y, size, m, v) {
+  if (!m) return;
+  const N = typeof ROLL_MAP_SIZE === 'number' ? ROLL_MAP_SIZE : 48;
+  const map = materialMapOf(N, v, m, m.Rmax);
+  const pt = mapCentroid(map, N, 3, 99);
+  if (!pt) return;
+  const R = size / 2, rad = Math.max(6, size * 0.08);
+  ctx.save(); ctx.translate(x, y);
+  ctx.beginPath(); ctx.arc(pt.x * R, pt.y * R, rad, 0, TAU);
+  ctx.fillStyle = 'rgb(224,118,138)'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#1c2430'; ctx.stroke();
+  ctx.restore();
+}
+function punchColor(k) {
+  const d = ING[k]; if (!d) return '#d45a3c';
+  if (d.tex === 'kanikama') return '#d44e3c';
+  const c = hexRgb(d.color);
+  if (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2] > 190) return '#d45a3c';
+  return d.color;
+}
+function drawPuzzleGhosts() {
+  if (!S.puzzle || !S.puzzle.target || S.rollP > 0 || S.guides === false) return;
+  if (S.puzzle.tube) return;
+  const mine = patches();
+  for (const t of S.puzzle.target) {
+    if (!ING[t.kind] || t.kind === 'nori') continue;
+    const r = patchRect({ kind: t.kind, u: t.u, v: t.v, phase: 0, wU: t.wU, hU: t.hU, dv: t.dv });
+    const col = punchColor(t.kind);
+    ctx.save();
+    ctx.fillStyle = rgbCss(hexRgb(col), 0.16);
+    rr(r.x, r.y, r.w, r.h, 6); ctx.fill();
+    ctx.setLineDash(PIX ? [PIX * 2, PIX * 2] : [7, 5]);
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = 0.95;
+    ctx.lineWidth = PIX ? Math.max(2, PIX) : 2.5;
+    rr(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 7); ctx.stroke();
+    ctx.restore();
+    const cand = mine.filter(p => p.kind === t.kind);
+    if (!cand.length) continue;
+    let best = cand[0], bd = 9;
+    for (const p of cand) { const d = Math.abs(p.u - t.u); if (d < bd) { bd = d; best = p; } }
+    if (bd < 0.04) continue;
+    const a = patchRect(best), tx = r.x + r.w / 2, ty = r.y + r.h / 2, fx = a.x + a.w / 2, fy = a.y + a.h / 2;
+    ctx.save();
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 2; ctx.globalAlpha = 0.85;
+    ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(tx, ty); ctx.stroke();
+    const ang = Math.atan2(ty - fy, tx - fx);
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx - 9 * Math.cos(ang - 0.4), ty - 9 * Math.sin(ang - 0.4));
+    ctx.lineTo(tx - 9 * Math.cos(ang + 0.4), ty - 9 * Math.sin(ang + 0.4));
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+function drawTubeZones(s, mdl) {
+  if (!(S.puzzle && S.puzzle.tube) || S.rollP > 0) return;
+  for (const t of S.puzzle.target) {
+    if (!ING[t.kind] || t.kind === 'nori') continue;
+    const g = { kind: t.kind, u: t.u, v: t.v, phase: 0 };
+    const r = patchRect(g), col = ING[t.kind].color;
+    ctx.fillStyle = rgbCss(hexRgb(col), 0.14);
+    rr(r.x, r.y, r.w, r.h, 6); ctx.fill();
+    ctx.save();
+    ctx.setLineDash(PIX ? [PIX * 2, PIX * 2] : [7, 5]);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = PIX ? Math.max(2, PIX) : 2.5;
+    rr(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 7); ctx.stroke();
+    ctx.restore();
+  }
+}
 // Цель пазла / живой предпросмотр: полосой над листом, накладкой на листе или в боковой колонке.
-function drawPreviewArea(p) {
-  const pm = L.previewMode; if (pm === 'none' || p > 0) return;
+// колонка — уже разложенный текст полосы (drawLay считает его один раз на кадр: по нему же он решает,
+// какие надписи НЕ рисовать на листе); без него считается здесь.
+// ⚑ Во время протяжки прячется всё, что лежит НА ЛИСТЕ (окошко: по нему катится ролл), но не панель
+// над циновкой (18.09): она стоит отдельно, ролл её не задевает, и пустая тёмная подложка на время
+// тяги читалась бы заглушкой. Цель в панели не меняется; розовая маска — живой срез игрока, её
+// двигает перетаскивание начинки (touchModel на кадре жеста).
+function tubeCompareList() {
+  if (patches().length) return patches();
+  const t = S.puzzle && S.puzzle.target;
+  return t ? t.map(p => Object.assign({ phase: 0 }, p)) : [];
+}
+function modelWithWinding(winding, list) {
+  const keep = S.winding;
+  try { S.winding = winding; return buildModel(list); }
+  finally { S.winding = keep; }
+}
+// Одна кладка, две намотки: кольцо сажает начинку в ядро, спираль везёт её по витку.
+function drawTubeCompare(cells) {
+  if (!cells || !cells.length) return;
+  const list = tubeCompareList();
+  const ring = modelWithWinding('ring', list);
+  const spiral = modelWithWinding('spiral', list);
+  const Rref = Math.max(ring.Rmax, spiral.Rmax);
+  const pair = [{ m: ring, t: 'в ядре' }, { m: spiral, t: 'на витке' }];
+  drawSlab(cells, 1, B(), ДОСКА);
+  pair.forEach((q, i) => {
+    const c = cells[i]; if (!c) return;
+    drawFaceImg(face(0.5, c.size, q.m, Rref), c.x, c.y, c.size);
+  });
+  pair.forEach((q, i) => {
+    const c = cells[i]; if (!c) return;
+    ctx.fillStyle = '#b8ad95'; ctx.font = font(11, 600);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(q.t, c.x, c.y + c.size / 2 + 5);
+  });
+}
+function drawPreviewArea(p, колонка) {
+  if (L.table) {
+    const cells = L.band && L.band.cells;
+    if (!cells || S.mode !== 'lay') return;
+    const goal = cells[0], yours = cells[1] || cells[0];
+    const ring = (c) => {
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.size / 2 + 4, 0, TAU);
+      ctx.strokeStyle = 'rgba(232,224,208,0.4)'; ctx.lineWidth = 1.4; ctx.stroke();
+    };
+    if (S.puzzle && S.puzzle.target && goal) {
+      ring(goal);
+      const tm = targetModel();
+      const gImg = typeof withPix === 'function' ? withPix(0, () => face(S.puzzle.vs[0], goal.size, tm)) : face(S.puzzle.vs[0], goal.size, tm);
+      drawFaceImg(gImg, goal.x, goal.y, goal.size);
+      markFillings(goal.x, goal.y, goal.size, tm, S.puzzle.vs[0]);
+      ctx.fillStyle = '#f4ead8'; ctx.font = font(9, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText((goal.lab === 'цель' ? 'TARGET CUT' : (goal.lab || 'цель').toUpperCase()), goal.x, goal.y + goal.size / 2 + 6);
+    }
+    if (yours) {
+      ring(yours);
+      const pm = getModel();
+      const yImg = typeof withPix === 'function' ? withPix(0, () => face(0.5, yours.size, pm)) : face(0.5, yours.size, pm);
+      drawFaceImg(yImg, yours.x, yours.y, yours.size);
+      if (patches().length) {
+        drawFaceImg(ghostMaskImg(0.5, yours.size, pm, pm.Rmax), yours.x, yours.y, yours.size, 1, 0.88, true);
+        markFillings(yours.x, yours.y, yours.size, pm, 0.5);
+      }
+      ctx.fillStyle = '#f4ead8'; ctx.font = font(9, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText((yours.lab === 'твоё' ? 'YOUR CUT' : (yours.lab || 'твоё').toUpperCase()), yours.x, yours.y + yours.size / 2 + 6);
+    }
+    const nudges = (S.puzzle && S.puzzle.result && S.puzzle.result.hints && S.puzzle.result.hints.length)
+      ? S.puzzle.result.hints
+      : (typeof liveNudge === 'function' ? liveNudge() : []);
+    if (nudges.length) {
+      const yHint = L.band.y + L.band.h + 6;
+      ctx.fillStyle = '#d45a3c'; ctx.font = font(11, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(nudges[0], L.band.x + L.band.w / 2, yHint);
+      if (nudges[1]) ctx.fillText(nudges[1], L.band.x + L.band.w / 2, yHint + 16);
+    }
+    return;
+  }
+  const pm = L.previewMode, панель = pm === 'band' && L.band && S.mode === 'lay';
+  if (pm === 'none' || (p > 0 && !панель)) return;
   const pz = S.puzzle, k = pz ? pz.vs.length : 1, tm = pz ? targetModel() : null;
   const label = (x, y, lines, align = 'center') => { ctx.fillStyle = '#b8ad95'; ctx.font = font(12); ctx.textAlign = align; ctx.textBaseline = 'middle'; lines.forEach((t, i) => ctx.fillText(t, x, y + i * 16)); };
-  const turnsTxt = () => `${windFor(getModel(), 0.5).turns.toFixed(1).replace('.', ',')} витка`;
-  if (pm === 'band') {
+  const turnsTxt = () => liveTurnsText(getModel());
+  if (панель) {
+    // ПАНЕЛЬ НАД ЦИНОВКОЙ (18.09): подложку рисует drawLay — она стоит и во время протяжки. Здесь
+    // доска со срезом у правого края и колонка текста у левого (геометрия — bandGeom в layout.js).
+    // Тень среза падает на доску и обрезается по ней: тень принадлежит доске, как у окошка на листе
+    // (31.08), и с неё не свисает ни на панель, ни тем более на лист (замечание владельца 18.09).
+    const b = L.band, д = b.доска;
+    if (pz && pz.tube && S.tubeLab) {
+      drawTubeCompare(b.cells);
+    } else if (tubePlay()) {
+      const c0 = b.cells[0], tm = pz ? targetModel() : null;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(c0.x, c0.y, c0.size / 2, 0, TAU); ctx.clip();
+      if (pz) drawPuzzleFace(pz.vs[0], c0.size, c0.x, c0.y, tm);
+      else drawFaceImg(face(0.5, c0.size), c0.x, c0.y, c0.size);
+      ctx.restore();
+    } else {
+      drawSlab(b.cells, 1, B(), ДОСКА);
+      ctx.save(); rr(д.x, д.y, д.w, д.h, д.r); ctx.clip();
+      b.cells.forEach((c, i) => {
+        if (pz) drawPuzzleFace(pz.vs[i], c.size, c.x, c.y, tm);
+        else drawFaceImg(face(0.5, c.size), c.x, c.y, c.size);
+      });
+      ctx.restore();
+    }
+    if (!tubePlay() && !L.table) {
+      const кол = колонка || bandColumn(getModel());
+      for (const л of кол.lines) {
+        ctx.fillStyle = л.color; ctx.font = font(л.size, л.weight); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(л.t, л.x, л.y);
+      }
+    }
+  } else if (pm === 'band') {
+    // Прежняя полоса — у планшета и десктопа (bandGeom там не считается) и у целей пазла на
+    // экране ролла: там циновки нет, и ряд стоит по центру на своей подложке.
     const cx = L.ox + L.cw / 2, y = L.previewY;
-    if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 8), y, fs); }
-    else { drawSlab([{ x: cx - 30, y, size: 116 }], 1, B(), 8); drawFaceImg(face(0.5, 116), cx - 30, y, 116); label(cx + 30 + 14, y - 8, ['живой срез', turnsTxt()], 'left'); }
+    if (pz) { const fs = L.previewSize, x0 = cx - ((k - 1) * (fs + 8)) / 2; drawSlab(Array.from({ length: k }, (_, i) => ({ x: x0 + i * (fs + 8), y, size: fs })), 1, B(), 6); for (let i = 0; i < k; i++) drawPuzzleFace(pz.vs[i], fs, x0 + i * (fs + 8), y, tm); }
+    else { drawSlab([{ x: cx - 30, y, size: 116 }], 1, B(), 8); drawFaceImg(face(0.5, 116), cx - 30, y, 116); { const m0 = getModel(), нх = sheetShortText(m0); label(cx + 30 + 14, y - (нх ? 16 : 8), ['живой срез', turnsTxt()].concat(нх ? ['листа не хватило'] : []), 'left'); } }
   } else if (pm === 'overlay') {
-    const s = L.sheet;
+    const s = L.sheet, o = overlayGeom();
     if (pz) {
-      const fs = Math.min(56, (s.w - 16 - 6 * (k - 1)) / k), x0 = s.x + s.w / 2 - ((k - 1) * (fs + 6)) / 2, y = s.y + fs / 2 + 8;
-      drawMat(s.x + 4, s.y + 4, s.w - 8, fs + 8, 10);
-      for (let i = 0; i < k; i++) drawFaceImg(face(pz.vs[i], fs, tm), x0 + i * (fs + 6), y, fs);
+      drawMat(s.x + 4, s.y + 4, s.w - 8, o.fs + 8, 10);
+      for (let i = 0; i < k; i++) drawPuzzleFace(pz.vs[i], o.fs, o.x0 + i * (o.fs + 6), o.y, tm);
     } else {
       // ОКОШКО «ЧТО ВНУТРИ» — КРУГЛАЯ ВРЕЗКА В УГЛУ ЛИСТА.
       //
@@ -65,22 +394,36 @@ function drawPreviewArea(p) {
       //   • ТЕНИ НЕТ. Она съедала поле, которое нужнее под сам рисунок, и нигде больше в этом
       //     окне не работает: тонкое кольцо циновки и так отделяет срез от риса;
       //   • включается и выключается кнопкой-глазом; когда сверка станет не нужна — снять целиком.
-      const fs = Math.round(Math.min(s.w, s.h) * 0.62);
-      const поле = 6, дШир = fs + 2 * поле, поля = 10;
-      const x = s.x + s.w - дШир / 2 - поля, y = s.y + дШир / 2 + поля;
-      drawMat(x - дШир / 2, y - дШир / 2, дШир, дШир, дШир / 2);
-      drawFaceImg(face(0.5, fs), x, y, fs, 1, 1, true);
+      drawMat(o.x - o.дШир / 2, o.y - o.дШир / 2, o.дШир, o.дШир, o.дШир / 2);
+      drawFaceImg(face(0.5, o.fs), o.x, o.y, o.fs, 1, 1, true);
     }
   } else if (pm === 'side') {
     const sd = L.side, cx = sd.x + sd.w / 2; let y = sd.y;
     if (pz) {
-      if (k === 1) { const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 7); drawFaceImg(face(pz.vs[0], fs, tm), cx, y + fs / 2, fs); y += fs + 16; }
-      else { const cell = L.targetCell, per = Math.min(k, 3), rows = Math.ceil(k / per), x0 = cx - ((per - 1) * (cell + 8)) / 2; const pos = i => ({ x: x0 + (i % per) * (cell + 8), y: y + cell / 2 + Math.floor(i / per) * (cell + 8), size: cell }); drawSlab(Array.from({ length: k }, (_, i) => pos(i)), 1, B(), 6); for (let i = 0; i < k; i++) { const q = pos(i); drawFaceImg(face(pz.vs[i], cell, tm), q.x, q.y, cell); } y += rows * (cell + 8) + 8; }
+      if (k === 1) { const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 7); drawPuzzleFace(pz.vs[0], fs, cx, y + fs / 2, tm); y += fs + 16; }
+      else { const cell = L.targetCell, per = Math.min(k, 3), rows = Math.ceil(k / per), x0 = cx - ((per - 1) * (cell + 8)) / 2; const pos = i => ({ x: x0 + (i % per) * (cell + 8), y: y + cell / 2 + Math.floor(i / per) * (cell + 8), size: cell }); drawSlab(Array.from({ length: k }, (_, i) => pos(i)), 1, B(), 6); for (let i = 0; i < k; i++) { const q = pos(i); drawPuzzleFace(pz.vs[i], cell, q.x, q.y, tm); } y += rows * (cell + 8) + 8; }
       if (L.mode !== 'L') { ctx.fillStyle = '#e0b25a'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const t = levelTitle(pz.lv, pz.level); ctx.fillText(t.length > 34 ? t.slice(0, 33) + '…' : t, cx, y + 8); label(cx, y + 28, ['повтори срез: разложи, скрути, разрежь']); }
     } else {
-      const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 6); drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); label(cx, y + fs + 18, ['живой срез · ' + turnsTxt()]);
+      const fs = L.previewSize; drawSlab([{ x: cx, y: y + fs / 2, size: fs }], 1, B(), 6); drawFaceImg(face(0.5, fs), cx, y + fs / 2, fs); { const нх = sheetShortText(getModel()); label(cx, y + fs + 18, ['живой срез · ' + turnsTxt()].concat(нх ? [нх] : [])); }
     }
   }
+}
+// Что окошко живого среза (или полоса целей пазла) кладёт ПОВЕРХ листа в режиме overlay. Одно
+// место, где считаются размеры: их читают и рисование выше, и надпись «свернётся спиралью», которую
+// окошко закрывало целиком (16.09: футомаки на телефоне — надпись в правом верхнем углу листа,
+// окошко там же). Режим overlay бывает только у неповёрнутого листа (layout.js), поэтому
+// координаты листа здесь совпадают с экранными.
+// ⚑ Размеры окошка считает overlayBox (ui/layout.js) — та же функция, по которой раскладчик решает,
+// брать ли окошко вообще (17.09). Здесь только перенос от угла листа в экранные координаты.
+function overlayGeom() {
+  const s = L.sheet, o = overlayBox(s.w, s.h, S.puzzle);
+  return Object.assign({}, o, { y: s.y + o.y, низ: s.y + o.низ },
+    S.puzzle ? { x0: s.x + o.x0 } : { x: s.x + o.x });
+}
+// Где встаёт надпись «свернётся спиралью»: у верхнего края листа — или под окошком, если оно там.
+function spiralNoteY() {
+  const s = L.sheet;
+  return L.previewMode === 'overlay' ? overlayGeom().низ + 6 : s.y + 14;
 }
 // РАДИУС РОЛЛА ПО ХОДУ ПРОТЯЖКИ — ПО ПЛОЩАДИ НАМОТАННОГО, А НЕ ПО МАКСИМУМУ ВИТКА.
 //
@@ -103,22 +446,276 @@ function rollRadiusAtPull(p, m) {
   for (let i = 0; i < prof.length; i++) { const s = i * ds; if (s >= s0 && s <= sMax) A += prof[i] * ds; }
   return Math.sqrt(A / Math.PI);
 }
+function drawCabChrome() {
+  const cab = L.cab; if (!cab) return;
+  const b = cab.body, cream = '#e8e0d0', creamDk = '#cfc4b0', body = '#2a312e', coral = '#c45c4a', crt = '#0e1210', deck = '#4a6b46', deckHi = '#5a7d55';
+  // outer plastic
+  rr(b.x, b.y, b.w, b.h, 26); ctx.fillStyle = cream; ctx.fill();
+  ctx.save(); rr(b.x, b.y, b.w, b.h, 26); ctx.clip();
+  ctx.fillStyle = creamDk; ctx.fillRect(b.x, b.y + b.h - 18, b.w, 18);
+  ctx.restore();
+  rr(b.x + 7, b.y + 7, b.w - 14, b.h - 14, 20); ctx.fillStyle = body; ctx.fill();
+  // coral corner guards
+  const guard = (x, y, sx, sy) => {
+    ctx.save(); ctx.translate(x, y); ctx.scale(sx, sy);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(28, 0); ctx.lineTo(28, 8); ctx.lineTo(8, 8); ctx.lineTo(8, 28); ctx.lineTo(0, 28); ctx.closePath();
+    ctx.fillStyle = coral; ctx.fill();
+    ctx.restore();
+  };
+  guard(b.x + 10, b.y + 10, 1, 1);
+  guard(b.x + b.w - 10, b.y + 10, -1, 1);
+  guard(b.x + 10, b.y + b.h - 10, 1, -1);
+  guard(b.x + b.w - 10, b.y + b.h - 10, -1, -1);
+  // marquee
+  rr(b.x + 16, b.y + 12, b.w - 32, cab.marqueeH, 11); ctx.fillStyle = '#151918'; ctx.fill();
+  ctx.fillStyle = cream; ctx.font = font(20, 800); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('まきポン', b.x + 30, b.y + 12 + cab.marqueeH / 2 - 1);
+  ctx.fillStyle = '#8a928c'; ctx.font = font(10, 600);
+  ctx.fillText('MAKI PON', b.x + 30 + 86, b.y + 12 + cab.marqueeH / 2 + 1);
+  const badgeW = 46, bx = b.x + b.w - 28 - badgeW, by = b.y + 12 + (cab.marqueeH - 22) / 2;
+  rr(bx, by, badgeW, 22, 11); ctx.fillStyle = coral; ctx.fill();
+  ctx.fillStyle = '#fff6ee'; ctx.font = font(12, 800); ctx.textAlign = 'center';
+  ctx.fillText((S.puzzle.level + 1) + '/' + TUBE_LEVELS.length, bx + badgeW / 2, by + 12);
+  // CRT well
+  const c = cab.crt;
+  rr(c.x - 3, c.y - 3, c.w + 6, c.h + 6, 18); ctx.fillStyle = cream; ctx.fill();
+  rr(c.x, c.y, c.w, c.h, 15); ctx.fillStyle = crt; ctx.fill();
+  ctx.save(); rr(c.x, c.y, c.w, c.h, 15); ctx.clip();
+  const gCRT = ctx.createLinearGradient(c.x, c.y, c.x, c.y + 40);
+  gCRT.addColorStop(0, 'rgba(255,255,255,0.05)'); gCRT.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gCRT; ctx.fillRect(c.x, c.y, c.w, 40);
+  ctx.restore();
+  // circular goal glass
+  const g = cab.goal, R = g.size / 2;
+  ctx.beginPath(); ctx.arc(g.x, g.y, R + 11, 0, TAU); ctx.fillStyle = cream; ctx.fill();
+  ctx.beginPath(); ctx.arc(g.x, g.y, R + 6, 0, TAU); ctx.fillStyle = '#3a3530'; ctx.fill();
+  ctx.beginPath(); ctx.arc(g.x, g.y, R + 3, 0, TAU); ctx.fillStyle = '#0a0c0b'; ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.arc(g.x, g.y, R + 3, 0, TAU); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(g.x - 8, g.y - 10, R * 0.9, -Math.PI * 0.9, -Math.PI * 0.15); ctx.stroke();
+  ctx.restore();
+  // green deck
+  const dY = cab.deckY;
+  rr(b.x + 12, dY, b.w - 24, cab.deckH - 6, 16);
+  ctx.fillStyle = deck; ctx.fill();
+  ctx.save(); rr(b.x + 12, dY, b.w - 24, cab.deckH - 6, 16); ctx.clip();
+  ctx.fillStyle = deckHi; ctx.fillRect(b.x + 12, dY, b.w - 24, 8);
+  ctx.restore();
+  // prize ticket
+  const t = { x: b.x + 16, y: dY + 32, w: 50, h: cab.deckH - 58 };
+  rr(t.x, t.y, t.w, t.h, 6); ctx.fillStyle = '#efe6d4'; ctx.fill();
+  ctx.strokeStyle = coral; ctx.lineWidth = 2; ctx.setLineDash([3, 2]);
+  rr(t.x + 4, t.y + 4, t.w - 8, t.h - 8, 4); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = coral; ctx.font = font(8, 800); ctx.textAlign = 'center';
+  ctx.fillText('PRIZE', t.x + t.w / 2, t.y + 16);
+  ctx.fillStyle = '#3a3530'; ctx.font = font(11, 800);
+  ctx.fillText('Lv ' + (S.puzzle.level + 1), t.x + t.w / 2, t.y + 34);
+  ctx.fillStyle = '#8a847c'; ctx.font = font(8, 600);
+  ctx.fillText('No. 032', t.x + t.w / 2, t.y + t.h - 14);
+  for (let i = 0; i < 7; i++) {
+    ctx.fillStyle = i % 2 ? '#3a3530' : '#efe6d4';
+    ctx.fillRect(t.x + 10 + i * 7, t.y + t.h - 28, 5, 8);
+  }
+  // enamel pin
+  const pin = (typeof loadCab === 'function' ? loadCab('pin') : cabImg('pin'));
+  const px = b.x + b.w - 38, py = dY + cab.deckH / 2;
+  ctx.beginPath(); ctx.arc(px, py, 18, 0, TAU); ctx.fillStyle = '#d8cfc0'; ctx.fill();
+  ctx.beginPath(); ctx.arc(px, py, 15, 0, TAU); ctx.fillStyle = '#1c201e'; ctx.fill();
+  if (pin) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(pin, px - 13, py - 13, 26, 26);
+    ctx.imageSmoothingEnabled = true;
+  }
+  // credit
+  const cy = b.y + b.h - cab.creditH + 4;
+  ctx.fillStyle = cream; ctx.font = font(10, 800); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('CREDIT  00', b.x + 24, cy);
+  ctx.textAlign = 'right';
+  ctx.fillText('INSERT COIN', b.x + b.w - 24, cy);
+}
+function cabImg(id) {
+  if (!drawCabChrome._img) drawCabChrome._img = {};
+  const cache = drawCabChrome._img;
+  if (!cache[id]) {
+    const im = new Image();
+    im.onload = () => { dirty = true; if (typeof requestFrame === 'function') requestFrame(); };
+    im.src = '/play/assets/cab/' + id + '.png';
+    cache[id] = im;
+  }
+  const im = cache[id];
+  return im.complete && im.naturalWidth ? im : null;
+}
+function foldCurrent() {
+  const keys = (L.folds || []).map(f => f.key);
+  const has = k => keys.indexOf(k) >= 0;
+  if (has('hoso')) {
+    if (S.shape === 'square') return 'square';
+    if (S.base === 'ura') return 'ura';
+    if (S.base === 'futo') return 'futo';
+    return 'hoso';
+  }
+  if (S.winding === 'spiral') return 'spiral';
+  if (S.winding === 'ring' && S.turns != null) return 'layer';
+  if (S.winding === 'ring') return 'one';
+  return 'core';
+}
+function drawFoldGlyph(key, cx, cy, s, color) {
+  ctx.strokeStyle = color; ctx.lineWidth = 1.35; ctx.beginPath();
+  if (key === 'core' || key === 'hoso') ctx.arc(cx, cy, s * 0.28, 0, TAU);
+  else if (key === 'one' || key === 'futo') { ctx.arc(cx, cy, s * 0.16, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, s * 0.32, 0, TAU); }
+  else if (key === 'spiral') {
+    for (let a = 0; a < 3.4 * Math.PI; a += 0.18) {
+      const r = s * 0.05 + a * s * 0.038;
+      const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+      if (a < 0.2) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+  } else if (key === 'square') { ctx.strokeRect(cx - s * 0.26, cy - s * 0.26, s * 0.52, s * 0.52); }
+  else if (key === 'ura') { ctx.arc(cx, cy, s * 0.3, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, s * 0.12, 0, TAU); }
+  else {
+    for (let i = 0; i < 3; i++) {
+      ctx.moveTo(cx - s * 0.26, cy - s * 0.16 + i * s * 0.14);
+      ctx.quadraticCurveTo(cx, cy - s * 0.26 + i * s * 0.14, cx + s * 0.26, cy - s * 0.16 + i * s * 0.14);
+    }
+  }
+  ctx.stroke();
+}
+function drawTableChrome() {
+  const T = L.table; if (!T) return;
+  const cream = '#f4ead8', mute = '#6b5e4e', line = 'rgba(40,32,24,0.16)', coral = '#d45a3c', ink = '#1c2430', navy = '#243038';
+  ctx.fillStyle = '#1c2430';
+  ctx.fillRect(L.ox, L.oy, L.cw, T.headerH);
+  ctx.fillStyle = cream; ctx.font = font(16, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('ROLLERY', L.ox + 16, L.oy + T.headerH / 2);
+  if (S.puzzle) {
+    ctx.fillStyle = '#e2c48a'; ctx.font = font(10, 600);
+    ctx.fillText('PUZZLE ' + String((S.puzzle.level || 0) + 1).padStart(2, '0'), L.ox + 108, L.oy + T.headerH / 2);
+  }
+  const mx = L.ox + L.cw - 42, my = L.oy + (T.headerH - 28) / 2;
+  icons.push({ id: 'mute', x: mx, y: my, w: 28, h: 28 });
+  ctx.strokeStyle = 'rgba(244,234,216,0.35)'; ctx.beginPath(); ctx.arc(mx + 14, my + 14, 11, 0, TAU); ctx.stroke();
+  ctx.fillStyle = S.mute ? '#8a8478' : cream; ctx.font = font(12); ctx.textAlign = 'center';
+  ctx.fillText('♪', mx + 14, my + 15);
+  icons.push({ id: 'clear', x: mx - 36, y: my, w: 28, h: 28 });
+  ctx.strokeStyle = 'rgba(244,234,216,0.35)'; ctx.beginPath(); ctx.arc(mx - 22, my + 14, 11, 0, TAU); ctx.stroke();
+  ctx.fillStyle = cream; ctx.font = font(13); ctx.fillText('↺', mx - 22, my + 15);
+
+  if (T.wide && T.left) {
+    ctx.strokeStyle = line;
+    rr(T.left.x, T.left.y, T.left.w, T.left.h, 10); ctx.stroke();
+    rr(T.right.x, T.right.y, T.right.w, T.right.h, 10); ctx.stroke();
+    ctx.fillStyle = mute; ctx.font = font(9, 600); ctx.textAlign = 'center';
+    ctx.fillText(S.puzzle ? 'ЦЕЛЬ  ·  ТВОЁ' : 'LIVE RESULT', T.right.x + T.right.w / 2, T.right.y + 14);
+  }
+
+  if (L.band && L.band.cells && L.band.cells.length > 1) {
+    for (const c of L.band.cells) {
+      rr(c.x - c.size / 2 - 10, c.y - c.size / 2 - 22, c.size + 20, c.size + 38, 12);
+      ctx.fillStyle = navy; ctx.fill();
+    }
+  }
+
+  palTabs = [];
+  if (T.groups && T.groups.length) {
+    if (T.wide) {
+      for (const g of T.groups) {
+        palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
+        if (g.on) { ctx.fillStyle = navy; rr(g.x, g.y, g.w, g.h, 7); ctx.fill(); ctx.fillStyle = coral; ctx.fillRect(g.x, g.y + 8, 3, g.h - 16); }
+        ctx.fillStyle = g.on ? cream : mute; ctx.font = font(11, 600); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText((g.short || g.name).toUpperCase(), g.x + 14, g.y + g.h / 2);
+        ctx.textAlign = 'right'; ctx.fillText(g.on ? '⌃' : '⌄', g.x + g.w - 10, g.y + g.h / 2);
+      }
+    }
+  }
+  if (T.sides && T.sides.length) {
+    for (const g of T.sides) {
+      palTabs.push({ key: g.key, x: g.x, y: g.y, w: g.w, h: g.h });
+      ctx.fillStyle = g.on ? coral : navy;
+      rr(g.x, g.y, g.w, g.h, 8); ctx.fill();
+      ctx.save(); ctx.translate(g.x + g.w / 2, g.y + g.h / 2); ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = cream; ctx.font = font(10, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText((g.name || '').slice(0, 6), 0, 0);
+      ctx.restore();
+    }
+  }
+
+  const onFold = foldCurrent();
+  for (const f of (L.folds || [])) {
+    icons.push({ id: f.id, x: f.x, y: f.y, w: f.w, h: f.h });
+    rr(f.x, f.y, f.w, f.h, 8);
+    ctx.strokeStyle = f.key === onFold ? coral : line; ctx.lineWidth = f.key === onFold ? 1.6 : 1; ctx.stroke();
+    drawFoldGlyph(f.key, f.x + f.w / 2, f.y + f.h * 0.42, Math.min(f.w, f.h), f.key === onFold ? coral : '#3a332c');
+    ctx.fillStyle = f.key === onFold ? coral : mute; ctx.font = font(8, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(f.t.toUpperCase(), f.x + f.w / 2, f.y + f.h - 5);
+  }
+
+  const sy = T.stepY + T.stepH / 2;
+  if (T.wide) {
+    const steps = [
+      { id: 'step-place', t: 'клади', on: S.mode === 'lay' },
+      { id: 'rollnow', t: 'проверь', on: !!(S.puzzle && S.puzzle.result) },
+      { id: 'cutnow', t: 'режь', on: S.mode === 'cut' || S.mode === 'revealed' },
+      { id: 'step-look', t: 'смотри', on: S.mode === 'revealed' || S.mode === 'plate' },
+    ];
+    const sw = Math.min(640, L.cw - 48), sx = L.ox + (L.cw - sw) / 2, slot = sw / steps.length;
+    ctx.strokeStyle = line; ctx.beginPath(); ctx.moveTo(sx + 24, T.stepY); ctx.lineTo(sx + sw - 24, T.stepY); ctx.stroke();
+    steps.forEach((st, i) => {
+      const x = sx + i * slot + slot / 2;
+      icons.push({ id: st.id, x: x - 30, y: T.stepY + 2, w: 60, h: T.stepH - 6 });
+      ctx.beginPath(); ctx.arc(x, sy - 8, 9, 0, TAU);
+      ctx.strokeStyle = st.on ? coral : line; ctx.lineWidth = 1.3; ctx.stroke();
+      ctx.fillStyle = st.on ? coral : mute; ctx.font = font(9, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(st.t.toUpperCase(), x, sy + 6);
+    });
+  } else {
+    const bx = L.ox + 20, by = T.stepY + 6, bw = L.cw - 40, bh = T.stepH - 12;
+    icons.push({ id: 'rollnow', x: bx, y: by, w: bw, h: bh });
+    rr(bx, by, bw, bh, 12); ctx.fillStyle = coral; ctx.fill();
+    ctx.fillStyle = cream; ctx.font = font(15, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const pass = S.puzzle && S.puzzle.result && S.puzzle.result.pass;
+    ctx.fillText(pass ? 'СКРУТИТЬ' : 'ПРОВЕРИТЬ СРЕЗ', bx + bw / 2, by + bh / 2);
+  }
+}
 function drawLay() {
   // s — ЛОГИЧЕСКАЯ рамка листа (SB): x вправо = v, y вниз = −u. Весь лист рисуется внутри
   // sheetPush()/sheetPop() — при повёрнутом листе (#23) это один общий поворот на ±90°.
   // Экранные элементы (циновка-фон, ручка, полосы предпросмотра, кнопки) остаются снаружи.
   const s = SB(), p = S.rollP, hd = L.handle;
-  if (L.sheet.uAxis === 'x') {   // циновка-фон: от ручки сбоку через весь лист, прутья поперёк скрутки
+  const cab = tubePlay();
+  if (cab) drawCabChrome();
+  if (L.table) drawTableChrome();
+  if (!cab) {
+  if (L.table && L.table.mat) {
+    drawMat(L.table.mat.x, L.table.mat.y, L.table.mat.w, L.table.mat.h, 10);
+  } else if (L.sheet.uAxis === 'x') {
     const x0 = Math.min(hd.x, L.sheet.x - 8), x1 = Math.max(hd.x + hd.w, L.sheet.x + L.sheet.w + 8);
     drawMat(x0, L.sheet.y - 18, x1 - x0, L.sheet.h + 36, 14, B(), true);
-  } else drawMat(hd.x, L.sheet.y - 18, hd.w, hd.y + hd.h + 8 - (L.sheet.y - 18));
+  } else {
+    // ⚑ ЦИНОВКА — ОТ РАМКИ НАД ЛИСТОМ, А НЕ ОТ ВЕРХА ПОЛОСЫ (18.09). 17.09 здесь стояло `L.band.y`:
+    // полоса живого среза была той же циновкой, продолженной вверх, и владелец сказала, что так «не
+    // отдельно — фон как бы другой». Теперь это отдельная панель со своей подложкой через ШАГ.
+    drawMat(hd.x, L.sheet.y - РАМКА, hd.w, hd.y + hd.h + 8 - (L.sheet.y - РАМКА));
+  }
+  if (L.band && !L.table) { const b = L.band; rr(b.x, b.y, b.w, b.h, ПАНЕЛЬ_R); ctx.fillStyle = BAND_BG; ctx.fill(); }
+  }
+  // Текст панели раскладывается один раз на кадр и до листа: по тому, что в колонку влезло, ниже
+  // решается, какие надписи на лист больше не ставить. Во время протяжки панель рисуется как есть
+  // (drawPreviewArea), и «лишний лист обрезан» не выскакивает на лист.
+  const колонка = (!cab && L.band && !L.table) ? bandColumn(getModel()) : null;
+  const вКолонке = id => !!(колонка && колонка.placed.has(id));
   sheetPush();
   const yb = s.y + s.h * (1 - p);
   // лист: остаток, ещё не скрученный
   ctx.save(); ctx.beginPath(); ctx.rect(s.x - 8, s.y - 8, s.w + 16, Math.max(0, yb - s.y + 8)); ctx.clip();
-  rr(s.x - 5, s.y - 5, s.w + 10, s.h + 10, 6); ctx.fillStyle = B().wrapper; ctx.fill();
+  rr(s.x - КРАЙ_НОРИ, s.y - КРАЙ_НОРИ, s.w + 2 * КРАЙ_НОРИ, s.h + 2 * КРАЙ_НОРИ, 6); ctx.fillStyle = B().wrapper; ctx.fill();
   const mdl = getModel(), wd0 = windFor(mdl, 0.5), Lm = mdl.g.L;
-  const uClose = wd0.sClose >= 0 ? wd0.sClose / Lm : B().spreadEnd, uEnd = wd0.sEnd < Lm ? wd0.sEnd / Lm : 1;
+  // ⚑ У СПИРАЛИ РИС КОНЧАЕТСЯ НА spreadEnd, А НЕ У КРАЯ ЛИСТА (#253, 17.09). `sClose` у спирали —
+  // конец листа (она замыкается им), и лист узумаки рисовался рисом до самого верха, хотя в модели
+  // там 21 мм голой нори. Пока класть можно было куда угодно, это было неточностью картинки; с
+  // запретом голого края кусок упирался бы посреди нарисованного риса. У кольца `sClose` — конец
+  // риса на среднем срезе, как и было.
+  const uClose = mdl.g.winding === 'spiral' ? B().spreadEnd : wd0.sClose >= 0 ? wd0.sClose / Lm : B().spreadEnd;
+  const uEnd = wd0.sEnd < Lm ? wd0.sEnd / Lm : 1;
   const bare = (1 - uClose) * s.h, rimPx = B().spreadEnd < 1 ? RIM_W * s.h : 0;
   // ⚑ БЛИЖНЯЯ ГОЛАЯ ПОЛОСА. Рис начинается не от кромки, а отступив: 「手前2cm位」.
   // Раньше он доходил до самого низа, и лист читался как «полоска нори сверху плюс
@@ -146,12 +743,14 @@ function drawLay() {
     ctx.fillStyle = gn; ctx.fillRect(s.x, yn - fade, s.w, fade);
   }
   ctx.restore();
+  drawTubeZones(s, mdl);
   const zOf = pt => { const i = patches().indexOf(pt), q = i >= 0 ? mdl.list[i] : null; return q ? q.z0 : 0; };   // стопка — из модели, порядок клона тот же
   for (const pt of patches()) if (pt !== drag.patch) drawPatchTop(pt, uEnd < 1 && pt.u > uEnd ? 0.35 : 1, zOf(pt));
+  drawPuzzleGhosts();
   if (uEnd < 1) {   // лишний лист обрезан: ролл замкнулся раньше; что выше линии — не попадёт в ролл
     const yEnd = s.y + (1 - uEnd) * s.h; ctx.fillStyle = 'rgba(23,23,19,0.35)'; ctx.fillRect(s.x - 5, s.y - 5, s.w + 10, yEnd - s.y + 5);
     ctx.setLineDash([6, 4]); ctx.strokeStyle = 'rgba(243,231,202,0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x, yEnd); ctx.lineTo(s.x + s.w, yEnd); ctx.stroke(); ctx.setLineDash([]);
-    unrot(s.x + s.w / 2, s.y + 6, () => { ctx.fillStyle = 'rgba(243,231,202,0.7)'; ctx.font = font(10); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('лишний нори — обрезан, ролл замкнулся раньше', 0, 0); });
+    if (!вКолонке('trim')) unrot(s.x + s.w / 2, s.y + 6, () => { ctx.fillStyle = 'rgba(243,231,202,0.7)'; ctx.font = font(10); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('лишний нори — обрезан, ролл замкнулся раньше', 0, 0); });
   }
   if (drag.patch) drawPatchTop(drag.patch, 0.85, zOf(drag.patch));
   const sel = S.selPatch && patches().includes(S.selPatch) ? S.selPatch : (S.selPatch = null);
@@ -174,10 +773,29 @@ function drawLay() {
   //
   // ⚠ Подпись только у спирали. У кольца молчим: «кольцо» — это обычное дело, а надпись на
   // каждом ролле превращается в шум и перестаёт читаться тогда, когда она важна.
-  if (p === 0 && !drag.patch) {
+  // ⚑ И ВО ВРЕМЯ ПЕРЕТАСКИВАНИЯ ТОЖЕ (#240, 16.09). Стояло `&& !drag.patch`, и надпись гасла ровно
+  // тогда, когда игрок ищет границу охвата, — двигая кусок. Модель в этот момент всё равно строится:
+  // её рисует живой срез, так что показ ничего не стоит. Линия «подворот — ядро» выше по-прежнему
+  // гаснет: членство в ядре от неё не зависит, и в движении она только сбивала бы.
+  if (p === 0) {
     const mm = getModel();
-    if (mm.g.winding === 'spiral') {
-      unrot(s.x + s.w - 6, s.y + 14, () => {
+    // Нехватку листа видно до скрутки тем же приёмом: на листе, где спиральная надпись (#242).
+    // В полосе эти надписи стоят в колонке (bandFacts) — на лист они выходят, только если колонки
+    // нет (окошко, выключенный 👁, планшет) или факт в неё не влез. Спираль названа в колонке и
+    // строкой намотки: причина могла уступить место, а сам режим — нет.
+    // ⚠ У УЗУМАКИ НАДПИСИ О СПИРАЛИ НЕТ И НА ЛИСТЕ (17.09): спираль там от базы, «начинка по всему
+    // листу» — неправда даже на пустом листе, а на узком листе фраза ещё и обрезалась слева (242 px
+    // листа против ~270 px строки). Переход кольцо → спираль, ради которого надпись просили 02.09,
+    // у этой базы не случается.
+    if (mm.g.winding !== 'spiral' && sheetShortText(mm) && !вКолонке('short')) {
+      unrot(s.x + s.w - 6, spiralNoteY(), () => {
+        ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
+        ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+        ctx.fillText('начинки не обхватить — нори не сомкнётся', 0, 0);
+      });
+    }
+    if (mm.g.winding === 'spiral' && !windingSelf() && !вКолонке('spiral') && !вКолонке('turns') && !(S.puzzle && S.puzzle.tube)) {
+      unrot(s.x + s.w - 6, spiralNoteY(), () => {
         ctx.fillStyle = 'rgba(150,90,30,0.85)'; ctx.font = font(11, 600);
         ctx.textAlign = 'right'; ctx.textBaseline = 'top';
         ctx.fillText('начинка по всему листу — свернётся спиралью', 0, 0);
@@ -194,8 +812,8 @@ function drawLay() {
     else drawRollBody(s.x + s.w / 2, yb, R, s.w + 10, [{ a: 0, b: 1, off: 0 }]);
   }
   // циновка-ручка: подпись и стрелка — по направлению тяги
-  rr(hd.x, hd.y, hd.w, hd.h, 10); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
-  ctx.fillStyle = 'rgba(40,30,20,0.55)'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  rr(hd.x, hd.y, hd.w, hd.h, 10); ctx.fillStyle = tubePlay() ? '#1c201e' : 'rgba(0,0,0,0.12)'; ctx.fill();
+  ctx.fillStyle = tubePlay() ? '#e4dccb' : 'rgba(40,30,20,0.55)'; ctx.font = font(13, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   if (L.sheet.uAxis === 'x') {   // ручка — вертикальная полоса сбоку, текст кладётся вдоль неё
     const arr = SHEET_U0 === 'left' ? '→' : '←', dir = SHEET_U0 === 'left' ? 'вправо' : 'влево';
     let ht = p > 0 ? `ещё… ${arr}` : arr;
@@ -205,13 +823,39 @@ function drawLay() {
   } else {
     // Надпись на циновке снята вместе с подсказкой (02.09, просьба владельца). Стрелка
     // осталась: без неё циновка — просто полоса, и потянуть её никто не догадается.
-    let ht = p > 0 ? 'ещё… ↑' : '↑';
+    let ht = p > 0 ? 'ещё… ↑' : (tubePlay() ? '↑ скрутить' : L.table ? '' : '↑');
     ctx.fillText(ht, hd.x + hd.w / 2, hd.y + hd.h / 2);
   }
-  drawPreviewArea(p);
+  // ⚑ «ОЧИСТИТЬ» — ВНИЗУ, НА ЦИНОВКЕ (решение владельца 17.09: «очистить куда-то вниз надо
+  // перенести»). Шапку разгрузили, а отдельный ряд под кнопку стоил бы места листу (#157),
+  // поэтому она сидит в углу циновки-ручки: там нечего задеть, кроме самой тяги, а касание
+  // по иконке проверяется раньше тяги (onDown смотрит icons первыми). Подтверждение — прежнее,
+  // в два касания (clearArm), подсказка «Ещё раз — очистить» — в шапке.
+  if (p === 0 && patches().length && !tubePlay()) {
+    const sz = 32, вдоль = L.sheet.uAxis === 'x';
+    const cb = вдоль ? { x: hd.x + (hd.w - sz) / 2, y: hd.y + 8, w: sz, h: sz }
+                     : { x: hd.x + 10, y: hd.y + (hd.h - sz) / 2, w: sz, h: sz };
+    rr(cb.x, cb.y, cb.w, cb.h, 8);
+    ctx.fillStyle = clearArm > performance.now() ? '#4a4331' : 'rgba(38,38,31,0.82)'; ctx.fill();
+    ctx.font = '17px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#f3e7ca';
+    ctx.fillText('🗑', cb.x + cb.w / 2, cb.y + cb.h / 2 + 1);
+    icons.push({ id: 'clear', ...cb });
+  }
+  drawPreviewArea(p, колонка);
   buttons = [];
   const area = L.layBtn;
-  if (sel && p === 0) {
+  // «Убрать» на ручке циновки (портрет телефона, selBtnGeom в layout.js): не в ряду под палитрой,
+  // поэтому ряд палитры при выбранном куске не прячется. Касание — через icons, как у корзины.
+  if (sel && p === 0 && L.selBtn) {
+    const sb = L.selBtn;
+    rr(sb.x, sb.y, sb.w, sb.h, 10); ctx.fillStyle = '#2a2a25'; ctx.fill();
+    ctx.strokeStyle = '#4d4838'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#efe4cd'; ctx.font = font(15, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(sb.label, sb.x + sb.w / 2, sb.y + sb.h / 2 + 1);
+    icons.push({ id: 'remove', ...sb.hit });
+  }
+  const другиеДействия = WRAP_PIECE_ON || (ROTATE_PIECE_ON && sel && !ING[sel.kind].wave);
+  if (sel && p === 0 && (!L.selBtn || другиеДействия)) {
     // ⚠ ОБЁРТЫВАНИЕ КУСКА В НОРИ УБРАНО ИЗ ИНТЕРФЕЙСА 31.08.2026 по решению владельца:
     // «мы ещё не знаем, как именно внутри будем оборачивать… можно пока просто не оборачивать
     // то, что внутри — давай обычный оттестируем до идеального состояния хотя бы».
@@ -220,12 +864,12 @@ function drawLay() {
     // кнопку дешевле, чем каждый раз объяснять, почему на срезе щели.
     // Код механики жив (wrapInNoriList в play/index.html) — вернуть одна правка здесь.
     const canWrap = WRAP_PIECE_ON;   // один выключатель на кнопку и на генератор пазла (#159)
-    const canRot = !ING[sel.kind].wave;
+    const canRot = ROTATE_PIECE_ON && !ING[sel.kind].wave;
     // Подпись показывает, КУДА повернётся, и по тому же диапазону, что и само действие.
     const rotSpan = cutSymmetric(ING[sel.kind]) ? 180 : 360;
     const rotLabel = `⟳ ${Math.round(((sel.rot || 0) * 180 / Math.PI + 45) % rotSpan)}°`;
     buttonRow([...(canWrap ? [['wrap', 'Кусок в нори', true, 1.2]] : []), ...(canRot ? [['rotate', rotLabel, false, 1.05]] : []),
-               ['remove', 'Убрать', false, 1]], { ...area, max: 3 });
+               ...(L.selBtn ? [] : [['remove', 'Убрать', false, 1]])], { ...area, max: 3 });
   } else {
     // ↶ и ↷ — история действий, а не «снять последний кусок» (issue #84). Тусклая стрелка
     // означает, что возвращать нечего: кнопка не прыгает, но и не врёт, что что-то сделает.
@@ -239,13 +883,15 @@ function drawLay() {
     // ширину — разрушительное и редкое действие размером с главное, — и держала под собой
     // ряд в 56 px, который оплатил теперь третий ряд палитры. Наверху у неё подтверждение в
     // два касания и возврат плашкой: на телефоне отмены не было вовсе (см. `clearArm`).
-    if (S.puzzle) buttonRow([['newpuzzle', '⟳ Другой', false, 1]], { ...area, max: 1 });
+    if (tubePlay()) {
+      /* ручка — единственное «скрутить»; кнопка на палубе дублировала и ела огурец */
+    } else if (S.puzzle) buttonRow([['newpuzzle', '⟳ Другой', false, 1]], { ...area, max: 1 });
   }
   // Кнопки и палитра делят один слот — последний ряд чипов. Если в слоте кто-то стоит,
   // ряд палитры прячется; лист и остальные ряды при этом не двигаются.
   drawButtons(); drawChips(L.chipsShareBtn && buttons.length > 0);
   const hintLay = L.sheet.uAxis === 'x' ? (SHEET_U0 === 'left' ? hints.layR : hints.layL) : hints.lay;
-  drawTopBar(drag.patch ? hints.layMove : sel ? hints.laySel : S.puzzle ? (L.previewMode === 'side' ? hints.puzzle : levelTitle(S.puzzle.lv, S.puzzle.level)) : hintLay);
+  if (!L.table) drawTopBar(drag.patch ? hints.layMove : sel ? hints.laySel : S.puzzle ? (L.previewMode === 'side' ? hints.puzzle : levelTitle(S.puzzle.lv, S.puzzle.level)) : hintLay);
 }
 // Мост «лист → доска реза»: длина ролла на доске масштабируется от экранной протяжённости оси v
 // (длины ролла на листе), радиус — от пикселей на единицу оси u. Раньше тут стояли s.w и s.h —
@@ -277,6 +923,202 @@ function drawV2Refusal(refusal) {
   ctx.fillStyle = '#6b5334'; ctx.font = font(11);
   ctx.fillText(refusal.code, L.roll.x, L.roll.y);
   ctx.restore();
+}
+function theaterOn() {
+  return false;
+}
+function fillingBands() {
+  const list = (patches() || []).filter(p => ING[p.kind] && !ING[p.kind].paint && !ING[p.kind].bedDelta);
+  const by = {};
+  for (const p of list) {
+    const k = p.kind;
+    if (!by[k]) by[k] = { kind: k, color: ING[k].color, name: ING[k].name, n: 0, u: p.u };
+    by[k].n += 1;
+    by[k].u = Math.min(by[k].u, p.u);
+  }
+  return Object.keys(by).map(k => by[k]).sort((a, b) => a.u - b.u);
+}
+function riceGrams() {
+  const b = B(), s0 = b.spreadStart === undefined ? 0.048 : b.spreadStart;
+  const Lmm = b.L * U_MM, Wmm = b.Wv * U_MM, t = b.T * U_MM;
+  return Math.max(1, Math.round(Lmm * (b.spreadEnd - s0) * Wmm * t * 0.758 / 1000));
+}
+function drawGramBar(x, y, w) {
+  const bands = fillingBands();
+  const rice = riceGrams();
+  const items = bands.map(b => ({ color: b.color, name: b.name, g: pieceGrams(b.kind) * b.n }));
+  const fillG = items.reduce((s, a) => s + a.g, 0);
+  const total = rice + fillG;
+  const barH = 44, pad = 8, totW = 64;
+  rr(x, y, w, barH, 12);
+  ctx.strokeStyle = 'rgba(232,224,208,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+  const inner = w - totW - pad * 2 - 8, bx = x + pad, by = y + 10, bh = 12;
+  const sum = Math.max(1, fillG);
+  let xx = bx;
+  for (const it of items) {
+    const ww = Math.max(18, inner * it.g / sum);
+    ctx.fillStyle = it.color;
+    rr(xx, by, ww - 3, bh, 6); ctx.fill();
+    ctx.fillStyle = 'rgba(12,12,10,0.7)'; ctx.font = font(8, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(it.g + ' g', xx + (ww - 3) / 2, by + bh + 3);
+    xx += ww;
+  }
+  ctx.strokeStyle = 'rgba(232,224,208,0.2)';
+  ctx.beginPath(); ctx.moveTo(x + w - totW, y + 8); ctx.lineTo(x + w - totW, y + barH - 8); ctx.stroke();
+  ctx.fillStyle = '#cfc6b8'; ctx.font = font(8, 500); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('TOTAL', x + w - totW / 2, y + 14);
+  ctx.font = font(12, 600); ctx.fillText(total + ' g', x + w - totW / 2, y + 30);
+}
+function sheetStackAt(u, v, mdl) {
+  const g = mdl.g, layers = [];
+  layers.push({ color: B().wrapper, h: 0.22 });
+  const rice = typeof spreadAt === 'function' ? spreadAt(u, g, v) : 0;
+  if (rice > 0.04) layers.push({ color: B().spread || '#e8e0d4', h: rice });
+  const hits = [];
+  for (const p of (mdl.list || [])) {
+    const d = ING[p.kind];
+    if (!d || d.paint || d.bedDelta) continue;
+    const f = typeof heightAt === 'function' ? heightAt(p, u, v, g) : 0;
+    if (f <= 0.02) continue;
+    hits.push({ color: d.color, z0: p.z0 || 0, h: Math.max(0.12, (p.z1 - p.z0) * f) });
+  }
+  hits.sort((a, b) => a.z0 - b.z0);
+  for (const h of hits) layers.push(h);
+  return layers;
+}
+function stackHpx(layers, scale) {
+  let h = 0; for (const Lr of layers) h += Lr.h * scale; return h;
+}
+function drawStackStrip(x0, x1, yBottom, layers, scale) {
+  let yy = yBottom;
+  for (const layer of layers) {
+    const hh = layer.h * scale;
+    yy -= hh;
+    ctx.fillStyle = layer.color;
+    ctx.fillRect(x0, yy, x1 - x0, hh + 0.4);
+  }
+}
+let pullCache = { key: '', t: -1, m: null };
+function modelAtPull(p) {
+  const base = getModel();
+  const t = Math.max(1, Math.round(clamp(p, 0.06, 1) * 24)) / 24;
+  if (pullCache.key === base.key && pullCache.t === t) return pullCache.m;
+  const m = Object.assign({}, base, { key: base.key + '|u' + t.toFixed(4), uMax: t });
+  pullCache = { key: base.key, t, m };
+  return m;
+}
+function drawMakisuSide(x, y, w, h, p) {
+  p = clamp(p, 0, 1);
+  const mdl = getModel();
+  const pulled = p > 0.02 ? modelAtPull(p) : mdl;
+  const matH = Math.max(16, Math.min(22, h * 0.1));
+  const faceMax = Math.min(h * 0.56, w * 0.72);
+  const fs = faceMax;
+  const sheetPx = Math.min(w * 0.42, 220);
+  const remainPx = p < 0.92 ? (1 - p) * sheetPx : 0;
+  const rollCx = x + (remainPx > 16 ? remainPx + 20 : 0) + (w - (remainPx > 16 ? remainPx + 20 : 0)) / 2;
+  const matY = y + h * 0.78;
+  const rollCy = matY - fs * 0.42;
+  const flatX0 = x + 10;
+  const flatX1 = flatX0 + remainPx;
+  const scale = Math.max(8, Math.min(14, h * 0.032));
+  const vSlice = 0.5;
+  const N = 48;
+
+  const matLeft = remainPx > 16 ? flatX0 - 8 : rollCx - fs * 0.38;
+  const matRight = Math.max(rollCx + fs * 0.28, remainPx > 16 ? flatX1 + 18 : rollCx + fs * 0.38);
+  rr(matLeft, matY, matRight - matLeft, matH + 4, 8);
+  ctx.fillStyle = '#d2bc93'; ctx.fill();
+  ctx.save();
+  ctx.beginPath(); rr(matLeft, matY, matRight - matLeft, matH + 4, 8); ctx.clip();
+  ctx.strokeStyle = 'rgba(92,68,36,0.32)'; ctx.lineWidth = 2;
+  for (let sx = matLeft + 4; sx < matRight; sx += 10) {
+    ctx.beginPath(); ctx.moveTo(sx, matY + 1); ctx.lineTo(sx, matY + matH + 3); ctx.stroke();
+  }
+  ctx.restore();
+
+  if (remainPx > 16) {
+    const span = flatX1 - flatX0;
+    for (let i = 0; i < N; i++) {
+      const t0 = i / N, t1 = (i + 1) / N;
+      const u = p + (1 - p) * (1 - (t0 + t1) / 2);
+      drawStackStrip(flatX0 + span * t0, flatX0 + span * t1 + 0.7, matY, sheetStackAt(u, vSlice, mdl), scale);
+    }
+  }
+
+  if (p > 0.02) {
+    ctx.save();
+    ctx.translate(rollCx, matY + 6);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(0, 0, fs * 0.32 * Math.max(0.35, p), fs * 0.08, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+    drawFaceImg(face(0.5, fs, pulled, mdl.Rmax), rollCx, rollCy, fs);
+  }
+}
+
+function drawScrub(x, y, w, p) {
+  const h = 4, cy = y + 18;
+  ctx.strokeStyle = 'rgba(232,224,208,0.25)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x + w, cy); ctx.stroke();
+  ctx.strokeStyle = '#e08a72'; ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x + w * p, cy); ctx.stroke();
+  const kx = x + w * p, ky = cy;
+  ctx.fillStyle = '#f3eee4';
+  ctx.beginPath(); ctx.arc(kx, ky, 9, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1; ctx.stroke();
+  const pct = Math.round(p * 100) + ' %';
+  ctx.fillStyle = '#6a8f72';
+  rr(kx - 22, ky - 32, 44, 18, 9); ctx.fill();
+  ctx.fillStyle = '#f3eee4'; ctx.font = font(10, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(pct, kx, ky - 22);
+  ctx.fillStyle = 'rgba(200,192,176,0.55)'; ctx.font = font(9, 500);
+  ctx.textAlign = 'left'; ctx.fillText('FLAT', x, cy + 18);
+  ctx.textAlign = 'right'; ctx.fillText('ROLLED', x + w, cy + 18);
+  L.scrub = { x, y: y - 8, w, h: 48 };
+}
+function drawRollTheater(p) {
+  p = clamp(p, 0, 1);
+  const ox = L.ox, oy = L.oy, cw = L.cw, ch = L.ch;
+  ctx.fillStyle = '#070707'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#cfc6b8'; ctx.font = font(12, 500); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('ROLLERY', ox + cw / 2, oy + 22);
+  icons.push({ id: 'back', x: ox + 8, y: oy + 8, w: 36, h: 32 });
+  ctx.fillStyle = '#cfc6b8'; ctx.font = font(16); ctx.fillText('‹', ox + 22, oy + 24);
+
+  drawGramBar(ox + 14, oy + 44, cw - 28);
+
+  const fs = Math.min(58, Math.max(44, cw * 0.14));
+  const sx = ox + cw - 16 - fs / 2, sy = oy + 102 + fs / 2;
+  ctx.beginPath(); ctx.arc(sx, sy, fs / 2 + 4, 0, TAU);
+  ctx.strokeStyle = 'rgba(232,224,208,0.28)'; ctx.lineWidth = 1.4; ctx.stroke();
+  const liveM = p > 0.02 ? modelAtPull(p) : getModel();
+  drawFaceImg(face(0.5, fs, liveM, getModel().Rmax), sx, sy, fs);
+
+  const stageY = oy + 96;
+  const stageH = Math.max(180, (oy + ch - 118) - stageY);
+  drawMakisuSide(ox, stageY, cw, stageH, p);
+
+  drawScrub(ox + 28, oy + ch - 100, cw - 56, p);
+
+  const by = oy + ch - 52, bw = Math.min(cw - 24, 320), bx = ox + (cw - bw) / 2, slot = bw / 3;
+  const btns = [
+    { id: anim ? 'pause' : 'resume', t: anim ? '❚❚' : '▶', lab: anim ? 'PAUSE' : 'PLAY' },
+    { id: 'cutnow', t: '', lab: 'CUT', knife: true },
+    { id: 'mute', t: '♪', lab: '' },
+  ];
+  btns.forEach((b, i) => {
+    const x = bx + i * slot + slot / 2;
+    icons.push({ id: b.id, x: x - 28, y: by - 4, w: 56, h: 44 });
+    ctx.strokeStyle = 'rgba(232,224,208,0.28)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(x, by + 6, 16, 0, TAU); ctx.stroke();
+    ctx.fillStyle = '#cfc6b8'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (b.knife) {
+      ctx.save(); ctx.translate(x, by + 6); ctx.rotate(-0.6);
+      ctx.fillStyle = '#cfc6b8'; ctx.fillRect(-1, -9, 2, 14);
+      ctx.fillRect(-4, -10, 8, 3);
+      ctx.restore();
+    } else ctx.fillText(b.t, x, by + 7);
+    if (b.lab) { ctx.font = font(8, 500); ctx.fillStyle = 'rgba(200,192,176,0.5)'; ctx.fillText(b.lab, x, by + 28); }
+  });
 }
 function drawRolled() {
   if (S.v2 && !window.CoreV2) return;
@@ -312,9 +1154,8 @@ function drawRolled() {
     drawRollFacts(R);
   }
   buttons = [];
-  // В режиме своей раскладки возврат к начинкам обязателен: именно правкой
-  // раскладки игрок и снимает отказ. У фикстур править нечего — там кнопки нет.
-  if (!S.v2 || S.v2Scenario === 'layout') buttonRow([['back', '← Ещё начинки']]);
+  if (tubePlay()) buttonRow([['cutnow', 'Разрезать', true]]);
+  else if (!S.v2 || S.v2Scenario === 'layout') buttonRow([['back', '← Ещё начинки']]);
   drawButtons(); drawTopBar(refusal ? refusal.text : hints.rolled);
 }
 
@@ -350,9 +1191,10 @@ function drawRollPreview(R) {
   if (v2ok) {
     ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy);
   } else {
-    const wd = windFor(getModel(), 0.5);
-    ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy - 8);
-    ctx.fillText(`${wd.turns.toFixed(1).replace('.', ',')} витка`, g.cx + g.fs / 2 - 16, g.cy + 8);
+    const m = getModel(), нх = sheetShortText(m), dy = нх ? 8 : 0;
+    ctx.fillText('живой срез', g.cx + g.fs / 2 - 16, g.cy - 8 - dy);
+    ctx.fillText(liveTurnsText(m), g.cx + g.fs / 2 - 16, g.cy + 8 - dy);
+    if (нх) ctx.fillText('листа не хватило', g.cx + g.fs / 2 - 16, g.cy + 24 - dy);
   }
 }
 // ── ПАСПОРТ РОЛЛА ПОД ДОСКОЙ (#193) ─────────────────────────────────────────
@@ -439,40 +1281,122 @@ function кусковСлово(n) {
 }
 // Ритуал реза: t — прогресс 0..1 (850 мс), потом zoom (0..1, 500 мс).
 let cut = null;
-function startCut(v) {
+function startCut(v, opts) {
   const { R, len } = rollDims();
-  const img = face(v, Math.max(L.faceSize, 2 * R));   // считаем срез заранее, до начала анимации
-  cut = { v, x: L.roll.x - len / 2 + v * len, t0: performance.now(), dur: 850, zoom: 0, img, R, len, sounded: false, particled: false };
+  const img = face(v, Math.max(L.faceSize, 2 * R));
+  const o = opts || {};
+  cut = {
+    v, x: L.roll.x - len / 2 + v * len, R, len, img,
+    bladeY: o.bladeY != null ? o.bladeY : L.roll.y - R - R * 2.8,
+    bladeVy: o.held ? 0 : 160,
+    fingerY: o.fingerY != null ? o.fingerY : null,
+    held: !!o.held,
+    lastT: performance.now(),
+    phase: 'drive',
+    squash: 1,
+    Loff: 0, Roff: 0, Lv: 0, Rv: 0,
+    opened: 0, zoom: 0,
+    nori: false, split: false, board: false,
+    hitstop: 0, trauma: 0,
+    t0: performance.now(), sounded: false, particled: false,
+  };
   S.mode = 'cut'; S.cuts++; S.cutsTotal++; save();
 }
+function cutReduce() {
+  return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
 function drawCut(now) {
-  const c = cut, t = clamp((now - c.t0) / c.dur);
-  const press = easeOutCubic(remap(t, 0.18, 0.48)), cutP = easeInOutCubic(remap(t, 0.48, 0.68)), open = easeOutBack(remap(t, 0.68, 1));
-  const gap = 18 * open, squash = 1 - 0.07 * press * (1 - cutP) - 0.03 * Math.sin(cutP * Math.PI);
-  if (t >= 0.55 && !c.sounded) { c.sounded = true; sfx.cut(); shakeUntil = now + 70; }
-  if (t >= 0.58 && !c.particled) { c.particled = true; spawnParticles(c.x, L.roll.y, 14); }
-  if (shakeUntil > now) ctx.translate((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
+  const c = cut;
+  let dt = (now - c.lastT) / 1000; c.lastT = now;
+  if (!(dt > 0) || dt > 0.08) dt = 1 / 60;
+  const reduce = cutReduce();
+  if (c.hitstop > 0 && !reduce) { c.hitstop -= dt; dt = 0; }
+
+  const top = L.roll.y - c.R, bot = L.roll.y + c.R, mid = L.roll.y;
+
+  if (c.phase === 'drive' || c.phase === 'split') {
+    if (c.held && c.fingerY != null) {
+      let k = 1;
+      if (c.bladeY > top - 6 && c.bladeY < bot + 4) {
+        k = 0.26;
+        if (c.bladeY < top + 10) k = 0.11;
+      }
+      const want = (c.fingerY - c.bladeY) / Math.max(dt, 1 / 120);
+      c.bladeVy += (want * k - c.bladeVy) * Math.min(1, 10 * Math.max(dt, 1 / 120));
+    } else if (c.phase === 'drive' || (c.phase === 'split' && c.bladeY < bot + c.R)) {
+      c.bladeVy += (c.held ? 800 : 1250) * dt;
+    }
+    c.bladeY += c.bladeVy * dt;
+    if (c.bladeY > bot + c.R * 1.6) { c.bladeY = bot + c.R * 1.6; c.bladeVy = Math.min(c.bladeVy, 0); }
+
+    if (!c.nori && c.bladeY >= top) {
+      c.nori = true;
+      sfx.nori();
+      if (!reduce) { c.hitstop = 0.032; c.trauma = Math.max(c.trauma, 0.42); }
+      spawnParticles(c.x, top, 5);
+    }
+    if (c.phase === 'drive') {
+      const pen = clamp((c.bladeY - top) / (2 * c.R));
+      c.squash = 1 - 0.13 * Math.sin(Math.min(pen, 0.72) * Math.PI);
+    }
+    if (!c.split && c.bladeY >= mid) {
+      c.split = true; c.phase = 'split'; c.squash = 1;
+      const sp = Math.max(90, Math.abs(c.bladeVy) * 0.14);
+      c.Lv = -sp; c.Rv = sp;
+      sfx.cut();
+      spawnParticles(c.x, mid, 16);
+      if (!reduce) { c.hitstop = 0.048; c.trauma = 0.72; }
+    }
+    if (c.phase === 'split') {
+      c.Loff += c.Lv * dt; c.Roff += c.Rv * dt;
+      const damp = Math.exp(-5.2 * dt);
+      c.Lv *= damp; c.Rv *= damp;
+      c.opened = clamp(c.opened + dt * 1.9);
+      if (!c.board && c.bladeY >= bot + 2) {
+        c.board = true;
+        c.boardT = now;
+        sfx.thud();
+        c.bladeVy *= -0.18;
+        if (!reduce) c.trauma = Math.max(c.trauma, 0.28);
+      }
+      if (c.opened >= 0.9 && c.board && now - (c.boardT || 0) > 220 && !c.held) {
+        c.phase = 'reveal'; c.revT0 = now;
+      }
+    }
+  }
+
+  c.trauma = Math.max(0, c.trauma - dt * 2.4);
+  const shake = reduce ? 0 : c.trauma * c.trauma;
+  if (shake > 0.012) ctx.translate((Math.random() - 0.5) * 12 * shake, (Math.random() - 0.5) * 9 * shake);
+
   let zoom = 0;
-  if (t >= 1) { zoom = clamp((now - c.t0 - c.dur) / 500); c.zoom = zoom; }
+  if (c.phase === 'reveal') zoom = clamp((now - (c.revT0 || now)) / 480);
+  c.zoom = zoom;
   const rollAlpha = 1 - 0.7 * easeOutCubic(zoom);
+  const pieces = c.split
+    ? [{ a: 0, b: c.v, off: c.Loff }, { a: c.v, b: 1, off: c.Roff }]
+    : [{ a: 0, b: 1, off: 0 }];
   drawBoard(c.R, c.len, 1 - easeOutCubic(zoom));
-  drawRollBody(L.roll.x, L.roll.y, c.R, c.len, cutP > 0 ? [{ a: 0, b: c.v, off: -gap }, { a: c.v, b: 1, off: gap }] : [{ a: 0, b: 1, off: 0 }], squash, rollAlpha);
-  // срез правой половины «поворачивается» к камере, потом наезжает
-  if (open > 0) {
-    const reveal = clamp(open), z = easeInOutCubic(zoom);
-    const size = lerp(2 * c.R, L.faceSize, z), x = lerp(c.x + gap, L.ox + L.cw / 2, z), y = lerp(L.roll.y, L.faceY, z);
+  drawRollBody(L.roll.x, L.roll.y, c.R, c.len, pieces, c.squash, rollAlpha);
+
+  if (c.opened > 0) {
+    const reveal = clamp(c.opened), z = easeInOutCubic(zoom);
+    const size = lerp(2 * c.R, L.faceSize, z);
+    const x = lerp(c.x + c.Roff + 6, L.ox + L.cw / 2, z);
+    const y = lerp(L.roll.y, L.faceY, z);
     drawSlab([{ x, y, size }], easeOutCubic(zoom) * reveal, B(), 10);
     drawFaceImg(c.img, x, y, size, reveal);
   }
-  if (t < 0.9) {
-    const kt = easeInOutCubic(remap(t, 0, 0.68)), yTop = L.roll.y - c.R - c.R * 2.6, yCut = L.roll.y + c.R * 0.95;
-    const y = lerp(yTop, yCut, kt) + (t > 0.68 ? -(t - 0.68) / 0.22 * c.R * 2 : 0);
-    drawKnife(c.x, y, -0.04 + 0.03 * Math.sin(t * Math.PI), press * (1 - cutP), c.R);
+
+  if (zoom < 0.85) {
+    const ang = clamp(c.bladeVy * 0.00005, -0.1, 0.14);
+    const press = c.bladeY > top && c.bladeY < bot ? 0.7 : 0;
+    drawKnife(c.x, c.bladeY, ang, press, c.R);
   }
-  drawParticles(1 / 60);
+  drawParticles(dt || 1 / 60);
   buttons = [];
   drawTopBar('');
-  if (t >= 1 && zoom >= 1) { S.mode = 'revealed'; c.revealedAt = now; if (S.puzzle) puzzleEvaluate(); dirty = true; }
+  if (c.phase === 'reveal' && zoom >= 1) { S.mode = 'revealed'; c.revealedAt = now; if (S.puzzle) puzzleEvaluate(); dirty = true; }
 }
 function drawCompare() {
   const pz = S.puzzle, res = pz.result || puzzleEvaluate(), tm = targetModel(), pm = getModel(), k = pz.vs.length, Rref = Math.max(tm.Rmax, pm.Rmax);
@@ -501,9 +1425,14 @@ function drawCompare() {
   ctx.fillStyle = '#b8ad95'; ctx.font = font(13);
   res.hints.forEach((h, i) => ctx.fillText(h, cx, yv + 26 + i * 18));
   let ye = yv + 26 + res.hints.length * 18;
-  if (res.pass) { ctx.fillText(pz.level + 1 < LEVELS.length ? 'Дальше — следующий уровень' : 'Это был последний уровень', cx, ye); ye += 18; }
+  if (res.pass) {
+    const last = (pz.tube ? TUBE_LEVELS.length : LEVELS.length);
+    ctx.fillText(pz.level + 1 < last ? 'Дальше — следующий уровень' : 'Это был последний уровень', cx, ye); ye += 18;
+  }
   const area = L.rowBtn.y - ye > 120 ? { x: L.rowBtn.x, y: ye + 20, w: L.rowBtn.w, h: L.btnH, max: 3 } : L.rowBtn;
-  buttons = []; buttonRow(res.pass ? [['next', 'Дальше →', true], ['back', 'Ещё раз'], ['newpuzzle', '⟳ Другой']] : [['back', 'Ещё раз', true], ['newpuzzle', '⟳ Другой'], ['slice', 'Кусочки']], area);
+  buttons = [];
+  if (tubePlay()) buttonRow(res.pass ? [['next', 'Дальше →', true], ['back', 'Ещё раз']] : [['back', 'Ещё раз', true]], area);
+  else buttonRow(res.pass ? [['next', 'Дальше →', true], ['back', 'Ещё раз'], ['newpuzzle', '⟳ Другой']] : [['back', 'Ещё раз', true], ['newpuzzle', '⟳ Другой'], ['slice', 'Кусочки']], area);
   drawButtons(); drawTopBar(levelTitle(pz.lv, pz.level));
 }
 function drawRevealed() {
@@ -523,12 +1452,14 @@ function drawRevealed() {
   {
     const mm = getModel(), wd = windFor(mm, c.v);
     const вит = +wd.turns;
-    const режим = mm.g.winding === 'spiral' ? 'спираль' : 'кольцо';
+    const режим = windingName(mm);
     const хвост = вит < 3 && mm.g.winding === 'spiral' ? ' — мало для узора' : '';
     ctx.fillText(`срез на ${Math.round(c.v * 100)} % длины · ${режим}, ${вит.toFixed(1).replace('.', ',')} витка${хвост}`,
                  cx, L.faceY + L.faceSize / 2 + 14);
   }
   const hl = handLabel(); if (hl) { ctx.fillStyle = '#6f6754'; ctx.font = font(12); ctx.fillText(hl, cx, L.faceY + L.faceSize / 2 + 32); }
+  { const нх = sheetShortText(getModel(), c.v);
+    if (нх) { ctx.fillStyle = '#c98a5a'; ctx.font = font(12, 600); ctx.fillText(нх, cx, L.faceY + L.faceSize / 2 + (hl ? 50 : 32)); } }
   buttons = []; buttonRow([['slice', `Нарезать на ${npieces()}`, true], ['albumsave', S.saved > performance.now() ? '✓ В альбоме' : '★ В альбом'], ['back', 'Ещё начинки']]);
   if (S.saved > performance.now()) dirty = true;
   drawButtons(); drawTopBar(hints.revealed);
